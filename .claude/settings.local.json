@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(tio --version)",
+      "Bash(mkdir -p /Users/dg/dev/ruderergo-stats/specs/int/fixtures/ipm)",
+      "Bash(cp /Users/dg/dev/ruderergo-stats/traces/handshake.log /Users/dg/dev/ruderergo-stats/specs/int/fixtures/ipm/handshake-warm.log)",
+      "Bash(python3 *)"
+    ]
+  }
+}
