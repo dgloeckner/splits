@@ -44,10 +44,17 @@ func (p *SerialProducer) Run(ctx context.Context, out chan<- Frame) error {
 	}
 	defer sp.Close()
 
-	// Make reads unblock when ctx is cancelled.
+	// Unblock an in-flight Read when ctx is cancelled. The watchdog exits
+	// on either ctx.Done or the done channel that Run closes on return,
+	// so it cannot outlive Run.
+	done := make(chan struct{})
+	defer close(done)
 	go func() {
-		<-ctx.Done()
-		_ = sp.Close()
+		select {
+		case <-ctx.Done():
+			_ = sp.Close()
+		case <-done:
+		}
 	}()
 
 	// Parse takes ownership of closing out.

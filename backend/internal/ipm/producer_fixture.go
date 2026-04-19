@@ -48,6 +48,7 @@ func (p *FixtureProducer) Run(ctx context.Context, out chan<- Frame) error {
 
 	var prevCaptureTS float64
 	first := true
+	rowNum := 0
 
 	for {
 		select {
@@ -61,12 +62,13 @@ func (p *FixtureProducer) Run(ctx context.Context, out chan<- Frame) error {
 			return nil
 		}
 		if err != nil {
-			return fmt.Errorf("fixture row: %w", err)
+			return fmt.Errorf("fixture row %d: %w", rowNum, err)
 		}
+		rowNum++
 
-		captureTS, err := strconv.ParseFloat(rec[idx.captureTS], 64)
+		captureTS, frame, err := parseRow(rec, idx)
 		if err != nil {
-			return fmt.Errorf("fixture row: capture_ts %q: %w", rec[idx.captureTS], err)
+			return fmt.Errorf("fixture row %d: %w", rowNum, err)
 		}
 
 		if p.Pacing == PacingRealtime && !first {
@@ -82,19 +84,7 @@ func (p *FixtureProducer) Run(ctx context.Context, out chan<- Frame) error {
 			}
 		}
 
-		frame := Frame{
-			ReceivedAt: time.Now(),
-			TimeSec:    mustParseFloat(rec[idx.timeSec]),
-			DistanceM:  mustParseInt(rec[idx.distanceM]),
-			Marker:     rec[idx.marker],
-			Unknown:    rec[idx.unknown],
-			SPM:        mustParseInt(rec[idx.spm]),
-			PowerW:     mustParseInt(rec[idx.powerW]),
-			CalPerHr:   mustParseInt(rec[idx.calPerHr]),
-			Footer:     rec[idx.footer],
-			Level:      mustParseInt(rec[idx.level]),
-			RawPayload: rec[idx.rawPayload],
-		}
+		frame.ReceivedAt = time.Now()
 
 		select {
 		case out <- frame:
@@ -105,6 +95,52 @@ func (p *FixtureProducer) Run(ctx context.Context, out chan<- Frame) error {
 		prevCaptureTS = captureTS
 		first = false
 	}
+}
+
+// parseRow decodes one CSV record into a Frame plus its capture_ts for
+// pacing. Returns a wrapped error identifying the offending column; the
+// caller adds the row number.
+func parseRow(rec []string, idx csvIndex) (float64, Frame, error) {
+	captureTS, err := parseFloat(rec[idx.captureTS], "capture_ts")
+	if err != nil {
+		return 0, Frame{}, err
+	}
+	timeSec, err := parseFloat(rec[idx.timeSec], "time_sec")
+	if err != nil {
+		return 0, Frame{}, err
+	}
+	distanceM, err := parseInt(rec[idx.distanceM], "distance_m")
+	if err != nil {
+		return 0, Frame{}, err
+	}
+	spm, err := parseInt(rec[idx.spm], "spm")
+	if err != nil {
+		return 0, Frame{}, err
+	}
+	powerW, err := parseInt(rec[idx.powerW], "power_w")
+	if err != nil {
+		return 0, Frame{}, err
+	}
+	calPerHr, err := parseInt(rec[idx.calPerHr], "cal_per_hr")
+	if err != nil {
+		return 0, Frame{}, err
+	}
+	level, err := parseInt(rec[idx.level], "level")
+	if err != nil {
+		return 0, Frame{}, err
+	}
+	return captureTS, Frame{
+		TimeSec:    timeSec,
+		DistanceM:  distanceM,
+		Marker:     rec[idx.marker],
+		Unknown:    rec[idx.unknown],
+		SPM:        spm,
+		PowerW:     powerW,
+		CalPerHr:   calPerHr,
+		Footer:     rec[idx.footer],
+		Level:      level,
+		RawPayload: rec[idx.rawPayload],
+	}, nil
 }
 
 type csvIndex struct {
@@ -147,18 +183,18 @@ func indexHeader(h []string) (csvIndex, error) {
 	return idx, nil
 }
 
-func mustParseFloat(s string) float64 {
+func parseFloat(s, field string) (float64, error) {
 	v, err := strconv.ParseFloat(s, 64)
 	if err != nil {
-		panic("fixture: ParseFloat: " + err.Error())
+		return 0, fmt.Errorf("%s %q: %w", field, s, err)
 	}
-	return v
+	return v, nil
 }
 
-func mustParseInt(s string) int {
+func parseInt(s, field string) (int, error) {
 	v, err := strconv.Atoi(s)
 	if err != nil {
-		panic("fixture: Atoi: " + err.Error())
+		return 0, fmt.Errorf("%s %q: %w", field, s, err)
 	}
-	return v
+	return v, nil
 }

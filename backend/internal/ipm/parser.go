@@ -40,6 +40,7 @@ func Parse(ctx context.Context, r io.Reader, out chan<- Frame) error {
 			}
 			continue
 		}
+		f.ReceivedAt = time.Now()
 
 		select {
 		case out <- f:
@@ -55,7 +56,8 @@ func Parse(ctx context.Context, r io.Reader, out chan<- Frame) error {
 }
 
 // decodeA8Line decodes one line into a Frame. Returns (zero, false) if
-// the line is not a well-formed A8 message.
+// the line is not a well-formed A8 message. Pure — no time source, no
+// side effects — so the caller stamps ReceivedAt.
 func decodeA8Line(line string) (Frame, bool) {
 	const prefix = "A8"
 	if !strings.HasPrefix(line, prefix) {
@@ -77,7 +79,6 @@ func decodeA8Line(line string) (Frame, bool) {
 	tenths := mustAtoi(payload[5:6])
 
 	return Frame{
-		ReceivedAt: time.Now(),
 		TimeSec:    float64(minutes)*60 + float64(seconds) + float64(tenths)/10,
 		DistanceM:  mustAtoi(payload[6:10]),
 		Marker:     payload[10:13],
