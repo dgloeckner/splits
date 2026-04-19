@@ -64,3 +64,13 @@ func (w *loggingResponseWriter) WriteHeader(code int) {
 	w.status = code
 	w.ResponseWriter.WriteHeader(code)
 }
+
+// Flush forwards to the underlying ResponseWriter when it implements
+// http.Flusher. SSE (M2) needs Flush on every event to push bytes to
+// the client immediately; without this, the wrapped writer hides the
+// Flusher interface from the handler.
+func (w *loggingResponseWriter) Flush() {
+	if f, ok := w.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
