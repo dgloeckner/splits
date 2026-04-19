@@ -2,7 +2,8 @@
 
 - **Status**: Draft
 - **Depends on**: INT-0001 (IPM serial protocol), INT-0002 (live-stream
-  SSE API), FEAT-0002 (rower onboarding), FEAT-0007 (metrics catalogue)
+  SSE API), FEAT-0002 (rower onboarding), FEAT-0007 (metrics
+  catalogue), FEAT-0008 (visual design system)
 
 ## Summary
 
@@ -43,12 +44,18 @@ while rowing.
 
 ## UX notes
 
-Two-row grid, biggest typography reserved for **split** (it's what rowers
-stare at). Secondary row: distance + time. Tertiary: SPM + W + HR. A thin
-status strip at the top confirms the connection.
+Two-row grid, biggest typography reserved for **split** (it's what
+rowers stare at). Secondary row: distance + time. Tertiary: SPM + W +
+HR. A thin status strip at the top confirms the connection.
 
-Dark mode by default (phones next to ergos are often in low light during
-morning sessions).
+Light and dark mode both supported per FEAT-0008; initial theme follows
+`prefers-color-scheme` with an override in settings. Dark is expected
+to be the common case for morning sessions; light is available for
+daytime use.
+
+Responsive behaviour per FEAT-0008: single-column big-digit layout on
+phones, side-by-side digits + live chart on tablet landscape and
+desktop.
 
 ## Non-goals
 

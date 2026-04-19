@@ -87,7 +87,7 @@ footprint, cross-compile, and ergonomic fit.
 | Charts (history)   | Plain SVG + small helpers             | Or `chart.js` if helpers grow. No D3 unless needed. |
 | Styling            | Vanilla CSS + CSS custom properties   | **No** Tailwind, no CSS-in-JS, no CSS modules as a start (re-evaluate if collisions appear). |
 | Design tokens      | `src/styles/tokens.css` (variables)   | Colors, spacing, type scale, radii — single source of truth. |
-| Fonts              | Self-hosted (no Google Fonts / CDN)   | See "Design system" below. AGENTS.md rule: PWA must work offline after first load. |
+| Fonts              | Self-hosted (no Google Fonts / CDN)   | See FEAT-0008 for family choice + usage. AGENTS.md rule: PWA must work offline after first load. |
 | i18n               | Small in-house typed helper           | German domain vocab per `docs/domain-glossary.md`; full i18n later if needed. |
 | PWA                | `vite-plugin-pwa` (Workbox-based)     | Manifest + service worker. Precache the shell; never cache SSE / API responses. |
 | Testing            | `vitest` + `@testing-library/react`   | Unit + component tests. |
@@ -95,22 +95,20 @@ footprint, cross-compile, and ergonomic fit.
 
 ### Design system (in-repo, no third-party component lib)
 
-- **Tokens in CSS variables** — one file, light + dark modes via
-  `:root[data-theme="dark"]` overrides. Tokens: colour, space (4 pt
-  scale), radius, font-size scale, line-height, elevation.
-- **Typography**: two families, self-hosted variable fonts.
-  - Body / UI: a modern humanist sans (e.g. Inter, Manrope,
-    Geist) — final choice pinned during M1 when a designer eye is
-    applied.
-  - Display / digits: a **tabular-numeral** variant of the same
-    family or a dedicated display face (e.g. Recursive, JetBrains
-    Mono) — critical for the live view so digits don't shift width
-    as values change.
-- **Components** are plain React + scoped class names, written once
-  per screen need. No premature abstraction.
-- **Icons**: inline SVGs (each as a React component), no icon font, no
-  CDN.
-- **Responsiveness**: phone-portrait-first; desktop is a bonus.
+The tech stack locks in the **mechanism**:
+- Vanilla CSS + CSS custom properties; no Tailwind, no CSS-in-JS, no
+  component library.
+- Design tokens live in a single `web/src/styles/tokens.css`.
+- Typography is self-hosted variable `.woff2` under
+  `web/public/fonts/`.
+- Icons are inline SVG React components; no icon font, no CDN.
+- Components are plain React + scoped class names; no premature
+  abstraction.
+
+The **content** of the design system — colour scale, typography
+choices, responsive breakpoints, light / dark behaviour, motion rules,
+target aesthetic — lives in FEAT-0008 (Visual Design System &
+Responsive UX), which is where those decisions are actually made.
 
 ### Persistence schema (stub — expanded in a later INT spec)
 
