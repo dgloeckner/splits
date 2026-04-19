@@ -34,21 +34,17 @@ out of scope for v1.
 | 1 | Live display in a PWA                | FEAT-0001                     |
 | 2 | Deployable on Mac / Windows / Pi     | ADR-0001                      |
 | 3 | Lightweight backend, robust storage  | ADR-0003, ADR-0004            |
-| 4 | Multi-user with shared-secret auth   | FEAT-0002, ADR-0005           |
+| 4 | Multi-user, per-rower QR pairing     | FEAT-0002, ADR-0005           |
 | 5 | Indefinite session history           | FEAT-0003                     |
 | 6 | Per-user statistics                  | FEAT-0004                     |
 | 7 | Training goals                       | FEAT-0005                     |
 
 ## Open decisions (require ADR before implementation)
 
-- **Backend language / framework** — candidates: Go, Python (FastAPI),
-  Kotlin/Ktor, Node. See ADR-0003.
-- **Frontend framework** — candidates: Angular, SvelteKit, Vite+Preact. See
-  ADR-0003.
-- **Persistence** — SQLite strongly favoured; decide via ADR once backend
-  language is chosen (driver choice matters for cross-compile to ARM).
 - **TLS strategy** — Caddy + Let's Encrypt via DNS-01 (public DNS resolves to
-  private IP) vs Caddy internal CA. See ADR-0006 (to be written).
+  private IP) vs Caddy internal CA. See ADR-0006.
+- **Serial vs BLE FTMS** — depends on firmware check. See ADR-0007 (to be
+  written).
 - **Session boundary detection** — idle timeout vs explicit start/stop in UI vs
   protocol-level signals from the console. See INT-0001.
 
@@ -107,9 +103,11 @@ home-ergo/
 │   └── int/              # Integration specs (external protocols)
 ├── docs/
 │   ├── domain-glossary.md
-│   └── protocol-notes.md # Raw notes from protocol reverse engineering
-├── backend/              # TBD — lives here once ADR-0003 resolves
-├── web/                  # PWA frontend — TBD
+│   ├── protocol-notes.md # Raw notes from protocol reverse engineering
+│   └── visualizations/   # Rendered charts from captured sessions
+├── traces/               # Probe + analysis scripts (Python reference impl)
+├── backend/              # Go backend (see ADR-0003)
+├── web/                  # React PWA frontend (see ADR-0003)
 └── deploy/               # systemd units, Caddyfile, install scripts
 ```
 

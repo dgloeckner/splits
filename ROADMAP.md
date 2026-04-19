@@ -19,10 +19,12 @@
 
 ## M1 — Walking skeleton
 
-- [ ] ADR-0003 resolved: backend + frontend tech locked in
-- [ ] Backend reads serial, prints parsed frames to stdout
-- [ ] Minimal HTTP endpoint returns "hello"
-- [ ] Frontend boots as PWA, shows static placeholder
+- [x] ADR-0003 accepted: **Go backend + React (Vite, TS) frontend**, SQLite via modernc, single embedded binary
+- [ ] Repo layout scaffolded (`backend/`, `web/`, shared `Makefile`)
+- [ ] Go port of the IPM parser from `traces/ipm_parser.py` under `backend/internal/ipm/`, with table-driven tests against the CSV fixtures
+- [ ] Backend reads serial, prints parsed strokes to stdout
+- [ ] Minimal HTTP `/api/health` endpoint
+- [ ] Vite+React skeleton boots as a PWA, shows placeholder, dev-proxies `/api/*` to the Go backend
 
 ## M2 — Live view
 

@@ -7,8 +7,9 @@ console, USB-serial).
 
 ## Status
 
-🚧 **Early scaffolding.** Tech stack not yet decided — see
-[`specs/adr/0003-tech-stack-open.md`](specs/adr/0003-tech-stack-open.md).
+🚧 **Early scaffolding.** Tech stack: **Go backend + React (Vite, TS)
+frontend**, single embedded static binary — see
+[`specs/adr/0003-tech-stack-go-react.md`](specs/adr/0003-tech-stack-go-react.md).
 
 M0 (protocol verification) is essentially done: the IPM serial handshake
 and the live-data `A8` message stream are decoded and documented in
