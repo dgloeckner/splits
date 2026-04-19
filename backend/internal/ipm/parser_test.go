@@ -3,7 +3,11 @@ package ipm
 import (
 	"bytes"
 	"context"
+	"encoding/csv"
 	"io"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -131,4 +135,117 @@ func (r *chunkedReader) Read(p []byte) (int, error) {
 	n := copy(p, r.chunks[r.i])
 	r.i++
 	return n, nil
+}
+
+func TestParse_GoldenFixtures(t *testing.T) {
+	fixtures, err := filepath.Glob(filepath.Join("..", "..", "..", "specs", "int", "fixtures", "ipm", "session-*.csv"))
+	if err != nil {
+		t.Fatalf("glob: %v", err)
+	}
+	if len(fixtures) == 0 {
+		t.Fatal("no fixtures found — run tests from backend/")
+	}
+
+	for _, path := range fixtures {
+		t.Run(filepath.Base(path), func(t *testing.T) {
+			rows := readCSV(t, path)
+			var serialBytes strings.Builder
+			for _, row := range rows {
+				serialBytes.WriteString("A8")
+				serialBytes.WriteString(row["raw_payload"])
+				serialBytes.WriteString("\r\n")
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+
+			out := make(chan Frame, len(rows))
+			done := make(chan error, 1)
+			go func() { done <- Parse(ctx, strings.NewReader(serialBytes.String()), out) }()
+
+			var got []Frame
+			for f := range out {
+				got = append(got, f)
+			}
+			if err := <-done; err != nil {
+				t.Fatalf("Parse: %v", err)
+			}
+
+			if len(got) != len(rows) {
+				t.Fatalf("got %d frames, want %d", len(got), len(rows))
+			}
+			for i, row := range rows {
+				assertFrame(t, i, got[i], row)
+			}
+		})
+	}
+}
+
+func readCSV(t *testing.T, path string) []map[string]string {
+	t.Helper()
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("open %s: %v", path, err)
+	}
+	defer f.Close()
+
+	r := csv.NewReader(f)
+	header, err := r.Read()
+	if err != nil {
+		t.Fatalf("read header: %v", err)
+	}
+
+	var rows []map[string]string
+	for {
+		rec, err := r.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("read row: %v", err)
+		}
+		m := make(map[string]string, len(header))
+		for i, h := range header {
+			m[h] = rec[i]
+		}
+		rows = append(rows, m)
+	}
+	return rows
+}
+
+func assertFrame(t *testing.T, i int, f Frame, row map[string]string) {
+	t.Helper()
+	check := func(field string, got, want any) {
+		if got != want {
+			t.Errorf("row %d %s: got %v, want %v", i, field, got, want)
+		}
+	}
+	check("time_sec", f.TimeSec, atoF(t, row["time_sec"]))
+	check("distance_m", f.DistanceM, atoI(t, row["distance_m"]))
+	check("spm", f.SPM, atoI(t, row["spm"]))
+	check("power_w", f.PowerW, atoI(t, row["power_w"]))
+	check("cal_per_hr", f.CalPerHr, atoI(t, row["cal_per_hr"]))
+	check("level", f.Level, atoI(t, row["level"]))
+	check("marker", f.Marker, row["marker"])
+	check("unknown_13_16", f.Unknown, row["unknown_13_16"])
+	check("footer_24_25", f.Footer, row["footer_24_25"])
+	check("raw_payload", f.RawPayload, row["raw_payload"])
+}
+
+func atoI(t *testing.T, s string) int {
+	t.Helper()
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		t.Fatalf("atoi %q: %v", s, err)
+	}
+	return n
+}
+
+func atoF(t *testing.T, s string) float64 {
+	t.Helper()
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		t.Fatalf("parse float %q: %v", s, err)
+	}
+	return f
 }
