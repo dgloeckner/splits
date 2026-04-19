@@ -5,10 +5,16 @@ import (
 	"time"
 )
 
-func TestLoad_AllDefaults(t *testing.T) {
-	env := func(string) string { return "" }
+// mapLookup builds a Lookup whose "ok" result reflects presence in m.
+func mapLookup(m map[string]string) Lookup {
+	return func(k string) (string, bool) {
+		v, ok := m[k]
+		return v, ok
+	}
+}
 
-	got, err := Load(env)
+func TestLoad_AllDefaults(t *testing.T) {
+	got, err := Load(mapLookup(nil))
 	if err != nil {
 		t.Fatalf("Load() unexpected error: %v", err)
 	}
@@ -28,7 +34,7 @@ func TestLoad_AllDefaults(t *testing.T) {
 }
 
 func TestLoad_EnvOverrides(t *testing.T) {
-	env := map[string]string{
+	got, err := Load(mapLookup(map[string]string{
 		"HOMEERGO_ADDR":         ":9090",
 		"HOMEERGO_SERIAL_PORT":  "/dev/cu.usbserial-AB0JKG07",
 		"HOMEERGO_SERIAL_BAUD":  "19200",
@@ -37,10 +43,7 @@ func TestLoad_EnvOverrides(t *testing.T) {
 		"HOMEERGO_FIXTURE_RATE": "fast",
 		"HOMEERGO_LOG_LEVEL":    "debug",
 		"HOMEERGO_IDLE_TIMEOUT": "30s",
-	}
-	lookup := func(k string) string { return env[k] }
-
-	got, err := Load(lookup)
+	}))
 	if err != nil {
 		t.Fatalf("Load() unexpected error: %v", err)
 	}
@@ -59,38 +62,33 @@ func TestLoad_EnvOverrides(t *testing.T) {
 	}
 }
 
-func TestLoad_InvalidBaud(t *testing.T) {
-	env := func(k string) string {
-		if k == "HOMEERGO_SERIAL_BAUD" {
-			return "not-a-number"
-		}
-		return ""
+func TestLoad_EmptyStringIsExplicit(t *testing.T) {
+	// An explicit HOMEERGO_ADDR="" must not silently fall back to :8080 —
+	// it is a distinct user choice (and, being unusable, should surface
+	// itself elsewhere; Load's job is faithful reporting, not validation).
+	got, err := Load(mapLookup(map[string]string{"HOMEERGO_ADDR": ""}))
+	if err != nil {
+		t.Fatalf("Load() unexpected error: %v", err)
 	}
-	if _, err := Load(env); err == nil {
+	if got.Addr != "" {
+		t.Errorf("Addr = %q, want empty string (explicit override)", got.Addr)
+	}
+}
+
+func TestLoad_InvalidBaud(t *testing.T) {
+	if _, err := Load(mapLookup(map[string]string{"HOMEERGO_SERIAL_BAUD": "not-a-number"})); err == nil {
 		t.Fatal("Load() expected error for bad baud, got nil")
 	}
 }
 
 func TestLoad_InvalidIdleTimeout(t *testing.T) {
-	env := func(k string) string {
-		if k == "HOMEERGO_IDLE_TIMEOUT" {
-			return "not-a-duration"
-		}
-		return ""
-	}
-	if _, err := Load(env); err == nil {
+	if _, err := Load(mapLookup(map[string]string{"HOMEERGO_IDLE_TIMEOUT": "not-a-duration"})); err == nil {
 		t.Fatal("Load() expected error for bad idle timeout, got nil")
 	}
 }
 
 func TestLoad_InvalidFixtureRate(t *testing.T) {
-	env := func(k string) string {
-		if k == "HOMEERGO_FIXTURE_RATE" {
-			return "hyperspeed"
-		}
-		return ""
-	}
-	if _, err := Load(env); err == nil {
+	if _, err := Load(mapLookup(map[string]string{"HOMEERGO_FIXTURE_RATE": "hyperspeed"})); err == nil {
 		t.Fatal("Load() expected error for unknown fixture rate, got nil")
 	}
 }
