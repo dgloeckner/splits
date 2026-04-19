@@ -47,16 +47,20 @@ func run() error {
 
 	var wg sync.WaitGroup
 
-	// Producer goroutine: read frames, print to stdout.
+	// Producer goroutine: read frames from the configured source. Closes
+	// the producerDone channel on return so the main select learns that
+	// the input is exhausted (fixture EOF) or failed hard.
 	frames := make(chan ipm.Frame, 64)
-	wg.Add(1)
+	producerDone := make(chan struct{})
 	var producerErr error
+	wg.Add(1)
 	go func() {
 		defer wg.Done()
+		defer close(producerDone)
 		producerErr = producer.Run(ctx, frames)
 	}()
 
-	// Stdout printer goroutine.
+	// Stdout printer goroutine drains frames until the producer closes it.
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -69,7 +73,8 @@ func run() error {
 		}
 	}()
 
-	// HTTP server.
+	// HTTP server. ListenAndServe returns http.ErrServerClosed on a clean
+	// Shutdown; anything else is a real listen/serve error.
 	srv := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           api.NewRouter(),
@@ -78,33 +83,54 @@ func run() error {
 	serverErrCh := make(chan error, 1)
 	go func() {
 		err := srv.ListenAndServe()
-		if err != nil && !errors.Is(err, http.ErrServerClosed) {
-			serverErrCh <- err
-			return
+		if errors.Is(err, http.ErrServerClosed) {
+			err = nil
 		}
-		serverErrCh <- nil
+		serverErrCh <- err
 	}()
 
-	// Wait for shutdown signal or HTTP error.
+	// Wait for the first exit signal: user-sent signal, HTTP listener
+	// failure, or producer completion (fixture EOF or unrecoverable
+	// producer error). Whichever arrives, we tear everything down the
+	// same way: cancel the context, Shutdown the HTTP server, wait for
+	// goroutines. Returning the correct error is the only path-specific
+	// difference.
+	var runErr error
 	select {
 	case <-ctx.Done():
 		slog.Info("homeergo.shutdown", "reason", "signal")
 	case err := <-serverErrCh:
 		if err != nil {
-			cancel()
-			wg.Wait()
-			return err
+			slog.Info("homeergo.shutdown", "reason", "http_error", "err", err)
+			runErr = err
+		} else {
+			// ListenAndServe returned nil without a Shutdown call —
+			// effectively impossible, but tolerate it.
+			slog.Info("homeergo.shutdown", "reason", "http_closed")
 		}
+	case <-producerDone:
+		slog.Info("homeergo.shutdown", "reason", "producer_done")
 	}
 
+	cancel() // unblock any stage still parked on ctx
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), httpShutdownTimeout)
 	defer shutdownCancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("http.shutdown", "err", err)
 	}
 
+	// Drain any pending serverErrCh send so its goroutine can exit; we
+	// have already recorded the server error if there was one.
+	select {
+	case <-serverErrCh:
+	default:
+	}
+
 	wg.Wait()
 
+	if runErr != nil {
+		return runErr
+	}
 	if producerErr != nil && !errors.Is(producerErr, context.Canceled) {
 		return producerErr
 	}
