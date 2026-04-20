@@ -1,1 +1,19 @@
-/* Populated in Task 17. */
+.page {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.gridPlaceholder {
+  min-height: 200px;
+  border-radius: var(--radius-card);
+  background: var(--color-surface-container-low);
+  opacity: 0.4;
+}
+
+@media (min-width: 1024px) {
+  .page {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}

@@ -1,0 +1,68 @@
+.hero {
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-3) var(--space-2);
+  background: var(--color-surface-container-low);
+  border-radius: var(--radius-card);
+}
+
+.split {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+}
+
+.splitLabel {
+  color: var(--color-on-surface-variant);
+}
+
+.splitRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.splitValue {
+  font-family: var(--font-display);
+  font-size: var(--text-display-lg);
+  line-height: var(--text-display-lg-lh);
+  color: var(--color-primary);
+  font-weight: 500;
+  filter: drop-shadow(var(--stroke-pulse-glow));
+}
+
+.splitUnit {
+  font-family: var(--font-display);
+  font-size: var(--text-title-md);
+  color: var(--color-on-surface-variant);
+}
+
+.secondary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2);
+}
+
+.secondaryCell {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+}
+
+.secondaryLabel {
+  color: var(--color-on-surface-variant);
+}
+
+.secondaryValue {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 1.15;
+  color: var(--color-on-surface);
+  font-weight: 500;
+}
+
+.pulseAnchor {
+  display: flex;
+  justify-content: flex-end;
+}
