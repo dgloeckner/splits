@@ -1,5 +1,6 @@
 import { useLiveSession } from '../live/LiveSessionContext'
 import { LiveHero } from './LiveHero'
+import { TileGrid } from './TileGrid'
 import styles from './LivePage.module.css'
 
 export function LivePage() {
@@ -7,7 +8,7 @@ export function LivePage() {
   return (
     <div className={styles.page}>
       <LiveHero state={state} />
-      <div className={styles.gridPlaceholder} aria-label="Tile-Grid kommt in Task 18" />
+      <TileGrid state={state} />
     </div>
   )
 }
