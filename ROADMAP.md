@@ -24,7 +24,7 @@
 - [ ] Go port of the IPM parser from `traces/ipm_parser.py` under `backend/internal/ipm/`, with table-driven tests against the CSV fixtures
 - [ ] Backend reads serial, prints parsed strokes to stdout
 - [ ] Minimal HTTP `/api/health` endpoint
-- [ ] Vite+React skeleton boots as a PWA, shows placeholder, dev-proxies `/api/*` to the Go backend
+- [x] Vite+React skeleton boots as a PWA, shows placeholder, dev-proxies `/api/*` to the Go backend
 
 ## M2 — Live view
 
