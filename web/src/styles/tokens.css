@@ -1,0 +1,92 @@
+/*
+ * Design tokens — FEAT-0008.
+ * Every colour, spacing, radius, type size, and motion duration in the
+ * app comes from here. Components use var(--name); no raw hex or px in
+ * component CSS (other than 1:1 passthroughs of these tokens).
+ *
+ * Dark is the default target. Light overrides below.
+ */
+
+:root {
+  /* Colour — dark (default) */
+  --color-surface: #131313;
+  --color-surface-container-lowest: #0d0e0e;
+  --color-surface-container-low: #1b1c1c;
+  --color-surface-container: #1f2020;
+  --color-surface-container-high: #292a2a;
+  --color-surface-container-highest: #343535;
+  --color-on-surface: #e4e2e1;
+  --color-on-surface-variant: #bcc9ca;
+  --color-outline-variant: #3d494a;
+  --color-primary: #5dd7e4;
+  --color-primary-container: #00a3af;
+  --color-on-primary: #00363b;
+  --color-tertiary: #ffb786;
+  --color-error: #ffb4ab;
+
+  /* Spacing — 8pt grid (plus one half-step 4px for rare insets) */
+  --space-0-5: 4px;
+  --space-1: 8px;
+  --space-2: 16px;
+  --space-3: 24px;
+  --space-4: 32px;
+  --space-5: 40px;
+  --space-6: 48px;
+  --space-8: 64px;
+  --space-10: 80px;
+
+  /* Radius */
+  --radius-button: 8px;
+  --radius-card: 12px;
+
+  /* Typography — font stacks (Space Grotesk + Inter, self-hosted via @fontsource-variable) */
+  --font-display: 'Space Grotesk Variable', 'Space Grotesk', system-ui, sans-serif;
+  --font-body: 'Inter Variable', 'Inter', system-ui, sans-serif;
+
+  /* Typography — sizes (line-heights are tight for displays, relaxed for body) */
+  --text-display-lg: clamp(56px, 12vw, 72px);
+  --text-display-lg-lh: 1.1;
+  --text-headline-sm: 20px;
+  --text-headline-sm-lh: 1.2;
+  --text-title-md: 16px;
+  --text-title-md-lh: 1.25;
+  --text-body-lg: 16px;
+  --text-body-lg-lh: 1.5;
+  --text-label-sm: 11px;
+  --text-label-sm-lh: 1;
+
+  /* Motion */
+  --motion-state: 120ms;
+  --motion-view: 220ms;
+  --motion-ease: cubic-bezier(0.2, 0.7, 0.2, 1); /* ease-out */
+
+  /* Layout — bottom nav */
+  --layout-bottom-nav-h: 64px;
+
+  /* Feature gates */
+  --stroke-pulse-glow: 0 0 12px rgba(93, 215, 228, 0.6);
+}
+
+:root[data-theme='light'] {
+  --color-surface: #f8f6f3;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #eeece8;
+  --color-surface-container: #e4e2dd;
+  --color-surface-container-high: #d8d5cf;
+  --color-surface-container-highest: #c8c4bd;
+  --color-on-surface: #1b1c1c;
+  --color-on-surface-variant: #3d494a;
+  --color-outline-variant: #3d494a;
+  --color-primary: #00a3af;
+  --color-primary-container: #5dd7e4;
+  --color-on-primary: #00363b;
+  --color-tertiary: #8b4e1a;
+  --color-error: #ba1a1a;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-state: 0ms;
+    --motion-view: 0ms;
+  }
+}
