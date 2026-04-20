@@ -28,11 +28,7 @@ export default function HealthIndicator() {
   }, [])
 
   const label =
-    status === 'pending'
-      ? 'checking…'
-      : status === 'ok'
-        ? 'backend: ok'
-        : 'backend: unreachable'
+    status === 'pending' ? 'checking…' : status === 'ok' ? 'backend: ok' : 'backend: unreachable'
 
   return (
     <div className={`health health--${status}`} role="status" aria-live="polite">
