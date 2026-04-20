@@ -31,6 +31,7 @@
 - [ ] WebSocket (or SSE) pushes parsed frames to browser
 - [ ] FEAT-0001: distance, time, split, SPM, watts, HR rendered
 - [ ] Runs on dev Mac end-to-end
+- [x] UI foundation + Live View shipped (plan `docs/plans/2026-04-20-ui-foundation-and-live-view.md`)
 
 ## M3 — Persistence & users
 

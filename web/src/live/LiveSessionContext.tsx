@@ -17,6 +17,7 @@ export function LiveSessionProvider({ children, channel }: Props) {
   return <LiveSessionContext.Provider value={state}>{children}</LiveSessionContext.Provider>
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
 export function useLiveSession(): LiveState {
   const v = useContext(LiveSessionContext)
   if (!v) throw new Error('useLiveSession must be used inside <LiveSessionProvider>')

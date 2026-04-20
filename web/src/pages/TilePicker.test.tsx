@@ -2,7 +2,6 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi } from 'vitest'
 import { TilePicker } from './TilePicker'
-import { initialLiveState } from '../live/reducer'
 
 describe('TilePicker', () => {
   it('renders every known tile as an entry', () => {
@@ -11,7 +10,6 @@ describe('TilePicker', () => {
         open
         slotIndex={0}
         currentTileId="split-verlauf"
-        state={initialLiveState}
         onSelect={vi.fn()}
         onClose={vi.fn()}
       />,
@@ -30,7 +28,6 @@ describe('TilePicker', () => {
         open
         slotIndex={2}
         currentTileId="oe-split"
-        state={initialLiveState}
         onSelect={onSelect}
         onClose={vi.fn()}
       />,
@@ -45,7 +42,6 @@ describe('TilePicker', () => {
         open
         slotIndex={0}
         currentTileId="split"
-        state={initialLiveState}
         onSelect={vi.fn()}
         onClose={vi.fn()}
       />,

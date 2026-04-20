@@ -1,13 +1,11 @@
 import { Sheet } from '../components/Sheet/Sheet'
 import { TILES, getTile } from '../tiles/registry'
-import type { LiveState } from '../live/reducer'
 import styles from './TilePicker.module.css'
 
 type Props = {
   open: boolean
   slotIndex: number
   currentTileId: string
-  state: LiveState
   onSelect: (slotIndex: number, tileId: string) => void
   onClose: () => void
 }
@@ -18,14 +16,7 @@ const TYPE_LABEL: Record<string, string> = {
   zone: 'Bewertung',
 }
 
-export function TilePicker({
-  open,
-  slotIndex,
-  currentTileId,
-  state: _state,
-  onSelect,
-  onClose,
-}: Props) {
+export function TilePicker({ open, slotIndex, currentTileId, onSelect, onClose }: Props) {
   const current = getTile(currentTileId)
   const typeOrder = ['numeric', 'sparkline', 'zone'] as const
   const ordered = typeOrder.flatMap((t) => TILES.filter((tile) => tile.type === t))

@@ -78,7 +78,6 @@ export function TileGrid({ state }: Props) {
           open
           slotIndex={pickerFor}
           currentTileId={resolvedLayout[pickerFor]}
-          state={state}
           onSelect={onSelect}
           onClose={() => setPickerFor(null)}
         />
