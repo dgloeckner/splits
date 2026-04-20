@@ -1,0 +1,34 @@
+/*
+ * Typography scale utilities per FEAT-0008. Used sparingly — prefer
+ * component-scoped styles. These exist so pages can reach for
+ * display-lg etc. without re-declaring font-family + size pairs.
+ */
+
+.display-lg {
+  font-family: var(--font-display);
+  font-size: var(--text-display-lg);
+  line-height: var(--text-display-lg-lh);
+  font-weight: 500;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.headline-sm {
+  font-family: var(--font-display);
+  font-size: var(--text-headline-sm);
+  line-height: var(--text-headline-sm-lh);
+  font-weight: 500;
+}
+
+.title-md {
+  font-family: var(--font-display);
+  font-size: var(--text-title-md);
+  line-height: var(--text-title-md-lh);
+  font-weight: 500;
+}
+
+.body-lg {
+  font-family: var(--font-body);
+  font-size: var(--text-body-lg);
+  line-height: var(--text-body-lg-lh);
+}
