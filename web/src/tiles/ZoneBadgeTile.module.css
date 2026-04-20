@@ -1,0 +1,34 @@
+.tile {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: var(--space-2);
+  background: var(--color-surface-container);
+  border-radius: var(--radius-card);
+  min-height: 96px;
+}
+
+.label {
+  color: var(--color-on-surface-variant);
+}
+
+.badge {
+  margin-top: var(--space-1);
+  align-self: flex-start;
+  padding: var(--space-0-5) var(--space-1);
+  border: 1px solid var(--color-primary);
+  color: var(--color-primary);
+  border-radius: var(--radius-button);
+  font-family: var(--font-display);
+  font-size: var(--text-title-md);
+}
+
+.empty {
+  color: var(--color-on-surface-variant);
+  font-family: var(--font-body);
+  font-size: var(--text-body-lg);
+}
+
+.disabled {
+  opacity: 0.6;
+}

@@ -1,0 +1,24 @@
+.svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.line {
+  fill: none;
+  stroke: var(--color-primary);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.ghost {
+  fill: none;
+  stroke: var(--color-on-surface-variant);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+}
+
+.dot {
+  fill: var(--color-primary);
+}

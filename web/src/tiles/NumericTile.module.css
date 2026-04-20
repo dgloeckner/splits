@@ -1,0 +1,37 @@
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-0-5);
+  padding: var(--space-2);
+  background: var(--color-surface-container);
+  border-radius: var(--radius-card);
+  min-height: 96px;
+}
+
+.label {
+  color: var(--color-on-surface-variant);
+}
+
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-1);
+}
+
+.value {
+  font-family: var(--font-display);
+  font-size: 28px;
+  line-height: 1.1;
+  font-weight: 500;
+  color: var(--color-on-surface);
+}
+
+.unit {
+  font-family: var(--font-display);
+  font-size: var(--text-title-md);
+  color: var(--color-on-surface-variant);
+}
+
+.disabled {
+  opacity: 0.6;
+}
