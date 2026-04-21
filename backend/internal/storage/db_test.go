@@ -17,8 +17,8 @@ func TestOpenRunsMigrations(t *testing.T) {
 	if err := db.Handle().QueryRow(`SELECT MAX(version) FROM schema_migrations`).Scan(&v); err != nil {
 		t.Fatalf("query: %v", err)
 	}
-	if v != 1 {
-		t.Errorf("schema_migrations.max(version) = %d, want 1", v)
+	if v != 2 {
+		t.Errorf("schema_migrations.max(version) = %d, want 2", v)
 	}
 
 	var mode string
@@ -48,7 +48,7 @@ func TestOpenIsIdempotent(t *testing.T) {
 	if err := db2.Handle().QueryRow(`SELECT MAX(version) FROM schema_migrations`).Scan(&v); err != nil {
 		t.Fatalf("query: %v", err)
 	}
-	if v != 1 {
+	if v != 2 {
 		t.Errorf("version after reopen = %d", v)
 	}
 }
