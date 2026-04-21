@@ -4,12 +4,26 @@ import { useQueryClient } from '@tanstack/react-query'
 import { createRower, setActiveRower } from '../api/rowers'
 import styles from './OnboardingPage.module.css'
 
-const palette = ['#ff6b6b', '#4ecdc4', '#ffe66d', '#a78bfa', '#f97316', '#60a5fa', '#34d399', '#f472b6']
+const palette = [
+  '#5dd7e4',
+  '#ffb786',
+  '#a4ced3',
+  '#ffb4ab',
+  '#bcc9ca',
+  '#e4e2e1',
+  '#3d494a',
+]
+
+function clampInt(v: string | number, min: number, max: number): number {
+  const n = typeof v === 'string' ? Number(v) : v
+  if (Number.isNaN(n)) return min
+  return Math.min(max, Math.max(min, Math.round(n)))
+}
 
 export function OnboardingPage() {
   const [name, setName] = useState('')
-  const [weight, setWeight] = useState('')
-  const [height, setHeight] = useState('')
+  const [weight, setWeight] = useState(75)
+  const [height, setHeight] = useState(180)
   const [dob, setDob] = useState('')
   const [color, setColor] = useState(palette[0])
   const [err, setErr] = useState<string | null>(null)
@@ -28,15 +42,13 @@ export function OnboardingPage() {
     try {
       const input = {
         name: name.trim(),
-        weight_kg: weight ? Number(weight) : undefined,
-        height_cm: height ? Number(height) : undefined,
+        weight_kg: weight,
+        height_cm: height,
         dob: dob || undefined,
         color,
       }
       const row = await createRower(input)
       const active = await setActiveRower(row.id)
-      // Seed caches synchronously so RowerGate sees non-null active
-      // immediately after navigation instead of waiting for a refetch.
       qc.setQueryData(['rowers'], [row])
       qc.setQueryData(['active-rower'], active)
       await qc.invalidateQueries({ queryKey: ['rowers'] })
@@ -50,45 +62,137 @@ export function OnboardingPage() {
   }
 
   return (
-    <form className={styles.root} onSubmit={submit}>
-      <h1>Willkommen</h1>
-      <p>Leg dein Profil an, um Sessions zu speichern.</p>
-      <div className={styles.field}>
-        <label htmlFor="name">Name*</label>
-        <input id="name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-      </div>
-      <div className={styles.field}>
-        <label htmlFor="weight">Gewicht (kg)</label>
-        <input id="weight" type="number" step="0.1" value={weight} onChange={(e) => setWeight(e.target.value)} />
-      </div>
-      <div className={styles.field}>
-        <label htmlFor="height">Größe (cm)</label>
-        <input id="height" type="number" step="1" value={height} onChange={(e) => setHeight(e.target.value)} />
-      </div>
-      <div className={styles.field}>
-        <label htmlFor="dob">Geburtsdatum</label>
-        <input id="dob" type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
-      </div>
-      <div className={styles.field}>
-        <label>Farbe</label>
-        <div className={styles.palette}>
-          {palette.map((c) => (
-            <button
-              key={c}
-              type="button"
-              aria-label={`colour ${c}`}
-              data-active={color === c}
-              className={styles.swatch}
-              style={{ background: c }}
-              onClick={() => setColor(c)}
+    <div className={styles.page}>
+      <header className={styles.header}>
+        <span className={styles.dot} aria-hidden />
+        <span className={styles.brand}>HOME-ERGO</span>
+      </header>
+      <main className={styles.root}>
+        <section className={styles.intro}>
+          <h1>Willkommen</h1>
+          <p>Leg dein Profil an, um Sessions zu speichern.</p>
+        </section>
+        <form className={styles.form} onSubmit={submit}>
+          <div className={styles.field}>
+            <label htmlFor="name" className={styles.label}>
+              Name*
+            </label>
+            <input
+              id="name"
+              className={styles.input}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Daniel"
+              autoFocus
             />
-          ))}
-        </div>
-      </div>
-      {err && <div className={styles.err}>{err}</div>}
-      <button type="submit" className={styles.submit} disabled={busy}>
-        Weiter
-      </button>
-    </form>
+          </div>
+
+          <div className={styles.grid}>
+            <div className={styles.field}>
+              <label htmlFor="weight" className={styles.label}>
+                Gewicht (kg)
+              </label>
+              <div className={styles.stepper}>
+                <button
+                  type="button"
+                  className={styles.stepBtn}
+                  aria-label="Gewicht verringern"
+                  onClick={() => setWeight((w) => clampInt(w - 1, 20, 250))}
+                >
+                  −
+                </button>
+                <input
+                  id="weight"
+                  type="number"
+                  className={styles.stepInput}
+                  value={weight}
+                  onChange={(e) => setWeight(clampInt(e.target.value, 20, 250))}
+                />
+                <button
+                  type="button"
+                  className={styles.stepBtn}
+                  aria-label="Gewicht erhöhen"
+                  onClick={() => setWeight((w) => clampInt(w + 1, 20, 250))}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+
+            <div className={styles.field}>
+              <label htmlFor="height" className={styles.label}>
+                Größe (cm)
+              </label>
+              <div className={styles.stepper}>
+                <button
+                  type="button"
+                  className={styles.stepBtn}
+                  aria-label="Größe verringern"
+                  onClick={() => setHeight((h) => clampInt(h - 1, 100, 230))}
+                >
+                  −
+                </button>
+                <input
+                  id="height"
+                  type="number"
+                  className={styles.stepInput}
+                  value={height}
+                  onChange={(e) => setHeight(clampInt(e.target.value, 100, 230))}
+                />
+                <button
+                  type="button"
+                  className={styles.stepBtn}
+                  aria-label="Größe erhöhen"
+                  onClick={() => setHeight((h) => clampInt(h + 1, 100, 230))}
+                >
+                  +
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className={styles.field}>
+            <label htmlFor="dob" className={styles.label}>
+              Geburtsdatum
+            </label>
+            <input
+              id="dob"
+              type="date"
+              className={styles.input}
+              value={dob}
+              onChange={(e) => setDob(e.target.value)}
+            />
+          </div>
+
+          <div className={styles.field}>
+            <span className={styles.label}>Farbe</span>
+            <div className={styles.palette} role="radiogroup" aria-label="Farbe wählen">
+              {palette.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  role="radio"
+                  aria-checked={color === c}
+                  aria-label={`Farbe ${c}`}
+                  data-active={color === c}
+                  className={styles.swatch}
+                  style={{ background: c }}
+                  onClick={() => setColor(c)}
+                />
+              ))}
+            </div>
+          </div>
+
+          {err && <div className={styles.err}>{err}</div>}
+
+          <button type="submit" className={styles.submit} disabled={busy}>
+            <span>Weiter</span>
+            <span className={styles.chevron} aria-hidden>
+              ›
+            </span>
+          </button>
+        </form>
+      </main>
+    </div>
   )
 }
