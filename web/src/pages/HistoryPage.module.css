@@ -51,3 +51,6 @@
 .more {
   justify-self: center;
 }
+
+.rowerBadge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; opacity: 0.8; }
+.rowerDot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
