@@ -8,6 +8,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -60,4 +62,166 @@ func (r *Repo) Create(ctx context.Context, in CreateInput) (*Rower, error) {
 		ID: id, Name: in.Name, WeightKg: in.WeightKg, HeightCm: in.HeightCm, DOB: in.DOB,
 		Color: in.Color, CreatedAt: now,
 	}, nil
+}
+
+func (r *Repo) List(ctx context.Context) ([]Rower, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT id, name, weight_kg, height_cm, dob, color, created_at
+		 FROM rowers ORDER BY created_at ASC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Rower
+	for rows.Next() {
+		r, err := scanRower(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *r)
+	}
+	return out, rows.Err()
+}
+
+func (r *Repo) Get(ctx context.Context, id string) (*Rower, error) {
+	row := r.db.QueryRowContext(ctx,
+		`SELECT id, name, weight_kg, height_cm, dob, color, created_at
+		 FROM rowers WHERE id=?`, id)
+	out, err := scanRower(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return out, err
+}
+
+type scanner interface {
+	Scan(dest ...any) error
+}
+
+func scanRower(s scanner) (*Rower, error) {
+	var r Rower
+	var weight, height sql.NullFloat64
+	var dob sql.NullString
+	var createdStr string
+	if err := s.Scan(&r.ID, &r.Name, &weight, &height, &dob, &r.Color, &createdStr); err != nil {
+		return nil, err
+	}
+	if weight.Valid {
+		v := weight.Float64
+		r.WeightKg = &v
+	}
+	if height.Valid {
+		v := height.Float64
+		r.HeightCm = &v
+	}
+	if dob.Valid {
+		v := dob.String
+		r.DOB = &v
+	}
+	t, err := time.Parse(time.RFC3339Nano, createdStr)
+	if err != nil {
+		return nil, err
+	}
+	r.CreatedAt = t
+	return &r, nil
+}
+
+type UpdateInput struct {
+	Name     *string  `json:"name,omitempty"`
+	WeightKg *float64 `json:"weight_kg,omitempty"`
+	HeightCm *float64 `json:"height_cm,omitempty"`
+	DOB      *string  `json:"dob,omitempty"`
+	Color    *string  `json:"color,omitempty"`
+}
+
+func (r *Repo) Update(ctx context.Context, id string, in UpdateInput) (*Rower, error) {
+	sets := []string{}
+	args := []any{}
+	if in.Name != nil {
+		if *in.Name == "" {
+			return nil, ErrNameRequired
+		}
+		sets = append(sets, "name=?")
+		args = append(args, *in.Name)
+	}
+	if in.WeightKg != nil {
+		sets = append(sets, "weight_kg=?")
+		args = append(args, *in.WeightKg)
+	}
+	if in.HeightCm != nil {
+		sets = append(sets, "height_cm=?")
+		args = append(args, *in.HeightCm)
+	}
+	if in.DOB != nil {
+		sets = append(sets, "dob=?")
+		args = append(args, *in.DOB)
+	}
+	if in.Color != nil {
+		sets = append(sets, "color=?")
+		args = append(args, *in.Color)
+	}
+	if len(sets) > 0 {
+		args = append(args, id)
+		q := "UPDATE rowers SET " + strings.Join(sets, ", ") + " WHERE id=?"
+		if _, err := r.db.ExecContext(ctx, q, args...); err != nil {
+			return nil, err
+		}
+	}
+	return r.Get(ctx, id)
+}
+
+func (r *Repo) SetActiveForDevice(ctx context.Context, deviceID, rowerID string) error {
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO device_active_rower(device_id, rower_id, updated_at)
+		 VALUES(?, ?, ?)
+		 ON CONFLICT(device_id) DO UPDATE SET rower_id=excluded.rower_id, updated_at=excluded.updated_at`,
+		deviceID, rowerID, now,
+	)
+	return err
+}
+
+func (r *Repo) GetActiveForDevice(ctx context.Context, deviceID string) (*Rower, error) {
+	row := r.db.QueryRowContext(ctx,
+		`SELECT r.id, r.name, r.weight_kg, r.height_cm, r.dob, r.color, r.created_at
+		 FROM device_active_rower d JOIN rowers r ON r.id = d.rower_id
+		 WHERE d.device_id = ?`, deviceID)
+	out, err := scanRower(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return out, err
+}
+
+func (r *Repo) LastActive(ctx context.Context) (*Rower, error) {
+	row := r.db.QueryRowContext(ctx,
+		`SELECT r.id, r.name, r.weight_kg, r.height_cm, r.dob, r.color, r.created_at
+		 FROM device_active_rower d JOIN rowers r ON r.id = d.rower_id
+		 ORDER BY d.updated_at DESC LIMIT 1`)
+	out, err := scanRower(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return out, err
+}
+
+type Holder struct {
+	mu   sync.RWMutex
+	id   string
+	name string
+}
+
+func NewHolder() *Holder { return &Holder{} }
+
+func (h *Holder) Set(id, name string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.id = id
+	h.name = name
+}
+
+func (h *Holder) Resolve() (string, string) {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.id, h.name
 }
