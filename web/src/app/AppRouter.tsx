@@ -5,6 +5,7 @@ import { NotFound } from './NotFound'
 import { LiveSessionProvider } from '../live/LiveSessionContext'
 import { LivePage } from '../pages/LivePage'
 import { HistoryPage } from '../pages/HistoryPage'
+import { SessionDetailPage } from '../pages/SessionDetailPage'
 import { ProfilePage } from '../pages/ProfilePage'
 
 export function AppRouter() {
@@ -16,6 +17,7 @@ export function AppRouter() {
             <Route element={<AppLayout />}>
               <Route index element={<LivePage />} />
               <Route path="/historie" element={<HistoryPage />} />
+              <Route path="/historie/:sessionId" element={<SessionDetailPage />} />
               <Route path="/profil" element={<ProfilePage />} />
               <Route path="*" element={<NotFound />} />
             </Route>
