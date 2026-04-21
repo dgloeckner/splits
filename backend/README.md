@@ -47,6 +47,18 @@ The e2e smoke in `cmd/homeergo/main_sse_test.go` boots a real server against a f
 | `HOMEERGO_LOG_LEVEL`        | `info`                    | `debug` / `info` / `warn` / `error`             |
 | `HOMEERGO_IDLE_TIMEOUT`     | `60s`                     | Stroke gap that closes a session                |
 
+## HTTP API
+
+| Method | Path                                 | Purpose                                     |
+|--------|--------------------------------------|---------------------------------------------|
+| GET    | `/api/health`                        | Liveness                                    |
+| GET    | `/api/v1/stream`                     | SSE live stream (INT-0002)                  |
+| GET    | `/api/v1/sessions?limit=&offset=`    | List non-deleted sessions, newest first     |
+| GET    | `/api/v1/sessions/{id}`              | Detail (summary + totals)                   |
+| GET    | `/api/v1/sessions/{id}/samples`      | Per-stroke series for charts                |
+| DELETE | `/api/v1/sessions/{id}`              | Soft-delete                                 |
+| GET    | `/debug/ingest`                      | Pipeline health (LAN-only, unauthed in v1)  |
+
 ## Debugging
 
 `GET /debug/ingest` returns pipeline health JSON (LAN-only; no auth in v1).

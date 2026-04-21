@@ -37,6 +37,7 @@
 
 - [ ] FEAT-0002: user profiles + shared-password login
 - [x] FEAT-0003: sessions written to SQLite, idle-timeout boundary detection (plan `docs/plans/2026-04-21-m3-backend-sse-persistence.md`) — write path only; history read UI deferred
+- [x] History read API + list/detail UI shipped (plan `docs/plans/2026-04-21-history-read-ui.md`) — soft-delete column live; filter chips, trends sub-tab, exports deferred
 - [ ] Session assigned to the currently "active" user in UI
 
 ## M4 — History & statistics
