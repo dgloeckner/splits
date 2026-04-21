@@ -1,6 +1,7 @@
 package api
 
 import (
+	"database/sql"
 	"net/http"
 	"time"
 
@@ -8,19 +9,24 @@ import (
 	"github.com/gloeckner-daniel/home-ergo/internal/stream"
 )
 
-// Inputs aggregates the stateful dependencies the router needs from
-// main.
 type Inputs struct {
 	Ring        *pipeline.Ring
 	Broadcaster *stream.Broadcaster
+	DB          *sql.DB
 	StartedAt   time.Time
 }
 
-// NewRouter builds the HTTP handler.
 func NewRouter(in Inputs) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", healthHandler)
 	mux.Handle("GET /api/v1/stream", stream.NewHandler(in.Ring, in.Broadcaster))
+
+	sessions := SessionsHandler(in.DB)
+	mux.Handle("GET /api/v1/sessions", sessions)
+	mux.Handle("GET /api/v1/sessions/{id}", sessions)
+	mux.Handle("GET /api/v1/sessions/{id}/samples", sessions)
+	mux.Handle("DELETE /api/v1/sessions/{id}", sessions)
+
 	mux.Handle("GET /debug/ingest", DebugIngestHandler(DebugIngestInputs{
 		Ring:        in.Ring,
 		Broadcaster: in.Broadcaster,

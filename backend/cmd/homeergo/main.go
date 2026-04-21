@@ -79,6 +79,7 @@ func run() error {
 		Handler: api.NewRouter(api.Inputs{
 			Ring:        ring,
 			Broadcaster: bcast,
+			DB:          db.Handle(),
 			StartedAt:   time.Now(),
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
