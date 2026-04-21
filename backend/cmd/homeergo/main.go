@@ -2,19 +2,24 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
+	"golang.org/x/sync/errgroup"
+
 	"github.com/gloeckner-daniel/home-ergo/internal/api"
 	"github.com/gloeckner-daniel/home-ergo/internal/config"
+	"github.com/gloeckner-daniel/home-ergo/internal/event"
 	"github.com/gloeckner-daniel/home-ergo/internal/ipm"
+	"github.com/gloeckner-daniel/home-ergo/internal/pipeline"
+	"github.com/gloeckner-daniel/home-ergo/internal/session"
+	"github.com/gloeckner-daniel/home-ergo/internal/storage"
+	"github.com/gloeckner-daniel/home-ergo/internal/stream"
 )
 
 const httpShutdownTimeout = 30 * time.Second
@@ -32,107 +37,68 @@ func run() error {
 		return err
 	}
 	configureLogger(cfg.LogLevel)
-
 	slog.Info("homeergo.start",
-		"addr", cfg.Addr,
-		"fixture", cfg.Fixture,
-		"fixture_rate", cfg.FixtureRate,
-		"serial_port", cfg.SerialPort,
+		"addr", cfg.Addr, "fixture", cfg.Fixture, "fixture_rate", cfg.FixtureRate,
+		"serial_port", cfg.SerialPort, "db_path", cfg.DBPath, "idle_timeout", cfg.IdleTimeout,
 	)
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
 
-	producer := pickProducer(cfg)
+	db, err := storage.Open(cfg.DBPath)
+	if err != nil {
+		return err
+	}
+	defer db.Close()
 
-	var wg sync.WaitGroup
-
-	// Producer goroutine: read frames from the configured source. Closes
-	// the producerDone channel on return so the main select learns that
-	// the input is exhausted (fixture EOF) or failed hard.
 	frames := make(chan ipm.Frame, 64)
-	producerDone := make(chan struct{})
-	var producerErr error
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		defer close(producerDone)
-		producerErr = producer.Run(ctx, frames)
-	}()
+	events := make(chan event.Event, 64)
+	persistCh := make(chan event.Event, 1024)
+	broadcastCh := make(chan event.Event, 256)
 
-	// Stdout printer goroutine drains frames until the producer closes it.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		enc := json.NewEncoder(os.Stdout)
-		for f := range frames {
-			if err := enc.Encode(makeFrameLine(f)); err != nil {
-				slog.Error("stdout.write", "err", err)
-				return
-			}
-		}
-	}()
+	producer := pickProducer(cfg)
+	ring := pipeline.NewRing(10000)
+	bcast := stream.NewBroadcaster(broadcastCh)
+	sessionizer := session.New(session.Options{
+		IdleTimeout: cfg.IdleTimeout,
+		RowerID:     "local-rower",
+		RowerName:   "Lokal",
+	})
+	dispatcher := &pipeline.Dispatcher{Ring: ring, Persist: persistCh, Broadcast: broadcastCh}
+	persister := &storage.Persister{DB: db.Handle()}
 
-	// HTTP server. ListenAndServe returns http.ErrServerClosed on a clean
-	// Shutdown; anything else is a real listen/serve error.
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() error { return producer.Run(gctx, frames) })
+	g.Go(func() error { return sessionizer.Run(gctx, frames, events) })
+	g.Go(func() error { return dispatcher.Run(gctx, events) })
+	g.Go(func() error { return persister.Run(gctx, persistCh) })
+	g.Go(func() error { return bcast.Run(gctx) })
+
 	srv := &http.Server{
-		Addr:              cfg.Addr,
-		Handler:           api.NewRouter(),
+		Addr: cfg.Addr,
+		Handler: api.NewRouter(api.Inputs{
+			Ring:        ring,
+			Broadcaster: bcast,
+			StartedAt:   time.Now(),
+		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
-	serverErrCh := make(chan error, 1)
-	go func() {
+	g.Go(func() error {
 		err := srv.ListenAndServe()
 		if errors.Is(err, http.ErrServerClosed) {
-			err = nil
+			return nil
 		}
-		serverErrCh <- err
-	}()
+		return err
+	})
+	g.Go(func() error {
+		<-gctx.Done()
+		sctx, scancel := context.WithTimeout(context.Background(), httpShutdownTimeout)
+		defer scancel()
+		return srv.Shutdown(sctx)
+	})
 
-	// Wait for the first exit signal: user-sent signal, HTTP listener
-	// failure, or producer completion (fixture EOF or unrecoverable
-	// producer error). Whichever arrives, we tear everything down the
-	// same way: cancel the context, Shutdown the HTTP server, wait for
-	// goroutines. Returning the correct error is the only path-specific
-	// difference.
-	var runErr error
-	select {
-	case <-ctx.Done():
-		slog.Info("homeergo.shutdown", "reason", "signal")
-	case err := <-serverErrCh:
-		if err != nil {
-			slog.Info("homeergo.shutdown", "reason", "http_error", "err", err)
-			runErr = err
-		} else {
-			// ListenAndServe returned nil without a Shutdown call —
-			// effectively impossible, but tolerate it.
-			slog.Info("homeergo.shutdown", "reason", "http_closed")
-		}
-	case <-producerDone:
-		slog.Info("homeergo.shutdown", "reason", "producer_done")
-	}
-
-	cancel() // unblock any stage still parked on ctx
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), httpShutdownTimeout)
-	defer shutdownCancel()
-	if err := srv.Shutdown(shutdownCtx); err != nil {
-		slog.Error("http.shutdown", "err", err)
-	}
-
-	// Drain any pending serverErrCh send so its goroutine can exit; we
-	// have already recorded the server error if there was one.
-	select {
-	case <-serverErrCh:
-	default:
-	}
-
-	wg.Wait()
-
-	if runErr != nil {
-		return runErr
-	}
-	if producerErr != nil && !errors.Is(producerErr, context.Canceled) {
-		return producerErr
+	if err := g.Wait(); err != nil && !errors.Is(err, context.Canceled) {
+		return err
 	}
 	return nil
 }
@@ -146,26 +112,6 @@ func pickProducer(cfg *config.Config) ipm.Producer {
 		return &ipm.FixtureProducer{Path: cfg.Fixture, Pacing: pacing}
 	}
 	return &ipm.SerialProducer{Port: cfg.SerialPort, Baud: cfg.SerialBaud}
-}
-
-// frameLine is a compact stdout representation — intentionally separate
-// from event.Event so the stdout format can evolve independently.
-type frameLine struct {
-	TimeSec    float64 `json:"time_sec"`
-	DistanceM  int     `json:"distance_m"`
-	SPM        int     `json:"spm"`
-	PowerW     int     `json:"power_w"`
-	CalPerHr   int     `json:"cal_per_hr"`
-	Level      int     `json:"level"`
-	RawPayload string  `json:"raw_payload"`
-}
-
-func makeFrameLine(f ipm.Frame) frameLine {
-	return frameLine{
-		TimeSec: f.TimeSec, DistanceM: f.DistanceM, SPM: f.SPM,
-		PowerW: f.PowerW, CalPerHr: f.CalPerHr, Level: f.Level,
-		RawPayload: f.RawPayload,
-	}
 }
 
 func configureLogger(level string) {
