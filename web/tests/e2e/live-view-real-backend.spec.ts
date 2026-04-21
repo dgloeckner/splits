@@ -19,6 +19,7 @@ test.beforeAll(async () => {
       HOMEERGO_IDLE_TIMEOUT: '60s',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
+    detached: true,
   })
   backend.stderr?.on('data', (d) => process.stderr.write(`[be] ${d}`))
   // Wait for /api/health. go run needs time to compile on first run.
@@ -36,8 +37,24 @@ test.beforeAll(async () => {
 })
 
 test.afterAll(async () => {
-  backend?.kill('SIGINT')
+  if (backend?.pid) {
+    try {
+      process.kill(-backend.pid, 'SIGTERM')
+    } catch {
+      /* already gone */
+    }
+  }
   backend = null
+  // Wait for port 8080 to free so the next spec can bind it.
+  for (let i = 0; i < 30; i++) {
+    try {
+      const r = await fetch('http://localhost:8080/api/health', { signal: AbortSignal.timeout(200) })
+      r.body?.cancel()
+    } catch {
+      return
+    }
+    await new Promise((r) => setTimeout(r, 100))
+  }
 })
 
 test('live view shows real split from backend fixture', async ({ page }) => {

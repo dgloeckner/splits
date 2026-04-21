@@ -19,6 +19,7 @@ test.beforeAll(async () => {
       HOMEERGO_IDLE_TIMEOUT: '1s',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
+    detached: true,
   })
   backend.stderr?.on('data', (d) => process.stderr.write(`[be] ${d}`))
 
@@ -43,9 +44,24 @@ test.beforeAll(async () => {
   throw new Error('no completed session appeared')
 })
 
-test.afterAll(() => {
-  backend?.kill('SIGINT')
+test.afterAll(async () => {
+  if (backend?.pid) {
+    try {
+      process.kill(-backend.pid, 'SIGTERM')
+    } catch {
+      /* already gone */
+    }
+  }
   backend = null
+  for (let i = 0; i < 30; i++) {
+    try {
+      const r = await fetch('http://localhost:8080/api/health', { signal: AbortSignal.timeout(200) })
+      r.body?.cancel()
+    } catch {
+      return
+    }
+    await new Promise((r) => setTimeout(r, 100))
+  }
 })
 
 test('history list shows a completed session; detail page renders charts', async ({ page }) => {
