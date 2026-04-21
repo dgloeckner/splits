@@ -1,0 +1,97 @@
+package stream
+
+import (
+	"fmt"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/gloeckner-daniel/home-ergo/internal/event"
+	"github.com/gloeckner-daniel/home-ergo/internal/pipeline"
+)
+
+// NewHandler returns the /api/v1/stream handler. Auth is the caller's
+// responsibility (middleware); this handler assumes the request has
+// been authenticated.
+func NewHandler(ring *pipeline.Ring, b *Broadcaster) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Connection", "keep-alive")
+		w.WriteHeader(http.StatusOK)
+
+		afterID := parseAfterID(r)
+
+		for _, e := range ring.Since(afterID) {
+			if err := writeSSE(w, flusher, e); err != nil {
+				return
+			}
+			if e.ID > afterID {
+				afterID = e.ID
+			}
+		}
+
+		ch := b.Subscribe(afterID)
+		ticker := time.NewTicker(20 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case e, ok := <-ch:
+				if !ok {
+					return
+				}
+				if e.ID <= afterID {
+					continue
+				}
+				if err := writeSSE(w, flusher, e); err != nil {
+					return
+				}
+				afterID = e.ID
+			case <-ticker.C:
+				if _, err := fmt.Fprintf(w, "event: ping\ndata: {}\n\n"); err != nil {
+					return
+				}
+				flusher.Flush()
+			}
+		}
+	})
+}
+
+func parseAfterID(r *http.Request) uint64 {
+	if s := r.URL.Query().Get("since"); s != "" {
+		if v, err := strconv.ParseUint(s, 10, 64); err == nil {
+			return v
+		}
+	}
+	if s := r.Header.Get("Last-Event-ID"); s != "" {
+		if v, err := strconv.ParseUint(s, 10, 64); err == nil {
+			return v
+		}
+	}
+	return 0
+}
+
+func writeSSE(w http.ResponseWriter, f http.Flusher, e event.Event) error {
+	name := event.EventName(e.Kind)
+	if name == "" {
+		return nil
+	}
+	data, err := event.Marshal(e)
+	if err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "event: %s\nid: %d\ndata: %s\n\n", name, e.ID, data); err != nil {
+		return err
+	}
+	f.Flush()
+	return nil
+}
