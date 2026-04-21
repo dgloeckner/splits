@@ -15,9 +15,12 @@ import (
 // is injectable for deterministic tests.
 type Options struct {
 	IdleTimeout time.Duration
-	RowerID     string
-	RowerName   string
-	Now         func() time.Time
+	// ResolveRower returns the rower to attribute new sessions to at
+	// the moment a session opens. If nil, falls back to RowerID/Name.
+	ResolveRower func() (id, name string)
+	RowerID      string
+	RowerName    string
+	Now          func() time.Time
 	// StartID seeds the monotonic id counter. The first emitted event
 	// receives StartID+1. Use to resume across process restarts so
 	// stroke global_id stays unique (max(global_id) from storage).
@@ -187,16 +190,24 @@ func (s *Sessionizer) openSession(ctx context.Context, out chan<- event.Event, f
 		startedAt: now,
 		lastSeen:  now,
 	}
+	rid, rname := s.resolveRower()
 	return s.emit(ctx, out, event.Event{
 		Kind:      event.KindSessionStart,
 		SessionID: id,
 		SessionStart: &event.SessionStartPayload{
 			StartedAt:    now,
-			RowerID:      s.opts.RowerID,
-			RowerName:    s.opts.RowerName,
+			RowerID:      rid,
+			RowerName:    rname,
 			InitialLevel: f.Level,
 		},
 	})
+}
+
+func (s *Sessionizer) resolveRower() (string, string) {
+	if s.opts.ResolveRower != nil {
+		return s.opts.ResolveRower()
+	}
+	return s.opts.RowerID, s.opts.RowerName
 }
 
 func (s *Sessionizer) closeSession(ctx context.Context, out chan<- event.Event) error {

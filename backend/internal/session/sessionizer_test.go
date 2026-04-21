@@ -167,3 +167,47 @@ func TestSessionizerEmitsLevelChange(t *testing.T) {
 		t.Errorf("level change %d→%d, want 3→5", got[3].LevelChange.From, got[3].LevelChange.To)
 	}
 }
+
+func TestSessionizer_ResolverPicksRowerPerSession(t *testing.T) {
+	current := "R1"
+	currentName := "Rower1"
+	now := time.Unix(1000, 0)
+	s := New(Options{
+		IdleTimeout:  time.Minute,
+		ResolveRower: func() (string, string) { return current, currentName },
+		Now:          func() time.Time { return now },
+	})
+
+	frames := make(chan ipm.Frame, 1)
+	out := make(chan event.Event, 16)
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- s.Run(ctx, frames, out) }()
+
+	frames <- ipm.Frame{TimeSec: 1, DistanceM: 1, SPM: 20, PowerW: 100, Level: 3}
+	evt := <-out // session_start
+	if evt.SessionStart.RowerID != "R1" {
+		t.Fatalf("session 1 rower: %q", evt.SessionStart.RowerID)
+	}
+	<-out // stroke
+
+	// idle close + switch
+	now = now.Add(5 * time.Minute)
+	current = "R2"
+	currentName = "Rower2"
+	frames <- ipm.Frame{TimeSec: 2, DistanceM: 2, SPM: 20, PowerW: 100, Level: 3}
+	// drain until we see the next session_start
+	var found string
+	for e := range out {
+		if e.Kind == event.KindSessionStart {
+			found = e.SessionStart.RowerID
+			break
+		}
+	}
+	if found != "R2" {
+		t.Fatalf("session 2 rower: %q", found)
+	}
+	cancel()
+	close(frames)
+	<-done
+}
