@@ -4,12 +4,12 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { OnboardingPage } from './OnboardingPage'
 
-const createSpy = vi.fn(async () => ({ id: 'a', name: 'Alice', color: '#ff6b6b', created_at: '2026-04-21T00:00:00Z' }))
-const setActiveSpy = vi.fn(async () => ({ id: 'a', name: 'Alice', color: '#ff6b6b', created_at: '2026-04-21T00:00:00Z' }))
+const createSpy = vi.fn(async (_input: unknown) => ({ id: 'a', name: 'Alice', color: '#ff6b6b', created_at: '2026-04-21T00:00:00Z' }))
+const setActiveSpy = vi.fn(async (_id: unknown) => ({ id: 'a', name: 'Alice', color: '#ff6b6b', created_at: '2026-04-21T00:00:00Z' }))
 
 vi.mock('../api/rowers', () => ({
-  createRower: (...args: unknown[]) => createSpy(...args),
-  setActiveRower: (...args: unknown[]) => setActiveSpy(...args),
+  createRower: (arg: unknown) => createSpy(arg),
+  setActiveRower: (arg: unknown) => setActiveSpy(arg),
 }))
 
 function wrap() {
