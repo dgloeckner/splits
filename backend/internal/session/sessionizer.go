@@ -18,6 +18,10 @@ type Options struct {
 	RowerID     string
 	RowerName   string
 	Now         func() time.Time
+	// StartID seeds the monotonic id counter. The first emitted event
+	// receives StartID+1. Use to resume across process restarts so
+	// stroke global_id stays unique (max(global_id) from storage).
+	StartID uint64
 }
 
 // Sessionizer is the pipeline stage that turns a stream of ipm.Frame
@@ -50,7 +54,7 @@ func New(o Options) *Sessionizer {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
-	return &Sessionizer{opts: o, nextID: 0}
+	return &Sessionizer{opts: o, nextID: o.StartID}
 }
 
 func (s *Sessionizer) stamp(e *event.Event) {

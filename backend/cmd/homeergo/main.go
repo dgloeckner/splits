@@ -51,6 +51,12 @@ func run() error {
 	}
 	defer db.Close()
 
+	startID, err := storage.MaxStrokeGlobalID(ctx, db.Handle())
+	if err != nil {
+		return err
+	}
+	slog.Info("homeergo.resume", "start_id", startID)
+
 	frames := make(chan ipm.Frame, 64)
 	events := make(chan event.Event, 64)
 	persistCh := make(chan event.Event, 1024)
@@ -63,6 +69,7 @@ func run() error {
 		IdleTimeout: cfg.IdleTimeout,
 		RowerID:     "local-rower",
 		RowerName:   "Lokal",
+		StartID:     startID,
 	})
 	dispatcher := &pipeline.Dispatcher{Ring: ring, Persist: persistCh, Broadcast: broadcastCh}
 	persister := &storage.Persister{DB: db.Handle()}
@@ -93,6 +100,10 @@ func run() error {
 	})
 	g.Go(func() error {
 		<-gctx.Done()
+		// Unblock SSE handlers parked on <-ch so Shutdown can complete
+		// fast. Otherwise http.Server.Shutdown waits the full timeout
+		// for long-lived SSE connections it cannot terminate itself.
+		bcast.CloseAllClients()
 		sctx, scancel := context.WithTimeout(context.Background(), httpShutdownTimeout)
 		defer scancel()
 		return srv.Shutdown(sctx)

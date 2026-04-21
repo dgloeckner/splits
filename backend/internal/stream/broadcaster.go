@@ -94,3 +94,11 @@ func (b *Broadcaster) closeAll() {
 		delete(b.clients, id)
 	}
 }
+
+// CloseAllClients is the exported shutdown hook. Closing every
+// subscriber channel unblocks the SSE handlers parked on `<-ch`,
+// which lets http.Server.Shutdown complete without waiting for the
+// 30 s deadline.
+func (b *Broadcaster) CloseAllClients() {
+	b.closeAll()
+}

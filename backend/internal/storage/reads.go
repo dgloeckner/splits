@@ -89,6 +89,21 @@ func GetSession(ctx context.Context, db *sql.DB, id string) (*SessionRow, error)
 	return &r, nil
 }
 
+// MaxStrokeGlobalID returns the largest global_id ever persisted, or
+// 0 if the strokes table is empty. Seeds the sessionizer's monotonic
+// id counter on restart so new events can't collide with existing
+// rows on strokes.global_id.
+func MaxStrokeGlobalID(ctx context.Context, db *sql.DB) (uint64, error) {
+	var v sql.NullInt64
+	if err := db.QueryRowContext(ctx, `SELECT MAX(global_id) FROM strokes`).Scan(&v); err != nil {
+		return 0, err
+	}
+	if !v.Valid {
+		return 0, nil
+	}
+	return uint64(v.Int64), nil
+}
+
 func ListSamples(ctx context.Context, db *sql.DB, sessionID string) ([]SampleRow, error) {
 	rows, err := db.QueryContext(ctx, `
 		SELECT stroke_no, time_sec, distance_m, spm, power_w, cal_per_hr, level,

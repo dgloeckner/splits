@@ -35,6 +35,24 @@ func drain(t *testing.T, out <-chan event.Event, n int) []event.Event {
 	return got
 }
 
+func TestSessionizerStartIDSeedsCounter(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	in := make(chan ipm.Frame, 4)
+	out := make(chan event.Event, 16)
+	s := New(Options{IdleTimeout: time.Minute, StartID: 100, Now: time.Now})
+	go func() { _ = s.Run(ctx, in, out) }()
+
+	in <- frame(0.0, 0, 25, 200, 3)
+	got := drain(t, out, 2)
+	if got[0].ID != 101 {
+		t.Errorf("session_start id = %d, want 101", got[0].ID)
+	}
+	if got[1].ID != 102 {
+		t.Errorf("stroke id = %d, want 102", got[1].ID)
+	}
+}
+
 func TestSessionizerFirstStrokeOpensSession(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
