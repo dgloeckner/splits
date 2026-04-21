@@ -17,6 +17,7 @@ import (
 	"github.com/gloeckner-daniel/home-ergo/internal/event"
 	"github.com/gloeckner-daniel/home-ergo/internal/ipm"
 	"github.com/gloeckner-daniel/home-ergo/internal/pipeline"
+	"github.com/gloeckner-daniel/home-ergo/internal/rower"
 	"github.com/gloeckner-daniel/home-ergo/internal/session"
 	"github.com/gloeckner-daniel/home-ergo/internal/storage"
 	"github.com/gloeckner-daniel/home-ergo/internal/stream"
@@ -57,6 +58,12 @@ func run() error {
 	}
 	slog.Info("homeergo.resume", "start_id", startID)
 
+	rowerRepo := rower.NewRepo(db.Handle())
+	rowerHolder := rower.NewHolder()
+	if last, err := rowerRepo.LastActive(ctx); err == nil && last != nil {
+		rowerHolder.Set(last.ID, last.Name)
+	}
+
 	frames := make(chan ipm.Frame, 64)
 	events := make(chan event.Event, 64)
 	persistCh := make(chan event.Event, 1024)
@@ -67,9 +74,14 @@ func run() error {
 	bcast := stream.NewBroadcaster(broadcastCh)
 	sessionizer := session.New(session.Options{
 		IdleTimeout: cfg.IdleTimeout,
-		RowerID:     "local-rower",
-		RowerName:   "Lokal",
-		StartID:     startID,
+		ResolveRower: func() (string, string) {
+			id, name := rowerHolder.Resolve()
+			if id == "" {
+				return "local-rower", "Lokal"
+			}
+			return id, name
+		},
+		StartID: startID,
 	})
 	dispatcher := &pipeline.Dispatcher{Ring: ring, Persist: persistCh, Broadcast: broadcastCh}
 	persister := &storage.Persister{DB: db.Handle()}
@@ -87,6 +99,8 @@ func run() error {
 			Ring:        ring,
 			Broadcaster: bcast,
 			DB:          db.Handle(),
+			RowerRepo:   rowerRepo,
+			RowerHolder: rowerHolder,
 			StartedAt:   time.Now(),
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
