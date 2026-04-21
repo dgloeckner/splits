@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gloeckner-daniel/home-ergo/internal/pipeline"
+	"github.com/gloeckner-daniel/home-ergo/internal/rower"
 	"github.com/gloeckner-daniel/home-ergo/internal/stream"
 )
 
@@ -13,6 +14,8 @@ type Inputs struct {
 	Ring        *pipeline.Ring
 	Broadcaster *stream.Broadcaster
 	DB          *sql.DB
+	RowerRepo   *rower.Repo
+	RowerHolder *rower.Holder
 	StartedAt   time.Time
 }
 
@@ -27,10 +30,19 @@ func NewRouter(in Inputs) http.Handler {
 	mux.Handle("GET /api/v1/sessions/{id}/samples", sessions)
 	mux.Handle("DELETE /api/v1/sessions/{id}", sessions)
 
+	rowers := RowersHandler(in.RowerRepo)
+	mux.Handle("GET /api/v1/rowers", rowers)
+	mux.Handle("POST /api/v1/rowers", rowers)
+	mux.Handle("PATCH /api/v1/rowers/{id}", rowers)
+
+	active := ActiveRowerHandler(in.RowerRepo, in.RowerHolder)
+	mux.Handle("GET /api/v1/active-rower", active)
+	mux.Handle("PUT /api/v1/active-rower", active)
+
 	mux.Handle("GET /debug/ingest", DebugIngestHandler(DebugIngestInputs{
 		Ring:        in.Ring,
 		Broadcaster: in.Broadcaster,
 		StartedAt:   in.StartedAt,
 	}))
-	return Chain(mux, Recover(), Logging())
+	return Chain(mux, Recover(), Logging(), DeviceCookie())
 }
