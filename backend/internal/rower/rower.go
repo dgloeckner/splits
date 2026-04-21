@@ -46,7 +46,7 @@ func (r *Repo) Create(ctx context.Context, in CreateInput) (*Rower, error) {
 		return nil, ErrNameRequired
 	}
 	if in.Color == "" {
-		in.Color = palette[time.Now().UnixNano()%int64(len(palette))]
+		in.Color = palette[uint64(time.Now().UnixNano())%uint64(len(palette))]
 	}
 	id := uuid.NewString()
 	now := time.Now().UTC()
