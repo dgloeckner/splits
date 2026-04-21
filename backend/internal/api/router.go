@@ -1,11 +1,30 @@
 package api
 
-import "net/http"
+import (
+	"net/http"
+	"time"
 
-// NewRouter builds the HTTP handler for the backend. In M1 it serves
-// only /api/health; M2 will add /api/v1/stream and /debug/ingest.
-func NewRouter() http.Handler {
+	"github.com/gloeckner-daniel/home-ergo/internal/pipeline"
+	"github.com/gloeckner-daniel/home-ergo/internal/stream"
+)
+
+// Inputs aggregates the stateful dependencies the router needs from
+// main.
+type Inputs struct {
+	Ring        *pipeline.Ring
+	Broadcaster *stream.Broadcaster
+	StartedAt   time.Time
+}
+
+// NewRouter builds the HTTP handler.
+func NewRouter(in Inputs) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", healthHandler)
+	mux.Handle("GET /api/v1/stream", stream.NewHandler(in.Ring, in.Broadcaster))
+	mux.Handle("GET /debug/ingest", DebugIngestHandler(DebugIngestInputs{
+		Ring:        in.Ring,
+		Broadcaster: in.Broadcaster,
+		StartedAt:   in.StartedAt,
+	}))
 	return Chain(mux, Recover(), Logging())
 }
