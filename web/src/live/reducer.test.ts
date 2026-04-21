@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { liveReducer, initialLiveState, type LiveState } from './reducer'
+import { smoothingConfig } from './smoothing'
 import type { LiveEvent, StrokePayload, SessionStartPayload } from './events'
 
 function stroke(id: number, payload: Partial<StrokePayload>): LiveEvent {
@@ -74,11 +75,13 @@ describe('liveReducer', () => {
     expect(s.sparklines.split.map((p) => p.value)).toEqual([130, 128])
   })
 
-  it('sparkline windows drop points older than 60 s', () => {
+  it('sparkline windows drop points older than the configured window', () => {
+    // Phone default is 90 s. Point at t=0 stays while stroke at t=80 arrives;
+    // a stroke at t=100 would drop the t=0 point.
     let s = liveReducer(initialLiveState, { type: 'event', event: start() })
     s = liveReducer(s, { type: 'event', event: stroke(1, { time_sec: 0, power_w: 100 }) })
-    s = liveReducer(s, { type: 'event', event: stroke(2, { time_sec: 30, power_w: 200 }) })
-    s = liveReducer(s, { type: 'event', event: stroke(3, { time_sec: 80, power_w: 300 }) })
+    s = liveReducer(s, { type: 'event', event: stroke(2, { time_sec: 80, power_w: 200 }) })
+    s = liveReducer(s, { type: 'event', event: stroke(3, { time_sec: 100, power_w: 300 }) })
     expect(s.sparklines.power.map((p) => p.value)).toEqual([200, 300])
   })
 
@@ -110,6 +113,69 @@ describe('liveReducer', () => {
     expect(s.stroke).toBe(null)
     expect(s.session).not.toBe(null)
     expect(s.summary?.total_strokes).toBe(124)
+  })
+
+  describe('smoothed values + cold-start', () => {
+    beforeEach(() => vi.useFakeTimers())
+    afterEach(() => vi.useRealTimers())
+
+    it('seeds smoothed=null and sessionStartedAtMs=null on session_start', () => {
+      let s: LiveState = initialLiveState
+      s = liveReducer(s, { type: 'event', event: stroke(1, {}) })
+      s = liveReducer(s, { type: 'event', event: start() })
+      expect(s.smoothed).toBe(null)
+      expect(s.sessionStartedAtMs).toBe(null)
+    })
+
+    it('first stroke captures sessionStartedAtMs and uses raw values in cold-start', () => {
+      vi.setSystemTime(new Date('2026-04-20T10:00:00Z'))
+      let s = liveReducer(initialLiveState, { type: 'event', event: start() })
+      s = liveReducer(s, {
+        type: 'event',
+        event: stroke(1, { power_w: 250, spm: 30, dps: 8, pace_sec_per_500m: 130 }),
+      })
+      expect(s.sessionStartedAtMs).toBe(Date.now())
+      expect(s.smoothed).toEqual({
+        power: 250,
+        paceSecPer500m: 130,
+        spm: 30,
+        dps: 8,
+        spi: 250 / 30,
+      })
+    })
+
+    it('applies EMA once cold-start window has elapsed', () => {
+      vi.setSystemTime(new Date('2026-04-20T10:00:00Z'))
+      let s = liveReducer(initialLiveState, { type: 'event', event: start() })
+      s = liveReducer(s, {
+        type: 'event',
+        event: stroke(1, { power_w: 200, spm: 30, dps: 8, pace_sec_per_500m: 130 }),
+      })
+      // Advance past cold-start window.
+      vi.advanceTimersByTime((smoothingConfig.coldStartSeconds + 1) * 1000)
+      s = liveReducer(s, {
+        type: 'event',
+        event: stroke(2, { power_w: 300, spm: 30, dps: 8, pace_sec_per_500m: 130 }),
+      })
+      // With alpha 0.3: 0.3*300 + 0.7*200 = 230
+      expect(s.smoothed!.power).toBeCloseTo(230)
+    })
+
+    it('retains previous smoothed SPI when stroke is below threshold', () => {
+      vi.setSystemTime(new Date('2026-04-20T10:00:00Z'))
+      let s = liveReducer(initialLiveState, { type: 'event', event: start() })
+      s = liveReducer(s, {
+        type: 'event',
+        event: stroke(1, { power_w: 240, spm: 30 }),
+      })
+      const seededSpi = s.smoothed!.spi
+      vi.advanceTimersByTime((smoothingConfig.coldStartSeconds + 1) * 1000)
+      s = liveReducer(s, {
+        type: 'event',
+        event: stroke(2, { power_w: 10, spm: 30 }),
+      })
+      expect(s.smoothed!.spi).toBe(seededSpi)
+    })
   })
 
   it('ping does not mutate state (identity-stable)', () => {
