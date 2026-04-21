@@ -28,15 +28,15 @@
 
 ## M2 — Live view
 
-- [ ] WebSocket (or SSE) pushes parsed frames to browser
-- [ ] FEAT-0001: distance, time, split, SPM, watts, HR rendered
-- [ ] Runs on dev Mac end-to-end
+- [x] WebSocket (or SSE) pushes parsed frames to browser
+- [x] FEAT-0001: distance, time, split, SPM, watts rendered (HR deferred)
+- [x] Runs on dev Mac end-to-end
 - [x] UI foundation + Live View shipped (plan `docs/plans/2026-04-20-ui-foundation-and-live-view.md`)
 
 ## M3 — Persistence & users
 
 - [ ] FEAT-0002: user profiles + shared-password login
-- [ ] FEAT-0003: sessions written to SQLite, idle-timeout boundary detection
+- [x] FEAT-0003: sessions written to SQLite, idle-timeout boundary detection (plan `docs/plans/2026-04-21-m3-backend-sse-persistence.md`) — write path only; history read UI deferred
 - [ ] Session assigned to the currently "active" user in UI
 
 ## M4 — History & statistics
