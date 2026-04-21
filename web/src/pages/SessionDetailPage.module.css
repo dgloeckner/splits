@@ -1,0 +1,84 @@
+.page {
+  padding: var(--space-3);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.hero {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-surface-container-low);
+  border-radius: var(--radius-card);
+}
+
+.heroMain {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.heroLabel {
+  color: var(--color-on-surface-variant);
+}
+
+.heroValue {
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 1.1;
+  color: var(--color-on-surface);
+  font-variant-numeric: tabular-nums;
+}
+
+.heroSecondary {
+  display: grid;
+  gap: var(--space-1);
+  align-content: center;
+}
+
+.heroSecondaryRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.heroSecondaryKey {
+  color: var(--color-on-surface-variant);
+}
+
+.heroSecondaryValue {
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
+}
+
+.charts {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.deleteBtn {
+  background: transparent;
+  color: var(--color-error);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-button);
+  font-family: var(--font-display);
+  font-size: var(--text-title-md);
+}
+
+.deleteBtn:hover {
+  background: var(--color-surface-container-high);
+}
+
+.back {
+  justify-self: start;
+  color: var(--color-on-surface-variant);
+  font-family: var(--font-body);
+  font-size: var(--text-body-lg);
+  text-decoration: none;
+}
