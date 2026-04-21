@@ -3,6 +3,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { seedRower } from './helpers/rower'
 
 let backend: ChildProcessWithoutNullStreams | null = null
 
@@ -64,7 +65,8 @@ test.afterAll(async () => {
   }
 })
 
-test('history list shows a completed session; detail page renders charts', async ({ page }) => {
+test('history list shows a completed session; detail page renders charts', async ({ page, context }) => {
+  await seedRower(context)
   await page.goto('/historie')
   const firstRow = page.locator('a[href^="/historie/"]').first()
   await expect(firstRow).toBeVisible({ timeout: 10_000 })

@@ -3,6 +3,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
 import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { seedRower } from './helpers/rower'
 
 let backend: ChildProcessWithoutNullStreams | null = null
 
@@ -57,7 +58,8 @@ test.afterAll(async () => {
   }
 })
 
-test('live view shows real split from backend fixture', async ({ page }) => {
+test('live view shows real split from backend fixture', async ({ page, context }) => {
+  await seedRower(context)
   await page.goto('/')
   // Fast-pacing fixture may emit session_end (which clears stroke state)
   // before we finish reading. Assert on the mid-session signal: the hero's

@@ -34,7 +34,11 @@ export function OnboardingPage() {
         color,
       }
       const row = await createRower(input)
-      await setActiveRower(row.id)
+      const active = await setActiveRower(row.id)
+      // Seed caches synchronously so RowerGate sees non-null active
+      // immediately after navigation instead of waiting for a refetch.
+      qc.setQueryData(['rowers'], [row])
+      qc.setQueryData(['active-rower'], active)
       await qc.invalidateQueries({ queryKey: ['rowers'] })
       await qc.invalidateQueries({ queryKey: ['active-rower'] })
       nav('/', { replace: true })
