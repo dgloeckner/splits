@@ -3,6 +3,7 @@ module github.com/gloeckner-daniel/home-ergo
 go 1.25.3
 
 require (
+	github.com/google/uuid v1.6.0
 	github.com/oklog/ulid/v2 v2.1.1
 	go.bug.st/serial v1.6.4
 	golang.org/x/sync v0.20.0
@@ -12,7 +13,6 @@ require (
 require (
 	github.com/creack/goselect v0.1.2 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
