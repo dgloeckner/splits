@@ -1,9 +1,16 @@
 .shell {
   min-height: 100dvh;
   display: grid;
-  grid-template-rows: 1fr auto;
+  grid-template-rows: auto 1fr auto;
   background: var(--color-surface);
   color: var(--color-on-surface);
+}
+
+.topBar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .main {
