@@ -2,7 +2,10 @@ module github.com/gloeckner-daniel/home-ergo
 
 go 1.25.3
 
-require go.bug.st/serial v1.6.4
+require (
+	github.com/oklog/ulid/v2 v2.1.1
+	go.bug.st/serial v1.6.4
+)
 
 require (
 	github.com/creack/goselect v0.1.2 // indirect
