@@ -14,14 +14,15 @@ test.beforeAll(async () => {
       ...process.env,
       HOMEERGO_ADDR: ':8080',
       HOMEERGO_DB_PATH: join(tmp, 'e2e.db'),
-      HOMEERGO_FIXTURE: 'specs/int/fixtures/ipm/session-short.csv',
+      HOMEERGO_FIXTURE: '../specs/int/fixtures/ipm/session-short.csv',
       HOMEERGO_FIXTURE_RATE: 'fast',
       HOMEERGO_IDLE_TIMEOUT: '60s',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
-  // Wait for /api/health.
-  const deadline = Date.now() + 15_000
+  backend.stderr?.on('data', (d) => process.stderr.write(`[be] ${d}`))
+  // Wait for /api/health. go run needs time to compile on first run.
+  const deadline = Date.now() + 60_000
   while (Date.now() < deadline) {
     try {
       const r = await fetch('http://localhost:8080/api/health')
@@ -41,13 +42,9 @@ test.afterAll(async () => {
 
 test('live view shows real split from backend fixture', async ({ page }) => {
   await page.goto('/')
-  // With fast-pacing fixture, strokes arrive within ~1 s.
-  await expect(page.locator('text=/^\\d+:\\d{2}\\.\\d$/').first()).toBeVisible({ timeout: 5000 })
-  // Confirm we moved off em-dash idle state for at least one numeric field.
-  const zeitValue = await page
-    .getByText('Zeit', { exact: true })
-    .locator('xpath=following-sibling::span')
-    .first()
-    .innerText()
-  expect(zeitValue).not.toBe('—')
+  // Fast-pacing fixture may emit session_end (which clears stroke state)
+  // before we finish reading. Assert on the mid-session signal: the hero's
+  // split pace becomes a real m:ss.d value once the reducer has 2+ strokes.
+  const split = page.locator('.tnum').filter({ hasText: /^\d+:\d{2}\.\d$/ }).first()
+  await expect(split).toBeVisible({ timeout: 10_000 })
 })

@@ -6,7 +6,7 @@ Go service that reads the FDF IPM serial console, derives per-stroke metrics, br
 
 ```bash
 cd backend
-HOMEERGO_FIXTURE=specs/int/fixtures/ipm/session-short.csv \
+HOMEERGO_FIXTURE=../specs/int/fixtures/ipm/session-short.csv \
 HOMEERGO_FIXTURE_RATE=realtime \
 HOMEERGO_DB_PATH=./dev.db \
 go run ./cmd/homeergo
