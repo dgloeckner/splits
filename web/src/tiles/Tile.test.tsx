@@ -34,10 +34,10 @@ describe('Tile', () => {
     expect(screen.getByText('210')).toBeInTheDocument()
   })
 
-  it('renders a sparkline tile', () => {
+  it('renders a sparkline tile with a "sammle Daten…" placeholder on single point', () => {
     const { container } = render(<Tile tileId="watt-verlauf" state={stateWithStroke()} />)
     expect(screen.getByText('Watt-Verlauf')).toBeInTheDocument()
-    expect(container.querySelector('circle')).not.toBeNull()
+    expect(container.textContent).toContain('sammle Daten')
   })
 
   it('HR-gated tile renders in a disabled appearance', () => {
