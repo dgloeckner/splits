@@ -1,4 +1,5 @@
 import type { LiveState, SparklinePoint } from '../live/reducer'
+import type { SparklineMetric } from '../live/sparklineAxis'
 import { fmtFloat, fmtInt, fmtMeters, mmss, pace500m } from '../util/format'
 
 export type NumericValue = { value: string; unit?: string }
@@ -53,10 +54,31 @@ export function selectSparkline(state: LiveState, tileId: string): SparklineValu
       return { points: state.sparklines.power }
     case 'split-verlauf':
       return { points: state.sparklines.split }
+    case 'dps-verlauf':
+      return { points: state.sparklines.dps }
+    case 'spm-verlauf':
+      return { points: state.sparklines.spm }
     case 'hf-verlauf':
       return { points: [] }
     default:
       return { points: [] }
+  }
+}
+
+export function sparklineMetric(tileId: string): SparklineMetric | null {
+  switch (tileId) {
+    case 'watt-verlauf':
+      return 'watts'
+    case 'split-verlauf':
+      return 'split'
+    case 'dps-verlauf':
+      return 'dps'
+    case 'spm-verlauf':
+      return 'spm'
+    case 'hf-verlauf':
+      return 'hf'
+    default:
+      return null
   }
 }
 

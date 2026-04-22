@@ -8,6 +8,14 @@ type Props = {
   ghost?: number
   /** Rolling-window duration in seconds. Defaults to 90 s (phone default). */
   windowSeconds?: number
+  /**
+   * Optional externally computed Y-axis bounds. When supplied, the path is
+   * rendered against these bounds (and may overflow if a peak exceeds them —
+   * the tile chrome clips with `overflow: hidden`). When omitted, the axis
+   * falls back to the min/max of the current data (legacy behaviour).
+   */
+  yMin?: number
+  yMax?: number
 }
 
 const WIDTH = 100
@@ -97,7 +105,7 @@ function usePageVisible(): boolean {
   return visible
 }
 
-export function Sparkline({ points, ghost, windowSeconds = 90 }: Props) {
+export function Sparkline({ points, ghost, windowSeconds = 90, yMin, yMax }: Props) {
   const reduced = useReducedMotion()
   const visible = usePageVisible()
   const groupRef = useRef<SVGGElement | null>(null)
@@ -140,12 +148,12 @@ export function Sparkline({ points, ghost, windowSeconds = 90 }: Props) {
   const xMax = xs[xs.length - 1]
   const xMin = xMax - windowSeconds
   const xSpan = Math.max(1, xMax - xMin)
-  const yMin = Math.min(...ys, ghost ?? ys[0])
-  const yMax = Math.max(...ys, ghost ?? ys[0])
-  const ySpan = Math.max(1, yMax - yMin)
+  const effYMin = yMin ?? Math.min(...ys, ghost ?? ys[0])
+  const effYMax = yMax ?? Math.max(...ys, ghost ?? ys[0])
+  const ySpan = Math.max(1, effYMax - effYMin)
 
   const toX = (t: number) => ((t - xMin) / xSpan) * WIDTH
-  const toY = (v: number) => HEIGHT - ((v - yMin) / ySpan) * HEIGHT
+  const toY = (v: number) => HEIGHT - ((v - effYMin) / ySpan) * HEIGHT
 
   const scaled = points.map((p) => ({ x: toX(p.time_sec), y: toY(p.value) }))
   const path = monotonePath(scaled)
@@ -154,12 +162,17 @@ export function Sparkline({ points, ghost, windowSeconds = 90 }: Props) {
       ? `M 0 ${toY(ghost).toFixed(2)} L ${WIDTH} ${toY(ghost).toFixed(2)}`
       : null
 
+  // Dashed horizontal reference at the midpoint of the rendered axis.
+  const midY = toY((effYMin + effYMax) / 2)
+  const refPath = `M 0 ${midY.toFixed(2)} L ${WIDTH} ${midY.toFixed(2)}`
+
   return (
     <svg
       className={styles.svg}
       viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
       preserveAspectRatio="none"
     >
+      <path className={styles.ref} d={refPath} />
       <g ref={groupRef}>
         {ghostPath && <path className={styles.ghost} d={ghostPath} />}
         <path className={styles.line} d={path} />

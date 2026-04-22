@@ -1,19 +1,62 @@
 .tile {
-  display: grid;
-  grid-template-rows: auto 1fr;
-  gap: var(--space-1);
+  position: relative;
+  overflow: hidden;
   padding: var(--space-2);
   background: var(--color-surface-container);
+  border: 1px solid var(--color-outline-variant);
   border-radius: var(--radius-card);
   min-height: 96px;
 }
 
+.topRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-1);
+}
+
 .label {
   color: var(--color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.current {
+  color: var(--color-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.unit {
+  color: var(--color-on-surface-variant);
+  font-weight: 400;
+  font-size: 0.85em;
 }
 
 .canvas {
-  height: 56px;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 66%;
+}
+
+.minLabel,
+.maxLabel {
+  position: absolute;
+  bottom: 4px;
+  font-size: var(--text-label-sm, 11px);
+  color: var(--color-on-surface-variant);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.minLabel {
+  left: var(--space-2);
+}
+
+.maxLabel {
+  right: var(--space-2);
 }
 
 .disabled {
