@@ -5,7 +5,7 @@ import type { LiveState } from '../live/reducer'
 import { Sparkline } from '../components/Sparkline/Sparkline'
 import { smoothingConfig } from '../live/smoothing'
 import { computeAxis, type SparklineMetric } from '../live/sparklineAxis'
-import { fmtFloat, fmtInt, pace500m } from '../util/format'
+import { fmtFloat, fmtInt } from '../util/format'
 import styles from './SparklineTile.module.css'
 
 type Props = { def: TileDef; state: LiveState; disabled?: boolean }
@@ -30,29 +30,26 @@ function useIsTablet(): boolean {
   return tablet
 }
 
+function paceShort(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds <= 0) return '—'
+  const total = Math.round(seconds)
+  const m = Math.floor(total / 60)
+  const s = total % 60
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
 function formatForMetric(value: number, metric: SparklineMetric): string {
   switch (metric) {
     case 'watts':
       return fmtInt(value)
     case 'split':
-      return pace500m(value)
+      return paceShort(value)
     case 'dps':
       return fmtFloat(value, 1)
     case 'spm':
       return fmtInt(value)
     case 'hf':
       return fmtInt(value)
-  }
-}
-
-function unitForMetric(metric: SparklineMetric): string | undefined {
-  switch (metric) {
-    case 'watts':
-      return 'W'
-    case 'hf':
-      return 'bpm'
-    default:
-      return undefined
   }
 }
 
@@ -73,17 +70,14 @@ export function SparklineTile({ def, state, disabled }: Props) {
   const current = hasData ? points[points.length - 1].value : null
 
   const cls = [styles.tile, disabled && styles.disabled].filter(Boolean).join(' ')
-  const unit = metric ? unitForMetric(metric) : undefined
+  const showEdges = metric && axis && axis.dataMin !== null && axis.dataMax !== null
 
   return (
     <div className={cls}>
       <div className={styles.topRow}>
         <span className={`label-sm ${styles.label}`}>{def.label}</span>
         {metric && hasData && current !== null && (
-          <span className={styles.current}>
-            {formatForMetric(current, metric)}
-            {unit ? <span className={styles.unit}> {unit}</span> : null}
-          </span>
+          <span className={styles.current}>{formatForMetric(current, metric)}</span>
         )}
       </div>
       <div className={styles.canvas}>
@@ -94,11 +88,11 @@ export function SparklineTile({ def, state, disabled }: Props) {
           yMax={axis?.yMax}
         />
       </div>
-      {metric && axis && axis.dataMin !== null && axis.dataMax !== null && (
-        <>
-          <span className={styles.minLabel}>{formatForMetric(axis.dataMin, metric)}</span>
-          <span className={styles.maxLabel}>{formatForMetric(axis.dataMax, metric)}</span>
-        </>
+      {showEdges && (
+        <div className={styles.edges}>
+          <span className={styles.edgeMin}>{formatForMetric(axis.dataMin!, metric!)}</span>
+          <span className={styles.edgeMax}>{formatForMetric(axis.dataMax!, metric!)}</span>
+        </div>
       )}
     </div>
   )

@@ -36,7 +36,7 @@ describe('Tile', () => {
 
   it('renders a sparkline tile with a "sammle Daten…" placeholder on single point', () => {
     const { container } = render(<Tile tileId="watt-verlauf" state={stateWithStroke()} />)
-    expect(screen.getByText('Watt-Verlauf')).toBeInTheDocument()
+    expect(screen.getByText('Watt')).toBeInTheDocument()
     expect(container.textContent).toContain('sammle Daten')
   })
 

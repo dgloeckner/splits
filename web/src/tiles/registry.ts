@@ -62,19 +62,19 @@ export const TILES: TileDef[] = [
   },
   {
     id: 'split-verlauf',
-    label: 'Split-Verlauf',
+    label: 'Split',
     type: 'sparkline',
     category: 'verlaeufe',
   },
   {
     id: 'watt-verlauf',
-    label: 'Watt-Verlauf',
+    label: 'Watt',
     type: 'sparkline',
     category: 'verlaeufe',
   },
   {
     id: 'hf-verlauf',
-    label: 'HF-Verlauf',
+    label: 'HF',
     type: 'sparkline',
     gated: 'hr',
     category: 'verlaeufe',
