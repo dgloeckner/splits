@@ -115,6 +115,58 @@ the full signal.
 - [ ] Sparklines show the "sammle Daten…" placeholder during the cold
       window (see above).
 
+### Sparkline Y-axis scaling
+
+Adaptive scaling with per-metric minimum span and absolute clamps so
+calm sessions do not look dramatic and extreme sessions do not overflow
+the tile. Min/max labels at the tile corners always show the **actual**
+visible data range so the viewer can see real values even when the axis
+is padded.
+
+Algorithm:
+1. Compute `dataMin`, `dataMax` across visible points.
+2. `desiredRange = max(dataRange * 1.2, metricMinRange)`.
+3. Center the scale on the data mean: `center = (dataMin + dataMax) / 2`.
+4. `yMin = center - desiredRange/2`, `yMax = center + desiredRange/2`.
+5. Clamp `yMin`, `yMax` to the metric's absolute bounds. If the clamp
+   shrinks one side, do not re-expand the other — let the window be
+   smaller; the visible line will sit near the clamped edge, which is
+   the correct signal.
+
+Per-metric config:
+
+| Metric | Min range | Clamp min | Clamp max |
+|--------|-----------|-----------|-----------|
+| Watt   | 100 W     | 0         | 600       |
+| Split  | 30 s      | 60 s      | 240 s     |
+| DPS    | 4 m       | 0         | 20        |
+| SPM    | 10        | 0         | 50        |
+| HF     | 40 bpm    | resting   | max       |
+
+Notes:
+- Split: smaller is better; the line inverted on screen is handled by
+  the tile render, not by the axis computation.
+- HF: `resting` / `max` default to 40 / 200 until the rower profile
+  carries zones (FEAT-0004).
+
+Tile chrome (per Stitch "Live-Ansicht (Sparkline Refinement)"):
+- Top-left: metric label (uppercase tracking).
+- Top-right: current value in primary colour.
+- Bottom-left corner: actual `dataMin` value.
+- Bottom-right corner: actual `dataMax` value.
+- Horizontal dashed reference line at `mean(dataMin, dataMax)`.
+
+- [ ] `computeAxis(points, metric)` is a pure function with tests
+      covering: empty input, single point, flat-line input, range below
+      minimum, range above minimum, clamp-low, clamp-high, clamp-both.
+- [ ] `Sparkline` accepts a `metric` prop and calls `computeAxis` to
+      derive `yMin` / `yMax`. No data is clipped — the path is allowed
+      to overflow when a real peak exceeds the padded range. Overflow
+      is visually acceptable; the tile clips with `overflow: hidden`.
+- [ ] `SparklineTile` renders the chrome described above; values pulled
+      from `computeAxis` (`dataMin`, `dataMax`) and the latest sample
+      (current value).
+
 ### Observability
 
 - [ ] Smoothing parameters (`α`, hysteresis thresholds, `T_cold`,
