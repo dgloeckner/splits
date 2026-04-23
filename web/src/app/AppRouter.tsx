@@ -5,6 +5,7 @@ import { NotFound } from './NotFound'
 import { RowerGate } from './RowerGate'
 import { LiveSessionProvider } from '../live/LiveSessionContext'
 import { LivePage } from '../pages/LivePage'
+import { HomePage } from '../pages/HomePage'
 import { HistoryPage } from '../pages/HistoryPage'
 import { SessionDetailPage } from '../pages/SessionDetailPage'
 import { ProfilePage } from '../pages/ProfilePage'
@@ -19,7 +20,8 @@ export function AppRouter() {
             <Route path="/onboarding" element={<OnboardingPage />} />
             <Route element={<RowerGate />}>
               <Route element={<AppLayout />}>
-                <Route index element={<LivePage />} />
+                <Route index element={<HomePage />} />
+                <Route path="/live" element={<LivePage />} />
                 <Route path="/historie" element={<HistoryPage />} />
                 <Route path="/historie/:sessionId" element={<SessionDetailPage />} />
                 <Route path="/profil" element={<ProfilePage />} />
