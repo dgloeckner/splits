@@ -2,11 +2,14 @@ package workout
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/gloeckner-daniel/home-ergo/internal/storage"
+	"github.com/google/uuid"
 )
 
 func newTestRepo(t *testing.T) (*Repo, *storage.DB) {
@@ -67,4 +70,68 @@ func TestGetWorkoutNotFound(t *testing.T) {
 	if got != nil {
 		t.Fatalf("expected nil, got %+v", got)
 	}
+}
+
+func TestFavoritesCRUD(t *testing.T) {
+	repo, db := newTestRepo(t)
+	ctx := context.Background()
+	rowerID := seedRower(t, db.Handle(), "Alice")
+
+	created, err := repo.CreateFavorite(ctx, CreateFavoriteInput{
+		RowerID:    rowerID,
+		Name:       "My 5k",
+		Mode:       ModeDistance,
+		ParamsJSON: json.RawMessage(`{"meters":5000}`),
+		Intensity:  IntensityModerat,
+		WarmupSec:  300,
+	})
+	if err != nil {
+		t.Fatalf("create favorite: %v", err)
+	}
+	if created.Name != "My 5k" {
+		t.Fatalf("bad name: %q", created.Name)
+	}
+
+	list, err := repo.ListFavorites(ctx, rowerID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("expected 1, got %d", len(list))
+	}
+
+	if err := repo.DeleteFavorite(ctx, created.ID); err != nil {
+		t.Fatal(err)
+	}
+	list, _ = repo.ListFavorites(ctx, rowerID)
+	if len(list) != 0 {
+		t.Fatalf("expected 0 after delete, got %d", len(list))
+	}
+}
+
+func TestCreateFavoriteRequiresName(t *testing.T) {
+	repo, db := newTestRepo(t)
+	rowerID := seedRower(t, db.Handle(), "Bob")
+	_, err := repo.CreateFavorite(context.Background(), CreateFavoriteInput{
+		RowerID:    rowerID,
+		Name:       "",
+		Mode:       ModeTime,
+		ParamsJSON: json.RawMessage(`{"seconds":600}`),
+	})
+	if err == nil {
+		t.Fatal("expected ErrNameRequired")
+	}
+}
+
+func seedRower(t *testing.T, db *sql.DB, name string) string {
+	t.Helper()
+	id := uuid.NewString()
+	_, err := db.Exec(
+		`INSERT INTO rowers(id, name, color, created_at) VALUES(?, ?, '#fff', ?)`,
+		id, name, time.Now().UTC().Format(time.RFC3339Nano),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return id
 }
