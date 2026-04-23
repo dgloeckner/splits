@@ -16,17 +16,29 @@ First iteration of pre-session workout selection. Four modes — **Just Row**, *
 - **Changed**: Intensity is now a *range* (split lo/hi + SPM lo/hi), not a point value
 - **Changed**: Workouts and favorites are separate tables (simpler cleanup)
 
-## Flow (3–4 steps)
+## Navigation shift
 
-### Step 1 — Mode
-Chips / cards on the entry screen (from Live View's "Workout starten"):
+Entry point moves from Live View to a new **Home** screen. Live View becomes session-only (entered on workout start, exited on session end).
 
-- **Nur rudern** → start Just-Row immediately, no further steps
-- **Letztes Workout** (shown only if the active rower has a prior `workout` row) → start immediately
-- **Favoriten** (shown only if the active rower has `workout_favorite` rows) → sub-list, tap a favorite to start
-- **Distanz**
-- **Zeit**
-- **Intervalle**
+### Home screen (new)
+
+Stitch reference: `Workout Dashboard`. Content:
+
+- **Große Kachel "Nur rudern"** — one tap → Just-Row, direct Live View
+- **Große Kachel "Neues Workout"** — one tap → Step 2 Mode-Picker (see Flow below)
+- **Card "Letztes Training"** — last session summary for active rower: Datum, Mode-Label, Distanz, Zeit, kleine Sparkline (Split oder Watts). Tap → Session-Detail. Zweiter CTA "Wiederholen" startet `workout` mit identischen Params.
+- **Favoriten-Liste** — chips/cards aus `workout_favorite` des aktiven Rowers, sortiert by `created_at DESC`. Tap startet Workout direkt ohne Confirm.
+- Top-Bar: aktiver Rower (switcher), Link zu Historie / Profil.
+
+Leere States:
+- Kein "Letztes Training" wenn Rower noch keine Session → Card ausgeblendet
+- Keine Favoriten → Sektion ausgeblendet (statt leere Liste)
+
+## Flow (2–3 steps nach "Neues Workout")
+
+### Step 1 — Mode (nur bei "Neues Workout" vom Home)
+
+Chips: `Distanz · Zeit · Intervalle`. ("Nur rudern", "Letztes Workout", "Favoriten" leben auf Home, nicht in diesem Step.)
 
 ### Step 2 — Dimension (branch)
 
@@ -168,8 +180,13 @@ Hardcoded in frontend, not in DB. Changing a preset list = frontend edit. Custom
 
 ## Acceptance criteria
 
-- [ ] "Nur rudern" startet in ≤ 2 Taps ab Live-View (Button → Karte).
-- [ ] Preset-Workout (Typ → Preset → Intensität → Start) startet in ≤ 4 Taps.
+- [ ] App öffnet standardmäßig im Home-Screen (nicht mehr Live-View).
+- [ ] "Nur rudern" startet in 1 Tap ab Home (Kachel → direkt Live-View).
+- [ ] Preset-Workout startet in ≤ 4 Taps ab Home (Neues Workout → Mode → Preset → Intensität → Start).
+- [ ] Favoriten-Tap auf Home startet Workout ohne Confirm-Screen.
+- [ ] "Letztes Training"-Card auf Home zeigt Datum, Distanz, Zeit + Sparkline; Tap "Wiederholen" startet identischen Workout.
+- [ ] Home verbirgt leere Sektionen (kein Letztes / keine Favoriten).
+- [ ] Session-Ende navigiert zurück zum Home, nicht zur leeren Live-View.
 - [ ] "Eigene" bei Intervalle zeigt Anzahl-, Länge- (Meter/Minuten-Toggle) und Pause-Stepper.
 - [ ] Custom-Parameter validiert: `reps > 0`, `length.value > 0`, `rest_sec ≥ 0`, `meters > 0`, `seconds > 0`.
 - [ ] Confirm-Screen zeigt WU/CD-Toggles nur für Nicht-Just-Row.
