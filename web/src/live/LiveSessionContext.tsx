@@ -3,7 +3,7 @@ import { EventSourceChannel, type Channel } from './channel'
 import { useEventSource } from './useEventSource'
 import type { LiveState } from './reducer'
 
-const LiveSessionContext = createContext<LiveState | null>(null)
+export const LiveSessionContext = createContext<LiveState | null>(null)
 
 type Props = {
   children: ReactNode
