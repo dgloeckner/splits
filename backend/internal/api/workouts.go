@@ -8,6 +8,29 @@ import (
 	"github.com/gloeckner-daniel/home-ergo/internal/workout"
 )
 
+// SessionAttacher tags the next session with a workout ID.
+// Satisfied by *session.Sessionizer in production code.
+type SessionAttacher interface {
+	AttachWorkout(id string)
+}
+
+func WorkoutAttachHandler(repo *workout.Repo, att SessionAttacher) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		wk, err := repo.GetWorkout(r.Context(), id)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if wk == nil {
+			http.NotFound(w, r)
+			return
+		}
+		att.AttachWorkout(id)
+		w.WriteHeader(http.StatusNoContent)
+	})
+}
+
 func WorkoutsHandler(repo *workout.Repo) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /api/v1/workouts", func(w http.ResponseWriter, r *http.Request) {

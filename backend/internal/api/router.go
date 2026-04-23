@@ -18,6 +18,7 @@ type Inputs struct {
 	RowerRepo   *rower.Repo
 	RowerHolder *rower.Holder
 	WorkoutRepo *workout.Repo
+	Sessionizer SessionAttacher
 	StartedAt   time.Time
 }
 
@@ -50,6 +51,10 @@ func NewRouter(in Inputs) http.Handler {
 	mux.Handle("POST /api/v1/favorites", favs)
 	mux.Handle("GET /api/v1/favorites", favs)
 	mux.Handle("DELETE /api/v1/favorites/{id}", favs)
+
+	if in.Sessionizer != nil {
+		mux.Handle("POST /api/v1/workouts/{id}/attach", WorkoutAttachHandler(in.WorkoutRepo, in.Sessionizer))
+	}
 
 	mux.Handle("GET /debug/ingest", DebugIngestHandler(DebugIngestInputs{
 		Ring:        in.Ring,

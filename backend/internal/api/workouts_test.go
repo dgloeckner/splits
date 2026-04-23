@@ -242,3 +242,63 @@ func TestCreateFavoriteRequiresName(t *testing.T) {
 		t.Fatalf("status=%d", resp.StatusCode)
 	}
 }
+
+type fakeAttacher struct{ got string }
+
+func (f *fakeAttacher) AttachWorkout(id string) { f.got = id }
+
+func newWorkoutTestServerWithAttacher(t *testing.T) (*httptest.Server, *workout.Repo, *fakeAttacher) {
+	t.Helper()
+	db, err := storage.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Close() })
+	repo := workout.NewRepo(db.Handle())
+	att := &fakeAttacher{}
+
+	mux := http.NewServeMux()
+	workouts := WorkoutsHandler(repo)
+	mux.Handle("POST /api/v1/workouts", workouts)
+	mux.Handle("GET /api/v1/workouts/{id}", workouts)
+	mux.Handle("GET /api/v1/workouts/last", workouts)
+	mux.Handle("POST /api/v1/workouts/{id}/attach", WorkoutAttachHandler(repo, att))
+
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	return srv, repo, att
+}
+
+func TestAttachHandler(t *testing.T) {
+	srv, repo, att := newWorkoutTestServerWithAttacher(t)
+	w, err := repo.CreateWorkout(context.Background(), workout.CreateWorkoutInput{
+		Mode:       workout.ModeTime,
+		ParamsJSON: json.RawMessage(`{"seconds":600}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, _ := http.NewRequest("POST", srv.URL+"/api/v1/workouts/"+w.ID+"/attach", nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("status=%d", resp.StatusCode)
+	}
+	if att.got != w.ID {
+		t.Fatalf("attacher.got=%q want %q", att.got, w.ID)
+	}
+}
+
+func TestAttachHandlerNotFound(t *testing.T) {
+	srv, _, _ := newWorkoutTestServerWithAttacher(t)
+	req, _ := http.NewRequest("POST", srv.URL+"/api/v1/workouts/missing/attach", nil)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("status=%d", resp.StatusCode)
+	}
+}

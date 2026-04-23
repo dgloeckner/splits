@@ -104,6 +104,7 @@ func run() error {
 			RowerRepo:   rowerRepo,
 			RowerHolder: rowerHolder,
 			WorkoutRepo: workoutRepo,
+			Sessionizer: sessionizer,
 			StartedAt:   time.Now(),
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
