@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom'
 import { useActiveRower } from '../hooks/useActiveRower'
+import { FavoritesList } from './home/FavoritesList'
 import { LastTrainingCard } from './home/LastTrainingCard'
 import styles from './HomePage.module.css'
 
@@ -21,6 +22,7 @@ export function HomePage() {
         </button>
       </section>
       {rowerID && <LastTrainingCard rowerID={rowerID} />}
+      {rowerID && <FavoritesList rowerID={rowerID} />}
     </main>
   )
 }
