@@ -1,8 +1,12 @@
 import { useNavigate } from 'react-router-dom'
+import { useActiveRower } from '../hooks/useActiveRower'
+import { LastTrainingCard } from './home/LastTrainingCard'
 import styles from './HomePage.module.css'
 
 export function HomePage() {
   const nav = useNavigate()
+  const active = useActiveRower()
+  const rowerID = active.data?.id
   return (
     <main className={styles.page}>
       <h1 className={styles.heading}>Home</h1>
@@ -16,6 +20,7 @@ export function HomePage() {
           <span className={styles.tileHint}>Distanz · Zeit · Intervalle</span>
         </button>
       </section>
+      {rowerID && <LastTrainingCard rowerID={rowerID} />}
     </main>
   )
 }
