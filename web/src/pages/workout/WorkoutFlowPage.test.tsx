@@ -49,8 +49,8 @@ describe('WorkoutFlowProvider', () => {
 })
 
 describe('WorkoutFlowPage', () => {
-  it('renders step 1 placeholder at mount', () => {
+  it('renders Step1Mode at mount', () => {
     render(<MemoryRouter><WorkoutFlowPage /></MemoryRouter>)
-    expect(screen.getByTestId('step-1')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Workout wählen' })).toBeInTheDocument()
   })
 })
