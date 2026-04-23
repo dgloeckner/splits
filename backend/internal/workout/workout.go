@@ -97,6 +97,22 @@ func scanWorkout(s scanner) (*Workout, error) {
 	return &w, nil
 }
 
+// LastWorkoutForRower returns the most recent workout attached to a
+// session of the given rower, or nil if none exist.
+func (r *Repo) LastWorkoutForRower(ctx context.Context, rowerID string) (*Workout, error) {
+	row := r.db.QueryRowContext(ctx,
+		`SELECT w.id, w.mode, w.params_json, w.intensity, w.warmup_sec, w.cooldown_sec, w.created_at
+         FROM workout w
+         JOIN sessions s ON s.workout_id = w.id
+         WHERE s.rower_id = ? AND s.deleted_at IS NULL
+         ORDER BY s.started_at DESC LIMIT 1`, rowerID)
+	w, err := scanWorkout(row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	return w, err
+}
+
 func nullString(s string) any {
 	if s == "" {
 		return nil

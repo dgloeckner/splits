@@ -135,3 +135,42 @@ func seedRower(t *testing.T, db *sql.DB, name string) string {
 	}
 	return id
 }
+
+func TestLastWorkoutForRower(t *testing.T) {
+	repo, db := newTestRepo(t)
+	ctx := context.Background()
+	rowerID := seedRower(t, db.Handle(), "Carla")
+
+	// No workout yet → nil.
+	got, err := repo.LastWorkoutForRower(ctx, rowerID)
+	if err != nil || got != nil {
+		t.Fatalf("expected nil, got %v err=%v", got, err)
+	}
+
+	// Create workout + fake session linking.
+	w, _ := repo.CreateWorkout(ctx, CreateWorkoutInput{
+		Mode:       ModeTime,
+		ParamsJSON: json.RawMessage(`{"seconds":1200}`),
+	})
+	seedSessionWithWorkout(t, db.Handle(), rowerID, w.ID)
+
+	got, err = repo.LastWorkoutForRower(ctx, rowerID)
+	if err != nil {
+		t.Fatalf("err: %v", err)
+	}
+	if got == nil || got.ID != w.ID {
+		t.Fatalf("unexpected: %+v", got)
+	}
+}
+
+func seedSessionWithWorkout(t *testing.T, db *sql.DB, rowerID, workoutID string) {
+	t.Helper()
+	_, err := db.Exec(
+		`INSERT INTO sessions(id, rower_id, started_at, initial_level, workout_id)
+         VALUES(?, ?, ?, 1, ?)`,
+		uuid.NewString(), rowerID, time.Now().UTC().Format(time.RFC3339Nano), workoutID,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
