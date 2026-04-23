@@ -113,6 +113,17 @@ func (r *Repo) LastWorkoutForRower(ctx context.Context, rowerID string) (*Workou
 	return w, err
 }
 
+// CleanupOrphans deletes workout rows that no session references.
+// Returns rows affected. Safe to call repeatedly.
+func (r *Repo) CleanupOrphans(ctx context.Context) (int64, error) {
+	res, err := r.db.ExecContext(ctx,
+		`DELETE FROM workout WHERE id NOT IN (SELECT workout_id FROM sessions WHERE workout_id IS NOT NULL)`)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected()
+}
+
 func nullString(s string) any {
 	if s == "" {
 		return nil

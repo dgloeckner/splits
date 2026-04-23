@@ -174,3 +174,40 @@ func seedSessionWithWorkout(t *testing.T, db *sql.DB, rowerID, workoutID string)
 		t.Fatal(err)
 	}
 }
+
+func TestCleanupOrphans(t *testing.T) {
+	repo, db := newTestRepo(t)
+	ctx := context.Background()
+
+	// Orphan workout (no session references).
+	orphan, err := repo.CreateWorkout(ctx, CreateWorkoutInput{
+		Mode: ModeTime, ParamsJSON: json.RawMessage(`{"seconds":60}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Referenced workout.
+	rowerID := seedRower(t, db.Handle(), "X")
+	referenced, err := repo.CreateWorkout(ctx, CreateWorkoutInput{
+		Mode: ModeTime, ParamsJSON: json.RawMessage(`{"seconds":120}`),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	seedSessionWithWorkout(t, db.Handle(), rowerID, referenced.ID)
+
+	n, err := repo.CleanupOrphans(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("expected 1 deleted, got %d", n)
+	}
+	if got, _ := repo.GetWorkout(ctx, orphan.ID); got != nil {
+		t.Fatal("orphan survived")
+	}
+	if got, _ := repo.GetWorkout(ctx, referenced.ID); got == nil {
+		t.Fatal("referenced workout wrongly deleted")
+	}
+}

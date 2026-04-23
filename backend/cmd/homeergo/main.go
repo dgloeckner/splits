@@ -62,6 +62,11 @@ func run() error {
 	rowerRepo := rower.NewRepo(db.Handle())
 	rowerHolder := rower.NewHolder()
 	workoutRepo := workout.NewRepo(db.Handle())
+	if n, err := workoutRepo.CleanupOrphans(ctx); err != nil {
+		slog.Error("workout.cleanup", "err", err)
+	} else if n > 0 {
+		slog.Info("workout.cleanup", "deleted", n)
+	}
 	if last, err := rowerRepo.LastActive(ctx); err == nil && last != nil {
 		rowerHolder.Set(last.ID, last.Name)
 	}
