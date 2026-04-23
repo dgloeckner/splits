@@ -1,0 +1,208 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-3);
+}
+
+/* ── Header ── */
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.back {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-label-md);
+  cursor: pointer;
+  padding: 0;
+  align-self: flex-start;
+}
+
+.back:active {
+  opacity: 0.7;
+}
+
+.title {
+  font-family: var(--font-display);
+  font-size: var(--text-title-lg);
+  font-weight: 700;
+  margin: 0;
+  color: var(--color-on-surface);
+}
+
+/* ── Timeline ── */
+
+.timeline {
+  display: flex;
+  gap: 3px;
+  height: 20px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.block {
+  flex: 1;
+  border-radius: 2px;
+}
+
+.block_warmup {
+  background: var(--color-outline-variant);
+  border: 1.5px dashed var(--color-outline);
+}
+
+.block_work {
+  background: var(--color-primary);
+}
+
+.block_rest {
+  background: var(--color-surface-container-high);
+  border: 1px solid var(--color-outline-variant);
+}
+
+.block_cooldown {
+  background: var(--color-outline-variant);
+  border: 1.5px dashed var(--color-outline);
+}
+
+/* ── Toggle rows ── */
+
+.toggleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-3);
+  background: var(--color-surface-container);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-outline-variant);
+  gap: var(--space-4);
+}
+
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-family: var(--font-body);
+  font-size: var(--text-label-md);
+  color: var(--color-on-surface);
+  cursor: pointer;
+  user-select: none;
+}
+
+.toggle input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* ── Stepper ── */
+
+.stepperControls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.stepperBtn {
+  width: 36px;
+  height: 36px;
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+  border: 1.5px solid var(--color-outline-variant);
+  border-radius: 50%;
+  font-size: var(--text-title-md);
+  font-family: var(--font-body);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: background-color var(--motion-state) var(--motion-ease);
+}
+
+.stepperBtn:active:not(:disabled) {
+  background: var(--color-primary-container);
+}
+
+.stepperBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.stepperValue {
+  font-family: var(--font-display);
+  font-size: var(--text-title-md);
+  font-weight: 700;
+  color: var(--color-on-surface);
+  min-width: 28px;
+  text-align: center;
+}
+
+.stepperUnit {
+  font-family: var(--font-body);
+  font-size: var(--text-label-md);
+  color: var(--color-on-surface-variant);
+}
+
+/* ── Favorite row ── */
+
+.favRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-3);
+  background: var(--color-surface-container);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-outline-variant);
+}
+
+.nameInput {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-body);
+  font-size: var(--text-label-md);
+  color: var(--color-on-surface);
+  background: var(--color-surface);
+  border: 1.5px solid var(--color-outline-variant);
+  border-radius: 8px;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color var(--motion-state) var(--motion-ease);
+}
+
+.nameInput:focus {
+  border-color: var(--color-primary);
+}
+
+/* ── Start button ── */
+
+.start {
+  width: 100%;
+  padding: var(--space-4) var(--space-4);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border: none;
+  border-radius: var(--radius-card);
+  font-family: var(--font-body);
+  font-size: var(--text-title-md);
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: 0.04em;
+  transition: opacity var(--motion-state) var(--motion-ease);
+}
+
+.start:active:not(:disabled) {
+  opacity: 0.85;
+}
+
+.start:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}

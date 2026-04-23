@@ -2,6 +2,7 @@ import { WorkoutFlowProvider, useWorkoutFlow } from './WorkoutFlowProvider'
 import { Step1Mode } from './Step1Mode'
 import { Step2Dimension } from './Step2Dimension'
 import { Step3Intensity } from './Step3Intensity'
+import { ConfirmScreen } from './ConfirmScreen'
 import styles from './WorkoutFlowPage.module.css'
 
 function FlowBody() {
@@ -14,7 +15,7 @@ function FlowBody() {
       {state.step === 1 && <Step1Mode />}
       {state.step === 2 && <Step2Dimension />}
       {state.step === 3 && <Step3Intensity />}
-      {state.step === 'confirm' && <div data-testid="step-confirm">Confirm placeholder</div>}
+      {state.step === 'confirm' && <ConfirmScreen />}
     </main>
   )
 }
