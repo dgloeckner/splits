@@ -1,0 +1,205 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-3);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+}
+
+.back {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-label-md);
+  cursor: pointer;
+  padding: 0;
+}
+
+.back:active {
+  opacity: 0.7;
+}
+
+/* ── Panel ── */
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.panelTitle {
+  font-family: var(--font-display);
+  font-size: var(--text-title-md);
+  font-weight: 600;
+  margin: 0;
+  color: var(--color-on-surface);
+}
+
+/* ── Chips ── */
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.chip {
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+  border: 1.5px solid var(--color-outline-variant);
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: var(--text-label-md);
+  cursor: pointer;
+  transition: background-color var(--motion-state) var(--motion-ease),
+              border-color var(--motion-state) var(--motion-ease);
+}
+
+.chip:active {
+  background: var(--color-primary-container);
+}
+
+.chipSelected {
+  background: var(--color-primary-container);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary-container);
+}
+
+/* ── Custom panel ── */
+
+.customPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-3);
+  background: var(--color-surface-container);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-outline-variant);
+}
+
+/* ── Stepper ── */
+
+.stepperRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.stepperLabel {
+  font-family: var(--font-body);
+  font-size: var(--text-label-sm);
+  color: var(--color-on-surface-variant);
+}
+
+.stepperControls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.stepperBtn {
+  width: 40px;
+  height: 40px;
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+  border: 1.5px solid var(--color-outline-variant);
+  border-radius: 50%;
+  font-size: var(--text-title-md);
+  font-family: var(--font-body);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.stepperBtn:active {
+  background: var(--color-primary-container);
+}
+
+.stepperValue {
+  font-family: var(--font-display);
+  font-size: var(--text-title-lg);
+  font-weight: 700;
+  color: var(--color-on-surface);
+  min-width: 80px;
+  text-align: center;
+}
+
+.stepperUnit {
+  font-family: var(--font-body);
+  font-size: var(--text-label-md);
+  color: var(--color-on-surface-variant);
+}
+
+/* ── Intervals config sections ── */
+
+.configSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.configLabel {
+  font-family: var(--font-body);
+  font-size: var(--text-label-md);
+  font-weight: 600;
+  color: var(--color-on-surface);
+}
+
+/* ── Unit toggle ── */
+
+.unitToggle {
+  display: flex;
+  gap: 0;
+  border: 1.5px solid var(--color-outline-variant);
+  border-radius: 8px;
+  overflow: hidden;
+  align-self: flex-start;
+}
+
+.unitBtn {
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+  border: none;
+  font-family: var(--font-body);
+  font-size: var(--text-label-md);
+  cursor: pointer;
+}
+
+.unitBtn + .unitBtn {
+  border-left: 1.5px solid var(--color-outline-variant);
+}
+
+.unitBtnActive {
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  font-weight: 600;
+}
+
+/* ── Submit button ── */
+
+.submitBtn {
+  padding: var(--space-3) var(--space-4);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border: none;
+  border-radius: var(--radius-card);
+  font-family: var(--font-body);
+  font-size: var(--text-label-md);
+  font-weight: 600;
+  cursor: pointer;
+  align-self: stretch;
+  transition: opacity var(--motion-state) var(--motion-ease);
+}
+
+.submitBtn:active {
+  opacity: 0.85;
+}
