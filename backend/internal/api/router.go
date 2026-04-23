@@ -8,6 +8,7 @@ import (
 	"github.com/gloeckner-daniel/home-ergo/internal/pipeline"
 	"github.com/gloeckner-daniel/home-ergo/internal/rower"
 	"github.com/gloeckner-daniel/home-ergo/internal/stream"
+	"github.com/gloeckner-daniel/home-ergo/internal/workout"
 )
 
 type Inputs struct {
@@ -16,6 +17,7 @@ type Inputs struct {
 	DB          *sql.DB
 	RowerRepo   *rower.Repo
 	RowerHolder *rower.Holder
+	WorkoutRepo *workout.Repo
 	StartedAt   time.Time
 }
 
@@ -38,6 +40,16 @@ func NewRouter(in Inputs) http.Handler {
 	active := ActiveRowerHandler(in.RowerRepo, in.RowerHolder)
 	mux.Handle("GET /api/v1/active-rower", active)
 	mux.Handle("PUT /api/v1/active-rower", active)
+
+	workouts := WorkoutsHandler(in.WorkoutRepo)
+	mux.Handle("POST /api/v1/workouts", workouts)
+	mux.Handle("GET /api/v1/workouts/{id}", workouts)
+	mux.Handle("GET /api/v1/workouts/last", workouts)
+
+	favs := FavoritesHandler(in.WorkoutRepo)
+	mux.Handle("POST /api/v1/favorites", favs)
+	mux.Handle("GET /api/v1/favorites", favs)
+	mux.Handle("DELETE /api/v1/favorites/{id}", favs)
 
 	mux.Handle("GET /debug/ingest", DebugIngestHandler(DebugIngestInputs{
 		Ring:        in.Ring,

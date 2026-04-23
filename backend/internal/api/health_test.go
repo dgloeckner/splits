@@ -13,6 +13,7 @@ import (
 	"github.com/gloeckner-daniel/home-ergo/internal/pipeline"
 	"github.com/gloeckner-daniel/home-ergo/internal/storage"
 	"github.com/gloeckner-daniel/home-ergo/internal/stream"
+	"github.com/gloeckner-daniel/home-ergo/internal/workout"
 )
 
 func newTestRouter(t *testing.T) http.Handler {
@@ -28,6 +29,7 @@ func newTestRouter(t *testing.T) http.Handler {
 		Ring:        pipeline.NewRing(4),
 		Broadcaster: stream.NewBroadcaster(ch),
 		DB:          db.Handle(),
+		WorkoutRepo: workout.NewRepo(db.Handle()),
 		StartedAt:   time.Now(),
 	})
 }

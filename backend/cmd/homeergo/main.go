@@ -21,6 +21,7 @@ import (
 	"github.com/gloeckner-daniel/home-ergo/internal/session"
 	"github.com/gloeckner-daniel/home-ergo/internal/storage"
 	"github.com/gloeckner-daniel/home-ergo/internal/stream"
+	"github.com/gloeckner-daniel/home-ergo/internal/workout"
 )
 
 const httpShutdownTimeout = 30 * time.Second
@@ -60,6 +61,7 @@ func run() error {
 
 	rowerRepo := rower.NewRepo(db.Handle())
 	rowerHolder := rower.NewHolder()
+	workoutRepo := workout.NewRepo(db.Handle())
 	if last, err := rowerRepo.LastActive(ctx); err == nil && last != nil {
 		rowerHolder.Set(last.ID, last.Name)
 	}
@@ -101,6 +103,7 @@ func run() error {
 			DB:          db.Handle(),
 			RowerRepo:   rowerRepo,
 			RowerHolder: rowerHolder,
+			WorkoutRepo: workoutRepo,
 			StartedAt:   time.Now(),
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
