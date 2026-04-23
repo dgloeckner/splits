@@ -10,6 +10,7 @@ import { HistoryPage } from '../pages/HistoryPage'
 import { SessionDetailPage } from '../pages/SessionDetailPage'
 import { ProfilePage } from '../pages/ProfilePage'
 import { OnboardingPage } from '../pages/OnboardingPage'
+import { WorkoutFlowPage } from '../pages/workout/WorkoutFlowPage'
 
 export function AppRouter() {
   return (
@@ -22,6 +23,7 @@ export function AppRouter() {
               <Route element={<AppLayout />}>
                 <Route index element={<HomePage />} />
                 <Route path="/live" element={<LivePage />} />
+                <Route path="/workout/new" element={<WorkoutFlowPage />} />
                 <Route path="/historie" element={<HistoryPage />} />
                 <Route path="/historie/:sessionId" element={<SessionDetailPage />} />
                 <Route path="/profil" element={<ProfilePage />} />

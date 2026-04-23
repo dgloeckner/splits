@@ -1,0 +1,9 @@
+.page {
+  padding: 16px;
+}
+
+.stepIndicator {
+  font-size: 14px;
+  color: var(--color-on-surface-variant);
+  margin-bottom: 16px;
+}
