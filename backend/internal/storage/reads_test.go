@@ -16,7 +16,7 @@ func seedSessions(t *testing.T, db *DB, n int) []string {
 	for i := 0; i < n; i++ {
 		id := string(rune('A'+i)) + "id"
 		started := time.Date(2026, 4, 20+i, 10, 0, 0, 0, time.UTC)
-		if err := InsertSession(ctx, db.Handle(), id, "R1", started, 3); err != nil {
+		if err := InsertSession(ctx, db.Handle(), id, "R1", started, 3, ""); err != nil {
 			t.Fatalf("seed[%d]: %v", i, err)
 		}
 		if err := UpdateSessionEnd(ctx, db.Handle(), id, started.Add(5*time.Minute),
@@ -120,7 +120,7 @@ func TestListSamplesOrderByStrokeNo(t *testing.T) {
 	defer db.Close()
 	ctx := context.Background()
 	started := time.Date(2026, 4, 21, 10, 0, 0, 0, time.UTC)
-	_ = InsertSession(ctx, db.Handle(), "S1", "R1", started, 3)
+	_ = InsertSession(ctx, db.Handle(), "S1", "R1", started, 3, "")
 	for _, n := range []int{3, 1, 2} {
 		p := event.StrokePayload{StrokeNo: n, TimeSec: float64(n) * 2, DistanceM: n * 8,
 			SPM: 25, PowerW: 200, CalPerHr: 1000, Level: 3,

@@ -211,3 +211,53 @@ func TestSessionizer_ResolverPicksRowerPerSession(t *testing.T) {
 	close(frames)
 	<-done
 }
+
+// TestAttachWorkout_OneShot verifies that AttachWorkout tags the very next
+// session_start with the supplied ID and that a subsequent session (after the
+// idle gap closes the first one) has an empty WorkoutID.
+func TestAttachWorkout_OneShot(t *testing.T) {
+	now := time.Unix(1000, 0)
+	s := New(Options{
+		IdleTimeout: 60 * time.Second,
+		RowerID:     "R1",
+		Now:         func() time.Time { return now },
+	})
+	frames := make(chan ipm.Frame, 4)
+	out := make(chan event.Event, 32)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { _ = s.Run(ctx, frames, out) }()
+
+	// Attach workout before the first frame.
+	s.AttachWorkout("w-abc")
+
+	// First frame → opens session.
+	frames <- ipm.Frame{TimeSec: 1, DistanceM: 1, SPM: 20, PowerW: 100, Level: 3}
+	got := drain(t, out, 2) // session_start + stroke
+	start1 := got[0]
+	if start1.Kind != event.KindSessionStart {
+		t.Fatalf("expected session_start, got %v", start1.Kind)
+	}
+	if start1.SessionStart.WorkoutID != "w-abc" {
+		t.Errorf("first session WorkoutID = %q, want %q", start1.SessionStart.WorkoutID, "w-abc")
+	}
+
+	// Advance time past idle timeout to close the first session.
+	now = now.Add(90 * time.Second)
+
+	// Second frame → closes first session, opens second.
+	frames <- ipm.Frame{TimeSec: 2, DistanceM: 2, SPM: 20, PowerW: 100, Level: 3}
+	got2 := drain(t, out, 3) // session_end + session_start + stroke
+	var start2 event.Event
+	for _, e := range got2 {
+		if e.Kind == event.KindSessionStart {
+			start2 = e
+		}
+	}
+	if start2.Kind != event.KindSessionStart {
+		t.Fatal("did not receive second session_start")
+	}
+	if start2.SessionStart.WorkoutID != "" {
+		t.Errorf("second session WorkoutID = %q, want empty (one-shot)", start2.SessionStart.WorkoutID)
+	}
+}

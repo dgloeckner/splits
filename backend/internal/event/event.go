@@ -54,6 +54,7 @@ type SessionStartPayload struct {
 	RowerID      string
 	RowerName    string
 	InitialLevel int
+	WorkoutID    string // empty if none attached
 }
 
 type SessionEndPayload struct {

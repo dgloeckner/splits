@@ -9,10 +9,14 @@ import (
 	"github.com/gloeckner-daniel/home-ergo/internal/event"
 )
 
-func InsertSession(ctx context.Context, db *sql.DB, id, rowerID string, startedAt time.Time, initialLevel int) error {
+func InsertSession(ctx context.Context, db *sql.DB, id, rowerID string, startedAt time.Time, initialLevel int, workoutID string) error {
+	var wid any
+	if workoutID != "" {
+		wid = workoutID
+	}
 	_, err := db.ExecContext(ctx,
-		`INSERT INTO sessions(id, rower_id, started_at, initial_level) VALUES(?, ?, ?, ?)`,
-		id, rowerID, startedAt.UTC().Format(time.RFC3339Nano), initialLevel)
+		`INSERT INTO sessions(id, rower_id, started_at, initial_level, workout_id) VALUES(?, ?, ?, ?, ?)`,
+		id, rowerID, startedAt.UTC().Format(time.RFC3339Nano), initialLevel, wid)
 	return err
 }
 

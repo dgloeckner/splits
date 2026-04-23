@@ -12,7 +12,7 @@ func TestSoftDeleteSessionSetsTimestamp(t *testing.T) {
 	defer db.Close()
 	ctx := context.Background()
 	started := time.Date(2026, 4, 21, 10, 0, 0, 0, time.UTC)
-	if err := InsertSession(ctx, db.Handle(), "S1", "R1", started, 3); err != nil {
+	if err := InsertSession(ctx, db.Handle(), "S1", "R1", started, 3, ""); err != nil {
 		t.Fatal(err)
 	}
 

@@ -25,7 +25,7 @@ func seedDB(t *testing.T) *storage.DB {
 
 	ctx := context.Background()
 	started := time.Date(2026, 4, 21, 10, 0, 0, 0, time.UTC)
-	if err := storage.InsertSession(ctx, db.Handle(), "S1", "R1", started, 3); err != nil {
+	if err := storage.InsertSession(ctx, db.Handle(), "S1", "R1", started, 3, ""); err != nil {
 		t.Fatal(err)
 	}
 	for i := 1; i <= 3; i++ {

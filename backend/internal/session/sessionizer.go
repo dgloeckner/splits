@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/gloeckner-daniel/home-ergo/internal/event"
@@ -31,9 +32,11 @@ type Options struct {
 // into a stream of event.Event with synthesised session boundaries,
 // Tier-2 enrichment, and lifetime-monotonic ids.
 type Sessionizer struct {
-	opts    Options
-	nextID  uint64
-	session *sessionState
+	opts            Options
+	nextID          uint64
+	session         *sessionState
+	mu              sync.Mutex
+	pendingWorkoutID string
 }
 
 type sessionState struct {
@@ -191,6 +194,10 @@ func (s *Sessionizer) openSession(ctx context.Context, out chan<- event.Event, f
 		lastSeen:  now,
 	}
 	rid, rname := s.resolveRower()
+	s.mu.Lock()
+	workoutID := s.pendingWorkoutID
+	s.pendingWorkoutID = ""
+	s.mu.Unlock()
 	return s.emit(ctx, out, event.Event{
 		Kind:      event.KindSessionStart,
 		SessionID: id,
@@ -199,8 +206,17 @@ func (s *Sessionizer) openSession(ctx context.Context, out chan<- event.Event, f
 			RowerID:      rid,
 			RowerName:    rname,
 			InitialLevel: f.Level,
+			WorkoutID:    workoutID,
 		},
 	})
+}
+
+// AttachWorkout sets the workout ID to tag the next session open with.
+// One-shot: cleared when the next session actually opens.
+func (s *Sessionizer) AttachWorkout(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.pendingWorkoutID = id
 }
 
 func (s *Sessionizer) resolveRower() (string, string) {

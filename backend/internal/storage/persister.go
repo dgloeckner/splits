@@ -64,7 +64,7 @@ func (p *Persister) applyWithRetry(ctx context.Context, e event.Event) {
 func (p *Persister) apply(ctx context.Context, e event.Event) error {
 	switch e.Kind {
 	case event.KindSessionStart:
-		return InsertSession(ctx, p.DB, e.SessionID, e.SessionStart.RowerID, e.SessionStart.StartedAt, e.SessionStart.InitialLevel)
+		return InsertSession(ctx, p.DB, e.SessionID, e.SessionStart.RowerID, e.SessionStart.StartedAt, e.SessionStart.InitialLevel, e.SessionStart.WorkoutID)
 	case event.KindStroke:
 		return InsertStroke(ctx, p.DB, e.ID, e.SessionID, e.At, *e.Stroke)
 	case event.KindSessionEnd:
