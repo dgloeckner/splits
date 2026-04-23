@@ -203,6 +203,10 @@ func (r *Repo) DeleteFavorite(ctx context.Context, id string) error {
 	return err
 }
 
+// DB exposes the underlying *sql.DB for tests and cross-package wiring.
+// Not part of the public application API.
+func (r *Repo) DB() *sql.DB { return r.db }
+
 func scanFavorite(s scanner) (*Favorite, error) {
 	var f Favorite
 	var paramsStr, createdStr string
