@@ -110,6 +110,7 @@ out of reach.
 | Cycle-time CV | `σ(stroke_cycle_time) / mean(...)` | Rhythm stability — a metronomic rower scores low. |
 | Stroke-power CV | `σ(stroke_power) / mean(stroke_power)` | Force application consistency. |
 | DPS/SPM efficiency index | `mean(DPS × SPM)` in m/min, or equivalently mean instantaneous speed | Alternative framing of "how much boat speed you're making". |
+| **Stroke Power Index (SPI)** | `power_W / SPM` per stroke | Watt per (stroke/min); displayed unitless. Live: 5-stroke moving average. Session: **median** over all strokes (robust against warm-up / cool-down). Measures force-per-stroke independent of cadence: rising SPI at constant SPM = real strength; constant SPI at rising SPM = volume without force loss; falling SPI at rising SPM = technique collapse under load. Rough bands: beginner 4–6, advanced 7–9, competitive 10–12+. **Edge cases**: `spm == 0` → undefined, hold last valid or render `—`, never `0`. `power_W < 20` (light roll-out) → render `—`, not `0.0`. |
 
 **Pacing / fatigue over strokes**
 | Metric | Definition | Why it matters |
@@ -156,6 +157,20 @@ out of reach.
 | Weekly / monthly roll-ups | Sessions, distance, time, strokes, avg pace, median SPM, calories. |
 | DPS trend | Rolling-4-week median DPS at matched intensity bin (proxy for technique improvement). |
 | Power-at-SPM trend | Rolling-4-week avg power bucketed by SPM band — shows if you're getting stronger at the same rate. |
+
+## Calories: live vs session
+
+Two distinct metrics share the "Kalorien" label:
+
+- **Live view**: `cal_per_hr` — the instantaneous rate from the IPM
+  stream (Tier 1). This is what the `kalorien` tile shows during a
+  session. Unit: kcal/h.
+- **Session summary / history**: `session_calories` — the aggregated
+  total (Tier 3). Unit: kcal.
+
+They are **different tiles / fields** and must not be swapped. UI
+surfaces that need both (e.g. live view + end-of-session ribbon) use
+both tokens.
 
 ## Units, names, language
 

@@ -3,197 +3,353 @@
 - **Status**: Draft
 - **Depends on**: ADR-0003 (Go + React, vanilla CSS + CSS custom
   properties, self-hosted fonts)
-- **Referenced by**: FEAT-0001 (live view), FEAT-0003 (history),
-  FEAT-0004 (statistics), FEAT-0006 (PWA shell)
+- **Referenced by**: FEAT-0001 (live view), FEAT-0001a (customisable
+  dashboard), FEAT-0003 (history), FEAT-0003a (enhanced history &
+  trends), FEAT-0004 (statistics), FEAT-0005a (workout selection),
+  FEAT-0006 (PWA shell)
 
 ## Summary
 
-A single in-repo design system that makes the PWA feel **energetic,
-modern, and charismatic** across phones, tablets, and desktops, and that
-works equally well in light and dark mode. No external component
-library; the system is a small set of CSS tokens, a handful of
-primitive components, and a responsive layout strategy that every view
-in the app shares.
+A single in-repo design system, **"Precision Sport-Instrumentalism"**,
+with the creative north star **"The Precision Chronometer"**. The PWA
+must read less like a website and more like a custom-milled piece of
+hardware — high-contrast, data-dense, legible from a sweaty metre away.
+No external component library; the system is a small set of CSS tokens,
+a handful of primitive components, and a responsive layout strategy
+that every view in the app shares.
+
+## Brand mark
+
+The canonical logo source is **`home_ergo_pyramid_logo_family.svg`** at the
+repo root — a single multi-variant artboard containing:
+
+- **Primärmarke**: three primary-mark variants
+  - Monochrom hell (black mark on light surface)
+  - Monochrom dunkel (white mark on dark surface)
+  - **Akzent auf dunkel** — the in-app default
+- **Größenreihe**: the same mark at 512 / 192 / 96 / 48 px showing
+  optical adjustments per size.
+- Wordmarks (horizontal + vertical) and favicon sizes further down
+  the artboard.
+
+The mark itself is a **pyramid of five vertical bars** (centre tallest,
+flanks decaying via opacity 1.0 → 0.55 → 0.3) over a **horizontal
+"water line"** in the accent colour. The pyramid encodes progression
+/ pyramid-workouts; the water line echoes rowing.
+
+PWA icons (`pwa-192.png`, `pwa-512.png`, `favicon.svg`) and any
+marketing surfaces derive from this file; do not hand-paint new
+variants.
+
+## Canonical visual prototype
+
+The authoritative visual reference is the **Stitch project**
+`projects/16112355480769913997` ("Home Ergo Tracker"). It contains the
+resolved design theme and mocked screens for every M2-forward feature:
+
+- Live-Ansicht (Refined, Edit Mode, Workout Aktiv, Tablet Portrait/Landscape)
+- Workout-Auswahl flow: Ziel (1/4), Distanz / Zeit / Intervalle / Pyramide (2/3), Intensität (3/4), Intervalle-Konfiguration (3/4), Bereit? Confirmation (4/4)
+- Workout abgeschlossen variants: Geschafft, Neue Bestzeit, Effizienz-Profi, Konstanz-Meister, Power-Peak
+- Historie: Sessions Liste (Refined), Trends (Refined), Tablet variants
+- Sitzungs-Details and Sitzungs-Details Deep Dive
+- **User Profile** (Mobile, Tablet Portrait, Tablet Landscape) **and "User Profile (Light Mode)"** — the only screen currently rendered in both themes; it hosts the theme switcher (see FEAT-0004)
+- Tile-Picker Modal (and Linked variant for long-press-from-live)
+
+When a concrete spec conflicts with the prototype, the prototype wins
+until both are updated in lock-step.
 
 ## Design direction
 
-Target feel: the kind of app a rower actually wants open on the ergo
-handle-bar — athletic, unfussy, legible from a sweaty metre away, but
-with enough personality that it doesn't read as "admin dashboard". The
-nearest reference points are Strava's big-type history screens and the
-Concept2 ErgData live view, with a warmer palette and tighter
-typographic hierarchy.
+**Functional Brutalism** — every element exists to serve a metric.
+**Instrumental Depth** — surfaces suggest a backlit physical screen via
+tonal layering, not gradients or shadows. **German Sachlichkeit** —
+objective, authoritative, unfussy copy; no gamification chrome.
 
 Explicitly **not**:
+
 - Corporate-SaaS Material-Design look with dense toolbars
 - Skeuomorphic gauges / needle dials
-- Cartoonish gamification (no badges, no XP bars)
+- Cartoonish gamification (no badges, XP bars, confetti)
+- Soft / friendly consumer-fitness aesthetic
 
-## Responsive strategy
+## Colour
 
-Mobile-first. One codebase, one layout tree, progressive enhancement
-via container queries where supported and media queries as fallback.
+**Dark mode is the default and the design target.** Light mode is a
+legibility fallback, not a co-equal theme.
 
-| Breakpoint label | Min width | Primary target                |
-|------------------|-----------|-------------------------------|
-| `xs`             | 0 px      | Small phones (≥ 360 px)       |
-| `sm`             | 480 px    | Large phones, small foldables |
-| `md`             | 768 px    | Tablets (portrait)            |
-| `lg`             | 1024 px   | Tablets (landscape), small laptops |
-| `xl`             | 1280 px   | Desktop                        |
+Resolved tokens (from the Stitch theme; mirrored as CSS custom
+properties in `src/styles/tokens.css`):
 
-- Layout uses CSS Grid + Flexbox; no px-based layouts. Spacing is on a
-  4 pt scale token (`--space-1`…`--space-12`).
-- Typography uses a fluid clamp scale (`clamp(min, preferred, max)`)
-  so the live-view digits scale with viewport width without needing
-  a breakpoint per viewport.
-- Layout examples:
-  - **Live view**:
-    - `xs`/`sm`: single column, **split** takes ~45 % of viewport
-      height with tabular digits, secondary metrics below.
-    - `md`: same but wider digits, splits shown with tenths.
-    - `lg`/`xl`: split + pace chart side-by-side, SPM/W/cal panels
-      around it.
-  - **Session history list**:
-    - `xs`/`sm`: single-column cards.
-    - `md`: two-column grid.
-    - `lg`/`xl`: two-column grid + a sticky filters panel.
-  - **Session detail**:
-    - `xs`/`sm`: stacked — summary, power chart, pace chart, strokes
-      table — one per vertical band.
-    - `md`+: summary + charts in a 2-up grid, table below.
-- Interactive targets ≥ 44 px on touch viewports; pointer-type media
-  query (`@media (pointer: fine)`) tightens spacing on desktop.
+| Token                          | Value     | Usage                               |
+|--------------------------------|-----------|-------------------------------------|
+| `--color-surface`              | `#131313` | Base background                      |
+| `--color-surface-container-lowest` | `#0d0e0e` | Input wells                     |
+| `--color-surface-container-low` | `#1b1c1c` | Large layout blocks                  |
+| `--color-surface-container`    | `#1f2020` | Interactive / nested cards           |
+| `--color-surface-container-high`| `#292a2a` | Secondary button bg, higher nest     |
+| `--color-surface-container-highest` | `#343535` | Progress-bar track              |
+| `--color-on-surface`           | `#e4e2e1` | Primary text, hero digits            |
+| `--color-on-surface-variant`   | `#bcc9ca` | Labels, captions                     |
+| `--color-outline-variant`      | `#3d494a` | Ghost borders (20 % opacity only)    |
+| `--color-primary`              | `#5dd7e4` | Accent, active states, hero-split    |
+| `--color-primary-container`    | `#00a3af` | Primary button / functional gradients|
+| `--color-on-primary`           | `#00363b` | Text on primary                      |
+| `--color-tertiary`             | `#ffb786` | PB ribbons, warnings — sparingly     |
+| `--color-error`                | `#ffb4ab` | Destructive / unreachable            |
 
-## Light and dark mode
+### Rules
 
-- `:root` declares the **light** token values; `:root[data-theme="dark"]`
-  overrides for dark.
-- Initial theme resolves from `prefers-color-scheme`; a setting in the
-  PWA overrides to explicit light/dark and persists the choice.
-- Theme switches without a flash on load: the theme class is written
-  inline in the `<head>` from `localStorage` before React mounts.
-- All components reference semantic tokens (`--color-bg`,
-  `--color-text`, `--color-accent`, …) — never raw hex.
+- **No 1 px dividers.** Section boundaries come from background shifts
+  across the surface-container hierarchy. Gaps (16 / 24 px) replace
+  lines.
+- **No decorative gradients.** A subtle vertical `primary` →
+  `primary-container` gradient is allowed only on primary actions and
+  active workout states (the "Active Glow").
+- **No heavy shadows.** Depth via tonal layering. If a card must
+  float: `box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4)` only.
+- **Active glow** on live indicators (running timer, stroke-pulse,
+  active segment): soft `primary` outer glow via `drop-shadow`.
+- **Glassmorphism** only for floating overlays (e.g. pause menu,
+  tile-picker on phone): `surface-container` at 70 % opacity + 20 px
+  backdrop-blur.
+- Contrast: every text-on-surface combination meets WCAG AA (4.5:1
+  body, 3:1 large display).
 
 ## Typography
 
-- **Primary family** (body + UI): a modern humanist sans with strong
-  tabular-numeral support (e.g. **Manrope**, **Inter**, or **Geist**).
-  Single variable font file, weights 400–800. Tabular numerals enabled
-  globally via `font-feature-settings: "tnum" 1;` on any numeric node.
-- **Display** (live-view digits, large stats): the same family in its
-  heaviest weight with `font-stretch` extended where available, **or**
-  a sibling face (e.g. **Recursive Sans Casual**) for more character.
-  Final choice is a design pass during M2; both are self-hosted as
-  `.woff2` under `web/public/fonts/`.
-- Type scale, fluid:
-  - `display-xl` — live-view split and time digits
-  - `display` — big session-detail stat numbers
-  - `heading-1` / `-2` / `-3` — view and section titles
-  - `body` / `body-sm` / `caption`
-- Line height relaxed (1.35–1.5) for body, tight (1.05) for displays.
-- Letterform choice **must** support `lnum`/`tnum` OpenType features —
-  non-negotiable for the live digits, which otherwise jitter as values
-  change.
+Paired families, both self-hosted as `.woff2` under
+`web/public/fonts/`, loaded with `font-display: swap`, precached by
+the service worker:
 
-## Colour system
+- **Space Grotesk** — all numeric data and headings ("data authority")
+- **Inter** — body copy, labels, system UI ("legibility")
 
-Tokens defined once, referenced everywhere.
+| Token           | Size / line | Family         | Usage                                  |
+|-----------------|-------------|----------------|----------------------------------------|
+| `display-lg`    | 72 / 1.1    | Space Grotesk  | Hero split (FEAT-0001), big stats      |
+| `headline-sm`   | 20 / 1.2    | Space Grotesk  | Section headers ("Letzte Aktivität")   |
+| `title-md`      | 16 / 1.25   | Space Grotesk  | Unit indicators after hero numbers      |
+| `body-lg`       | 16 / 1.5    | Inter          | Descriptions, settings, notes           |
+| `label-sm`      | 11 / 1.0    | Inter          | Data labels (e.g. "SCHLÄGE/MIN")        |
 
-- **Neutrals** (warm): a 12-step scale from near-white to near-black.
-  Light mode uses steps 0–3 for surfaces, 8–12 for text; dark mode
-  inverts.
-- **Accent**: a single energetic signature colour — lean toward
-  **electric teal / aqua** (e.g. `#00C2A8`) or **sunrise orange**
-  (`#FF7A1A`). Decide during the M2 design pass; the system picks up
-  whichever via the `--color-accent` token.
-- **Semantic**: `success` (warm green), `warning` (amber), `danger`
-  (clean red). Each has `-bg`, `-fg`, and `-accent` variants.
-- **Gradients** reserved for display moments (session summary hero, PB
-  celebration banner) — never in chrome or controls.
-- Contrast: every text-on-surface combination meets WCAG AA (4.5:1 for
-  body, 3:1 for large display text).
+Rules:
+
+- **Labels / captions** are always **uppercase** with `0.05em`
+  letter-spacing — mimics professional telemetry.
+- **Tabular numerals** required for every numeric node:
+  `font-feature-settings: "tnum" 1, "lnum" 1;`.
+- Line-height: relaxed (1.35–1.5) for body, tight (1.05–1.2) for
+  displays.
+- **Live-view digits do not animate** on value change — instant
+  updates.
+
+## Elevation & depth — the layering principle
+
+Depth is achieved via **tonal layering**, not shadows:
+
+- **Surface hierarchy**: `surface` → `surface-container-low` →
+  `surface-container` → `surface-container-high`. Each step up is a
+  cell lifting from its parent.
+- **Ghost borders** (`outline-variant` at 20 % opacity) replace
+  traditional 1 px dividers in form fields.
+- **Active glow** (see Colour) signifies "live instrument".
+
+## Spacing, grid, radius
+
+- **8 pt base grid.** All spacing tokens are multiples of 8 — `--space-1`
+  = 8 px, `--space-2` = 16 px, `--space-3` = 24 px, … (expose `4` as a
+  half-step only where a 4 pt inset is unavoidable).
+- **24 px minimum** between major data blocks ("Atemraum").
+- **Radius**: 8 px for buttons (`--radius-button`), 12 px for cards
+  (`--radius-card`). **Nothing larger than 12 px.**
+- Progress-bar indicators: **no rounded ends** (keep "instrument-sharp").
+
+## Components (excerpt — primitives live in `web/src/components/`)
+
+### Buttons (Schaltflächen)
+
+- **Primary**: bg `primary` (#5dd7e4), text `on-primary` (#00363b),
+  radius 8 px. "Start", "Speichern", "Workout starten".
+- **Secondary**: bg `surface-container-high`, text `on-surface`.
+- **Tertiary**: no bg, `primary` text. "Abbrechen", "Details".
+
+### Metric cards (Leistungskarten)
+
+Three-part stack, no dividers:
+
+1. `label-sm` in `on-surface-variant` (e.g. `DISTANZ`)
+2. `display-lg` in `on-surface` (e.g. `2000`)
+3. `title-md` unit indicator (e.g. `m`)
+
+16 px internal padding (2 × 8 pt grid).
+
+### Input fields
+
+- Resting: bg `surface-container-lowest`, ghost border (20 %
+  `outline-variant`).
+- Active: border → 100 % `primary`.
+
+### Progress bars
+
+- Track: `surface-container-highest`.
+- Indicator: solid `primary`, **no rounded ends**.
+
+## Copy
+
+- **German throughout the app.** "Training starten", not "Los geht's".
+- Authoritative, objective, unfussy. No emoji in chrome (a PB ribbon
+  `🏆` is the documented exception).
+- Labels uppercase + tracked. Body copy sentence-case.
+
+## Responsive strategy
+
+Mobile-first. One codebase, one layout tree. Progressive enhancement
+via container queries where supported, media queries as fallback.
+
+| Breakpoint | Min width | Primary target                    |
+|------------|-----------|-----------------------------------|
+| `xs`       | 0 px      | Small phones (≥ 360 px)           |
+| `sm`       | 480 px    | Large phones, small foldables     |
+| `md`       | 768 px    | Tablets (portrait)                |
+| `lg`       | 1024 px   | Tablets (landscape), small laptops|
+| `xl`       | 1280 px   | Desktop                            |
+
+- CSS Grid + Flexbox; no px-based layouts.
+- Typography scales fluidly via `clamp()` so hero digits grow with
+  viewport without a breakpoint per device.
+- Interactive targets ≥ 44 px on touch; `@media (pointer: fine)`
+  tightens spacing on desktop.
+
+Layout examples (authoritative mocks live in the Stitch project):
+
+- **Live view**:
+  - `xs`/`sm`: single column, hero split ~45 % of viewport height,
+    2×3 tile grid below.
+  - `md`: same structure, wider digits.
+  - `lg`/`xl`: hero + pace chart side-by-side; expanded tile grid
+    (3×3 or 2×4).
+- **Session history**:
+  - `xs`/`sm`: single-column cards + infinite scroll.
+  - `md`: two-column grid.
+  - `lg`/`xl`: two-column grid + sticky filter panel.
+- **Session detail**:
+  - `xs`/`sm`: stacked hero + four charts + splits table.
+  - `md`+: charts in a 2-up grid, hero full-width on top, table below.
+
+## Light and dark mode
+
+Both themes are first-class. **Dark is the design target** for the
+live-view and most instrumental surfaces, but light must be equally
+polished — the Stitch prototype includes "User Profile (Light Mode)"
+as the reference rendering.
+
+- `:root[data-theme="dark"]` and `:root[data-theme="light"]` each
+  declare a full set of semantic tokens. Light tokens still obey the
+  no-1-px-dividers / tonal-layering rules, just inverted with warm
+  off-whites for surface and deep charcoal for text.
+- Initial theme resolution order:
+  1. Explicit user override from `localStorage` (set via the Theme
+     Switcher in User Profile / FEAT-0004) — highest priority.
+  2. `prefers-color-scheme` OS setting.
+  3. Dark as the default when preference is "no preference".
+- The theme class is written inline in `<head>` from `localStorage`
+  before React mounts — no flash.
+- Theme switch is **global** (applied to `<html>`), takes effect
+  instantly, and persists per user profile.
+- All components reference semantic tokens — never raw hex.
 
 ## Motion
 
-- Short, purposeful. Defaults: 120 ms for state changes, 220 ms for
-  view transitions, ease-out.
-- Live-view digit changes **do not animate** — changes must be
-  instantaneous, the user's eye is already parsing them.
-- A subtle accent pulse on each stroke arrival (≤ 80 ms opacity
-  ramp on a thin border line) confirms the live stream is alive.
+- Short, purposeful. Defaults: 120 ms state changes, 220 ms view
+  transitions, ease-out.
+- Hero digit changes do **not** animate.
+- Stroke-pulse (FEAT-0001): ≤ 80 ms opacity ramp on a thin accent
+  ring per stroke arrival.
+- Active workout segment: soft primary glow via `drop-shadow`.
 - `prefers-reduced-motion: reduce` disables all non-essential motion.
 
 ## Icons and imagery
 
 - Icons: inline SVG React components under `web/src/icons/`. Stroke
-  width standardised (2 px at 24 px viewbox). No icon font.
-- No stock photography. Session charts and per-stroke data are the
-  visual content.
-- Rower avatars: generated from the rower's initial on a tinted token
-  background, unless/until the user uploads an image (post-v1).
+  width 2 px at 24 px viewbox. No icon font.
+- No stock photography; charts and per-stroke data are the visuals.
+- Rower avatars: generated from initial on a tinted token background
+  until the user uploads (post-v1).
 
 ## User stories
 
-- As a rower, I want the live view to be **readable at a 1 m glance**,
+- As a rower, I want the live view to be **readable at a 1 m glance**
   in any lighting, on a phone in portrait mode on the ergo.
-- As a rower, I want the app to feel like **one coherent design** on my
-  phone during the row and my laptop while browsing history later.
-- As a rower, I want the app to **respect my system dark/light mode**
-  automatically, and let me override per-app.
-- As a user showing a trainer, I want the history views to **look good
-  on a tablet / desktop browser**, not just be phone screens stretched
-  to fit.
+- As a rower, I want the app to feel like **one coherent instrument**
+  on my phone during the row and my laptop while browsing history later.
+- As a rower, I want **instant digit updates** on the live view — no
+  animation between values.
+- As a user showing a trainer, I want history views to **look right on
+  tablet / desktop**, not a stretched phone screen.
 
 ## Acceptance criteria
 
 - [ ] Single `src/styles/tokens.css` defines all colour, spacing,
-      radius, font-size, line-height, and elevation tokens. No
-      component ever hard-codes a hex, px, or ms value.
-- [ ] Light and dark themes pass WCAG AA contrast checks for all
-      text + chrome combinations in Chrome DevTools' audit.
-- [ ] Live view remains usable and legible down to a 360 × 640 viewport
-      (iPhone SE) and up to 1920 × 1080 desktop without horizontal
-      scroll or cramped digits.
-- [ ] Session list and session detail each have at least two distinct
-      responsive layouts (phone vs tablet/desktop) verified in manual
-      review.
-- [ ] Initial theme renders without a flash: `prefers-color-scheme`
-      resolves before first paint.
-- [ ] `prefers-reduced-motion` disables all non-essential animation.
-- [ ] Fonts are self-hosted `.woff2` under `web/public/fonts/`, loaded
-      with `font-display: swap`, and precached by the service worker so
-      the first offline launch still looks correct.
-- [ ] A visual regression test (Playwright) captures the live view at
-      `xs`, `md`, and `xl` in both themes and fails on unreviewed
-      pixel-level drift.
+      radius, font-size, line-height, motion tokens. No component ever
+      hard-codes a hex, px, or ms value.
+- [ ] Colour tokens match the table above byte-for-byte.
+- [ ] Typography uses **Space Grotesk** for numerics and headings and
+      **Inter** for body / labels; both self-hosted as `.woff2`.
+- [ ] Tabular numerals (`tnum`, `lnum`) active on every numeric node.
+- [ ] **No 1 px solid dividers** anywhere in the app; section
+      boundaries use background shifts + gaps.
+- [ ] **No rounded corners > 12 px** anywhere.
+- [ ] WCAG AA contrast verified in Chrome DevTools for both themes.
+- [ ] Live view remains usable at 360 × 640 up to 1920 × 1080 without
+      horizontal scroll or cramped digits.
+- [ ] Session list and detail each have ≥ 2 distinct responsive
+      layouts, matching the Stitch mocks within reason.
+- [ ] Initial theme renders without flash.
+- [ ] `prefers-reduced-motion` disables non-essential motion.
+- [ ] Fonts precached by the service worker; first offline launch
+      looks correct.
+- [ ] A Playwright visual-regression test captures the live view at
+      `xs`, `md`, and `xl` and fails on unreviewed drift.
 
 ## Non-goals
 
-- A third-party UI library (Material, Chakra, Radix full install,
-  etc.). Radix *primitives* (unstyled a11y building blocks) are
-  permissible if we need them for menus/dialogs; decide per-primitive.
-- Tailwind or any atomic-CSS framework. The small, focused CSS
-  variable system is the whole design system.
+- Third-party UI library (Material, Chakra, Radix full install).
+  Radix *primitives* (unstyled a11y building blocks) permissible
+  per-component if needed.
+- Tailwind or any atomic-CSS framework.
 - Animation library (Framer Motion etc.) — native CSS transitions
-  cover everything in v1.
-- Print stylesheet — not a realistic need for a rowing app.
-- RTL support in v1. Structure the CSS so that logical properties
-  (`margin-inline`, `padding-block`) are used throughout, so RTL is
-  possible later without a rewrite.
+  cover v1.
+- Print stylesheet.
+- RTL in v1. Use logical properties (`margin-inline`, `padding-block`)
+  throughout so RTL is possible later.
+
+## Resolved design decisions (previously open questions)
+
+- ~~Font pick~~: **Space Grotesk + Inter** (Stitch theme).
+- ~~Accent colour (UI)~~: **electric teal** `#5dd7e4` / `#00a3af` (Stitch).
+- ~~Light vs dark priority~~: both first-class; **dark is the default**,
+  light is fully designed (see Stitch "User Profile (Light Mode)")
+  and user-switchable.
+- ~~Ship light in M2?~~ **Yes** — theme switcher lives on the User
+  Profile (FEAT-0004).
+- ~~Brand mark~~: **yes** — the pyramid + water-line mark in
+  `home_ergo_pyramid_logo_family.svg`, not typography alone.
+- ~~Accent-colour mismatch between logo and UI~~: resolved — the logo
+  SVG (`home_ergo_pyramid_logo_family.svg`) and the Stitch theme are
+  now aligned.
+- ~~Chart aesthetic~~: thin lines, filled under-area for pace/power
+  over time; zone bands as background for HF. Final chart primitives
+  in FEAT-0003a.
+- ~~Container queries vs media queries~~: container queries where
+  layout depends on available width (cards inside a grid), media
+  queries for top-level viewport layout.
 
 ## Open questions
 
-- **Concrete font pick**: Manrope vs Inter vs Geist as primary; paired
-  display face if any. Decide during the M2 design pass — pick one,
-  keep the option to swap via the `--font-family-*` tokens.
-- **Accent colour**: teal vs orange vs something else. Resolve in the
-  same design pass; a short live-mode usability check (row in the dark
-  with each variant) is the tie-breaker.
-- **Chart aesthetic**: bars/areas/lines. Lean toward thin lines +
-  filled under-area for pace/power over time; revisit in FEAT-0003.
-- **Container queries** vs media queries for component-level
-  responsiveness: container queries where layout depends on
-  **available width** (cards inside a grid), media queries where it
-  depends on **viewport** (top-level layout). Decide per component.
+- Do we need full **light-mode colour tokens** (all surface/container
+  steps + tertiary + secondary), or is a narrower set enough for the
+  screens that render in light? The prototype only shows light on the
+  profile so far.
+- Tablet-landscape hero: does the pace chart sit to the right of the
+  hero, or below it inside the hero block? Prototype shows right;
+  revisit once the SSE data rate is confirmed.

@@ -14,9 +14,11 @@ describe('TilePicker', () => {
         onClose={vi.fn()}
       />,
     )
-    expect(screen.getByText('Split')).toBeInTheDocument()
+    // "Split" appears twice (numeric + sparkline) by design — use getAllByText.
+    expect(screen.getAllByText('Split').length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText('DPS')).toBeInTheDocument()
-    expect(screen.getByText('Watt-Verlauf')).toBeInTheDocument()
+    // Sparkline tiles use the short name; type chip differentiates them.
+    expect(screen.getAllByText('Watt').length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText('HF-Zone')).toBeInTheDocument()
   })
 

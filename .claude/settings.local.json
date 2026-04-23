@@ -4,7 +4,20 @@
       "Bash(tio --version)",
       "Bash(mkdir -p /Users/dg/dev/ruderergo-stats/specs/int/fixtures/ipm)",
       "Bash(cp /Users/dg/dev/ruderergo-stats/traces/handshake.log /Users/dg/dev/ruderergo-stats/specs/int/fixtures/ipm/handshake-warm.log)",
-      "Bash(python3 *)"
+      "Bash(python3 *)",
+      "Bash(git add *)",
+      "Bash(git restore *)",
+      "Bash(go build *)",
+      "Bash(git commit -m ' *)",
+      "Bash(go test *)",
+      "Bash(git commit -m 'test\\(config\\): add failing tests for env loader *)",
+      "Bash(kill bvub8jhle *)",
+      "Bash(kill bklt4cixb *)",
+      "Bash(pkill -f \"go run ./cmd/homeergo\")",
+      "Bash(pkill -f \"vite\")",
+      "Bash(pkill -f homeergo)",
+      "Bash(git commit *)",
+      "Bash(npm run *)"
     ]
   }
 }

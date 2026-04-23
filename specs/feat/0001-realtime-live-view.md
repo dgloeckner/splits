@@ -23,15 +23,41 @@ while rowing.
 - As a rower, I want the live view to be the default screen after I open the
   app so I don't have to navigate during a warm-up.
 
+## Reference
+
+Authoritative visual prototype: Stitch project `16112355480769913997`
+screens **"Live-Ansicht (Refined)"** and **"Live-Ansicht (Tablet Landscape)"**.
+Design-system tokens (Space Grotesk, `#5dd7e4` primary, 72 px `display-lg`,
+8 pt grid, 12 px card radius) are defined in FEAT-0008.
+
+## Hero-Block (fixed, not configurable)
+
+The top region of the live view is a non-configurable hero block that every
+rower sees identically. Only the tile grid below it (FEAT-0001a) is user-
+customisable.
+
+- **Split** as the dominant hero number — 72 px, mono-digit, accent colour.
+- Secondary row directly under the split: **Zeit** (elapsed time),
+  **Distanz**, **SPM**, **Watt** — smaller mono-digits, equal weight.
+- **Stroke-pulse indicator**: a small dot/ring that pulses on every detected
+  stroke. Confirms the live data stream at a glance, independent of whether
+  metric values happen to be changing.
+
 ## Acceptance criteria
 
 - [ ] Live updates visible within ≤ 1 second of stroke events on the
       console (transport: SSE, see INT-0002).
-- [ ] Display shows at minimum: split, distance, elapsed time, SPM,
-      watts, calories/hour, level. Heart rate once HR capture lands
-      (see INT-0001 open questions).
-- [ ] Layout is readable at 1 m arm's length on a phone in portrait
-      mode.
+- [ ] Hero block always renders split, Zeit, Distanz, SPM, Watt. Hero
+      layout and metric set are not user-configurable.
+- [ ] Split is rendered at 72 px with mono-digits on phone portrait;
+      secondary row mono-digits too, visibly smaller but still readable
+      at 1 m arm's length.
+- [ ] Stroke-pulse indicator animates on every stroke event; when no
+      strokes arrive for > 3 s the pulse decays to an idle state
+      (without hiding, so the user still sees the stream is connected).
+- [ ] Calories/hour, level, and heart rate are available via the
+      customisable tile grid (FEAT-0001a), not in the hero. Heart rate
+      lands once HR capture is implemented (see INT-0001 open questions).
 - [ ] Reconnects automatically when Wi-Fi blips. No user action
       required. Missed strokes are replayed from the server ring buffer
       via `Last-Event-ID` (INT-0002).
@@ -41,27 +67,36 @@ while rowing.
       ergo" state, not stale data.
 - [ ] Tapping anywhere does **not** navigate away by accident (no
       hidden tap targets behind the digits).
+- [ ] UI copy is German throughout the live view
+      (`Split`, `Zeit`, `Distanz`, `SPM`, `Watt`, …).
 
 ## UX notes
 
-Two-row grid, biggest typography reserved for **split** (it's what
-rowers stare at). Secondary row: distance + time. Tertiary: SPM + W +
-HR. A thin status strip at the top confirms the connection.
+Design language: **dark mode, sport-instrument aesthetic**. 8 pt grid,
+12 px corner radius, mono-digits for all numeric values. No gamification
+chrome (no badges, confetti, streak counters) on the live view — this
+screen is for measuring, not motivating. Motivational surfaces belong
+in post-session and profile views.
 
-Light and dark mode both supported per FEAT-0008; initial theme follows
-`prefers-color-scheme` with an override in settings. Dark is expected
-to be the common case for morning sessions; light is available for
-daytime use.
+Biggest typography is reserved for **split** — it's what rowers stare
+at. Zeit + Distanz + SPM + Watt in the secondary row follow with equal
+weight. A thin status strip at the top confirms the connection.
 
-Responsive behaviour per FEAT-0008: single-column big-digit layout on
-phones, side-by-side digits + live chart on tablet landscape and
-desktop.
+Light mode is available per FEAT-0008 but dark is the default and the
+design target; light mode is a legibility fallback, not a co-equal theme.
+
+Responsive behaviour per FEAT-0008: single-column hero + 2×3 tile grid
+on phones (see FEAT-0001a), wider hero with side-by-side secondary row
+and expanded tile grid on tablet landscape and desktop.
 
 ## Non-goals
 
 - Historical charts during the live session (later, or in a drawer)
 - Manual stroke entry
-- Workout programs / structured intervals (v2 scope)
+- Workout programs / structured intervals (see FEAT-0005a)
+- User-customisable hero metrics — customisation lives in the tile grid
+  below the hero, see FEAT-0001a
+- Gamification chrome on the live view (badges, streaks, confetti)
 
 ## Open questions
 
