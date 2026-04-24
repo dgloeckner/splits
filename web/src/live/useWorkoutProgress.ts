@@ -3,6 +3,7 @@ import { useMemo } from 'react'
 import { useLiveSession } from './LiveSessionContext'
 import { getWorkout, type Workout } from '../api/workouts'
 import { expandWorkout, locateSegment, type ActiveSegment, type Segment } from './segments'
+import { useWorkoutOverlay } from '../pages/live/WorkoutOverlayContext'
 
 export type WorkoutProgress = {
   segments: Segment[]
@@ -15,6 +16,7 @@ export type WorkoutProgress = {
 export function useWorkoutProgress(): WorkoutProgress {
   const state = useLiveSession()
   const workoutId = state.session?.workout_id ?? null
+  const { aborted } = useWorkoutOverlay()
 
   const q = useQuery({
     queryKey: ['workout', workoutId],
@@ -28,6 +30,10 @@ export function useWorkoutProgress(): WorkoutProgress {
     if (!state.stroke || segments.length === 0) return null
     return locateSegment(segments, state.stroke.distance_m, state.stroke.time_sec)
   }, [state.stroke, segments])
+
+  if (aborted) {
+    return { segments: [], active: null, workoutId: null, isLoading: false, workout: null }
+  }
 
   return { segments, active, workoutId, isLoading: q.isLoading, workout: q.data ?? null }
 }
