@@ -1,0 +1,116 @@
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3);
+  background: rgba(19, 19, 19, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--color-surface-container);
+  border-radius: 12px;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--font-headline, 'Space Grotesk'), sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+}
+
+.subtitle {
+  margin: 0;
+  font-family: var(--font-body, 'Inter'), sans-serif;
+  font-size: 14px;
+  color: var(--color-on-surface-variant);
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.label {
+  font-family: var(--font-body, 'Inter'), sans-serif;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-on-surface-variant);
+}
+
+.value {
+  font-family: var(--font-display, 'Space Grotesk'), sans-serif;
+  font-size: 28px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--color-on-surface);
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 56px;
+  border-radius: 8px;
+  font: inherit;
+  font-family: var(--font-body, 'Inter'), sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border: none;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.primary:active {
+  transform: scale(0.98);
+}
+
+.secondary {
+  background: transparent;
+  border: 1px solid var(--color-outline-variant, rgba(255, 255, 255, 0.18));
+  color: var(--color-on-surface);
+  width: 100%;
+  height: 48px;
+  border-radius: 8px;
+  font: inherit;
+  font-family: var(--font-body, 'Inter'), sans-serif;
+  font-weight: 600;
+  cursor: pointer;
+}

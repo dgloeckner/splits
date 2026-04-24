@@ -243,9 +243,13 @@ func TestCreateFavoriteRequiresName(t *testing.T) {
 	}
 }
 
-type fakeAttacher struct{ got string }
+type fakeAttacher struct {
+	got    string
+	ended  int
+}
 
 func (f *fakeAttacher) AttachWorkout(id string) { f.got = id }
+func (f *fakeAttacher) EndSession()              { f.ended++ }
 
 func newWorkoutTestServerWithAttacher(t *testing.T) (*httptest.Server, *workout.Repo, *fakeAttacher) {
 	t.Helper()

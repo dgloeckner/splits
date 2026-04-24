@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { deleteSession } from '../../api/client'
+import { useQueryClient } from '@tanstack/react-query'
+import { deleteSession, endSession } from '../../api/client'
 import { useLiveSession } from '../../live/LiveSessionContext'
 import { useWorkoutProgress } from '../../live/useWorkoutProgress'
 import type { ActiveSegment, Segment } from '../../live/segments'
@@ -11,6 +12,7 @@ export function WorkoutProgressStrip() {
   const { segments, active } = useWorkoutProgress()
   const { abort } = useWorkoutOverlay()
   const state = useLiveSession()
+  const qc = useQueryClient()
   const [open, setOpen] = useState(false)
   const sessionId = state.session?.session_id ?? null
   if (segments.length === 0) return null
@@ -24,12 +26,22 @@ export function WorkoutProgressStrip() {
       <AbortWorkoutDialog
         open={open}
         onSave={() => {
+          // Force-close the open session immediately rather than
+          // waiting for idle timeout. Backend handles "no session
+          // open" gracefully (idempotent 204).
+          void endSession()
+            .then(() => qc.invalidateQueries({ queryKey: ['sessions'] }))
+            .catch(() => {})
           abort()
           setOpen(false)
         }}
         onContinue={() => setOpen(false)}
         onDiscard={() => {
-          if (sessionId) void deleteSession(sessionId).catch(() => {})
+          if (sessionId) {
+            void deleteSession(sessionId)
+              .then(() => qc.invalidateQueries({ queryKey: ['sessions'] }))
+              .catch(() => {})
+          }
           abort()
           setOpen(false)
         }}

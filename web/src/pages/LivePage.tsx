@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { useLiveSession } from '../live/LiveSessionContext'
 import { useWorkoutProgress } from '../live/useWorkoutProgress'
 import { LiveHero } from './LiveHero'
@@ -7,6 +8,7 @@ import { TileGrid } from './TileGrid'
 import { useWorkoutOverlay } from './live/WorkoutOverlayContext'
 import { WorkoutProgressStrip } from './live/WorkoutProgressStrip'
 import { SegmentStatus } from './live/SegmentStatus'
+import { SessionEndedOverlay } from './live/SessionEndedOverlay'
 import { useSegmentTransitions } from '../live/useSegmentTransitions'
 import styles from './LivePage.module.css'
 
@@ -80,12 +82,39 @@ function LiveBody() {
 export function LivePage() {
   const state = useLiveSession()
   const nav = useNavigate()
-  const prevSummary = useRef(state.summary)
+  const qc = useQueryClient()
+  const sessionId = state.session?.session_id ?? null
+  const sessionOpen = state.session !== null && state.summary === null
 
   useEffect(() => {
-    if (!prevSummary.current && state.summary) nav('/')
-    prevSummary.current = state.summary
-  }, [state.summary, nav])
+    if (state.summary) {
+      qc.invalidateQueries({ queryKey: ['sessions'] })
+    }
+  }, [state.summary, qc])
 
-  return <LiveBody />
+  // Best-effort: when the user closes the tab while a session is still
+  // open, ask the backend to close it now. sendBeacon survives unload.
+  useEffect(() => {
+    if (!sessionOpen) return
+    const handler = () => {
+      navigator.sendBeacon?.('/api/v1/session/end')
+    }
+    window.addEventListener('pagehide', handler)
+    return () => window.removeEventListener('pagehide', handler)
+  }, [sessionOpen])
+
+  return (
+    <>
+      <LiveBody />
+      {state.summary && (
+        <SessionEndedOverlay
+          summary={state.summary}
+          onAcknowledge={() => nav('/')}
+          onShowDetails={
+            sessionId ? () => nav(`/historie/${sessionId}`) : undefined
+          }
+        />
+      )}
+    </>
+  )
 }

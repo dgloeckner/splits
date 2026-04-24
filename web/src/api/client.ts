@@ -13,6 +13,7 @@ export type SessionSummary = {
 export type SessionRow = {
   id: string
   rower_id: string
+  workout_id?: string
   started_at: string
   ended_at?: string
   initial_level: number
@@ -60,5 +61,10 @@ export async function getSamples(id: string): Promise<Sample[]> {
 
 export async function deleteSession(id: string): Promise<void> {
   const r = await fetch(`/api/v1/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' })
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
+}
+
+export async function endSession(): Promise<void> {
+  const r = await fetch('/api/v1/session/end', { method: 'POST' })
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
 }

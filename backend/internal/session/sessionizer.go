@@ -16,6 +16,11 @@ import (
 // is injectable for deterministic tests.
 type Options struct {
 	IdleTimeout time.Duration
+	// InactivityTimeout closes a session when frames keep arriving but
+	// distance has not advanced for this long — e.g. ergo idle-broadcast
+	// or a fixture replay with the user not actually rowing. Zero
+	// disables the check.
+	InactivityTimeout time.Duration
 	// ResolveRower returns the rower to attribute new sessions to at
 	// the moment a session opens. If nil, falls back to RowerID/Name.
 	ResolveRower func() (id, name string)
@@ -38,6 +43,9 @@ type Sessionizer struct {
 	mu               sync.Mutex
 	pendingWorkoutID string
 	attachC          chan string
+	// endC carries explicit end requests (POST /api/v1/session/end).
+	// Buffered so the HTTP handler doesn't block.
+	endC chan struct{}
 	// Snapshot of the currently open session so reconnecting SSE clients
 	// whose `Last-Event-ID` is past these events can still learn the
 	// current session state. Cleared on closeSession.
@@ -59,14 +67,23 @@ type sessionState struct {
 	calSum        int
 	lastStroke    *event.StrokePayload
 	lastSeen      time.Time
-	lastLevel     int
+	// lastActivity is the wall-clock time of the last frame that made
+	// real progress (distance increased). Used by InactivityTimeout to
+	// close sessions where frames keep flowing but the user isn't
+	// actually rowing.
+	lastActivity time.Time
+	lastLevel    int
 }
 
 func New(o Options) *Sessionizer {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
-	return &Sessionizer{opts: o, nextID: o.StartID, attachC: make(chan string, 8)}
+	return &Sessionizer{
+		opts: o, nextID: o.StartID,
+		attachC: make(chan string, 8),
+		endC:    make(chan struct{}, 4),
+	}
 }
 
 func (s *Sessionizer) stamp(e *event.Event) {
@@ -100,6 +117,12 @@ func (s *Sessionizer) Run(ctx context.Context, in <-chan ipm.Frame, out chan<- e
 		case id := <-s.attachC:
 			if err := s.handleAttach(ctx, id, out); err != nil {
 				return err
+			}
+		case <-s.endC:
+			if s.session != nil {
+				if err := s.closeSession(ctx, out); err != nil {
+					return err
+				}
 			}
 		case f, ok := <-in:
 			if !ok {
@@ -151,6 +174,12 @@ func (s *Sessionizer) onFrame(ctx context.Context, f ipm.Frame, out chan<- event
 			return err
 		}
 	}
+	if s.session != nil && s.opts.InactivityTimeout > 0 &&
+		now.Sub(s.session.lastActivity) >= s.opts.InactivityTimeout {
+		if err := s.closeSession(ctx, out); err != nil {
+			return err
+		}
+	}
 	if s.session == nil {
 		if err := s.openSession(ctx, out, f); err != nil {
 			return err
@@ -181,6 +210,17 @@ func (s *Sessionizer) onFrame(ctx context.Context, f ipm.Frame, out chan<- event
 	}
 	s.session.lastLevel = stroke.Level
 	s.session.lastSeen = now
+	// A frame counts as "activity" only if distance advanced. Idle
+	// broadcasts (same DistanceM repeated) leave lastActivity untouched
+	// so InactivityTimeout can fire.
+	if s.session.lastStroke != nil &&
+		s.session.lastStroke.DistanceM != stroke.DistanceM {
+		s.session.lastActivity = now
+	} else if s.session.strokes == 1 {
+		// First stroke: seed activity timer so a brand-new session
+		// doesn't immediately trigger inactivity.
+		s.session.lastActivity = now
+	}
 	return nil
 }
 
@@ -229,9 +269,10 @@ func (s *Sessionizer) openSession(ctx context.Context, out chan<- event.Event, f
 	id := ulid.Make().String()
 	now := s.opts.Now()
 	s.session = &sessionState{
-		id:        id,
-		startedAt: now,
-		lastSeen:  now,
+		id:           id,
+		startedAt:    now,
+		lastSeen:     now,
+		lastActivity: now,
 	}
 	rid, rname := s.resolveRower()
 	s.mu.Lock()
@@ -269,6 +310,17 @@ func (s *Sessionizer) openSession(ctx context.Context, out chan<- event.Event, f
 // are compatible: Run's handleAttach clears the pending slot when it
 // emits the mid-session event, so the same workout isn't re-applied to
 // a subsequent session.
+// EndSession requests an immediate close of the currently open session
+// (if any). Safe to call from any goroutine. No-op if no session open.
+func (s *Sessionizer) EndSession() {
+	select {
+	case s.endC <- struct{}{}:
+	default:
+		// Channel full: a close request is already queued; dropping
+		// extras is fine since they're idempotent.
+	}
+}
+
 func (s *Sessionizer) AttachWorkout(id string) {
 	s.mu.Lock()
 	s.pendingWorkoutID = id

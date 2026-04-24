@@ -10,6 +10,18 @@ export default defineConfig({
       registerType: 'autoUpdate',
       devOptions: { enabled: true },
       includeAssets: ['favicon.svg'],
+      // The service worker precaches the app shell only. /api/* must
+      // never be cached — the backend SQLite DB is the source of truth,
+      // and stale API responses would lie to the user after DB writes.
+      workbox: {
+        navigateFallbackDenylist: [/^\/api\//],
+        runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
+            handler: 'NetworkOnly',
+          },
+        ],
+      },
       manifest: {
         name: 'Home Ergo',
         short_name: 'Ergo',

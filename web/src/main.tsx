@@ -17,7 +17,9 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,
-      refetchOnWindowFocus: false,
+      // Refetch on tab focus so the UI picks up backend changes
+      // (new session, DB reset) without a manual reload.
+      refetchOnWindowFocus: true,
     },
   },
 })

@@ -1,13 +1,22 @@
 .tile {
   position: relative;
   overflow: hidden;
-  padding: var(--space-1-5, 12px);
+  padding: 10px;
   background: var(--color-surface-container);
   border: 1px solid var(--color-outline-variant);
   border-radius: var(--radius-card);
   min-height: 96px;
   display: flex;
   flex-direction: column;
+}
+
+.current {
+  color: var(--color-primary);
+  font-weight: 600;
+  font-size: 17px;
+  line-height: 1;
+  font-family: var(--font-display);
+  font-variant-numeric: tabular-nums;
 }
 
 .topRow {
@@ -23,12 +32,6 @@
   letter-spacing: 0.06em;
 }
 
-.current {
-  color: var(--color-primary);
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-}
-
 .canvas {
   flex: 1 1 auto;
   min-height: 40px;
@@ -41,10 +44,11 @@
   justify-content: space-between;
   align-items: baseline;
   margin-top: var(--space-0-5, 4px);
-  font-size: var(--text-label-sm, 11px);
+  font-family: var(--font-display);
+  font-size: 13px;
   color: var(--color-on-surface-variant);
   font-variant-numeric: tabular-nums;
-  opacity: 0.6;
+  opacity: 0.75;
   pointer-events: none;
 }
 

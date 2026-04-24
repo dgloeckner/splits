@@ -22,8 +22,8 @@ function clampInt(v: string | number, min: number, max: number): number {
 
 export function OnboardingPage() {
   const [name, setName] = useState('')
-  const [weight, setWeight] = useState(75)
-  const [height, setHeight] = useState(180)
+  const [weight, setWeight] = useState('75')
+  const [height, setHeight] = useState('180')
   const [dob, setDob] = useState('')
   const [color, setColor] = useState(palette[0])
   const [err, setErr] = useState<string | null>(null)
@@ -42,8 +42,8 @@ export function OnboardingPage() {
     try {
       const input = {
         name: name.trim(),
-        weight_kg: weight,
-        height_cm: height,
+        weight_kg: clampInt(weight, 20, 250),
+        height_cm: clampInt(height, 100, 230),
         dob: dob || undefined,
         color,
       }
@@ -97,22 +97,29 @@ export function OnboardingPage() {
                   type="button"
                   className={styles.stepBtn}
                   aria-label="Gewicht verringern"
-                  onClick={() => setWeight((w) => clampInt(w - 1, 20, 250))}
+                  onClick={() =>
+                    setWeight(String(clampInt(clampInt(weight, 20, 250) - 1, 20, 250)))
+                  }
                 >
                   −
                 </button>
                 <input
                   id="weight"
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
                   className={styles.stepInput}
                   value={weight}
-                  onChange={(e) => setWeight(clampInt(e.target.value, 20, 250))}
+                  onChange={(e) => setWeight(e.target.value.replace(/[^\d]/g, ''))}
+                  onBlur={() => setWeight(String(clampInt(weight, 20, 250)))}
                 />
                 <button
                   type="button"
                   className={styles.stepBtn}
                   aria-label="Gewicht erhöhen"
-                  onClick={() => setWeight((w) => clampInt(w + 1, 20, 250))}
+                  onClick={() =>
+                    setWeight(String(clampInt(clampInt(weight, 20, 250) + 1, 20, 250)))
+                  }
                 >
                   +
                 </button>
@@ -128,22 +135,29 @@ export function OnboardingPage() {
                   type="button"
                   className={styles.stepBtn}
                   aria-label="Größe verringern"
-                  onClick={() => setHeight((h) => clampInt(h - 1, 100, 230))}
+                  onClick={() =>
+                    setHeight(String(clampInt(clampInt(height, 100, 230) - 1, 100, 230)))
+                  }
                 >
                   −
                 </button>
                 <input
                   id="height"
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
                   className={styles.stepInput}
                   value={height}
-                  onChange={(e) => setHeight(clampInt(e.target.value, 100, 230))}
+                  onChange={(e) => setHeight(e.target.value.replace(/[^\d]/g, ''))}
+                  onBlur={() => setHeight(String(clampInt(height, 100, 230)))}
                 />
                 <button
                   type="button"
                   className={styles.stepBtn}
                   aria-label="Größe erhöhen"
-                  onClick={() => setHeight((h) => clampInt(h + 1, 100, 230))}
+                  onClick={() =>
+                    setHeight(String(clampInt(clampInt(height, 100, 230) + 1, 100, 230)))
+                  }
                 >
                   +
                 </button>

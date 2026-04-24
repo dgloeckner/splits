@@ -1,9 +1,10 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { listSessions, type SessionRow } from '../api/client'
-import { useRowers } from '../hooks/useRowers'
+import { getWorkout, type Workout } from '../api/workouts'
 import { formatSessionStart } from '../util/dates'
 import { fmtMeters, mmss, pace500m } from '../util/format'
+import { workoutChipLabel } from '../util/workoutLabel'
 import styles from './HistoryPage.module.css'
 
 export function HistoryPage() {
@@ -11,7 +12,24 @@ export function HistoryPage() {
     queryKey: ['sessions', 'list'],
     queryFn: () => listSessions(50, 0),
   })
-  const rowers = useRowers()
+
+  // Fetch the referenced workouts in parallel so each card can render a
+  // workout-type chip. React Query dedupes/caches per id so repeat views
+  // stay cheap.
+  const workoutIds = Array.from(
+    new Set((data ?? []).map((s) => s.workout_id).filter((v): v is string => !!v)),
+  )
+  const workoutQueries = useQueries({
+    queries: workoutIds.map((id) => ({
+      queryKey: ['workout', id],
+      queryFn: () => getWorkout(id),
+      staleTime: 60_000,
+    })),
+  })
+  const workoutById = new Map<string, Workout>()
+  workoutQueries.forEach((q, i) => {
+    if (q.data) workoutById.set(workoutIds[i], q.data)
+  })
 
   if (isPending) {
     return (
@@ -41,26 +59,23 @@ export function HistoryPage() {
     )
   }
 
-  const rowersById = new Map((rowers.data ?? []).map((r) => [r.id, r]))
-
   return (
     <div className={styles.page}>
       <h1 className="headline-sm">Historie</h1>
       <div className={styles.list}>
         {data.map((s) => {
-          const r = rowersById.get(s.rower_id)
+          const workout = s.workout_id ? workoutById.get(s.workout_id) : null
           return (
             <Link key={s.id} to={`/historie/${s.id}`} className={styles.row}>
               <span className={styles.when}>{formatSessionStart(s.started_at)}</span>
-              <span className={styles.rowerBadge}>
-                <span className={styles.rowerDot} style={{ background: r?.color ?? '#555' }} />
-                {r?.name ?? '—'}
-              </span>
+              <span className={styles.typeChip}>{workoutChipLabel(workout)}</span>
               <span className={styles.pill}>{fmtMeters(s.total_distance_m ?? null)} m</span>
               <span className={styles.pill}>{mmss(s.total_time_sec ?? null)}</span>
-              <span className={`${styles.pill} ${styles.pillStrong}`}>
-                {pace500m(s.summary?.avg_pace_sec_per_500m ?? null)}
-              </span>
+              {s.summary?.avg_pace_sec_per_500m != null && (
+                <span className={`${styles.pill} ${styles.pillStrong}`}>
+                  {pace500m(s.summary.avg_pace_sec_per_500m)}
+                </span>
+              )}
             </Link>
           )
         })}

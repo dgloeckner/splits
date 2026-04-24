@@ -48,18 +48,22 @@ function RowerEditor({ r }: { r: Rower }) {
     dob !== (r.dob ?? '') ||
     color !== r.color
 
-  const bmi = computeBMI(
-    weight ? Number(weight) : undefined,
-    height ? Number(height) : undefined,
-  )
+  const parseNum = (v: string): number | undefined => {
+    const s = v.trim().replace(',', '.')
+    if (!s) return undefined
+    const n = Number(s)
+    return Number.isFinite(n) ? n : undefined
+  }
+
+  const bmi = computeBMI(parseNum(weight), parseNum(height))
 
   async function save() {
     setBusy(true)
     try {
       await updateRower(r.id, {
         name: name || undefined,
-        weight_kg: weight ? Number(weight) : undefined,
-        height_cm: height ? Number(height) : undefined,
+        weight_kg: parseNum(weight),
+        height_cm: parseNum(height),
         dob: dob || undefined,
         color,
       })
@@ -89,11 +93,16 @@ function RowerEditor({ r }: { r: Rower }) {
         </div>
         <input
           className={styles.input}
-          type="number"
-          step="0.1"
+          type="text"
+          inputMode="decimal"
+          autoComplete="off"
           value={weight}
           placeholder="—"
-          onChange={(e) => setWeight(e.target.value)}
+          onChange={(e) => {
+            // Allow digits + one separator (. or ,). Strip everything else.
+            const raw = e.target.value.replace(/[^\d.,]/g, '')
+            setWeight(raw)
+          }}
           aria-label={`Gewicht ${r.name}`}
         />
       </label>
@@ -103,11 +112,15 @@ function RowerEditor({ r }: { r: Rower }) {
         </div>
         <input
           className={styles.input}
-          type="number"
-          step="1"
+          type="text"
+          inputMode="numeric"
+          autoComplete="off"
           value={height}
           placeholder="—"
-          onChange={(e) => setHeight(e.target.value)}
+          onChange={(e) => {
+            const raw = e.target.value.replace(/[^\d]/g, '')
+            setHeight(raw)
+          }}
           aria-label={`Größe ${r.name}`}
         />
       </label>

@@ -81,6 +81,10 @@ func run() error {
 	bcast := stream.NewBroadcaster(broadcastCh)
 	sessionizer := session.New(session.Options{
 		IdleTimeout: cfg.IdleTimeout,
+		// Close sessions where frames keep arriving but distance is
+		// not advancing (idle ergo broadcast or fixture replay with
+		// the user not actually rowing).
+		InactivityTimeout: 60 * time.Second,
 		ResolveRower: func() (string, string) {
 			id, name := rowerHolder.Resolve()
 			if id == "" {

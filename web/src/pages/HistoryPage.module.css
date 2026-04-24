@@ -17,7 +17,7 @@
 
 .row {
   display: grid;
-  grid-template-columns: 1fr auto auto auto;
+  grid-template-columns: 1fr auto auto auto auto;
   gap: var(--space-2);
   padding: var(--space-2);
   background: var(--color-surface-container);
@@ -52,5 +52,14 @@
   justify-self: center;
 }
 
-.rowerBadge { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; opacity: 0.8; }
-.rowerDot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.typeChip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-family: var(--font-body);
+  color: var(--color-on-surface-variant);
+  background: var(--color-surface-container-high);
+  border-radius: 999px;
+  white-space: nowrap;
+}

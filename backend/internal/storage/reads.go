@@ -16,6 +16,7 @@ import (
 type SessionRow struct {
 	ID             string                `json:"id"`
 	RowerID        string                `json:"rower_id"`
+	WorkoutID      *string               `json:"workout_id,omitempty"`
 	StartedAt      time.Time             `json:"started_at"`
 	EndedAt        *time.Time            `json:"ended_at,omitempty"`
 	InitialLevel   int                   `json:"initial_level"`
@@ -49,7 +50,7 @@ func ListSessions(ctx context.Context, db *sql.DB, limit, offset int) ([]Session
 		offset = 0
 	}
 	rows, err := db.QueryContext(ctx, `
-		SELECT id, rower_id, started_at, ended_at, initial_level,
+		SELECT id, rower_id, workout_id, started_at, ended_at, initial_level,
 		       total_distance_m, total_time_sec, total_strokes, summary_json
 		FROM sessions
 		WHERE deleted_at IS NULL
@@ -76,7 +77,7 @@ func ListSessions(ctx context.Context, db *sql.DB, limit, offset int) ([]Session
 // not found or soft-deleted.
 func GetSession(ctx context.Context, db *sql.DB, id string) (*SessionRow, error) {
 	row := db.QueryRowContext(ctx, `
-		SELECT id, rower_id, started_at, ended_at, initial_level,
+		SELECT id, rower_id, workout_id, started_at, ended_at, initial_level,
 		       total_distance_m, total_time_sec, total_strokes, summary_json
 		FROM sessions
 		WHERE id = ? AND deleted_at IS NULL`, id)
@@ -137,6 +138,7 @@ type rowScanner interface {
 func scanSession(r rowScanner) (SessionRow, error) {
 	var (
 		out         SessionRow
+		workoutStr  sql.NullString
 		startedStr  string
 		endedStr    sql.NullString
 		totalDist   sql.NullInt64
@@ -144,9 +146,13 @@ func scanSession(r rowScanner) (SessionRow, error) {
 		totalStroke sql.NullInt64
 		summaryStr  sql.NullString
 	)
-	if err := r.Scan(&out.ID, &out.RowerID, &startedStr, &endedStr, &out.InitialLevel,
+	if err := r.Scan(&out.ID, &out.RowerID, &workoutStr, &startedStr, &endedStr, &out.InitialLevel,
 		&totalDist, &totalTime, &totalStroke, &summaryStr); err != nil {
 		return out, err
+	}
+	if workoutStr.Valid && workoutStr.String != "" {
+		v := workoutStr.String
+		out.WorkoutID = &v
 	}
 	t, err := time.Parse(time.RFC3339Nano, startedStr)
 	if err != nil {

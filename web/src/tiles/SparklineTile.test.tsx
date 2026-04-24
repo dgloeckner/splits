@@ -39,14 +39,15 @@ describe('SparklineTile', () => {
     expect(container.querySelector('[class*="edges"]')).toBeNull()
   })
 
-  it('renders current value + min/max edge labels without unit once points arrive', () => {
+  it('renders min/max edge labels without unit once points arrive', () => {
     let s = initialLiveState
     s = pushStroke(s, { time_sec: 1, power_w: 200 })
     s = pushStroke(s, { time_sec: 2, power_w: 260 })
     s = pushStroke(s, { time_sec: 3, power_w: 230 })
     const { container } = render(<SparklineTile def={wattDef} state={s} />)
-    const current = container.querySelector('[class*="current"]')
-    expect(current?.textContent).toBe('230')
+    // Current value was intentionally removed — dedicated numeric tiles
+    // already show the latest reading.
+    expect(container.querySelector('[class*="current"]')).toBeNull()
     const min = container.querySelector('[class*="edgeMin"]')
     const max = container.querySelector('[class*="edgeMax"]')
     expect(min?.textContent).toBe('200')

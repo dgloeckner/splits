@@ -8,10 +8,12 @@ import (
 	"github.com/gloeckner-daniel/home-ergo/internal/workout"
 )
 
-// SessionAttacher tags the next session with a workout ID.
-// Satisfied by *session.Sessionizer in production code.
+// SessionAttacher tags the next session with a workout ID and can
+// end the currently open session on demand. Satisfied by
+// *session.Sessionizer in production code.
 type SessionAttacher interface {
 	AttachWorkout(id string)
+	EndSession()
 }
 
 func WorkoutAttachHandler(repo *workout.Repo, att SessionAttacher) http.Handler {
