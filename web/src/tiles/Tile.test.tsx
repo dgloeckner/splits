@@ -1,7 +1,21 @@
 import { render, screen } from '@testing-library/react'
 import { describe, it, expect } from 'vitest'
+import type { ReactNode } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Tile } from './Tile'
 import { initialLiveState, liveReducer, type LiveState } from '../live/reducer'
+import { LiveSessionContext } from '../live/LiveSessionContext'
+
+function wrapper({ children }: { children: ReactNode }) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return (
+    <QueryClientProvider client={qc}>
+      <LiveSessionContext.Provider value={initialLiveState}>
+        {children}
+      </LiveSessionContext.Provider>
+    </QueryClientProvider>
+  )
+}
 
 function stateWithStroke(): LiveState {
   return liveReducer(initialLiveState, {
@@ -29,25 +43,25 @@ function stateWithStroke(): LiveState {
 
 describe('Tile', () => {
   it('renders a numeric tile', () => {
-    render(<Tile tileId="watt" state={stateWithStroke()} />)
+    render(<Tile tileId="watt" state={stateWithStroke()} />, { wrapper })
     expect(screen.getByText('Watt')).toBeInTheDocument()
     expect(screen.getByText('210')).toBeInTheDocument()
   })
 
   it('renders a sparkline tile with a "sammle Daten…" placeholder on single point', () => {
-    const { container } = render(<Tile tileId="watt-verlauf" state={stateWithStroke()} />)
+    const { container } = render(<Tile tileId="watt-verlauf" state={stateWithStroke()} />, { wrapper })
     expect(screen.getByText('Watt')).toBeInTheDocument()
     expect(container.textContent).toContain('sammle Daten')
   })
 
   it('HR-gated tile renders in a disabled appearance', () => {
-    const { container } = render(<Tile tileId="herzfrequenz" state={stateWithStroke()} />)
+    const { container } = render(<Tile tileId="herzfrequenz" state={stateWithStroke()} />, { wrapper })
     const root = container.firstElementChild as HTMLElement
     expect(root.className).toMatch(/disabled/)
   })
 
   it('falls back for unknown tile ids', () => {
-    render(<Tile tileId="bogus-metric" state={stateWithStroke()} />)
+    render(<Tile tileId="bogus-metric" state={stateWithStroke()} />, { wrapper })
     expect(screen.getByText('bogus-metric')).toBeInTheDocument()
   })
 })

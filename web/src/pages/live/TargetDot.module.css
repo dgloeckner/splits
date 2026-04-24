@@ -1,0 +1,13 @@
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  vertical-align: middle;
+}
+.in {
+  background: var(--color-accent-green, #32d17a);
+}
+.out {
+  background: var(--color-accent-warn, #f0c04a);
+}

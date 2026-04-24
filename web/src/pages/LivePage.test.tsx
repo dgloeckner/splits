@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen, act } from '@testing-library/react'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { LiveSessionContext } from '../live/LiveSessionContext'
 import { initialLiveState, type LiveState } from '../live/reducer'
 import type { SessionEndSummary } from '../live/events'
@@ -8,15 +9,18 @@ import { LivePage } from './LivePage'
 
 // Minimal provider that lets the test change state between renders.
 function wrapRender(state: LiveState) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <LiveSessionContext.Provider value={state}>
-      <MemoryRouter initialEntries={['/live']}>
-        <Routes>
-          <Route path="/live" element={<LivePage />} />
-          <Route path="/" element={<div>HOME</div>} />
-        </Routes>
-      </MemoryRouter>
-    </LiveSessionContext.Provider>,
+    <QueryClientProvider client={qc}>
+      <LiveSessionContext.Provider value={state}>
+        <MemoryRouter initialEntries={['/live']}>
+          <Routes>
+            <Route path="/live" element={<LivePage />} />
+            <Route path="/" element={<div>HOME</div>} />
+          </Routes>
+        </MemoryRouter>
+      </LiveSessionContext.Provider>
+    </QueryClientProvider>,
   )
 }
 
@@ -31,27 +35,32 @@ describe('LivePage session-end navigation', () => {
       total_distance_m: 5000, total_time_sec: 1800, total_strokes: 540,
       avg_power_w: 150, peak_power_w: 220, avg_spm: 26, avg_dps: 9.5, avg_pace_sec_per_500m: 120, session_calories: 300,
     }
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     const { rerender } = render(
-      <LiveSessionContext.Provider value={{ ...initialLiveState, summary: null }}>
-        <MemoryRouter initialEntries={['/live']}>
-          <Routes>
-            <Route path="/live" element={<LivePage />} />
-            <Route path="/" element={<div>HOME</div>} />
-          </Routes>
-        </MemoryRouter>
-      </LiveSessionContext.Provider>,
-    )
-    expect(screen.queryByText('HOME')).toBeNull()
-    act(() => {
-      rerender(
-        <LiveSessionContext.Provider value={{ ...initialLiveState, summary }}>
+      <QueryClientProvider client={qc}>
+        <LiveSessionContext.Provider value={{ ...initialLiveState, summary: null }}>
           <MemoryRouter initialEntries={['/live']}>
             <Routes>
               <Route path="/live" element={<LivePage />} />
               <Route path="/" element={<div>HOME</div>} />
             </Routes>
           </MemoryRouter>
-        </LiveSessionContext.Provider>,
+        </LiveSessionContext.Provider>
+      </QueryClientProvider>,
+    )
+    expect(screen.queryByText('HOME')).toBeNull()
+    act(() => {
+      rerender(
+        <QueryClientProvider client={qc}>
+          <LiveSessionContext.Provider value={{ ...initialLiveState, summary }}>
+            <MemoryRouter initialEntries={['/live']}>
+              <Routes>
+                <Route path="/live" element={<LivePage />} />
+                <Route path="/" element={<div>HOME</div>} />
+              </Routes>
+            </MemoryRouter>
+          </LiveSessionContext.Provider>
+        </QueryClientProvider>,
       )
     })
     expect(await screen.findByText('HOME')).toBeInTheDocument()
