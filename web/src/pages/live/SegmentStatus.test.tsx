@@ -38,12 +38,12 @@ describe('SegmentStatusView', () => {
 
   it('renders warmup countdown', () => {
     render(<SegmentStatusView active={active({ segment: seg('warmup', 0, undefined, 120), remainingSec: 45 })} workout={distanceWorkout} />)
-    expect(screen.getByText('Warm-up · 45s')).toBeInTheDocument()
+    expect(screen.getByText('Warm-up · 0:45')).toBeInTheDocument()
   })
 
   it('renders rest countdown', () => {
     render(<SegmentStatusView active={active({ segment: seg('rest', 2, undefined, 60), remainingSec: 20 })} workout={intervalsWorkout} />)
-    expect(screen.getByText('Pause · 20s')).toBeInTheDocument()
+    expect(screen.getByText('Pause · 0:20')).toBeInTheDocument()
   })
 
   it('intervals work label: Intervall 2 / 4 · 500 m', () => {
@@ -62,6 +62,6 @@ describe('SegmentStatusView', () => {
 
   it('time workout countdown', () => {
     render(<SegmentStatusView active={active({ segment: seg('work', 0, undefined, 1800), remainingSec: 600 })} workout={timeWorkout} />)
-    expect(screen.getByText('600s bis Ziel')).toBeInTheDocument()
+    expect(screen.getByText('10:00 bis Ziel')).toBeInTheDocument()
   })
 })

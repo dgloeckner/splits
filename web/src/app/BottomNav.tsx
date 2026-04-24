@@ -7,7 +7,7 @@ export function BottomNav() {
     <nav className={styles.nav} aria-label="Hauptnavigation">
       <NavLink to="/" end className={styles.link}>
         <IconWorkout />
-        <span>Training</span>
+        <span>Workout</span>
       </NavLink>
       <NavLink to="/historie" className={styles.link}>
         <IconHistory />

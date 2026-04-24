@@ -12,20 +12,21 @@ import (
 )
 
 type Inputs struct {
-	Ring        *pipeline.Ring
-	Broadcaster *stream.Broadcaster
-	DB          *sql.DB
-	RowerRepo   *rower.Repo
-	RowerHolder *rower.Holder
-	WorkoutRepo *workout.Repo
-	Sessionizer SessionAttacher
-	StartedAt   time.Time
+	Ring            *pipeline.Ring
+	Broadcaster     *stream.Broadcaster
+	DB              *sql.DB
+	RowerRepo       *rower.Repo
+	RowerHolder     *rower.Holder
+	WorkoutRepo     *workout.Repo
+	Sessionizer     SessionAttacher
+	SessionSnapshot stream.Snapshotter
+	StartedAt       time.Time
 }
 
 func NewRouter(in Inputs) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", healthHandler)
-	mux.Handle("GET /api/v1/stream", stream.NewHandler(in.Ring, in.Broadcaster))
+	mux.Handle("GET /api/v1/stream", stream.NewHandler(in.Ring, in.Broadcaster, in.SessionSnapshot))
 
 	sessions := SessionsHandler(in.DB)
 	mux.Handle("GET /api/v1/sessions", sessions)

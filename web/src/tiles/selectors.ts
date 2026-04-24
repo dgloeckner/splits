@@ -16,10 +16,18 @@ export function selectNumeric(state: LiveState, tileId: string): NumericValue {
       return { value: fmtMeters(s?.distance_m ?? null), unit: 'm' }
     case 'split': {
       const v = sm?.paceSecPer500m ?? s?.pace_sec_per_500m ?? null
-      return { value: pace500m(v), unit: '/ 500m' }
+      return { value: pace500m(v) }
     }
     case 'dps': {
-      const v = sm?.dps ?? s?.dps ?? null
+      // Derive DPS from smoothed split+SPM for consistency with hero values.
+      // Backend-supplied p.dps can diverge because it uses a different
+      // stroke-interval averaging window.
+      const split = sm?.paceSecPer500m ?? s?.pace_sec_per_500m ?? null
+      const spm = sm?.spm ?? s?.spm ?? null
+      const v =
+        split && spm && split > 0 && spm > 0
+          ? 30000 / (split * spm)
+          : (sm?.dps ?? s?.dps ?? null)
       return { value: fmtFloat(v, 1), unit: 'm' }
     }
     case 'spi': {
@@ -38,7 +46,7 @@ export function selectNumeric(state: LiveState, tileId: string): NumericValue {
       return { value: fmtInt(v), unit: 'W' }
     }
     case 'oe-split':
-      return { value: pace500m(state.summary?.avg_pace_sec_per_500m ?? null), unit: '/ 500m' }
+      return { value: pace500m(state.summary?.avg_pace_sec_per_500m ?? null) }
     case 'kalorien':
       return { value: fmtInt(s?.cal_per_hr ?? null), unit: 'kcal/h' }
     case 'herzfrequenz':

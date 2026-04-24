@@ -30,6 +30,12 @@ function useIsTablet(): boolean {
   return tablet
 }
 
+function isAxisValueValid(v: number, metric: SparklineMetric): boolean {
+  if (!Number.isFinite(v)) return false
+  if (metric === 'split') return v > 0 && v < 600
+  return v > 0
+}
+
 function paceShort(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds <= 0) return '—'
   const total = Math.round(seconds)
@@ -61,10 +67,11 @@ export function SparklineTile({ def, state, disabled }: Props) {
     ? smoothingConfig.sparkline.windowSeconds.tablet
     : smoothingConfig.sparkline.windowSeconds.phone
 
-  const axis = useMemo(
-    () => (metric ? computeAxis(points.map((p) => p.value), metric) : null),
-    [points, metric],
-  )
+  const axis = useMemo(() => {
+    if (!metric) return null
+    const values = points.map((p) => p.value).filter((v) => isAxisValueValid(v, metric))
+    return computeAxis(values, metric)
+  }, [points, metric])
 
   const hasData = points.length > 0
   const current = hasData ? points[points.length - 1].value : null

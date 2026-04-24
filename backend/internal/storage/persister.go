@@ -71,6 +71,8 @@ func (p *Persister) apply(ctx context.Context, e event.Event) error {
 		return UpdateSessionEnd(ctx, p.DB, e.SessionID, e.SessionEnd.EndedAt, e.SessionEnd.Summary)
 	case event.KindLevelChange:
 		return nil
+	case event.KindWorkoutAttached:
+		return UpdateSessionWorkout(ctx, p.DB, e.SessionID, e.WorkoutAttached.WorkoutID)
 	}
 	return nil
 }

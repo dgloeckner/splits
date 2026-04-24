@@ -97,6 +97,7 @@ export class EventSourceChannel implements Channel {
     handle('session_start')
     handle('session_end')
     handle('level_change')
+    handle('workout_attached')
 
     es.addEventListener('ping', () =>
       sub.onEvent({ kind: 'ping', id: null, data: {} as Record<string, never> }),

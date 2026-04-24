@@ -32,11 +32,17 @@ type Options struct {
 // into a stream of event.Event with synthesised session boundaries,
 // Tier-2 enrichment, and lifetime-monotonic ids.
 type Sessionizer struct {
-	opts            Options
-	nextID          uint64
-	session         *sessionState
-	mu              sync.Mutex
+	opts             Options
+	nextID           uint64
+	session          *sessionState
+	mu               sync.Mutex
 	pendingWorkoutID string
+	attachC          chan string
+	// Snapshot of the currently open session so reconnecting SSE clients
+	// whose `Last-Event-ID` is past these events can still learn the
+	// current session state. Cleared on closeSession.
+	currentSessionStart    *event.Event
+	currentWorkoutAttached *event.Event
 }
 
 type sessionState struct {
@@ -60,7 +66,7 @@ func New(o Options) *Sessionizer {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
-	return &Sessionizer{opts: o, nextID: o.StartID}
+	return &Sessionizer{opts: o, nextID: o.StartID, attachC: make(chan string, 8)}
 }
 
 func (s *Sessionizer) stamp(e *event.Event) {
@@ -91,6 +97,10 @@ func (s *Sessionizer) Run(ctx context.Context, in <-chan ipm.Frame, out chan<- e
 		case <-ctx.Done():
 			s.closeIfOpen(ctx, out)
 			return ctx.Err()
+		case id := <-s.attachC:
+			if err := s.handleAttach(ctx, id, out); err != nil {
+				return err
+			}
 		case f, ok := <-in:
 			if !ok {
 				s.closeIfOpen(ctx, out)
@@ -100,6 +110,36 @@ func (s *Sessionizer) Run(ctx context.Context, in <-chan ipm.Frame, out chan<- e
 				return err
 			}
 		}
+	}
+}
+
+// handleAttach is invoked by Run when AttachWorkout delivers an id via
+// attachC. If a session is open, emits a workout_attached event and
+// clears pendingWorkoutID so the next session open doesn't re-carry
+// the same workout. If no session is open, leaves pendingWorkoutID set
+// by AttachWorkout untouched (next openSession will consume it).
+func (s *Sessionizer) handleAttach(ctx context.Context, id string, out chan<- event.Event) error {
+	if s.session == nil {
+		return nil
+	}
+	s.mu.Lock()
+	s.pendingWorkoutID = ""
+	s.mu.Unlock()
+	e := event.Event{
+		Kind:            event.KindWorkoutAttached,
+		SessionID:       s.session.id,
+		WorkoutAttached: &event.WorkoutAttachedPayload{WorkoutID: id},
+	}
+	s.stamp(&e)
+	s.mu.Lock()
+	snap := e
+	s.currentWorkoutAttached = &snap
+	s.mu.Unlock()
+	select {
+	case out <- e:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 
@@ -198,7 +238,7 @@ func (s *Sessionizer) openSession(ctx context.Context, out chan<- event.Event, f
 	workoutID := s.pendingWorkoutID
 	s.pendingWorkoutID = ""
 	s.mu.Unlock()
-	return s.emit(ctx, out, event.Event{
+	e := event.Event{
 		Kind:      event.KindSessionStart,
 		SessionID: id,
 		SessionStart: &event.SessionStartPayload{
@@ -208,15 +248,39 @@ func (s *Sessionizer) openSession(ctx context.Context, out chan<- event.Event, f
 			InitialLevel: f.Level,
 			WorkoutID:    workoutID,
 		},
-	})
+	}
+	s.stamp(&e)
+	s.mu.Lock()
+	snap := e
+	s.currentSessionStart = &snap
+	s.currentWorkoutAttached = nil
+	s.mu.Unlock()
+	select {
+	case out <- e:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
-// AttachWorkout sets the workout ID to tag the next session open with.
-// One-shot: cleared when the next session actually opens.
+// AttachWorkout tags the currently open session with the given workout
+// ID (emitting a workout_attached event via Run) and, if no session is
+// open yet, primes the next session open to carry it. The two effects
+// are compatible: Run's handleAttach clears the pending slot when it
+// emits the mid-session event, so the same workout isn't re-applied to
+// a subsequent session.
 func (s *Sessionizer) AttachWorkout(id string) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.pendingWorkoutID = id
+	s.mu.Unlock()
+	select {
+	case s.attachC <- id:
+	default:
+		// Channel full: Run hasn't drained prior attaches. The
+		// pendingWorkoutID already carries the latest id for next
+		// session open; dropping the channel send means a mid-session
+		// event may be skipped, which is acceptable degradation.
+	}
 }
 
 func (s *Sessionizer) resolveRower() (string, string) {
@@ -242,6 +306,10 @@ func (s *Sessionizer) closeSession(ctx context.Context, out chan<- event.Event) 
 		summary.AvgPaceSecPer500m = st.paceSum / st.strokes
 		summary.SessionCalories = st.calSum / 1000 // joules → kcal
 	}
+	s.mu.Lock()
+	s.currentSessionStart = nil
+	s.currentWorkoutAttached = nil
+	s.mu.Unlock()
 	return s.emit(ctx, out, event.Event{
 		Kind:      event.KindSessionEnd,
 		SessionID: st.id,
@@ -250,6 +318,24 @@ func (s *Sessionizer) closeSession(ctx context.Context, out chan<- event.Event) 
 			Summary: summary,
 		},
 	})
+}
+
+// Snapshot returns a slice of synthetic "current state" events (the
+// currently open session's session_start, and its latest
+// workout_attached if any). Used by the SSE handler to bring
+// reconnecting clients up to date when their cursor is past these
+// events.
+func (s *Sessionizer) Snapshot() []event.Event {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var out []event.Event
+	if s.currentSessionStart != nil {
+		out = append(out, *s.currentSessionStart)
+	}
+	if s.currentWorkoutAttached != nil {
+		out = append(out, *s.currentWorkoutAttached)
+	}
+	return out
 }
 
 func (s *Sessionizer) closeIfOpen(ctx context.Context, out chan<- event.Event) {

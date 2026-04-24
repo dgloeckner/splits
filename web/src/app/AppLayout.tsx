@@ -1,28 +1,33 @@
-import { Outlet, useLocation } from 'react-router-dom'
+import { Outlet } from 'react-router-dom'
 import { AppIcon } from '../icons'
 import { BottomNav } from './BottomNav'
+import { useLiveSession } from '../live/LiveSessionContext'
 import styles from './AppLayout.module.css'
 
-function pageLabel(pathname: string): string {
-  if (pathname === '/') return 'Training'
-  if (pathname === '/live') return 'Live'
-  if (pathname.startsWith('/workout')) return 'Workout'
-  if (pathname.startsWith('/historie')) return 'Historie'
-  if (pathname.startsWith('/profil')) return 'Profil'
-  return ''
+function UserAvatar({ initial, connected }: { initial: string; connected: boolean }) {
+  return (
+    <div className={styles.avatar} aria-label="Profil">
+      <span>{initial}</span>
+      <span
+        className={styles.statusDot}
+        data-connected={connected ? 'true' : 'false'}
+        aria-hidden
+      />
+    </div>
+  )
 }
 
 export function AppLayout() {
-  const { pathname } = useLocation()
-  const label = pageLabel(pathname)
+  const state = useLiveSession()
+  const connected = state.status === 'open'
   return (
     <div className={styles.shell}>
       <header className={styles.topBar}>
         <div className={styles.brand}>
           <AppIcon size={22} className={styles.brandIcon} />
-          <h1 className={styles.brandText}>HOME-ERGO</h1>
+          <h1 className={styles.brandText}>home-ergo</h1>
         </div>
-        {label && <span className={styles.pageLabel}>{label}</span>}
+        <UserAvatar initial="D" connected={connected} />
       </header>
       <main className={styles.main}>
         <Outlet />

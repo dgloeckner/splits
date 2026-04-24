@@ -164,6 +164,13 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
 
         case 'level_change':
           return state
+
+        case 'workout_attached':
+          if (!state.session) return state
+          return {
+            ...state,
+            session: { ...state.session, workout_id: ev.data.workout_id },
+          }
       }
     }
   }

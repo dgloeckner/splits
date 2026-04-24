@@ -6,6 +6,7 @@ export type LiveEventKind =
   | 'session_start'
   | 'session_end'
   | 'level_change'
+  | 'workout_attached'
   | 'ping'
   | 'eof'
   | 'error'
@@ -61,11 +62,17 @@ export type LevelChangePayload = {
 
 export type EofPayload = { session_id: string }
 
+export type WorkoutAttachedPayload = {
+  session_id: string
+  workout_id: string
+}
+
 export type LiveEvent =
   | { kind: 'stroke'; id: number; data: StrokePayload }
   | { kind: 'session_start'; id: number; data: SessionStartPayload }
   | { kind: 'session_end'; id: number; data: SessionEndPayload }
   | { kind: 'level_change'; id: number; data: LevelChangePayload }
+  | { kind: 'workout_attached'; id: number; data: WorkoutAttachedPayload }
   | { kind: 'ping'; id: number | null; data: Record<string, never> }
   | { kind: 'eof'; id: number | null; data: EofPayload }
   | { kind: 'error'; id: number | null; data: { message: string } }

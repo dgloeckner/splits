@@ -1,4 +1,5 @@
 import type { LiveState } from '../live/reducer'
+import type { Range } from '../live/segments'
 import {
   useCountUp,
   useDeadReckonedDistance,
@@ -7,8 +8,41 @@ import {
 } from '../live/useLiveDisplay'
 import { smoothingConfig } from '../live/smoothing'
 import { fmtInt } from '../util/format'
-import { StrokePulse } from './StrokePulse'
+import { formatSplitRange, formatSpmRange } from './workout/intensityRanges'
 import styles from './LiveHero.module.css'
+
+export type TargetStatus = 'in' | 'below' | 'above' | 'over' | 'under' | 'none'
+
+type Side = 'above' | 'below' | 'in' | 'none'
+
+function sideOf(value: number | null | undefined, r: Range | undefined): Side {
+  if (value == null || !r) return 'none'
+  if (r.hi != null && value > r.hi) return 'above'
+  if (value < r.lo) return 'below'
+  return 'in'
+}
+
+/**
+ * Maps a raw side to a positive/negative status per metric semantics.
+ * - 'in' → in-range (positive)
+ * - 'over' → off-range on the bad side (rendered warning)
+ * - 'under' → off-range on the positive/effort side (rendered positive)
+ *
+ * For SPM, going above the target band is a positive effort signal, so
+ * `above` maps to 'under'. For split (sec/500m, lower=faster), going
+ * below the target band means faster-than-target — also positive.
+ */
+function splitStatus(value: number | null | undefined, r: Range | undefined): TargetStatus {
+  const s = sideOf(value, r)
+  if (s === 'none' || s === 'in') return s
+  return s === 'below' ? 'under' : 'over'
+}
+
+function spmStatus(value: number | null | undefined, r: Range | undefined): TargetStatus {
+  const s = sideOf(value, r)
+  if (s === 'none' || s === 'in') return s
+  return s === 'above' ? 'under' : 'over'
+}
 
 /**
  * Tweens a purely numeric string toward the new target using the count-up
@@ -22,24 +56,40 @@ function CountUpText({ value }: { value: string }) {
   return <>{fmtInt(tweened)}</>
 }
 
-type Props = { state: LiveState }
+type Props = {
+  state: LiveState
+  target?: { split?: Range; spm?: Range } | null
+}
 
-export function LiveHero({ state }: Props) {
+export function LiveHero({ state, target }: Props) {
   const time = useDeadReckonedTime(state)
   const distance = useDeadReckonedDistance(state)
   const smoothed = useSmoothed(state)
 
+  const splitStat = splitStatus(state.smoothed?.paceSecPer500m ?? null, target?.split)
+  const spmStat = spmStatus(state.smoothed?.spm ?? null, target?.spm)
+
   return (
     <section className={styles.hero} aria-label="Live-Daten">
       <div className={styles.split}>
-        <div className={styles.pulseAnchor}>
-          <StrokePulse state={state} />
-        </div>
         <span className={`label-sm ${styles.splitLabel}`}>Split</span>
         <div className={styles.splitRow}>
-          <span className={`${styles.splitValue} tnum`}>{smoothed.split}</span>
-          <span className={styles.splitUnit}>/ 500m</span>
+          <span
+            className={`${styles.splitValue} tnum`}
+            data-target-status={splitStat}
+          >
+            {smoothed.split}
+          </span>
         </div>
+        {target?.split && (
+          <span
+            className={`label-sm ${styles.targetRange}`}
+            data-target-status={splitStat}
+            data-testid="split-target"
+          >
+            Ziel {formatSplitRange(target.split)}
+          </span>
+        )}
       </div>
       <div className={styles.secondary}>
         <HeroCell
@@ -52,7 +102,14 @@ export function LiveHero({ state }: Props) {
           value={distance.text}
           paused={distance.paused}
         />
-        <HeroCell label="SPM" value={smoothed.spm} animate />
+        <HeroCell
+          label="SPM"
+          value={smoothed.spm}
+          animate
+          targetText={target?.spm ? formatSpmRange(target.spm) : undefined}
+          targetStatus={spmStat}
+          testId="spm-cell"
+        />
         <HeroCell label="Watt" value={smoothed.watts} animate />
       </div>
     </section>
@@ -64,21 +121,39 @@ function HeroCell({
   value,
   paused,
   animate,
+  targetText,
+  targetStatus,
+  testId,
 }: {
   label: string
   value: string
   paused?: boolean
   animate?: boolean
+  targetText?: string
+  targetStatus?: TargetStatus
+  testId?: string
 }) {
   return (
     <div
       className={styles.secondaryCell}
       data-paused={paused ? 'true' : undefined}
+      data-testid={testId}
     >
       <span className={`label-sm ${styles.secondaryLabel}`}>{label}</span>
-      <span className={`${styles.secondaryValue} tnum`}>
+      <span
+        className={`${styles.secondaryValue} tnum`}
+        data-target-status={targetStatus}
+      >
         {animate ? <CountUpText value={value} /> : value}
       </span>
+      {targetText && (
+        <span
+          className={`label-sm ${styles.targetRange}`}
+          data-target-status={targetStatus}
+        >
+          {targetText}
+        </span>
+      )}
       {paused && <span className={styles.pausedChip}>Pause</span>}
     </div>
   )

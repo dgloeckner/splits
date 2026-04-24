@@ -7,10 +7,10 @@ export type TileLayout = [string, string, string, string, string, string]
 
 export const DEFAULT_LAYOUT: TileLayout = [
   'split-verlauf',
-  'dps',
-  'oe-split',
   'watt-verlauf',
+  'dps',
   'spi',
+  'oe-split',
   'hf-zone',
 ]
 

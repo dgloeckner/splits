@@ -12,6 +12,7 @@ const (
 	KindSessionStart
 	KindSessionEnd
 	KindLevelChange
+	KindWorkoutAttached
 )
 
 // Event is the internal envelope handed from the sessionizer to every
@@ -23,10 +24,18 @@ type Event struct {
 	SessionID string    // ULID; set on session_start, copied into subsequent events
 	At        time.Time // server receive time
 
-	Stroke       *StrokePayload
-	SessionStart *SessionStartPayload
-	SessionEnd   *SessionEndPayload
-	LevelChange  *LevelChangePayload
+	Stroke          *StrokePayload
+	SessionStart    *SessionStartPayload
+	SessionEnd      *SessionEndPayload
+	LevelChange     *LevelChangePayload
+	WorkoutAttached *WorkoutAttachedPayload
+}
+
+// WorkoutAttachedPayload signals that a workout was attached to the
+// currently open session after session_start was already emitted.
+// Persister updates sessions.workout_id; frontend updates live state.
+type WorkoutAttachedPayload struct {
+	WorkoutID string
 }
 
 // StrokePayload carries one decoded A8 message plus Tier-2 derivations.

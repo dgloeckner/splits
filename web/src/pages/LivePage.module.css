@@ -4,9 +4,38 @@
   padding: var(--space-3);
 }
 
+.topStrip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.columns {
+  display: contents;
+}
+
+.leftCol,
+.rightCol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.leftCol {
+  justify-content: space-between;
+}
+
 @media (min-width: 1024px) {
   .page {
-    grid-template-columns: 1fr 1fr;
-    align-items: start;
+    grid-template-columns: 55fr 45fr;
+    grid-template-rows: auto 1fr;
+    align-items: stretch;
+  }
+  .topStrip {
+    grid-column: 1 / -1;
+  }
+  .columns {
+    display: contents;
   }
 }

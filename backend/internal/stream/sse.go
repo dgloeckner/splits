@@ -10,10 +10,17 @@ import (
 	"github.com/gloeckner-daniel/home-ergo/internal/pipeline"
 )
 
+// Snapshotter returns a set of synthetic events describing the
+// current open session state. Used to bring reconnecting clients up
+// to date when their cursor is already past those events in the ring.
+type Snapshotter interface {
+	Snapshot() []event.Event
+}
+
 // NewHandler returns the /api/v1/stream handler. Auth is the caller's
 // responsibility (middleware); this handler assumes the request has
 // been authenticated.
-func NewHandler(ring *pipeline.Ring, b *Broadcaster) http.Handler {
+func NewHandler(ring *pipeline.Ring, b *Broadcaster, snap Snapshotter) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		flusher, ok := w.(http.Flusher)
 		if !ok {
@@ -28,7 +35,25 @@ func NewHandler(ring *pipeline.Ring, b *Broadcaster) http.Handler {
 
 		afterID := parseAfterID(r)
 
+		// If the client's cursor is past the current session's open
+		// events (ring won't replay them), emit the snapshot first so
+		// the client can rebuild basic session state.
+		sentSnapshot := map[uint64]bool{}
+		if snap != nil {
+			for _, e := range snap.Snapshot() {
+				if e.ID <= afterID {
+					if err := writeSSE(w, flusher, e); err != nil {
+						return
+					}
+					sentSnapshot[e.ID] = true
+				}
+			}
+		}
+
 		for _, e := range ring.Since(afterID) {
+			if sentSnapshot[e.ID] {
+				continue
+			}
 			if err := writeSSE(w, flusher, e); err != nil {
 				return
 			}

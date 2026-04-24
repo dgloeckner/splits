@@ -16,11 +16,18 @@ export function SegmentStatusView({ active, workout }: ViewProps) {
   )
 }
 
+function fmtMmSs(sec: number): string {
+  const total = Math.max(0, Math.ceil(sec))
+  const m = Math.floor(total / 60)
+  const s = total % 60
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
+
 export function formatLabel(active: ActiveSegment, workout: Workout): string {
   const seg = active.segment
-  if (seg.kind === 'warmup') return `Warm-up · ${Math.ceil(active.remainingSec ?? 0)}s`
-  if (seg.kind === 'cooldown') return `Cool-down · ${Math.ceil(active.remainingSec ?? 0)}s`
-  if (seg.kind === 'rest') return `Pause · ${Math.ceil(active.remainingSec ?? 0)}s`
+  if (seg.kind === 'warmup') return `Warm-up · ${fmtMmSs(active.remainingSec ?? 0)}`
+  if (seg.kind === 'cooldown') return `Cool-down · ${fmtMmSs(active.remainingSec ?? 0)}`
+  if (seg.kind === 'rest') return `Pause · ${fmtMmSs(active.remainingSec ?? 0)}`
 
   // work kind:
   if (workout.mode === 'intervals') {
@@ -34,7 +41,7 @@ export function formatLabel(active: ActiveSegment, workout: Workout): string {
     return `${Math.ceil(active.remainingM ?? 0)} m bis Ziel`
   }
   if (workout.mode === 'time') {
-    return `${Math.ceil(active.remainingSec ?? 0)}s bis Ziel`
+    return `${fmtMmSs(active.remainingSec ?? 0)} bis Ziel`
   }
   return ''
 }

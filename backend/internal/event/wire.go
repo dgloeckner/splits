@@ -18,6 +18,8 @@ func EventName(k Kind) string {
 		return "session_end"
 	case KindLevelChange:
 		return "level_change"
+	case KindWorkoutAttached:
+		return "workout_attached"
 	}
 	return ""
 }
@@ -64,6 +66,12 @@ func Marshal(e Event) ([]byte, error) {
 		p := e.LevelChange
 		return json.Marshal(levelChangeWire{
 			From: p.From, To: p.To, AtStroke: p.AtStroke, AtTimeSec: p.AtTimeSec,
+		})
+	case KindWorkoutAttached:
+		p := e.WorkoutAttached
+		return json.Marshal(workoutAttachedWire{
+			SessionID: e.SessionID,
+			WorkoutID: p.WorkoutID,
 		})
 	}
 	return nil, nil
@@ -116,4 +124,9 @@ type levelChangeWire struct {
 	To        int     `json:"to"`
 	AtStroke  int     `json:"at_stroke"`
 	AtTimeSec float64 `json:"at_time_sec"`
+}
+
+type workoutAttachedWire struct {
+	SessionID string `json:"session_id"`
+	WorkoutID string `json:"workout_id"`
 }

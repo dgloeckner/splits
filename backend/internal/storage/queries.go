@@ -20,6 +20,16 @@ func InsertSession(ctx context.Context, db *sql.DB, id, rowerID string, startedA
 	return err
 }
 
+func UpdateSessionWorkout(ctx context.Context, db *sql.DB, id, workoutID string) error {
+	var wid any
+	if workoutID != "" {
+		wid = workoutID
+	}
+	_, err := db.ExecContext(ctx,
+		`UPDATE sessions SET workout_id=? WHERE id=?`, wid, id)
+	return err
+}
+
 func UpdateSessionEnd(ctx context.Context, db *sql.DB, id string, endedAt time.Time, s event.SessionSummary) error {
 	blob, err := json.Marshal(s)
 	if err != nil {

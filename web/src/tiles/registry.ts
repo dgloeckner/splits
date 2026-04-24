@@ -21,7 +21,6 @@ export const TILES: TileDef[] = [
     label: 'Split',
     subtitle: 'Zeit pro 500 m Intervall',
     type: 'numeric',
-    unit: '/ 500m',
     category: 'zahlen',
   },
   {
@@ -40,7 +39,6 @@ export const TILES: TileDef[] = [
     label: 'Ø Split',
     subtitle: 'Session-Durchschnitt',
     type: 'numeric',
-    unit: '/ 500m',
     category: 'zahlen',
   },
   {
