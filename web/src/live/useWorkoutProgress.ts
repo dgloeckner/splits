@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { useLiveSession } from './LiveSessionContext'
-import { getWorkout } from '../api/workouts'
+import { getWorkout, type Workout } from '../api/workouts'
 import { expandWorkout, locateSegment, type ActiveSegment, type Segment } from './segments'
 
 export type WorkoutProgress = {
@@ -9,6 +9,7 @@ export type WorkoutProgress = {
   active: ActiveSegment | null
   workoutId: string | null
   isLoading: boolean
+  workout: Workout | null
 }
 
 export function useWorkoutProgress(): WorkoutProgress {
@@ -28,5 +29,5 @@ export function useWorkoutProgress(): WorkoutProgress {
     return locateSegment(segments, state.stroke.distance_m, state.stroke.time_sec)
   }, [state.stroke, segments])
 
-  return { segments, active, workoutId, isLoading: q.isLoading }
+  return { segments, active, workoutId, isLoading: q.isLoading, workout: q.data ?? null }
 }

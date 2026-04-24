@@ -66,6 +66,7 @@ describe('useWorkoutProgress', () => {
     await waitFor(() => expect(result.current.segments.length).toBeGreaterThan(0))
     expect(result.current.workoutId).toBe('W1')
     expect(result.current.active?.segment.kind).toBe('warmup')
+    expect(result.current.workout?.id).toBe('W1')
   })
 
   it('no stroke → active is null even with segments', async () => {
