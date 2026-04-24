@@ -1,6 +1,6 @@
 .banner {
-  padding: 8px 16px;
-  margin: 8px 0;
+  padding: 6px 16px;
+  margin: 0;
   background: var(--color-surface-container-high);
   border-radius: 6px;
   color: var(--color-on-surface);

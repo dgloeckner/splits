@@ -7,7 +7,6 @@ import { TileGrid } from './TileGrid'
 import { WorkoutOverlayProvider, useWorkoutOverlay } from './live/WorkoutOverlayContext'
 import { WorkoutProgressStrip } from './live/WorkoutProgressStrip'
 import { SegmentStatus } from './live/SegmentStatus'
-import { AbortWorkoutButton } from './live/AbortWorkoutButton'
 import { useSegmentTransitions } from '../live/useSegmentTransitions'
 import styles from './LivePage.module.css'
 
@@ -68,7 +67,6 @@ function LiveBody() {
       </div>
       <div className={styles.leftCol}>
         <LiveHero state={state} target={target} />
-        <AbortWorkoutButton />
       </div>
       <div className={styles.rightCol}>
         <TileGrid state={state} />

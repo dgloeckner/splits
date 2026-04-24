@@ -56,8 +56,8 @@ describe('useDeadReckonedTime', () => {
     vi.advanceTimersByTime(smoothingConfig.deadReckoning.pauseThresholdMs + 100)
     const { result } = renderHook(() => useDeadReckonedTime(s))
     expect(result.current.paused).toBe(true)
-    // Frozen at the last authoritative value (10 s → "0:10.0").
-    expect(result.current.text).toBe('0:10.0')
+    // Frozen at the last authoritative value (10 s → "0:10").
+    expect(result.current.text).toBe('0:10')
   })
 })
 

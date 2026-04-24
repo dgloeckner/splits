@@ -64,7 +64,7 @@
   --layout-bottom-nav-h: 64px;
 
   /* Feature gates */
-  --stroke-pulse-glow: 0 0 12px rgba(93, 215, 228, 0.6);
+  --stroke-pulse-glow: 0 0 6px rgba(93, 215, 228, 0.3);
 }
 
 :root[data-theme='light'] {

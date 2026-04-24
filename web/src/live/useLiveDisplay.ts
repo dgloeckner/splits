@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { LiveState } from './reducer'
 import { smoothingConfig } from './smoothing'
 import { applyHysteresis } from './ema'
-import { fmtInt, fmtFloat, mmss, pace500m } from '../util/format'
+import { fmtInt, fmtFloat, mmssWhole, pace500m } from '../util/format'
 
 /** True when the user has requested reduced motion via OS/browser prefs. */
 function usePrefersReducedMotion(): boolean {
@@ -75,7 +75,7 @@ export function useDeadReckonedTime(state: LiveState): DeadReckoned {
   useFrameTick(!reduced && visible)
 
   const s = state.stroke
-  if (!s) return { text: mmss(null), paused: false }
+  if (!s) return { text: mmssWhole(null), paused: false }
 
   const receivedAt = state.lastStrokeReceivedAtMs ?? Date.now()
   const now = Date.now()
@@ -83,11 +83,11 @@ export function useDeadReckonedTime(state: LiveState): DeadReckoned {
   const paused = sinceFrame >= smoothingConfig.deadReckoning.pauseThresholdMs
 
   if (reduced || !visible || paused) {
-    return { text: mmss(s.time_sec), paused }
+    return { text: mmssWhole(s.time_sec), paused }
   }
 
   const extrapolated = s.time_sec + sinceFrame / 1000
-  return { text: mmss(extrapolated), paused: false }
+  return { text: mmssWhole(extrapolated), paused: false }
 }
 
 /**

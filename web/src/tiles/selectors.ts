@@ -1,6 +1,6 @@
 import type { LiveState, SparklinePoint } from '../live/reducer'
 import type { SparklineMetric } from '../live/sparklineAxis'
-import { fmtFloat, fmtInt, fmtMeters, mmss, pace500m } from '../util/format'
+import { fmtFloat, fmtInt, fmtMeters, mmssWhole, pace500m } from '../util/format'
 
 export type NumericValue = { value: string; unit?: string }
 export type SparklineValue = { points: SparklinePoint[] }
@@ -11,7 +11,7 @@ export function selectNumeric(state: LiveState, tileId: string): NumericValue {
   const sm = state.smoothed
   switch (tileId) {
     case 'zeit':
-      return { value: mmss(s?.time_sec ?? null) }
+      return { value: mmssWhole(s?.time_sec ?? null) }
     case 'distanz':
       return { value: fmtMeters(s?.distance_m ?? null), unit: 'm' }
     case 'split': {
@@ -45,8 +45,17 @@ export function selectNumeric(state: LiveState, tileId: string): NumericValue {
       const v = sm?.power ?? s?.power_w ?? null
       return { value: fmtInt(v), unit: 'W' }
     }
-    case 'oe-split':
-      return { value: pace500m(state.summary?.avg_pace_sec_per_500m ?? null) }
+    case 'oe-split': {
+      const summaryAvg = state.summary?.avg_pace_sec_per_500m ?? null
+      if (summaryAvg != null) return { value: pace500m(summaryAvg) }
+      // Running avg during live session: time_sec / (distance_m / 500).
+      const t = s?.time_sec ?? null
+      const d = s?.distance_m ?? null
+      if (t != null && d != null && d > 0) {
+        return { value: pace500m((t * 500) / d) }
+      }
+      return { value: pace500m(null) }
+    }
     case 'kalorien':
       return { value: fmtInt(s?.cal_per_hr ?? null), unit: 'kcal/h' }
     case 'herzfrequenz':

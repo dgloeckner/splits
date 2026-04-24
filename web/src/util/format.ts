@@ -5,7 +5,17 @@ export function mmss(seconds: number | null | undefined): string {
   const s = Math.max(0, seconds)
   const mins = Math.floor(s / 60)
   const secs = s - mins * 60
-  return `${mins}:${secs.toFixed(1).padStart(4, '0')}`
+  return `${mins}:${secs.toFixed(1).padStart(4, '0').replace('.', ',')}`
+}
+
+// Whole-second mm:ss — for session time and similar long-running clocks where
+// tenths are visual noise. Keep mmss() for split/pace where tenths matter.
+export function mmssWhole(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return DASH
+  const s = Math.max(0, Math.floor(seconds))
+  const mins = Math.floor(s / 60)
+  const secs = s - mins * 60
+  return `${mins}:${secs.toString().padStart(2, '0')}`
 }
 
 export function pace500m(paceSecondsPer500m: number | null | undefined): string {
@@ -22,7 +32,7 @@ export function fmtInt(v: number | null | undefined): string {
 export function fmtFloat(v: number | null | undefined, decimals: number): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return DASH
   const factor = 10 ** decimals
-  return (Math.round(v * factor) / factor).toFixed(decimals)
+  return (Math.round(v * factor) / factor).toFixed(decimals).replace('.', ',')
 }
 
 export function fmtMeters(meters: number | null | undefined): string {

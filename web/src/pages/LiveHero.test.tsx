@@ -30,12 +30,12 @@ function state(): LiveState {
 describe('LiveHero', () => {
   it('renders split as the dominant value', () => {
     render(<LiveHero state={state()} />)
-    expect(screen.getByText('2:12.0')).toBeInTheDocument()
+    expect(screen.getByText('2:12,0')).toBeInTheDocument()
   })
 
   it('renders Zeit, Distanz, SPM, Watt in the secondary row', () => {
     render(<LiveHero state={state()} />)
-    expect(screen.getByText('2:05.3')).toBeInTheDocument()
+    expect(screen.getByText('2:05')).toBeInTheDocument()
     expect(screen.getByText('512')).toBeInTheDocument()
     expect(screen.getByText('27')).toBeInTheDocument()
     expect(screen.getByText('245')).toBeInTheDocument()

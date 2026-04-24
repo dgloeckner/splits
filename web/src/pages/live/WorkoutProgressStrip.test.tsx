@@ -1,7 +1,13 @@
-import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import type { ReactNode } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { LiveSessionContext } from '../../live/LiveSessionContext'
+import { initialLiveState, type LiveState } from '../../live/reducer'
 import type { Segment, ActiveSegment } from '../../live/segments'
-import { WorkoutProgressStripView } from './WorkoutProgressStrip'
+import { WorkoutOverlayProvider } from './WorkoutOverlayContext'
+import { WorkoutProgressStrip, WorkoutProgressStripView } from './WorkoutProgressStrip'
 
 function seg(kind: Segment['kind'], index: number, d?: number, s?: number): Segment {
   return {
@@ -49,5 +55,99 @@ describe('WorkoutProgressStripView', () => {
     const segs = [seg('work', 0, 500)]
     render(<WorkoutProgressStripView segments={segs} active={null} />)
     expect(screen.queryByTestId('progress-marker')).toBeNull()
+  })
+
+  it('renders X abort button when onAbort provided', () => {
+    const segs = [seg('work', 0, 500)]
+    const onAbort = vi.fn()
+    render(<WorkoutProgressStripView segments={segs} active={null} onAbort={onAbort} />)
+    expect(screen.getByTestId('progress-strip-abort')).toBeInTheDocument()
+  })
+
+  it('omits X when onAbort is absent', () => {
+    const segs = [seg('work', 0, 500)]
+    render(<WorkoutProgressStripView segments={segs} active={null} />)
+    expect(screen.queryByTestId('progress-strip-abort')).toBeNull()
+  })
+})
+
+const originalFetch = global.fetch
+afterEach(() => {
+  global.fetch = originalFetch
+  vi.restoreAllMocks()
+})
+
+function mockWorkout() {
+  global.fetch = vi.fn(async () => new Response(JSON.stringify({
+    id: 'W1', mode: 'distance', params: { meters: 5000 }, intensity: 'moderat',
+    warmup_sec: 0, cooldown_sec: 0, created_at: '2026-04-24T00:00:00Z',
+  }), { status: 200, headers: { 'content-type': 'application/json' } })) as typeof fetch
+}
+
+const stateWithWorkout: LiveState = {
+  ...initialLiveState,
+  session: { session_id: 'S1', started_at: '', rower_id: 'R', rower_name: 'A', initial_level: 3, workout_id: 'W1' },
+  stroke: { session_id: 'S1', stroke: 1, time_sec: 60, distance_m: 100, spm: 22, power_w: 120, cal_per_hr: 500, level: 3, dps: 9, stroke_cycle_sec: 3, pace_sec_per_500m: 135, energy_joules: 300 },
+}
+
+function wrap(state: LiveState) {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={qc}>
+      <LiveSessionContext.Provider value={state}>
+        <WorkoutOverlayProvider>{children}</WorkoutOverlayProvider>
+      </LiveSessionContext.Provider>
+    </QueryClientProvider>
+  )
+}
+
+describe('WorkoutProgressStrip (container)', () => {
+  it('clicking X opens dialog; Session speichern hides strip', async () => {
+    mockWorkout()
+    const Wrap = wrap(stateWithWorkout)
+    render(<Wrap><WorkoutProgressStrip /></Wrap>)
+    await waitFor(() => expect(screen.getByTestId('progress-strip')).toBeInTheDocument())
+    await userEvent.click(screen.getByTestId('progress-strip-abort'))
+    expect(screen.getByTestId('abort-dialog')).toBeInTheDocument()
+    await userEvent.click(screen.getByTestId('abort-dialog-save'))
+    await waitFor(() => expect(screen.queryByTestId('progress-strip')).toBeNull())
+  })
+
+  it('Weiter rudern closes dialog and keeps strip', async () => {
+    mockWorkout()
+    const Wrap = wrap(stateWithWorkout)
+    render(<Wrap><WorkoutProgressStrip /></Wrap>)
+    await waitFor(() => expect(screen.getByTestId('progress-strip')).toBeInTheDocument())
+    await userEvent.click(screen.getByTestId('progress-strip-abort'))
+    await userEvent.click(screen.getByTestId('abort-dialog-continue'))
+    expect(screen.queryByTestId('abort-dialog')).toBeNull()
+    expect(screen.getByTestId('progress-strip')).toBeInTheDocument()
+  })
+
+  it('Session verwerfen calls DELETE on current session', async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input.toString()
+      if (init?.method === 'DELETE') return new Response(null, { status: 204 })
+      if (url.includes('/api/v1/workouts/')) {
+        return new Response(JSON.stringify({
+          id: 'W1', mode: 'distance', params: { meters: 5000 }, intensity: 'moderat',
+          warmup_sec: 0, cooldown_sec: 0, created_at: '2026-04-24T00:00:00Z',
+        }), { status: 200, headers: { 'content-type': 'application/json' } })
+      }
+      return new Response('{}', { status: 200 })
+    })
+    global.fetch = fetchMock as typeof fetch
+    const Wrap = wrap(stateWithWorkout)
+    render(<Wrap><WorkoutProgressStrip /></Wrap>)
+    await waitFor(() => expect(screen.getByTestId('progress-strip')).toBeInTheDocument())
+    await userEvent.click(screen.getByTestId('progress-strip-abort'))
+    await userEvent.click(screen.getByTestId('abort-dialog-discard'))
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        '/api/v1/sessions/S1',
+        expect.objectContaining({ method: 'DELETE' }),
+      ),
+    )
+    await waitFor(() => expect(screen.queryByTestId('progress-strip')).toBeNull())
   })
 })

@@ -1,16 +1,16 @@
 // Persists the 2×3 live dashboard tile layout to localStorage. A layout
 // is an array of six tile ids (row-major: r1c1, r1c2, r1c3, r2c1, …).
 
-const STORAGE_KEY = 'home-ergo:tile-layout:v1'
+const STORAGE_KEY = 'home-ergo:tile-layout:v2'
 
 export type TileLayout = [string, string, string, string, string, string]
 
 export const DEFAULT_LAYOUT: TileLayout = [
+  'dps',
+  'oe-split',
   'split-verlauf',
   'watt-verlauf',
-  'dps',
   'spi',
-  'oe-split',
   'hf-zone',
 ]
 
