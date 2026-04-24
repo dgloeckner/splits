@@ -5,6 +5,7 @@ import { useRowers } from '../hooks/useRowers'
 import { useActiveRower } from '../hooks/useActiveRower'
 import { updateRower, type Rower } from '../api/rowers'
 import { computeBMI } from '../util/bmi'
+import { RowerStrip } from '../app/RowerStrip'
 import styles from './ProfilePage.module.css'
 
 function formatSince(iso: string): string {
@@ -165,6 +166,8 @@ export function ProfilePage() {
   return (
     <main className={styles.page}>
       <h1 className={styles.pageTitle}>Einstellungen</h1>
+
+      <RowerStrip />
 
       {activeRower && (
         <section className={styles.section}>

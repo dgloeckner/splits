@@ -9,30 +9,43 @@
 .topBar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-3, 12px);
-  padding: var(--space-2, 8px) var(--space-3, 12px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  height: 56px;
+  padding: 0 var(--space-4, 16px);
+  background: var(--color-surface-container-low, #131313);
 }
 
 .brand {
   display: flex;
   align-items: center;
   gap: var(--space-2, 8px);
-  color: var(--color-on-surface);
+  color: var(--color-primary);
 }
 
 .brandIcon {
-  color: var(--color-on-surface);
+  color: var(--color-primary);
   flex-shrink: 0;
 }
 
 .brandText {
-  font-family: var(--font-headline, 'Anthropic Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
-  font-size: 16px;
-  font-weight: 700;
-  letter-spacing: 0.02em;
+  font-family: 'Space Grotesk', var(--font-headline, 'Anthropic Sans'), -apple-system, sans-serif;
+  font-size: 18px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
   line-height: 1;
+  margin: 0;
+  color: var(--color-primary);
+  text-transform: uppercase;
+}
+
+.pageLabel {
+  margin-left: auto;
+  font-family: 'Space Grotesk', var(--font-headline, 'Anthropic Sans'), sans-serif;
+  font-weight: 700;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-primary);
 }
 
 .main {

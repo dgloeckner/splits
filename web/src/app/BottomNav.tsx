@@ -1,13 +1,13 @@
 import { NavLink } from 'react-router-dom'
-import { IconHome, IconHistory, IconProfile } from '../icons'
+import { IconWorkout, IconHistory, IconProfile } from '../icons'
 import styles from './BottomNav.module.css'
 
 export function BottomNav() {
   return (
     <nav className={styles.nav} aria-label="Hauptnavigation">
       <NavLink to="/" end className={styles.link}>
-        <IconHome />
-        <span>Home</span>
+        <IconWorkout />
+        <span>Training</span>
       </NavLink>
       <NavLink to="/historie" className={styles.link}>
         <IconHistory />
