@@ -1,3 +1,4 @@
+export { AppIcon } from './AppIcon'
 export { IconBase } from './IconBase'
 export { IconBolt } from './IconBolt'
 export { IconChart } from './IconChart'

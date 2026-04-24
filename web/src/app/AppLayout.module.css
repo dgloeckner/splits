@@ -9,8 +9,30 @@
 .topBar {
   display: flex;
   align-items: center;
-  justify-content: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3, 12px);
+  padding: var(--space-2, 8px) var(--space-3, 12px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  color: var(--color-on-surface);
+}
+
+.brandIcon {
+  color: var(--color-on-surface);
+  flex-shrink: 0;
+}
+
+.brandText {
+  font-family: var(--font-headline, 'Anthropic Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
 }
 
 .main {
