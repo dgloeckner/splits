@@ -47,6 +47,12 @@ export async function attachWorkout(id: string): Promise<void> {
   if (!res.ok) throw new Error(`attachWorkout: ${res.status}`)
 }
 
+export async function getWorkout(id: string): Promise<Workout> {
+  const res = await fetch(`/api/v1/workouts/${encodeURIComponent(id)}`)
+  if (!res.ok) throw new Error(`getWorkout: ${res.status}`)
+  return res.json()
+}
+
 export async function getLastWorkout(rowerID: string): Promise<Workout | null> {
   const res = await fetch(`/api/v1/workouts/last?rower_id=${encodeURIComponent(rowerID)}`)
   if (res.status === 404) return null

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { createWorkout, attachWorkout, getLastWorkout, type WorkoutMode } from './workouts'
+import { createWorkout, attachWorkout, getLastWorkout, getWorkout, type WorkoutMode } from './workouts'
 
 const originalFetch = global.fetch
 
@@ -54,6 +54,15 @@ describe('workouts api', () => {
     })
     const out = await getLastWorkout('R1')
     expect(out?.id).toBe('W2')
+  })
+
+  it('getWorkout fetches by id', async () => {
+    mockFetch(async (url) => {
+      expect(String(url)).toBe('/api/v1/workouts/W1')
+      return new Response(JSON.stringify({ id: 'W1', mode: 'distance', params: { meters: 2000 }, warmup_sec: 0, cooldown_sec: 0, created_at: '2026-04-24T00:00:00Z' }), { status: 200 })
+    })
+    const out = await getWorkout('W1')
+    expect(out.id).toBe('W1')
   })
 
   it('type WorkoutMode includes all four modes', () => {
