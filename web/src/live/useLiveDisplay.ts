@@ -65,6 +65,20 @@ function useFrameTick(enabled: boolean): number {
 export type DeadReckoned = { text: string; paused: boolean }
 
 /**
+ * Returns true when no stroke has arrived for more than the pause
+ * threshold — used to blank hero/tile values so the view doesn't
+ * display stale numbers when the rower has stopped.
+ */
+export function useIsLivePaused(state: LiveState): boolean {
+  const reduced = usePrefersReducedMotion()
+  const visible = usePageVisible()
+  useFrameTick(!reduced && visible)
+  const last = state.lastStrokeReceivedAtMs
+  if (last === null) return true
+  return Date.now() - last >= smoothingConfig.deadReckoning.pauseThresholdMs
+}
+
+/**
  * Returns the displayed elapsed time as mm:ss, extrapolated between
  * strokes using wall-clock deltas. Freezes when stroke frames stop
  * arriving for more than `pauseThresholdMs`.

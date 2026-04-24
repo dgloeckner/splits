@@ -4,7 +4,7 @@ import { useLiveSession } from '../live/LiveSessionContext'
 import { useWorkoutProgress } from '../live/useWorkoutProgress'
 import { LiveHero } from './LiveHero'
 import { TileGrid } from './TileGrid'
-import { WorkoutOverlayProvider, useWorkoutOverlay } from './live/WorkoutOverlayContext'
+import { useWorkoutOverlay } from './live/WorkoutOverlayContext'
 import { WorkoutProgressStrip } from './live/WorkoutProgressStrip'
 import { SegmentStatus } from './live/SegmentStatus'
 import { useSegmentTransitions } from '../live/useSegmentTransitions'
@@ -61,10 +61,12 @@ function LiveBody() {
           )}
         </pre>
       )}
-      <div className={styles.topStrip}>
-        <WorkoutProgressStrip />
-        <SegmentStatus />
-      </div>
+      {segments.length > 0 && (
+        <div className={styles.topStrip}>
+          <WorkoutProgressStrip />
+          <SegmentStatus />
+        </div>
+      )}
       <div className={styles.leftCol}>
         <LiveHero state={state} target={target} />
       </div>
@@ -85,9 +87,5 @@ export function LivePage() {
     prevSummary.current = state.summary
   }, [state.summary, nav])
 
-  return (
-    <WorkoutOverlayProvider>
-      <LiveBody />
-    </WorkoutOverlayProvider>
-  )
+  return <LiveBody />
 }

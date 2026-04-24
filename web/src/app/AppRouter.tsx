@@ -4,6 +4,7 @@ import { ErrorBoundary } from './ErrorBoundary'
 import { NotFound } from './NotFound'
 import { RowerGate } from './RowerGate'
 import { LiveSessionProvider } from '../live/LiveSessionContext'
+import { WorkoutOverlayProvider } from '../pages/live/WorkoutOverlayContext'
 import { LivePage } from '../pages/LivePage'
 import { HomePage } from '../pages/HomePage'
 import { HistoryPage } from '../pages/HistoryPage'
@@ -16,6 +17,7 @@ export function AppRouter() {
   return (
     <ErrorBoundary>
       <LiveSessionProvider>
+        <WorkoutOverlayProvider>
         <BrowserRouter>
           <Routes>
             <Route path="/onboarding" element={<OnboardingPage />} />
@@ -32,6 +34,7 @@ export function AppRouter() {
             </Route>
           </Routes>
         </BrowserRouter>
+        </WorkoutOverlayProvider>
       </LiveSessionProvider>
     </ErrorBoundary>
   )

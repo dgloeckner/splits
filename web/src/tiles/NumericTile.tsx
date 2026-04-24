@@ -4,24 +4,27 @@ import type { LiveState } from '../live/reducer'
 import styles from './NumericTile.module.css'
 import { TargetDot } from '../pages/live/TargetDot'
 import { useWorkoutProgress } from '../live/useWorkoutProgress'
+import { useIsLivePaused } from '../live/useLiveDisplay'
 import { inRange } from '../live/targetRange'
 
 type Props = { def: TileDef; state: LiveState; disabled?: boolean }
 
 export function NumericTile({ def, state, disabled }: Props) {
   const v = selectNumeric(state, def.id)
+  const paused = useIsLivePaused(state)
   const unit = v.unit ?? def.unit
   const cls = [styles.tile, disabled && styles.disabled].filter(Boolean).join(' ')
 
   const target = useTargetStatus(def.id, state)
+  const displayValue = paused ? '—' : v.value
 
   return (
     <div className={cls}>
       <span className={`label-sm ${styles.label}`}>{def.label}</span>
-      {target !== 'none' && <TargetDot status={target} className={styles.targetDot} />}
+      {!paused && target !== 'none' && <TargetDot status={target} className={styles.targetDot} />}
       <div className={styles.row}>
-        <span className={`${styles.value} tnum`}>{v.value}</span>
-        {unit && <span className={styles.unit}>{unit}</span>}
+        <span className={`${styles.value} tnum`}>{displayValue}</span>
+        {unit && !paused && <span className={styles.unit}>{unit}</span>}
       </div>
     </div>
   )

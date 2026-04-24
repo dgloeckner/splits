@@ -31,15 +31,15 @@ describe('selectNumeric', () => {
     const s = pushStroke(initialLiveState)
     expect(selectNumeric(s, 'zeit').value).toBe('1:05')
     expect(selectNumeric(s, 'distanz').value).toBe('342')
-    expect(selectNumeric(s, 'split').value).toBe('2:12,0')
-    expect(selectNumeric(s, 'dps').value).toBe('8,4')
+    expect(selectNumeric(s, 'split').value).toBe('2:12.0')
+    expect(selectNumeric(s, 'dps').value).toBe('8.4')
     expect(selectNumeric(s, 'spm').value).toBe('27')
     expect(selectNumeric(s, 'watt').value).toBe('245')
   })
 
   it('computes SPI = power / SPM and guards the edge cases', () => {
     const ok = pushStroke(initialLiveState, { power_w: 240, spm: 24 })
-    expect(selectNumeric(ok, 'spi').value).toBe('10,0')
+    expect(selectNumeric(ok, 'spi').value).toBe('10.0')
 
     const spmZero = pushStroke(initialLiveState, { spm: 0 })
     expect(selectNumeric(spmZero, 'spi').value).toBe('—')

@@ -83,11 +83,11 @@ export function WorkoutProgressStripView({ segments, active, onAbort }: ViewProp
           aria-label="Workout beenden"
           data-testid="progress-strip-abort"
         >
-          <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true">
+          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
             <path
-              d="M3 3 L11 11 M11 3 L3 11"
+              d="M4 4 L12 12 M12 4 L4 12"
               stroke="currentColor"
-              strokeWidth="1.5"
+              strokeWidth="2"
               strokeLinecap="round"
             />
           </svg>

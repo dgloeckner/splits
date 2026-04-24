@@ -7,10 +7,13 @@ import type {
 import type { ChannelStatus } from './channel'
 import { ema } from './ema'
 import { smoothingConfig } from './smoothing'
+import { PAUSE_GAP_MS, PLAUSIBLE, type PlausibilityKey } from './liveness'
 
 const SPARKLINE_WINDOW_SEC = smoothingConfig.sparkline.windowSeconds.phone
 
-export type SparklinePoint = { time_sec: number; value: number }
+// `value: null` marks a pause gap — renderers should break the line here
+// rather than draw a fake interpolation across dead time.
+export type SparklinePoint = { time_sec: number; value: number | null }
 
 export type SmoothedValues = {
   power: number | null
@@ -131,11 +134,26 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
 
         case 'stroke': {
           const p = ev.data
-          const appendOrTrim = (series: SparklinePoint[], value: number) => {
-            const next = [...series, { time_sec: p.time_sec, value }]
+          const now = Date.now()
+          const prevMs = state.lastStrokeReceivedAtMs
+          const resumedFromPause = prevMs !== null && now - prevMs > PAUSE_GAP_MS
+          const appendOrTrim = (
+            series: SparklinePoint[],
+            value: number,
+            key: PlausibilityKey,
+          ) => {
+            let next = series
+            if (resumedFromPause) {
+              // Nudge epsilon before the new point so the gap marker sorts
+              // correctly with the new sample's time_sec.
+              next = [...next, { time_sec: p.time_sec - 0.001, value: null }]
+            }
+            const r = PLAUSIBLE[key]
+            if (Number.isFinite(value) && value >= r.min && value <= r.max) {
+              next = [...next, { time_sec: p.time_sec, value }]
+            }
             return trimWindow(next, p.time_sec)
           }
-          const now = Date.now()
           const sessionStartedAtMs = state.sessionStartedAtMs ?? now
           const inColdStart =
             now - sessionStartedAtMs < smoothingConfig.coldStartSeconds * 1000
@@ -144,10 +162,10 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
             ...state,
             stroke: p,
             sparklines: {
-              power: appendOrTrim(state.sparklines.power, p.power_w),
-              split: appendOrTrim(state.sparklines.split, p.pace_sec_per_500m),
-              dps: appendOrTrim(state.sparklines.dps, p.dps),
-              spm: appendOrTrim(state.sparklines.spm, p.spm),
+              power: appendOrTrim(state.sparklines.power, p.power_w, 'watts'),
+              split: appendOrTrim(state.sparklines.split, p.pace_sec_per_500m, 'split'),
+              dps: appendOrTrim(state.sparklines.dps, p.dps, 'dps'),
+              spm: appendOrTrim(state.sparklines.spm, p.spm, 'spm'),
             },
             lastStrokeReceivedAtMs: now,
             sessionStartedAtMs,

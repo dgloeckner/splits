@@ -62,21 +62,23 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 20px;
-  height: 20px;
+  width: 28px;
+  height: 28px;
   padding: 0;
-  background: transparent;
-  border: none;
-  border-radius: 4px;
-  color: var(--color-on-surface-variant);
-  opacity: 0.45;
+  background: var(--color-surface-container-high);
+  border: 1px solid var(--color-outline-variant, rgba(255, 255, 255, 0.14));
+  border-radius: 6px;
+  color: var(--color-on-surface);
+  opacity: 0.85;
   cursor: pointer;
-  transition: opacity 0.15s ease, color 0.15s ease;
+  transition: opacity 0.15s ease, color 0.15s ease, background 0.15s ease,
+    border-color 0.15s ease;
 }
 
 .abortX:hover,
 .abortX:focus-visible {
   opacity: 1;
-  color: var(--color-on-surface);
+  color: var(--color-error);
+  border-color: var(--color-error);
   outline: none;
 }

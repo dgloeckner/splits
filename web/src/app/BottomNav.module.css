@@ -43,3 +43,9 @@
 .link[aria-current='page']:hover {
   color: var(--color-primary);
 }
+
+.link[data-locked='true'] {
+  opacity: 0.3;
+  pointer-events: none;
+  cursor: not-allowed;
+}

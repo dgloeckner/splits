@@ -53,6 +53,7 @@ func ListSessions(ctx context.Context, db *sql.DB, limit, offset int) ([]Session
 		       total_distance_m, total_time_sec, total_strokes, summary_json
 		FROM sessions
 		WHERE deleted_at IS NULL
+		  AND EXISTS (SELECT 1 FROM strokes s WHERE s.session_id = sessions.id)
 		ORDER BY started_at DESC
 		LIMIT ? OFFSET ?`, limit, offset)
 	if err != nil {

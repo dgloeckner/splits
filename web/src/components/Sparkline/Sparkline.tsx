@@ -139,12 +139,15 @@ export function Sparkline({ points, ghost, windowSeconds = 90, yMin, yMax }: Pro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [points, reduced, visible, windowSeconds])
 
-  if (points.length < 2) {
+  const numericPoints = points.filter(
+    (p): p is { time_sec: number; value: number } => p.value !== null,
+  )
+  if (numericPoints.length < 2) {
     return <div className={styles.placeholder}>sammle Daten…</div>
   }
 
   const xs = points.map((p) => p.time_sec)
-  const ys = points.map((p) => p.value)
+  const ys = numericPoints.map((p) => p.value)
   const xMax = xs[xs.length - 1]
   const xMin = xMax - windowSeconds
   const xSpan = Math.max(1, xMax - xMin)
@@ -155,8 +158,21 @@ export function Sparkline({ points, ghost, windowSeconds = 90, yMin, yMax }: Pro
   const toX = (t: number) => ((t - xMin) / xSpan) * WIDTH
   const toY = (v: number) => HEIGHT - ((v - effYMin) / ySpan) * HEIGHT
 
-  const scaled = points.map((p) => ({ x: toX(p.time_sec), y: toY(p.value) }))
-  const path = monotonePath(scaled)
+  // Split the series into runs of non-null samples at every null marker.
+  // Each run becomes its own sub-path so the line visually breaks across
+  // pause gaps rather than interpolating across dead time.
+  const runs: { x: number; y: number }[][] = []
+  let cur: { x: number; y: number }[] = []
+  for (const p of points) {
+    if (p.value === null) {
+      if (cur.length) runs.push(cur)
+      cur = []
+      continue
+    }
+    cur.push({ x: toX(p.time_sec), y: toY(p.value) })
+  }
+  if (cur.length) runs.push(cur)
+  const path = runs.map((r) => monotonePath(r)).join(' ')
   const ghostPath =
     ghost !== undefined
       ? `M 0 ${toY(ghost).toFixed(2)} L ${WIDTH} ${toY(ghost).toFixed(2)}`

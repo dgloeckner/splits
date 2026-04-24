@@ -19,6 +19,15 @@ func seedSessions(t *testing.T, db *DB, n int) []string {
 		if err := InsertSession(ctx, db.Handle(), id, "R1", started, 3, ""); err != nil {
 			t.Fatalf("seed[%d]: %v", i, err)
 		}
+		// List query filters out sessions with zero strokes — seed one.
+		stroke := event.StrokePayload{
+			StrokeNo: 1, TimeSec: 2, DistanceM: 8, SPM: 25, PowerW: 200,
+			CalPerHr: 1000, Level: 3, DPS: 8, StrokeCycleSec: 2,
+			PaceSecPer500m: 125, EnergyJoules: 400,
+		}
+		if err := InsertStroke(ctx, db.Handle(), uint64(100+i), id, started, stroke); err != nil {
+			t.Fatalf("seed stroke[%d]: %v", i, err)
+		}
 		if err := UpdateSessionEnd(ctx, db.Handle(), id, started.Add(5*time.Minute),
 			event.SessionSummary{TotalDistanceM: 1000 * (i + 1), TotalTimeSec: 300,
 				TotalStrokes: 100 + i, AvgPaceSecPer500m: 130}); err != nil {

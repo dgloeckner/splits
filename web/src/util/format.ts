@@ -5,7 +5,7 @@ export function mmss(seconds: number | null | undefined): string {
   const s = Math.max(0, seconds)
   const mins = Math.floor(s / 60)
   const secs = s - mins * 60
-  return `${mins}:${secs.toFixed(1).padStart(4, '0').replace('.', ',')}`
+  return `${mins}:${secs.toFixed(1).padStart(4, '0')}`
 }
 
 // Whole-second mm:ss — for session time and similar long-running clocks where
@@ -32,7 +32,7 @@ export function fmtInt(v: number | null | undefined): string {
 export function fmtFloat(v: number | null | undefined, decimals: number): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return DASH
   const factor = 10 ** decimals
-  return (Math.round(v * factor) / factor).toFixed(decimals).replace('.', ',')
+  return (Math.round(v * factor) / factor).toFixed(decimals)
 }
 
 export function fmtMeters(meters: number | null | undefined): string {

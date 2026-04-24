@@ -3,11 +3,11 @@ import { mmss, mmssWhole, pace500m, fmtInt, fmtFloat, fmtMeters } from './format
 
 describe('mmss', () => {
   it.each([
-    [0, '0:00,0'],
-    [5.3, '0:05,3'],
-    [65.4, '1:05,4'],
-    [600, '10:00,0'],
-    [3599.9, '59:59,9'],
+    [0, '0:00.0'],
+    [5.3, '0:05.3'],
+    [65.4, '1:05.4'],
+    [600, '10:00.0'],
+    [3599.9, '59:59.9'],
   ])('formats %s seconds as %s', (input, expected) => {
     expect(mmss(input)).toBe(expected)
   })
@@ -33,9 +33,9 @@ describe('mmssWhole', () => {
 })
 
 describe('pace500m', () => {
-  it('formats a pace-seconds-per-500m integer as m:ss,0 (German comma)', () => {
-    expect(pace500m(132)).toBe('2:12,0')
-    expect(pace500m(115)).toBe('1:55,0')
+  it('formats a pace-seconds-per-500m integer as m:ss.0', () => {
+    expect(pace500m(132)).toBe('2:12.0')
+    expect(pace500m(115)).toBe('1:55.0')
   })
 
   it('returns an em-dash when null or <= 0', () => {
@@ -57,10 +57,10 @@ describe('fmtInt', () => {
 })
 
 describe('fmtFloat', () => {
-  it('formats with given decimal places using German comma', () => {
-    expect(fmtFloat(8.43, 1)).toBe('8,4')
-    expect(fmtFloat(8.45, 1)).toBe('8,5')
-    expect(fmtFloat(8, 2)).toBe('8,00')
+  it('formats with given decimal places', () => {
+    expect(fmtFloat(8.43, 1)).toBe('8.4')
+    expect(fmtFloat(8.45, 1)).toBe('8.5')
+    expect(fmtFloat(8, 2)).toBe('8.00')
   })
 
   it('returns em-dash for null', () => {

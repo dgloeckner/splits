@@ -4,6 +4,7 @@ import {
   useCountUp,
   useDeadReckonedDistance,
   useDeadReckonedTime,
+  useIsLivePaused,
   useSmoothed,
 } from '../live/useLiveDisplay'
 import { smoothingConfig } from '../live/smoothing'
@@ -65,9 +66,15 @@ export function LiveHero({ state, target }: Props) {
   const time = useDeadReckonedTime(state)
   const distance = useDeadReckonedDistance(state)
   const smoothed = useSmoothed(state)
+  const paused = useIsLivePaused(state)
 
   const splitStat = splitStatus(state.smoothed?.paceSecPer500m ?? null, target?.split)
   const spmStat = spmStatus(state.smoothed?.spm ?? null, target?.spm)
+
+  const blank = '—'
+  const splitText = paused ? blank : smoothed.split
+  const spmText = paused ? blank : smoothed.spm
+  const wattsText = paused ? blank : smoothed.watts
 
   return (
     <section className={styles.hero} aria-label="Live-Daten">
@@ -76,9 +83,9 @@ export function LiveHero({ state, target }: Props) {
         <div className={styles.splitRow}>
           <span
             className={`${styles.splitValue} tnum`}
-            data-target-status={splitStat}
+            data-target-status={paused ? undefined : splitStat}
           >
-            {smoothed.split}
+            {splitText}
           </span>
         </div>
         {target?.split && (
@@ -94,23 +101,23 @@ export function LiveHero({ state, target }: Props) {
       <div className={styles.secondary}>
         <HeroCell
           label="Zeit"
-          value={time.text}
+          value={paused ? blank : time.text}
           paused={time.paused}
         />
         <HeroCell
           label="Distanz"
-          value={distance.text}
+          value={paused ? blank : distance.text}
           paused={distance.paused}
         />
         <HeroCell
           label="SPM"
-          value={smoothed.spm}
-          animate
+          value={spmText}
+          animate={!paused}
           targetText={target?.spm ? formatSpmRange(target.spm) : undefined}
-          targetStatus={spmStat}
+          targetStatus={paused ? undefined : spmStat}
           testId="spm-cell"
         />
-        <HeroCell label="Watt" value={smoothed.watts} animate />
+        <HeroCell label="Watt" value={wattsText} animate={!paused} />
       </div>
     </section>
   )
