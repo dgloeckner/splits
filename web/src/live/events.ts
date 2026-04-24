@@ -31,6 +31,7 @@ export type SessionStartPayload = {
   rower_id: string
   rower_name: string
   initial_level: number
+  workout_id?: string
 }
 
 export type SessionEndSummary = {

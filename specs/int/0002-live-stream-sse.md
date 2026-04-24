@@ -103,6 +103,14 @@ data: {
 }
 ```
 
+Fields:
+- `session_id` — ULID assigned by the sessionizer.
+- `started_at` — RFC 3339 timestamp of the session's first stroke.
+- `rower_id` — ULID of the rower the session is attributed to.
+- `rower_name` — Display name of that rower.
+- `initial_level` — Resistance level at session open.
+- `workout_id` (string, optional) — present when the session is tagged with a workout. Frontend uses this to fetch the workout definition and drive segment overlays.
+
 ### `session_end`
 
 Emitted when the session is closed (idle timeout per INT-0001 state

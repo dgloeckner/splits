@@ -178,6 +178,14 @@ describe('liveReducer', () => {
     })
   })
 
+  it('session_start carries workout_id when present', () => {
+    const s = liveReducer(initialLiveState, {
+      type: 'event',
+      event: start({ workout_id: 'W1' }),
+    })
+    expect(s.session?.workout_id).toBe('W1')
+  })
+
   it('ping does not mutate state (identity-stable)', () => {
     const before = liveReducer(initialLiveState, { type: 'event', event: start() })
     const after = liveReducer(before, {

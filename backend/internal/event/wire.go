@@ -51,6 +51,7 @@ func Marshal(e Event) ([]byte, error) {
 			RowerID:      p.RowerID,
 			RowerName:    p.RowerName,
 			InitialLevel: p.InitialLevel,
+			WorkoutID:    p.WorkoutID,
 		})
 	case KindSessionEnd:
 		p := e.SessionEnd
@@ -89,6 +90,7 @@ type sessionStartWire struct {
 	RowerID      string    `json:"rower_id"`
 	RowerName    string    `json:"rower_name"`
 	InitialLevel int       `json:"initial_level"`
+	WorkoutID    string    `json:"workout_id,omitempty"`
 }
 
 type sessionEndWire struct {

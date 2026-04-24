@@ -47,6 +47,53 @@ func TestMarshalStroke(t *testing.T) {
 	}
 }
 
+func TestMarshalSessionStart(t *testing.T) {
+	base := Event{
+		ID:        1,
+		Kind:      KindSessionStart,
+		SessionID: "01HV00000000000000000000A1",
+		At:        time.Unix(0, 0),
+		SessionStart: &SessionStartPayload{
+			StartedAt:    time.Unix(0, 0),
+			RowerID:      "R1",
+			RowerName:    "Alice",
+			InitialLevel: 3,
+		},
+	}
+
+	t.Run("workout_id omitted when empty", func(t *testing.T) {
+		got, err := Marshal(base)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(got, &m); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if _, present := m["workout_id"]; present {
+			t.Errorf("expected workout_id to be omitted, but it was present in JSON")
+		}
+	})
+
+	t.Run("workout_id present when set", func(t *testing.T) {
+		e := base
+		sp := *base.SessionStart
+		sp.WorkoutID = "W1"
+		e.SessionStart = &sp
+		got, err := Marshal(e)
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		var m map[string]any
+		if err := json.Unmarshal(got, &m); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if m["workout_id"] != "W1" {
+			t.Errorf("workout_id: got %v, want %q", m["workout_id"], "W1")
+		}
+	})
+}
+
 func TestEventNameMatrix(t *testing.T) {
 	cases := []struct {
 		kind Kind
