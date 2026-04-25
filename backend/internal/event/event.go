@@ -81,6 +81,23 @@ type SessionSummary struct {
 	AvgDPS            float64
 	AvgPaceSecPer500m int
 	SessionCalories   int
+
+	// Samples is the downsampled per-stroke series used by past-session
+	// charts after compaction (FEAT-0009). Populated by the persister at
+	// session_end; the sessionizer leaves it nil. Omitted from JSON when
+	// nil so existing summaries don't grow a useless empty field.
+	Samples *SessionSamples `json:",omitempty"`
+}
+
+// SessionSamples is N-stroke-bucket-averaged time series. Length is
+// always equal across all four arrays. T is the time-axis in seconds
+// from session start (one entry per bucket).
+type SessionSamples struct {
+	BucketStrokes int       `json:"bucket_strokes"`
+	T             []float64 `json:"t_sec"`
+	Split         []int     `json:"split"`
+	Watt          []int     `json:"watt"`
+	SPM           []int     `json:"spm"`
 }
 
 type LevelChangePayload struct {

@@ -1,0 +1,56 @@
+// Package stats holds derived-statistics computations that run over a
+// session's strokes at session_end time, before the strokes are
+// compacted away. See FEAT-0009 (cleanup) and FEAT-0010 (PBs).
+package stats
+
+import "github.com/gloeckner-daniel/home-ergo/internal/event"
+
+// DefaultBucketStrokes is the bucket size used by ComputeSamples when
+// the caller does not specify one. Five strokes is roughly 6–10 s of
+// rowing — small enough to render shape, large enough to keep the
+// sample array short for long sessions.
+const DefaultBucketStrokes = 5
+
+// ComputeSamples averages stroke-level metrics into N-stroke buckets
+// for storage in summary_json.samples. Strokes must be ordered by
+// stroke_no ascending. A trailing partial bucket is included when it
+// has at least one stroke.
+//
+// The returned series carries one entry per bucket: the bucket's
+// final TimeSec, its rounded mean PaceSecPer500m, PowerW, and SPM.
+func ComputeSamples(strokes []event.StrokePayload, bucketStrokes int) *event.SessionSamples {
+	if bucketStrokes <= 0 {
+		bucketStrokes = DefaultBucketStrokes
+	}
+	if len(strokes) == 0 {
+		return &event.SessionSamples{BucketStrokes: bucketStrokes}
+	}
+
+	nBuckets := (len(strokes) + bucketStrokes - 1) / bucketStrokes
+	out := &event.SessionSamples{
+		BucketStrokes: bucketStrokes,
+		T:             make([]float64, 0, nBuckets),
+		Split:         make([]int, 0, nBuckets),
+		Watt:          make([]int, 0, nBuckets),
+		SPM:           make([]int, 0, nBuckets),
+	}
+
+	for start := 0; start < len(strokes); start += bucketStrokes {
+		end := start + bucketStrokes
+		if end > len(strokes) {
+			end = len(strokes)
+		}
+		var paceSum, wattSum, spmSum int
+		for i := start; i < end; i++ {
+			paceSum += strokes[i].PaceSecPer500m
+			wattSum += strokes[i].PowerW
+			spmSum += strokes[i].SPM
+		}
+		n := end - start
+		out.T = append(out.T, strokes[end-1].TimeSec)
+		out.Split = append(out.Split, paceSum/n)
+		out.Watt = append(out.Watt, wattSum/n)
+		out.SPM = append(out.SPM, spmSum/n)
+	}
+	return out
+}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gloeckner-daniel/home-ergo/internal/event"
+	"github.com/gloeckner-daniel/home-ergo/internal/stats"
 )
 
 // Persister consumes events and persists sessions and strokes to
@@ -68,11 +69,38 @@ func (p *Persister) apply(ctx context.Context, e event.Event) error {
 	case event.KindStroke:
 		return InsertStroke(ctx, p.DB, e.ID, e.SessionID, e.At, *e.Stroke)
 	case event.KindSessionEnd:
-		return UpdateSessionEnd(ctx, p.DB, e.SessionID, e.SessionEnd.EndedAt, e.SessionEnd.Summary)
+		return p.applySessionEnd(ctx, e)
 	case event.KindLevelChange:
 		return nil
 	case event.KindWorkoutAttached:
 		return UpdateSessionWorkout(ctx, p.DB, e.SessionID, e.WorkoutAttached.WorkoutID)
 	}
 	return nil
+}
+
+// applySessionEnd compacts the just-ended session in a single
+// transaction: read strokes, compute samples, write enriched summary,
+// delete strokes. After this returns nil, the session's per-stroke
+// data is permanently gone — only summary_json + totals remain
+// (FEAT-0009 Mode 0).
+func (p *Persister) applySessionEnd(ctx context.Context, e event.Event) error {
+	tx, err := p.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	strokes, err := LoadSessionStrokes(ctx, tx, e.SessionID)
+	if err != nil {
+		return err
+	}
+	summary := e.SessionEnd.Summary
+	summary.Samples = stats.ComputeSamples(strokes, stats.DefaultBucketStrokes)
+	if err := UpdateSessionEnd(ctx, tx, e.SessionID, e.SessionEnd.EndedAt, summary); err != nil {
+		return err
+	}
+	if err := DeleteSessionStrokes(ctx, tx, e.SessionID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }

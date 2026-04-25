@@ -60,7 +60,20 @@ func Marshal(e Event) ([]byte, error) {
 		return json.Marshal(sessionEndWire{
 			SessionID: e.SessionID,
 			EndedAt:   p.EndedAt,
-			Summary:   summaryWire(p.Summary),
+			// SSE consumers see totals only; samples are computed by the
+			// persister after this event is emitted and are read from
+			// summary_json on session-detail fetch (FEAT-0009 Mode 0).
+			Summary: summaryWire{
+				TotalDistanceM:    p.Summary.TotalDistanceM,
+				TotalTimeSec:      p.Summary.TotalTimeSec,
+				TotalStrokes:      p.Summary.TotalStrokes,
+				AvgPowerW:         p.Summary.AvgPowerW,
+				PeakPowerW:        p.Summary.PeakPowerW,
+				AvgSPM:            p.Summary.AvgSPM,
+				AvgDPS:            p.Summary.AvgDPS,
+				AvgPaceSecPer500m: p.Summary.AvgPaceSecPer500m,
+				SessionCalories:   p.Summary.SessionCalories,
+			},
 		})
 	case KindLevelChange:
 		p := e.LevelChange
