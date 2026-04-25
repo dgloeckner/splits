@@ -139,31 +139,52 @@ export function LivePage() {
   const state = useLiveSession()
   const nav = useNavigate()
   const qc = useQueryClient()
-  const sessionId = state.session?.session_id ?? null
 
+  // Latch the just-ended summary locally so a subsequent
+  // `session_start` from the SSE stream (e.g. someone keeps rowing
+  // and the sessionizer opens the next session) does not dismiss the
+  // overlay before the user has acknowledged it.
+  const [latched, setLatched] = useState<{
+    summary: NonNullable<typeof state.summary>
+    sessionId: string | null
+  } | null>(null)
+
+  const incomingSummary = state.summary
+  const incomingSessionId = state.session?.session_id ?? null
   useEffect(() => {
-    if (state.summary) {
+    if (incomingSummary && !latched) {
+      setLatched({ summary: incomingSummary, sessionId: incomingSessionId })
       qc.invalidateQueries({ queryKey: ['sessions'] })
     }
-  }, [state.summary, qc])
+  }, [incomingSummary, incomingSessionId, latched, qc])
 
   // FEAT-0009 acceptance: closing the tab does NOT end the session.
   // The backend's idle / inactivity timeouts and the explicit
   // "Beenden" CTA are the only triggers; on revisit, the SSE stream
   // re-attaches via Last-Event-ID and Snapshot.
 
-  const banners = usePBBanners(state.summary ? sessionId : null)
+  const banners = usePBBanners(latched?.sessionId ?? null)
+  const dismiss = () => setLatched(null)
 
   return (
     <>
       <LiveBody />
-      {state.summary && (
+      {latched && (
         <SessionEndedOverlay
-          summary={state.summary}
+          summary={latched.summary}
           banners={banners}
-          onAcknowledge={() => nav('/')}
+          onAcknowledge={() => {
+            dismiss()
+            nav('/')
+          }}
           onShowDetails={
-            sessionId ? () => nav(`/historie/${sessionId}`) : undefined
+            latched.sessionId
+              ? () => {
+                  const id = latched.sessionId
+                  dismiss()
+                  nav(`/historie/${id}`)
+                }
+              : undefined
           }
         />
       )}
