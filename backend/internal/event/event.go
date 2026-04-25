@@ -93,6 +93,12 @@ type SessionSummary struct {
 	// stats package owns the type. Persister fills it in along with
 	// Samples.
 	PBCandidates any `json:"pb_candidates,omitempty"`
+
+	// Flags is a small set of free-form tags persisted with the
+	// session (e.g. ["recovered"] when the boot janitor finalised an
+	// orphaned session). Cheap surface for "soft" annotations
+	// without per-flag schema columns.
+	Flags []string `json:",omitempty"`
 }
 
 // SessionSamples is N-stroke-bucket-averaged time series. Length is

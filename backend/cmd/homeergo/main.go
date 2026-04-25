@@ -99,6 +99,8 @@ func run() error {
 	scheduler := stats.NewRecomputeScheduler(db.Handle())
 	persister := &storage.Persister{DB: db.Handle(), Scheduler: scheduler}
 
+	(&storage.BootJanitor{DB: db.Handle(), Scheduler: scheduler}).Run(ctx)
+
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error { return producer.Run(gctx, frames) })
 	g.Go(func() error { return sessionizer.Run(gctx, frames, events) })

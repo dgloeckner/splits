@@ -59,6 +59,11 @@ func NewRouter(in Inputs) http.Handler {
 		mux.Handle("POST /api/v1/workouts/{id}/attach", WorkoutAttachHandler(in.WorkoutRepo, in.Sessionizer))
 		mux.Handle("POST /api/v1/session/end", SessionEndHandler(in.Sessionizer))
 	}
+	if in.SessionSnapshot != nil {
+		if p, ok := in.SessionSnapshot.(SessionActiveProvider); ok {
+			mux.Handle("GET /api/v1/session/active", SessionActiveHandler(p))
+		}
+	}
 
 	mux.Handle("GET /debug/ingest", DebugIngestHandler(DebugIngestInputs{
 		Ring:        in.Ring,
