@@ -119,3 +119,54 @@ export function statsVersionFrom(r: Response): number {
   const h = r.headers.get('X-Stats-Version')
   return h ? Number(h) : 0
 }
+
+export type WorkoutPB = {
+  shape_hash: string
+  mode: string
+  params: Record<string, unknown>
+  value_kind: 'time_sec' | 'distance_m'
+  value: number
+  source_session_id: string
+  source_session_started_at: string
+  achieved_at: string
+}
+
+export type RowerPBs = {
+  distance: DistancePB[]
+  window: WindowPB[]
+  workout: WorkoutPB[]
+}
+
+export async function getRowerPBs(rowerID: string): Promise<RowerPBs> {
+  const r = await fetch(`/api/v1/rowers/${encodeURIComponent(rowerID)}/pbs`)
+  return json<RowerPBs>(r)
+}
+
+export type RowerLifetime = {
+  total_distance_m: number
+  total_active_sec: number
+  total_strokes: number
+  total_sessions: number
+  stats_version: number
+  computed_at?: string
+}
+
+export async function getRowerLifetime(rowerID: string): Promise<RowerLifetime> {
+  const r = await fetch(`/api/v1/rowers/${encodeURIComponent(rowerID)}/lifetime`)
+  return json<RowerLifetime>(r)
+}
+
+export type Achievement = {
+  type: string
+  key: string
+  value?: number
+  source_session_id?: string
+  source_session_started_at?: string
+  achieved_at: string
+}
+
+export async function getRowerAchievements(rowerID: string): Promise<Achievement[]> {
+  const r = await fetch(`/api/v1/rowers/${encodeURIComponent(rowerID)}/achievements`)
+  const body = await json<{ achievements: Achievement[] }>(r)
+  return body.achievements
+}

@@ -6,6 +6,7 @@ import { useActiveRower } from '../hooks/useActiveRower'
 import { updateRower, type Rower } from '../api/rowers'
 import { computeBMI } from '../util/bmi'
 import { RowerStrip } from '../app/RowerStrip'
+import { PBSummary } from './profile/PBSummary'
 import styles from './ProfilePage.module.css'
 
 function formatSince(iso: string): string {
@@ -186,6 +187,7 @@ export function ProfilePage() {
         <section className={styles.section}>
           <h2 className={styles.sectionLabel}>Aktiver Rudernde</h2>
           <HeroCard rower={activeRower} />
+          <PBSummary rowerID={activeRower.id} />
           <RowerEditor r={activeRower} />
         </section>
       )}
