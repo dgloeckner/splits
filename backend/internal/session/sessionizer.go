@@ -46,6 +46,10 @@ type Sessionizer struct {
 	// endC carries explicit end requests (POST /api/v1/session/end).
 	// Buffered so the HTTP handler doesn't block.
 	endC chan struct{}
+	// startC carries explicit start requests (POST /api/v1/session/start)
+	// with the workout id (or "" for a free row). Buffered so the HTTP
+	// handler doesn't block.
+	startC chan string
 	// Snapshot of the currently open session so reconnecting SSE clients
 	// whose `Last-Event-ID` is past these events can still learn the
 	// current session state. Cleared on closeSession.
@@ -83,6 +87,7 @@ func New(o Options) *Sessionizer {
 		opts: o, nextID: o.StartID,
 		attachC: make(chan string, 8),
 		endC:    make(chan struct{}, 4),
+		startC:  make(chan string, 4),
 	}
 }
 
@@ -123,6 +128,31 @@ func (s *Sessionizer) Run(ctx context.Context, in <-chan ipm.Frame, out chan<- e
 				if err := s.closeSession(ctx, out); err != nil {
 					return err
 				}
+			}
+		case wid := <-s.startC:
+			if s.session != nil {
+				// If the open session has been idle past IdleTimeout,
+				// close it first so the new start opens a fresh
+				// session. Otherwise a duplicate start is a no-op
+				// (idempotent).
+				now := s.opts.Now()
+				if now.Sub(s.session.lastSeen) < s.opts.IdleTimeout {
+					continue
+				}
+				if err := s.closeSession(ctx, out); err != nil {
+					return err
+				}
+			}
+			// Only overwrite the pending workout if the caller
+			// supplied one. AttachWorkout-then-StartSession("") is
+			// a valid sequence; the prior AttachWorkout id wins.
+			if wid != "" {
+				s.mu.Lock()
+				s.pendingWorkoutID = wid
+				s.mu.Unlock()
+			}
+			if err := s.openSessionPending(ctx, out); err != nil {
+				return err
 			}
 		case f, ok := <-in:
 			if !ok {
@@ -181,8 +211,24 @@ func (s *Sessionizer) onFrame(ctx context.Context, f ipm.Frame, out chan<- event
 		}
 	}
 	if s.session == nil {
-		if err := s.openSession(ctx, out, f); err != nil {
-			return err
+		// No active session — drain a pending Start request first
+		// (handler / sessionizer caller may have raced with the
+		// frame), otherwise drop the stroke silently. This keeps
+		// fixture replays and idle-handle pulls from creating
+		// spurious sessions while still letting StartSession +
+		// frame in either order work.
+		select {
+		case wid := <-s.startC:
+			if wid != "" {
+				s.mu.Lock()
+				s.pendingWorkoutID = wid
+				s.mu.Unlock()
+			}
+			if err := s.openSessionPending(ctx, out); err != nil {
+				return err
+			}
+		default:
+			return nil
 		}
 	}
 
@@ -266,6 +312,17 @@ func (s *Sessionizer) accumulate(p *event.StrokePayload) {
 }
 
 func (s *Sessionizer) openSession(ctx context.Context, out chan<- event.Event, f ipm.Frame) error {
+	return s.openSessionInternal(ctx, out, f.Level)
+}
+
+// openSessionPending opens a session triggered by an explicit Start
+// request (no frame yet). Initial level defaults to 0 and is updated
+// by the first incoming stroke.
+func (s *Sessionizer) openSessionPending(ctx context.Context, out chan<- event.Event) error {
+	return s.openSessionInternal(ctx, out, 0)
+}
+
+func (s *Sessionizer) openSessionInternal(ctx context.Context, out chan<- event.Event, initialLevel int) error {
 	id := ulid.Make().String()
 	now := s.opts.Now()
 	s.session = &sessionState{
@@ -286,7 +343,7 @@ func (s *Sessionizer) openSession(ctx context.Context, out chan<- event.Event, f
 			StartedAt:    now,
 			RowerID:      rid,
 			RowerName:    rname,
-			InitialLevel: f.Level,
+			InitialLevel: initialLevel,
 			WorkoutID:    workoutID,
 		},
 	}
@@ -310,6 +367,17 @@ func (s *Sessionizer) openSession(ctx context.Context, out chan<- event.Event, f
 // are compatible: Run's handleAttach clears the pending slot when it
 // emits the mid-session event, so the same workout isn't re-applied to
 // a subsequent session.
+// StartSession requests an immediate open of a new session, attached
+// to the given workout id (empty for "just row"). Safe to call from
+// any goroutine. No-op if a session is already open. Idempotent.
+func (s *Sessionizer) StartSession(workoutID string) {
+	select {
+	case s.startC <- workoutID:
+	default:
+		// Channel full: a start request is already queued, drop.
+	}
+}
+
 // EndSession requests an immediate close of the currently open session
 // (if any). Safe to call from any goroutine. No-op if no session open.
 func (s *Sessionizer) EndSession() {

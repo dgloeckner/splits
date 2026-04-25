@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useActiveRower } from '../../hooks/useActiveRower'
+import { startSession } from '../../api/client'
 import {
-  attachWorkout,
   createWorkout,
   type CreateWorkoutInput,
   type WorkoutMode,
@@ -135,7 +135,7 @@ export function ConfirmScreen() {
         cooldown_sec: cooldown,
       }
       const created = await createWorkout(input)
-      await attachWorkout(created.id)
+      await startSession(created.id)
       if (state.saveAsFavorite && state.favoriteName.trim() !== '' && rowerID) {
         try {
           await createFavorite({

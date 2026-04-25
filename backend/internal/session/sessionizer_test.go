@@ -43,6 +43,7 @@ func TestSessionizerStartIDSeedsCounter(t *testing.T) {
 	s := New(Options{IdleTimeout: time.Minute, StartID: 100, Now: time.Now})
 	go func() { _ = s.Run(ctx, in, out) }()
 
+	s.StartSession("")
 	in <- frame(0.0, 0, 25, 200, 3)
 	got := drain(t, out, 2)
 	if got[0].ID != 101 {
@@ -61,6 +62,7 @@ func TestSessionizerFirstStrokeOpensSession(t *testing.T) {
 	s := New(Options{IdleTimeout: time.Minute, RowerID: "R", RowerName: "Daniel", Now: func() time.Time { return time.Unix(1000, 0) }})
 	go func() { _ = s.Run(ctx, in, out) }()
 
+	s.StartSession("")
 	in <- frame(0.0, 0, 25, 200, 3)
 	got := drain(t, out, 2)
 
@@ -89,6 +91,7 @@ func TestSessionizerEnrichesTier2(t *testing.T) {
 	s := New(Options{IdleTimeout: time.Minute, Now: time.Now})
 	go func() { _ = s.Run(ctx, in, out) }()
 
+	s.StartSession("")
 	in <- frame(0.0, 0, 25, 200, 3)
 	in <- frame(2.2, 8, 27, 245, 3)
 	got := drain(t, out, 3) // start + stroke + stroke
@@ -114,16 +117,18 @@ func TestSessionizerIdleBoundary(t *testing.T) {
 	s := New(Options{IdleTimeout: 60 * time.Second, Now: func() time.Time { return now }})
 	go func() { _ = s.Run(ctx, in, out) }()
 
-	// First session: two strokes.
+	// First session: explicit start + two strokes.
+	s.StartSession("")
 	in <- frame(0.0, 0, 25, 200, 3)
 	// Give goroutine time to advance before we mutate `now`
 	time.Sleep(50 * time.Millisecond)
 	now = now.Add(1 * time.Second)
 	in <- frame(1.0, 4, 25, 200, 3)
 
-	// Idle gap >60 s, then a new session.
+	// Idle gap >60 s, then explicit start + new stroke for session 2.
 	time.Sleep(50 * time.Millisecond)
 	now = now.Add(90 * time.Second)
+	s.StartSession("")
 	in <- frame(0.0, 0, 24, 180, 3)
 
 	got := drain(t, out, 5)
@@ -156,6 +161,7 @@ func TestSessionizerEmitsLevelChange(t *testing.T) {
 	s := New(Options{IdleTimeout: time.Minute, Now: time.Now})
 	go func() { _ = s.Run(ctx, in, out) }()
 
+	s.StartSession("")
 	in <- frame(0.0, 0, 25, 200, 3) // level 3
 	in <- frame(2.2, 8, 27, 245, 5) // level 5 — triggers level_change
 	got := drain(t, out, 4)
@@ -184,6 +190,7 @@ func TestSessionizer_ResolverPicksRowerPerSession(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- s.Run(ctx, frames, out) }()
 
+	s.StartSession("")
 	frames <- ipm.Frame{TimeSec: 1, DistanceM: 1, SPM: 20, PowerW: 100, Level: 3}
 	evt := <-out // session_start
 	if evt.SessionStart.RowerID != "R1" {
@@ -195,6 +202,7 @@ func TestSessionizer_ResolverPicksRowerPerSession(t *testing.T) {
 	now = now.Add(5 * time.Minute)
 	current = "R2"
 	currentName = "Rower2"
+	s.StartSession("")
 	frames <- ipm.Frame{TimeSec: 2, DistanceM: 2, SPM: 20, PowerW: 100, Level: 3}
 	// drain until we see the next session_start
 	var found string
@@ -228,8 +236,9 @@ func TestAttachWorkout_OneShot(t *testing.T) {
 	defer cancel()
 	go func() { _ = s.Run(ctx, frames, out) }()
 
-	// Attach workout before the first frame.
+	// Attach workout before the first frame, then start.
 	s.AttachWorkout("w-abc")
+	s.StartSession("")
 
 	// First frame → opens session.
 	frames <- ipm.Frame{TimeSec: 1, DistanceM: 1, SPM: 20, PowerW: 100, Level: 3}
@@ -242,10 +251,12 @@ func TestAttachWorkout_OneShot(t *testing.T) {
 		t.Errorf("first session WorkoutID = %q, want %q", start1.SessionStart.WorkoutID, "w-abc")
 	}
 
-	// Advance time past idle timeout to close the first session.
+	// Advance time past idle timeout, request a new start without
+	// a workout — should close session 1 and open session 2.
 	now = now.Add(90 * time.Second)
+	s.StartSession("")
 
-	// Second frame → closes first session, opens second.
+	// Second frame goes into session 2.
 	frames <- ipm.Frame{TimeSec: 2, DistanceM: 2, SPM: 20, PowerW: 100, Level: 3}
 	got2 := drain(t, out, 3) // session_end + session_start + stroke
 	var start2 event.Event

@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
+import { startSession } from '../../api/client'
 import { deleteFavorite, listFavorites, type Favorite } from '../../api/favorites'
-import { attachWorkout, createWorkout } from '../../api/workouts'
+import { createWorkout } from '../../api/workouts'
 import styles from './FavoritesList.module.css'
 
 export type Props = { rowerID: string }
@@ -29,7 +30,7 @@ export function FavoritesList({ rowerID }: Props) {
       warmup_sec: fav.warmup_sec,
       cooldown_sec: fav.cooldown_sec,
     })
-    await attachWorkout(created.id)
+    await startSession(created.id)
     nav('/live')
   }
 

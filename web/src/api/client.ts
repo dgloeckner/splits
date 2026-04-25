@@ -69,6 +69,20 @@ export async function endSession(): Promise<void> {
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
 }
 
+// startSession opens a new session on the backend with an optional
+// workout id. Idempotent on the server: if a session is already open
+// and not idle, the call is a no-op. Strokes arriving before this is
+// called are dropped at the sessionizer (per FEAT-0009 / new-workout
+// flow), so the UI must always call this before navigating to /live.
+export async function startSession(workoutID?: string): Promise<void> {
+  const r = await fetch('/api/v1/session/start', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ workout_id: workoutID ?? '' }),
+  })
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
+}
+
 export type ActiveSession = {
   session_id: string
   started_at: string

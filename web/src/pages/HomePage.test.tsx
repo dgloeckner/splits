@@ -1,11 +1,16 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { describe, it, expect, vi, afterEach } from 'vitest'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { HomePage } from './HomePage'
 
 vi.mock('../api/rowers', () => ({ getActiveRower: vi.fn(async () => null) }))
+
+const originalFetch = global.fetch
+afterEach(() => {
+  global.fetch = originalFetch
+})
 
 function renderHome() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -28,10 +33,19 @@ describe('HomePage', () => {
     expect(screen.getByRole('heading', { name: /home/i })).toBeInTheDocument()
   })
 
-  it('Nur rudern tile navigates to /live', async () => {
+  it('Nur rudern tile starts session and navigates to /live', async () => {
+    let started = false
+    global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
+      if (String(url) === '/api/v1/session/start' && init?.method === 'POST') {
+        started = true
+        return new Response(null, { status: 200 })
+      }
+      return new Response('', { status: 404 })
+    }) as typeof fetch
     renderHome()
     await userEvent.click(screen.getByRole('button', { name: /nur rudern/i }))
-    expect(screen.getByText('LIVE')).toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('LIVE')).toBeInTheDocument())
+    expect(started).toBe(true)
   })
 
   it('Neues Workout tile navigates to /workout/new', async () => {

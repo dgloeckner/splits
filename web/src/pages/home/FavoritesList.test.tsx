@@ -68,7 +68,7 @@ describe('FavoritesList', () => {
         if (init?.method === 'POST') createdBody = JSON.parse(init.body as string)
         return { body: JSON.stringify({ id: 'W1', mode: 'distance', params: { meters: 5000 }, warmup_sec: 0, cooldown_sec: 0, created_at: '2026-04-23T00:00:00Z' }), status: 201 }
       },
-      '/api/v1/workouts/W1/attach': () => { attached = true; return { body: null, status: 204 } },
+      '/api/v1/session/start': () => { attached = true; return { body: null, status: 204 } },
     })
 
     wrap(<FavoritesList rowerID="R1" />)

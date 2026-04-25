@@ -26,7 +26,10 @@ func startServer(t *testing.T, fixture string) string {
 	os.Setenv("HOMEERGO_ADDR", addr)
 	os.Setenv("HOMEERGO_DB_PATH", db)
 	os.Setenv("HOMEERGO_FIXTURE", fixture)
-	os.Setenv("HOMEERGO_FIXTURE_RATE", "fast")
+	// Realtime pacing: gives the test time to issue /session/start
+	// after the server is healthy but before all fixture frames have
+	// been delivered.
+	os.Setenv("HOMEERGO_FIXTURE_RATE", "realtime")
 	os.Setenv("HOMEERGO_IDLE_TIMEOUT", "60s")
 
 	done := make(chan error, 1)
@@ -65,6 +68,15 @@ func TestEndToEndShortSession(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	// Sessions no longer auto-open from incoming frames; the user
+	// must explicitly start one (FEAT-0009 / new-workout flow).
+	startReq, _ := http.NewRequestWithContext(ctx, "POST", base+"/api/v1/session/start", strings.NewReader("{}"))
+	startResp, err := http.DefaultClient.Do(startReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	startResp.Body.Close()
 
 	req, _ := http.NewRequestWithContext(ctx, "GET", base+"/api/v1/stream", nil)
 	resp, err := http.DefaultClient.Do(req)

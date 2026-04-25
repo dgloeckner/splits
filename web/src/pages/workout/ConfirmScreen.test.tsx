@@ -82,7 +82,7 @@ describe('ConfirmScreen', () => {
         if (init?.method === 'POST') postedBody = JSON.parse(init.body as string)
         return { body: JSON.stringify({ id: 'W1', mode: 'distance', params: { meters: 5000 }, warmup_sec: 300, cooldown_sec: 300, created_at: '2026-04-23T00:00:00Z' }), status: 201 }
       },
-      '/api/v1/workouts/W1/attach': () => { attached = true; return { body: null, status: 204 } },
+      '/api/v1/session/start': () => { attached = true; return { body: null, status: 204 } },
     })
     wrap(<Harness setup="distance" />)
     await userEvent.click(await screen.findByRole('button', { name: /start/i }))
@@ -96,7 +96,7 @@ describe('ConfirmScreen', () => {
     let favBody: any = null
     mockRoutes({
       '/api/v1/workouts': () => ({ body: JSON.stringify({ id: 'W1', mode: 'distance', params: { meters: 5000 }, warmup_sec: 300, cooldown_sec: 300, created_at: '2026-04-23T00:00:00Z' }), status: 201 }),
-      '/api/v1/workouts/W1/attach': () => ({ body: null, status: 204 }),
+      '/api/v1/session/start': () => ({ body: null, status: 204 }),
       '/api/v1/favorites': (init) => {
         if (init?.method === 'POST') favBody = JSON.parse(init.body as string)
         return { body: JSON.stringify({ id: 'F1', rower_id: 'R1', name: 'My 5k', mode: 'distance', params: { meters: 5000 }, warmup_sec: 0, cooldown_sec: 0, created_at: '2026-04-23T00:00:00Z' }), status: 201 }
