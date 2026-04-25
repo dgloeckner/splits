@@ -44,12 +44,16 @@ func (r *Repo) CreateWorkout(ctx context.Context, in CreateWorkoutInput) (*Worko
 	}
 	id := uuid.NewString()
 	now := time.Now().UTC()
-	_, err := r.db.ExecContext(ctx,
-		`INSERT INTO workout(id, mode, params_json, intensity, warmup_sec, cooldown_sec, created_at)
-         VALUES(?, ?, ?, ?, ?, ?, ?)`,
+	hash, err := ShapeHash(in.Mode, in.ParamsJSON, in.WarmupSec, in.CooldownSec)
+	if err != nil {
+		return nil, err
+	}
+	_, err = r.db.ExecContext(ctx,
+		`INSERT INTO workout(id, mode, params_json, intensity, warmup_sec, cooldown_sec, created_at, shape_hash)
+         VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
 		id, string(in.Mode), string(in.ParamsJSON),
 		nullString(string(in.Intensity)), in.WarmupSec, in.CooldownSec,
-		now.Format(time.RFC3339Nano),
+		now.Format(time.RFC3339Nano), hash,
 	)
 	if err != nil {
 		return nil, err
