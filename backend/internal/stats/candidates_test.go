@@ -1,0 +1,95 @@
+package stats
+
+import (
+	"math"
+	"testing"
+
+	"github.com/gloeckner-daniel/home-ergo/internal/event"
+)
+
+// makeStrokes synthesises a session with constant pace.
+// distancePerStroke (m) and timePerStroke (s) drive a steady ergo.
+func makeStrokes(n int, distancePerStroke, timePerStroke float64) []event.StrokePayload {
+	out := make([]event.StrokePayload, n)
+	for i := 0; i < n; i++ {
+		out[i] = event.StrokePayload{
+			StrokeNo:       i + 1,
+			TimeSec:        float64(i+1) * timePerStroke,
+			DistanceM:      int(float64(i+1) * distancePerStroke),
+			PowerW:         200,
+			PaceSecPer500m: 120,
+			DPS:            distancePerStroke,
+			EnergyJoules:   500,
+			SPM:            int(60 / timePerStroke),
+		}
+	}
+	return out
+}
+
+func TestDistanceCandidatesFindsTargetsBelowSessionTotal(t *testing.T) {
+	// 600 strokes of 10 m, 2 s each: 6000 m in 1200 s.
+	strokes := makeStrokes(600, 10, 2)
+	cs := distanceCandidates(strokes, []int{500, 1000, 2000, 5000, 6000, 10000})
+
+	got := map[int]float64{}
+	for _, c := range cs {
+		got[c.DistanceM] = c.TimeSec
+	}
+	for _, d := range []int{500, 1000, 2000, 5000, 6000} {
+		if _, ok := got[d]; !ok {
+			t.Errorf("missing candidate for %dm", d)
+		}
+	}
+	if _, ok := got[10000]; ok {
+		t.Errorf("should not produce 10000m candidate (session is 6000m)")
+	}
+	// 2k at 10 m / stroke = 200 strokes × 2 s = 400 s.
+	if v, ok := got[2000]; !ok || math.Abs(v-400) > 5 {
+		t.Errorf("2000m time = %v, want ~400", v)
+	}
+}
+
+func TestWindowCandidatesPower60s(t *testing.T) {
+	strokes := makeStrokes(60, 10, 2) // 60 strokes × 2 s = 120 s, plenty for 60 s window
+	cs := windowCandidates(strokes, []WindowDef{{Metric: "power", Kind: "seconds", Size: 60}})
+	if len(cs) != 1 {
+		t.Fatalf("want 1 window candidate, got %d", len(cs))
+	}
+	if cs[0].Value != 200 {
+		t.Errorf("power 60s avg = %v, want 200", cs[0].Value)
+	}
+}
+
+func TestWindowCandidatesDPS30Strokes(t *testing.T) {
+	strokes := makeStrokes(40, 8, 2)
+	cs := windowCandidates(strokes, []WindowDef{{Metric: "dps", Kind: "strokes", Size: 30}})
+	if len(cs) != 1 {
+		t.Fatalf("want 1 candidate, got %d", len(cs))
+	}
+	if math.Abs(cs[0].Value-8) > 0.01 {
+		t.Errorf("dps 30-stroke avg = %v, want 8", cs[0].Value)
+	}
+}
+
+func TestConsistencyOnlyAboveThreshold(t *testing.T) {
+	if c := consistencyCandidates(makeStrokes(MinStrokesForConsistency, 10, 2)); c == nil || c.PowerCV != 0 {
+		t.Errorf("perfect-steady CV should be 0, got %+v", c)
+	}
+	got := ComputeCandidates(makeStrokes(MinStrokesForConsistency-1, 10, 2))
+	if got.Consistency != nil {
+		t.Errorf("below threshold should skip consistency, got %+v", got.Consistency)
+	}
+}
+
+func TestComputeCandidatesPopulatesAll(t *testing.T) {
+	c := ComputeCandidates(makeStrokes(600, 10, 2))
+	if len(c.Distance) == 0 {
+		t.Error("missing distance candidates")
+	}
+	if len(c.Window) == 0 {
+		t.Error("missing window candidates")
+	}
+	if c.Consistency == nil {
+		t.Error("missing consistency candidates")
+	}
+}

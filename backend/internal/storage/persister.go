@@ -96,6 +96,7 @@ func (p *Persister) applySessionEnd(ctx context.Context, e event.Event) error {
 	}
 	summary := e.SessionEnd.Summary
 	summary.Samples = stats.ComputeSamples(strokes, stats.DefaultBucketStrokes)
+	summary.PBCandidates = stats.ComputeCandidates(strokes)
 	if err := UpdateSessionEnd(ctx, tx, e.SessionID, e.SessionEnd.EndedAt, summary); err != nil {
 		return err
 	}

@@ -87,6 +87,12 @@ type SessionSummary struct {
 	// session_end; the sessionizer leaves it nil. Omitted from JSON when
 	// nil so existing summaries don't grow a useless empty field.
 	Samples *SessionSamples `json:",omitempty"`
+
+	// PBCandidates is the per-session best-effort set used by the
+	// FEAT-0010 recompute path. Stored as opaque JSON here — the
+	// stats package owns the type. Persister fills it in along with
+	// Samples.
+	PBCandidates any `json:"pb_candidates,omitempty"`
 }
 
 // SessionSamples is N-stroke-bucket-averaged time series. Length is
