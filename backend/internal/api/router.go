@@ -55,6 +55,13 @@ func NewRouter(in Inputs) http.Handler {
 	mux.Handle("GET /api/v1/favorites", favs)
 	mux.Handle("DELETE /api/v1/favorites/{id}", favs)
 
+	pbs := PBsHandler(in.DB)
+	mux.Handle("GET /api/v1/rowers/{id}/pbs", pbs)
+	mux.Handle("GET /api/v1/rowers/{id}/pbs/history", pbs)
+	mux.Handle("GET /api/v1/rowers/{id}/lifetime", pbs)
+	mux.Handle("GET /api/v1/rowers/{id}/achievements", pbs)
+	mux.Handle("GET /api/v1/sessions/{id}/pb-banners", pbs)
+
 	if in.Sessionizer != nil {
 		mux.Handle("POST /api/v1/workouts/{id}/attach", WorkoutAttachHandler(in.WorkoutRepo, in.Sessionizer))
 		mux.Handle("POST /api/v1/session/end", SessionEndHandler(in.Sessionizer))
