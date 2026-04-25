@@ -55,7 +55,7 @@ func doReq(t *testing.T, mux http.Handler, method, target string) *httptest.Resp
 
 func TestGetSessionsList(t *testing.T) {
 	db := seedDB(t)
-	h := SessionsHandler(db.Handle())
+	h := SessionsHandler(db.Handle(), nil)
 
 	rec := doReq(t, h, "GET", "/api/v1/sessions")
 	if rec.Code != 200 {
@@ -75,7 +75,7 @@ func TestGetSessionsList(t *testing.T) {
 
 func TestGetSessionByID(t *testing.T) {
 	db := seedDB(t)
-	h := SessionsHandler(db.Handle())
+	h := SessionsHandler(db.Handle(), nil)
 
 	rec := doReq(t, h, "GET", "/api/v1/sessions/S1")
 	if rec.Code != 200 {
@@ -89,7 +89,7 @@ func TestGetSessionByID(t *testing.T) {
 
 func TestGetSessionByIDNotFound(t *testing.T) {
 	db := seedDB(t)
-	h := SessionsHandler(db.Handle())
+	h := SessionsHandler(db.Handle(), nil)
 
 	rec := doReq(t, h, "GET", "/api/v1/sessions/nope")
 	if rec.Code != 404 {
@@ -99,7 +99,7 @@ func TestGetSessionByIDNotFound(t *testing.T) {
 
 func TestGetSessionSamples(t *testing.T) {
 	db := seedDB(t)
-	h := SessionsHandler(db.Handle())
+	h := SessionsHandler(db.Handle(), nil)
 
 	rec := doReq(t, h, "GET", "/api/v1/sessions/S1/samples")
 	if rec.Code != 200 {
@@ -116,7 +116,7 @@ func TestGetSessionSamples(t *testing.T) {
 
 func TestDeleteSessionSoftDeletes(t *testing.T) {
 	db := seedDB(t)
-	h := SessionsHandler(db.Handle())
+	h := SessionsHandler(db.Handle(), nil)
 
 	rec := doReq(t, h, "DELETE", "/api/v1/sessions/S1")
 	if rec.Code != 204 {

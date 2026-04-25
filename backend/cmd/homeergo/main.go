@@ -19,6 +19,7 @@ import (
 	"github.com/gloeckner-daniel/home-ergo/internal/pipeline"
 	"github.com/gloeckner-daniel/home-ergo/internal/rower"
 	"github.com/gloeckner-daniel/home-ergo/internal/session"
+	"github.com/gloeckner-daniel/home-ergo/internal/stats"
 	"github.com/gloeckner-daniel/home-ergo/internal/storage"
 	"github.com/gloeckner-daniel/home-ergo/internal/stream"
 	"github.com/gloeckner-daniel/home-ergo/internal/workout"
@@ -95,7 +96,8 @@ func run() error {
 		StartID: startID,
 	})
 	dispatcher := &pipeline.Dispatcher{Ring: ring, Persist: persistCh, Broadcast: broadcastCh}
-	persister := &storage.Persister{DB: db.Handle()}
+	scheduler := stats.NewRecomputeScheduler(db.Handle())
+	persister := &storage.Persister{DB: db.Handle(), Scheduler: scheduler}
 
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error { return producer.Run(gctx, frames) })
@@ -115,6 +117,7 @@ func run() error {
 			WorkoutRepo: workoutRepo,
 			Sessionizer:     sessionizer,
 			SessionSnapshot: sessionizer,
+			Scheduler:       scheduler,
 			StartedAt:       time.Now(),
 		}),
 		ReadHeaderTimeout: 10 * time.Second,

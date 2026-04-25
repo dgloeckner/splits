@@ -17,6 +17,11 @@ import (
 type Persister struct {
 	DB      *sql.DB
 	Retries int // exposed for /debug/ingest
+
+	// Scheduler is the recompute dispatcher (FEAT-0010 / ADR-0008).
+	// Optional: when nil, session_end commits without triggering a
+	// recompute — used by tests that don't care about derived stats.
+	Scheduler *stats.RecomputeScheduler
 }
 
 const (
@@ -103,5 +108,15 @@ func (p *Persister) applySessionEnd(ctx context.Context, e event.Event) error {
 	if err := DeleteSessionStrokes(ctx, tx, e.SessionID); err != nil {
 		return err
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+	if p.Scheduler != nil {
+		var rowerID string
+		if err := p.DB.QueryRowContext(ctx,
+			`SELECT rower_id FROM sessions WHERE id = ?`, e.SessionID).Scan(&rowerID); err == nil && rowerID != "" {
+			stats.OnSessionChange(p.Scheduler, rowerID, stats.SessionCreated)
+		}
+	}
+	return nil
 }

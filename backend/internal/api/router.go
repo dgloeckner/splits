@@ -7,6 +7,7 @@ import (
 
 	"github.com/gloeckner-daniel/home-ergo/internal/pipeline"
 	"github.com/gloeckner-daniel/home-ergo/internal/rower"
+	"github.com/gloeckner-daniel/home-ergo/internal/stats"
 	"github.com/gloeckner-daniel/home-ergo/internal/stream"
 	"github.com/gloeckner-daniel/home-ergo/internal/workout"
 )
@@ -20,6 +21,7 @@ type Inputs struct {
 	WorkoutRepo     *workout.Repo
 	Sessionizer     SessionAttacher
 	SessionSnapshot stream.Snapshotter
+	Scheduler       *stats.RecomputeScheduler
 	StartedAt       time.Time
 }
 
@@ -28,7 +30,7 @@ func NewRouter(in Inputs) http.Handler {
 	mux.HandleFunc("GET /api/health", healthHandler)
 	mux.Handle("GET /api/v1/stream", stream.NewHandler(in.Ring, in.Broadcaster, in.SessionSnapshot))
 
-	sessions := SessionsHandler(in.DB)
+	sessions := SessionsHandler(in.DB, in.Scheduler)
 	mux.Handle("GET /api/v1/sessions", sessions)
 	mux.Handle("GET /api/v1/sessions/{id}", sessions)
 	mux.Handle("GET /api/v1/sessions/{id}/samples", sessions)
@@ -63,5 +65,9 @@ func NewRouter(in Inputs) http.Handler {
 		Broadcaster: in.Broadcaster,
 		StartedAt:   in.StartedAt,
 	}))
-	return Chain(mux, Recover(), Logging(), DeviceCookie())
+	mws := []Middleware{Recover(), Logging(), DeviceCookie()}
+	if in.RowerHolder != nil {
+		mws = append(mws, StatsVersionHeader(in.DB, in.RowerHolder))
+	}
+	return Chain(mux, mws...)
 }

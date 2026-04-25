@@ -5,21 +5,21 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
-	"time"
 
 	"github.com/gloeckner-daniel/home-ergo/internal/event"
+	"github.com/gloeckner-daniel/home-ergo/internal/stats"
 	"github.com/gloeckner-daniel/home-ergo/internal/storage"
 )
 
 // SessionsHandler returns a mux handling every session-read endpoint.
 // Auth is a middleware concern — this handler assumes the request has
 // been authenticated (ARCH-0001 M1 note: rower stub).
-func SessionsHandler(db *sql.DB) http.Handler {
+func SessionsHandler(db *sql.DB, sched *stats.RecomputeScheduler) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/sessions", listSessions(db))
 	mux.HandleFunc("GET /api/v1/sessions/{id}", getSession(db))
 	mux.HandleFunc("GET /api/v1/sessions/{id}/samples", getSamples(db))
-	mux.HandleFunc("DELETE /api/v1/sessions/{id}", deleteSession(db))
+	mux.HandleFunc("DELETE /api/v1/sessions/{id}", deleteSession(db, sched))
 	return mux
 }
 
@@ -109,12 +109,47 @@ func expandSamples(s *event.SessionSamples) []storage.SampleRow {
 	return out
 }
 
-func deleteSession(db *sql.DB) http.HandlerFunc {
+// deleteSession hard-deletes a session: drops PB rows tied to it,
+// removes the session row, and triggers a recompute (FEAT-0009 Mode
+// 1). No soft-delete; confirmation lives in the UI.
+func deleteSession(db *sql.DB, sched *stats.RecomputeScheduler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		if err := storage.SoftDeleteSession(r.Context(), db, id, time.Now().UTC()); err != nil {
+		var rowerID string
+		if err := db.QueryRowContext(r.Context(),
+			`SELECT rower_id FROM sessions WHERE id = ?`, id).Scan(&rowerID); err != nil {
+			if err == sql.ErrNoRows {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+		tx, err := db.BeginTx(r.Context(), nil)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		defer func() { _ = tx.Rollback() }()
+		for _, q := range []string{
+			`DELETE FROM pb_distance WHERE source_session_id = ?`,
+			`DELETE FROM pb_window WHERE source_session_id = ?`,
+			`DELETE FROM pb_workout WHERE source_session_id = ?`,
+			`DELETE FROM achievements WHERE source_session_id = ?`,
+			`DELETE FROM strokes WHERE session_id = ?`,
+			`DELETE FROM sessions WHERE id = ?`,
+		} {
+			if _, err := tx.ExecContext(r.Context(), q, id); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+		if err := tx.Commit(); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if sched != nil {
+			stats.OnSessionChange(sched, rowerID, stats.SessionHardDeleted)
 		}
 		w.WriteHeader(http.StatusNoContent)
 	}
