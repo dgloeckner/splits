@@ -367,6 +367,17 @@ func (s *Sessionizer) openSessionInternal(ctx context.Context, out chan<- event.
 // are compatible: Run's handleAttach clears the pending slot when it
 // emits the mid-session event, so the same workout isn't re-applied to
 // a subsequent session.
+// MaxEventID returns the highest event id this sessionizer has
+// stamped so far. Used by the SSE handler to detect a stale client
+// cursor (Last-Event-ID from a prior backend run that emitted larger
+// ids) and fall back to "stream from now" instead of silently
+// filtering everything new.
+func (s *Sessionizer) MaxEventID() uint64 {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.nextID
+}
+
 // StartSession requests an immediate open of a new session, attached
 // to the given workout id (empty for "just row"). Safe to call from
 // any goroutine. No-op if a session is already open. Idempotent.

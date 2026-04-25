@@ -17,6 +17,13 @@ type Snapshotter interface {
 	Snapshot() []event.Event
 }
 
+// maxEventIDer lets the SSE handler ask the sessionizer for the
+// highest event id it has emitted, so a stale Last-Event-ID from a
+// previous backend run can't silently filter out all new events.
+type maxEventIDer interface {
+	MaxEventID() uint64
+}
+
 // NewHandler returns the /api/v1/stream handler. Auth is the caller's
 // responsibility (middleware); this handler assumes the request has
 // been authenticated.
@@ -34,6 +41,15 @@ func NewHandler(ring *pipeline.Ring, b *Broadcaster, snap Snapshotter) http.Hand
 		w.WriteHeader(http.StatusOK)
 
 		afterID := parseAfterID(r)
+		// Guard against stale Last-Event-ID from a previous backend
+		// run: if the cursor is past anything the sessionizer could
+		// have emitted, reset to 0 so new events aren't silently
+		// filtered out.
+		if maxer, ok := snap.(maxEventIDer); ok {
+			if cur := maxer.MaxEventID(); afterID > cur {
+				afterID = 0
+			}
+		}
 
 		// If the client's cursor is past the current session's open
 		// events (ring won't replay them), emit the snapshot first so

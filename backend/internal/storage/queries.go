@@ -38,13 +38,17 @@ type dbExec interface {
 }
 
 func UpdateSessionEnd(ctx context.Context, db dbExec, id string, endedAt time.Time, s event.SessionSummary) error {
+	return UpdateSessionEndWithEventID(ctx, db, id, endedAt, s, 0)
+}
+
+func UpdateSessionEndWithEventID(ctx context.Context, db dbExec, id string, endedAt time.Time, s event.SessionSummary, lastEventID uint64) error {
 	blob, err := json.Marshal(s)
 	if err != nil {
 		return err
 	}
 	_, err = db.ExecContext(ctx,
-		`UPDATE sessions SET ended_at=?, total_distance_m=?, total_time_sec=?, total_strokes=?, summary_json=? WHERE id=?`,
-		endedAt.UTC().Format(time.RFC3339Nano), s.TotalDistanceM, s.TotalTimeSec, s.TotalStrokes, string(blob), id)
+		`UPDATE sessions SET ended_at=?, total_distance_m=?, total_time_sec=?, total_strokes=?, summary_json=?, last_event_id=? WHERE id=?`,
+		endedAt.UTC().Format(time.RFC3339Nano), s.TotalDistanceM, s.TotalTimeSec, s.TotalStrokes, string(blob), lastEventID, id)
 	return err
 }
 
