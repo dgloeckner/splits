@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/gloeckner-daniel/home-ergo/internal/event"
 	"github.com/gloeckner-daniel/home-ergo/internal/storage"
 )
 
@@ -66,6 +67,14 @@ func getSamples(db *sql.DB) http.HandlerFunc {
 			http.NotFound(w, r)
 			return
 		}
+		// FEAT-0009 Mode 0: ended sessions have no per-stroke rows;
+		// the downsampled series lives in summary_json.samples and is
+		// expanded back into the per-sample wire shape the frontend
+		// already expects.
+		if row.EndedAt != nil && row.Summary != nil && row.Summary.Samples != nil {
+			writeJSON(w, http.StatusOK, map[string]any{"samples": expandSamples(row.Summary.Samples)})
+			return
+		}
 		samples, err := storage.ListSamples(r.Context(), db, id)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -76,6 +85,28 @@ func getSamples(db *sql.DB) http.HandlerFunc {
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"samples": samples})
 	}
+}
+
+// expandSamples zips summary_json.samples into per-bucket SampleRows
+// using the same field names the live samples endpoint already
+// returns. stroke_no is the bucket index; fields not stored in the
+// downsampled series (distance_m, level, dps, …) are zeroed.
+func expandSamples(s *event.SessionSamples) []storage.SampleRow {
+	if s == nil {
+		return nil
+	}
+	n := len(s.T)
+	out := make([]storage.SampleRow, 0, n)
+	for i := 0; i < n; i++ {
+		out = append(out, storage.SampleRow{
+			StrokeNo:       i + 1,
+			TimeSec:        s.T[i],
+			PaceSecPer500m: s.Split[i],
+			PowerW:         s.Watt[i],
+			SPM:            s.SPM[i],
+		})
+	}
+	return out
 }
 
 func deleteSession(db *sql.DB) http.HandlerFunc {
