@@ -16,20 +16,46 @@
 }
 
 .row {
-  display: grid;
-  grid-template-columns: 1fr auto auto auto auto;
-  gap: var(--space-2);
-  padding: var(--space-2);
+  display: flex;
+  align-items: stretch;
   background: var(--color-surface-container);
   border-radius: var(--radius-card);
-  color: var(--color-on-surface);
-  text-decoration: none;
-  align-items: baseline;
   transition: background-color var(--motion-state) var(--motion-ease);
 }
 
 .row:hover {
   background: var(--color-surface-container-high);
+}
+
+.rowLink {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: 1fr auto auto auto auto;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  align-items: baseline;
+  color: var(--color-on-surface);
+  text-decoration: none;
+}
+
+.deleteIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  background: transparent;
+  border: none;
+  color: var(--color-on-surface-variant);
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 0 var(--radius-card) var(--radius-card) 0;
+  transition: background-color var(--motion-state) var(--motion-ease),
+    color var(--motion-state) var(--motion-ease);
+}
+
+.deleteIcon:hover {
+  background: var(--color-error-container, rgba(255, 180, 171, 0.18));
+  color: var(--color-error, #ffb4ab);
 }
 
 .when {

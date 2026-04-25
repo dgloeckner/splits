@@ -1,10 +1,12 @@
-import { useQueries, useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import { listSessions, type SessionRow } from '../api/client'
+import { deleteSession, listSessions, type SessionRow } from '../api/client'
 import { getWorkout, type Workout } from '../api/workouts'
 import { formatSessionStart } from '../util/dates'
 import { fmtMeters, mmss, pace500m } from '../util/format'
 import { workoutChipLabel } from '../util/workoutLabel'
+import { DeleteSessionDialog } from './history/DeleteSessionDialog'
 import styles from './HistoryPage.module.css'
 
 export function HistoryPage() {
@@ -63,23 +65,66 @@ export function HistoryPage() {
     <div className={styles.page}>
       <h1 className="headline-sm">Historie</h1>
       <div className={styles.list}>
-        {data.map((s) => {
-          const workout = s.workout_id ? workoutById.get(s.workout_id) : null
-          return (
-            <Link key={s.id} to={`/historie/${s.id}`} className={styles.row}>
-              <span className={styles.when}>{formatSessionStart(s.started_at)}</span>
-              <span className={styles.typeChip}>{workoutChipLabel(workout)}</span>
-              <span className={styles.pill}>{fmtMeters(s.total_distance_m ?? null)} m</span>
-              <span className={styles.pill}>{mmss(s.total_time_sec ?? null)}</span>
-              {s.summary?.avg_pace_sec_per_500m != null && (
-                <span className={`${styles.pill} ${styles.pillStrong}`}>
-                  {pace500m(s.summary.avg_pace_sec_per_500m)}
-                </span>
-              )}
-            </Link>
-          )
-        })}
+        {data.map((s) => (
+          <SessionCard
+            key={s.id}
+            session={s}
+            workout={s.workout_id ? workoutById.get(s.workout_id) ?? null : null}
+          />
+        ))}
       </div>
     </div>
+  )
+}
+
+function SessionCard({ session: s, workout }: { session: SessionRow; workout: Workout | null }) {
+  const qc = useQueryClient()
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const deleteM = useMutation({
+    mutationFn: () => deleteSession(s.id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sessions'] })
+      qc.invalidateQueries({ queryKey: ['rower-pbs'] })
+      qc.invalidateQueries({ queryKey: ['rower-lifetime'] })
+      qc.invalidateQueries({ queryKey: ['rower-achievements'] })
+      setConfirmOpen(false)
+    },
+  })
+  return (
+    <>
+      <div className={styles.row}>
+        <Link to={`/historie/${s.id}`} className={styles.rowLink}>
+          <span className={styles.when}>{formatSessionStart(s.started_at)}</span>
+          <span className={styles.typeChip}>{workoutChipLabel(workout)}</span>
+          <span className={styles.pill}>{fmtMeters(s.total_distance_m ?? null)} m</span>
+          <span className={styles.pill}>{mmss(s.total_time_sec ?? null)}</span>
+          {s.summary?.avg_pace_sec_per_500m != null && (
+            <span className={`${styles.pill} ${styles.pillStrong}`}>
+              {pace500m(s.summary.avg_pace_sec_per_500m)}
+            </span>
+          )}
+        </Link>
+        <button
+          type="button"
+          className={styles.deleteIcon}
+          aria-label={`Sitzung ${formatSessionStart(s.started_at)} löschen`}
+          onClick={(e) => {
+            e.preventDefault()
+            e.stopPropagation()
+            setConfirmOpen(true)
+          }}
+          data-testid={`history-delete-${s.id}`}
+        >
+          ✕
+        </button>
+      </div>
+      <DeleteSessionDialog
+        open={confirmOpen}
+        session={s}
+        busy={deleteM.isPending}
+        onConfirm={() => deleteM.mutate()}
+        onCancel={() => setConfirmOpen(false)}
+      />
+    </>
   )
 }
