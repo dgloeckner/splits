@@ -82,3 +82,23 @@
   font-size: var(--text-body-lg);
   text-decoration: none;
 }
+
+.bannersStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: var(--space-2);
+}
+
+.banner {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--color-primary-container, rgba(0, 163, 175, 0.18));
+  color: var(--color-on-primary-container, var(--color-on-surface));
+  font-family: var(--font-body, 'Inter'), sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}

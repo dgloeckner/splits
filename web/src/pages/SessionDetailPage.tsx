@@ -1,9 +1,19 @@
+import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { deleteSession, getSamples, getSession, type Sample, type SessionRow } from '../api/client'
+import {
+  deleteSession,
+  getSamples,
+  getSession,
+  getSessionPBBanners,
+  type Sample,
+  type SessionPBBanners,
+  type SessionRow,
+} from '../api/client'
 import { LineChart } from '../components/LineChart/LineChart'
-import { fmtFloat, fmtInt, fmtMeters, mmss, pace500m } from '../util/format'
+import { fmtFloat, fmtInt, fmtMeters, mmss, mmssWhole, pace500m } from '../util/format'
 import { formatSessionStart } from '../util/dates'
+import { DeleteSessionDialog } from './history/DeleteSessionDialog'
 import styles from './SessionDetailPage.module.css'
 
 export function SessionDetailPage() {
@@ -21,6 +31,12 @@ export function SessionDetailPage() {
     queryFn: () => getSamples(sessionId),
     enabled: sessionId !== '',
   })
+  const bannersQ = useQuery<SessionPBBanners>({
+    queryKey: ['sessions', sessionId, 'pb-banners'],
+    queryFn: () => getSessionPBBanners(sessionId),
+    enabled: sessionId !== '',
+  })
+  const [confirmOpen, setConfirmOpen] = useState(false)
   const deleteM = useMutation({
     mutationFn: () => deleteSession(sessionId),
     onSuccess: () => {
@@ -55,6 +71,27 @@ export function SessionDetailPage() {
       <Link to="/historie" className={styles.back}>
         ← Zurück
       </Link>
+
+      {(() => {
+        const b = bannersQ.data
+        const dist = b?.distance ?? []
+        const win = b?.window ?? []
+        if (dist.length === 0 && win.length === 0) return null
+        return (
+          <div className={styles.bannersStrip} data-testid="session-pb-banners">
+            {dist.map((d) => (
+              <span key={`d-${d.distance_m}`} className={styles.banner}>
+                🏆 Neue Bestzeit · {d.distance_m / 1000} km · {mmssWhole(d.time_sec)}
+              </span>
+            ))}
+            {win.map((w) => (
+              <span key={`w-${w.metric}-${w.window_size}`} className={styles.banner}>
+                🏆 Bestleistung · {bannerWindowLabel(w.metric, w.window_kind, w.window_size)}
+              </span>
+            ))}
+          </div>
+        )
+      })()}
 
       <section className={styles.hero}>
         <div className={styles.heroMain}>
@@ -95,14 +132,37 @@ export function SessionDetailPage() {
       <div className={styles.actions}>
         <button
           className={styles.deleteBtn}
-          onClick={() => {
-            if (confirm('Diese Session löschen?')) deleteM.mutate()
-          }}
+          onClick={() => setConfirmOpen(true)}
           disabled={deleteM.isPending}
+          data-testid="session-detail-delete"
         >
           Löschen
         </button>
       </div>
+
+      <DeleteSessionDialog
+        open={confirmOpen}
+        session={s}
+        busy={deleteM.isPending}
+        onConfirm={() => deleteM.mutate()}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   )
+}
+
+function bannerWindowLabel(metric: string, kind: string, size: number): string {
+  const window = kind === 'seconds' ? `${size} s` : `${size} Schläge`
+  switch (metric) {
+    case 'power':
+      return `Power ${window}`
+    case 'pace':
+      return `Pace ${window}`
+    case 'dps':
+      return `DPS ${window}`
+    case 'spi':
+      return `SPI ${window}`
+    default:
+      return `${metric} ${window}`
+  }
 }

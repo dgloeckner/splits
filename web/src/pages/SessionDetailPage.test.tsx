@@ -61,6 +61,8 @@ describe('SessionDetailPage', () => {
       'fetch',
       mockFetch({
         '/api/v1/sessions/S1/samples': () => new Response(JSON.stringify({ samples: SAMPLES }), { status: 200 }),
+        '/api/v1/sessions/S1/pb-banners': () =>
+          new Response(JSON.stringify({ distance: [], window: [] }), { status: 200 }),
         '/api/v1/sessions/S1': () => new Response(JSON.stringify(SESSION), { status: 200 }),
       }),
     )
@@ -71,20 +73,23 @@ describe('SessionDetailPage', () => {
     expect(screen.getByText(/SPM-Verlauf/)).toBeInTheDocument()
   })
 
-  it('delete button navigates back on success', async () => {
+  it('delete button opens confirm dialog; confirm navigates back', async () => {
     const fetchMock = mockFetch({
       '/api/v1/sessions/S1/samples': () => new Response(JSON.stringify({ samples: SAMPLES }), { status: 200 }),
+      '/api/v1/sessions/S1/pb-banners': () =>
+        new Response(JSON.stringify({ distance: [], window: [] }), { status: 200 }),
       '/api/v1/sessions/S1': (init) => {
         if (init?.method === 'DELETE') return new Response(null, { status: 204 })
         return new Response(JSON.stringify(SESSION), { status: 200 })
       },
     })
     vi.stubGlobal('fetch', fetchMock)
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
 
     render(wrap())
     await waitFor(() => expect(screen.getByText('1035 m')).toBeInTheDocument())
-    await userEvent.click(screen.getByRole('button', { name: 'Löschen' }))
+    await userEvent.click(screen.getByTestId('session-detail-delete'))
+    expect(screen.getByTestId('delete-session-dialog')).toBeInTheDocument()
+    await userEvent.click(screen.getByTestId('delete-session-confirm'))
     await waitFor(() => expect(screen.getByText('Historie')).toBeInTheDocument())
   })
 })

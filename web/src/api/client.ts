@@ -68,3 +68,54 @@ export async function endSession(): Promise<void> {
   const r = await fetch('/api/v1/session/end', { method: 'POST' })
   if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
 }
+
+export type ActiveSession = {
+  session_id: string
+  started_at: string
+  rower_id: string
+  rower_name: string
+  workout_id: string
+  last_event_id: number
+}
+
+export async function getActiveSession(): Promise<ActiveSession | null> {
+  const r = await fetch('/api/v1/session/active')
+  if (r.status === 204) return null
+  return json<ActiveSession>(r)
+}
+
+export type DistancePB = {
+  distance_m: number
+  time_sec: number
+  source_session_id: string
+  source_session_started_at: string
+  achieved_at: string
+}
+
+export type WindowPB = {
+  metric: string
+  window_kind: string
+  window_size: number
+  value: number
+  source_session_id: string
+  source_session_started_at: string
+  achieved_at: string
+}
+
+export type SessionPBBanners = {
+  distance: DistancePB[]
+  window: WindowPB[]
+}
+
+export async function getSessionPBBanners(id: string): Promise<SessionPBBanners> {
+  const r = await fetch(`/api/v1/sessions/${encodeURIComponent(id)}/pb-banners`)
+  return json<SessionPBBanners>(r)
+}
+
+// statsVersion is read from the X-Stats-Version response header. Used
+// by the post-session-end UI to detect when the asynchronous PB
+// recompute has completed.
+export function statsVersionFrom(r: Response): number {
+  const h = r.headers.get('X-Stats-Version')
+  return h ? Number(h) : 0
+}

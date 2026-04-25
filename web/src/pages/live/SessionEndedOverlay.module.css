@@ -74,6 +74,45 @@
   color: var(--color-on-surface);
 }
 
+.bannersStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+}
+
+.banner {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: var(--color-primary-container, rgba(0, 163, 175, 0.18));
+  color: var(--color-on-primary-container, var(--color-on-surface));
+  font-family: var(--font-body, 'Inter'), sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.bannerSkeleton {
+  width: 120px;
+  height: 28px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-container-high, #292a2a) 0%,
+    var(--color-surface-container, #1f2020) 50%,
+    var(--color-surface-container-high, #292a2a) 100%
+  );
+  background-size: 200% 100%;
+  animation: bannerShimmer 1.5s linear infinite;
+}
+
+@keyframes bannerShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
 .actions {
   display: flex;
   flex-direction: column;
