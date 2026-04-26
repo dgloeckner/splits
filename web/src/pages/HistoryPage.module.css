@@ -2,6 +2,14 @@
   padding: var(--space-3);
   display: grid;
   gap: var(--space-2);
+  min-width: 0;
+}
+
+/* Grid items default to min-width: auto, which lets wide children
+   (e.g. .windowList cards with min-width: 160px) stretch the column
+   past the viewport on mobile. Force shrink-to-fit. */
+.page > * {
+  min-width: 0;
 }
 
 .empty {
