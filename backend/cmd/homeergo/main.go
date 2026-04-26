@@ -94,6 +94,9 @@ func run() error {
 			return id, name
 		},
 		StartID: startID,
+		LoadWorkout: func(id string) (*workout.Workout, error) {
+			return workoutRepo.GetWorkout(ctx, id)
+		},
 	})
 	dispatcher := &pipeline.Dispatcher{Ring: ring, Persist: persistCh, Broadcast: broadcastCh}
 	scheduler := stats.NewRecomputeScheduler(db.Handle())
