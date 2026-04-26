@@ -117,6 +117,16 @@ export function SessionDetailPage() {
             <span className={styles.heroSecondaryValue}>{fmtInt(s.summary?.avg_power_w ?? null)}</span>
           </div>
           <div className={styles.heroSecondaryRow}>
+            <span className={`label-sm ${styles.heroSecondaryKey}`}>Ø DPS</span>
+            <span className={styles.heroSecondaryValue}>
+              {fmtFloat(s.summary?.avg_dps ?? null, 2)}
+            </span>
+          </div>
+          <div className={styles.heroSecondaryRow}>
+            <span className={`label-sm ${styles.heroSecondaryKey}`}>Ø SPI</span>
+            <span className={styles.heroSecondaryValue}>{fmtInt(s.summary?.avg_spi ?? null)}</span>
+          </div>
+          <div className={styles.heroSecondaryRow}>
             <span className={`label-sm ${styles.heroSecondaryKey}`}>Schläge</span>
             <span className={styles.heroSecondaryValue}>{fmtInt(s.total_strokes ?? null)}</span>
           </div>
