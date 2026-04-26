@@ -93,3 +93,22 @@ func TestComputeCandidatesPopulatesAll(t *testing.T) {
 		t.Error("missing consistency candidates")
 	}
 }
+
+func TestComputeCandidatesPerWorkSegmentRuns(t *testing.T) {
+	mk := func(no int, ts float64, d int, p int) event.StrokePayload {
+		return event.StrokePayload{StrokeNo: no, TimeSec: ts, DistanceM: d, PowerW: p}
+	}
+	in := []event.StrokePayload{
+		mk(1, 1, 50, 200), mk(2, 2, 100, 200), mk(3, 4, 250, 200),
+		mk(4, 5, 500, 200),
+		// rep 2 starts after rest (rest strokes filtered out → stroke_no jumps)
+		mk(20, 65, 550, 200), mk(21, 66, 600, 200), mk(22, 68, 750, 200),
+		mk(23, 69, 1000, 200),
+	}
+	c := ComputeCandidates(in)
+	for _, d := range c.Distance {
+		if d.DistanceM == 1000 {
+			t.Fatalf("did not expect a 1k candidate spanning rest gap: %+v", d)
+		}
+	}
+}

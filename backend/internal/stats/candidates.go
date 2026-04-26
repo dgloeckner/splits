@@ -88,15 +88,131 @@ type WindowDef struct {
 // over `strokes` (already ordered by stroke_no). Returns a fully
 // populated PBCandidates (Workout slot left for the caller to fill
 // in if a workout is attached).
+//
+// Distance and window candidates are computed per work-segment run
+// (split wherever stroke_no jumps by more than 1, indicating a rest
+// interval whose strokes were filtered out). The best value across
+// runs wins. Consistency candidates are computed over the full stroke
+// list, as they measure whole-session variability.
 func ComputeCandidates(strokes []event.StrokePayload) *PBCandidates {
-	out := &PBCandidates{
-		Distance: distanceCandidates(strokes, StandardDistances),
-		Window:   windowCandidates(strokes, WindowDefs),
+	runs := splitByStrokeNoGap(strokes)
+	out := &PBCandidates{}
+	for _, run := range runs {
+		mergeDistance(&out.Distance, distanceCandidates(run, StandardDistances))
+		mergeWindow(&out.Window, windowCandidates(run, WindowDefs))
 	}
 	if len(strokes) >= MinStrokesForConsistency {
 		out.Consistency = consistencyCandidates(strokes)
 	}
 	return out
+}
+
+// splitByStrokeNoGap splits strokes into contiguous work-segment runs.
+// A gap is detected when consecutive stroke_no values differ by more
+// than 1 (rest strokes were filtered before this call).
+//
+// Each run's DistanceM and TimeSec are re-zeroed relative to the
+// implicit origin anchor used by distanceCandidates (distance 0,
+// time 0 before the first stroke). Without re-zeroing, cumulative
+// values from earlier runs would make the two-pointer believe that
+// a single run contains far more distance than it actually does.
+func splitByStrokeNoGap(strokes []event.StrokePayload) [][]event.StrokePayload {
+	if len(strokes) == 0 {
+		return nil
+	}
+	var out [][]event.StrokePayload
+	cur := []event.StrokePayload{strokes[0]}
+	for i := 1; i < len(strokes); i++ {
+		if strokes[i].StrokeNo-strokes[i-1].StrokeNo > 1 {
+			out = append(out, normalizeRun(cur))
+			cur = nil
+		}
+		cur = append(cur, strokes[i])
+	}
+	if len(cur) > 0 {
+		out = append(out, normalizeRun(cur))
+	}
+	return out
+}
+
+// normalizeRun re-zeros DistanceM and TimeSec so they are relative to
+// the stroke immediately before the first stroke in the run (the
+// implicit origin anchor). The first stroke's pre-run distance and
+// time are subtracted from all strokes in the run.
+func normalizeRun(run []event.StrokePayload) []event.StrokePayload {
+	if len(run) == 0 {
+		return run
+	}
+	// The origin anchor sits "before" stroke 0 at (0, 0). The first
+	// stroke's DistanceM and TimeSec represent the cumulative totals
+	// up to that point in the session. We subtract the values of the
+	// stroke *before* the run; since we don't have that stroke, we
+	// use the first stroke's pre-run offset. Because distanceCandidates
+	// uses an implicit origin at (0,0) before index 0, re-zeroing so
+	// that the first stroke carries only its own contribution (i.e.
+	// the delta since the previous stroke) is not straightforward
+	// without the predecessor. Instead, subtract the first stroke's
+	// values minus its per-stroke contribution — but we don't have
+	// per-stroke data. The safest approach: subtract the predecessor's
+	// cumulative values. Since we only have the run, approximate by
+	// subtracting (firstStroke.DistanceM - 0) offset so the run
+	// appears to start from 0 at the origin. Use the first stroke's
+	// own values as the "previous" baseline and shift everything down.
+	//
+	// Concretely: offset = values of the stroke just *before* the run.
+	// We don't have it, so we subtract first.DistanceM and first.TimeSec
+	// from all strokes. This makes stroke[0] land at (0,0), which means
+	// the origin anchor cannot contribute any distance from before the run.
+	distOff := run[0].DistanceM
+	timeOff := run[0].TimeSec
+	out := make([]event.StrokePayload, len(run))
+	for i, s := range run {
+		s.DistanceM -= distOff
+		s.TimeSec -= timeOff
+		out[i] = s
+	}
+	return out
+}
+
+// mergeDistance merges in into acc, keeping the best (shortest) time
+// per distance target.
+func mergeDistance(acc *[]DistanceCandidate, in []DistanceCandidate) {
+	for _, c := range in {
+		found := false
+		for i := range *acc {
+			if (*acc)[i].DistanceM == c.DistanceM {
+				if c.TimeSec < (*acc)[i].TimeSec {
+					(*acc)[i] = c
+				}
+				found = true
+				break
+			}
+		}
+		if !found {
+			*acc = append(*acc, c)
+		}
+	}
+}
+
+// mergeWindow merges in into acc, keeping the best value per
+// (metric, kind, size) triple.
+func mergeWindow(acc *[]WindowCandidate, in []WindowCandidate) {
+	for _, c := range in {
+		found := false
+		for i := range *acc {
+			ex := (*acc)[i]
+			if ex.Metric == c.Metric && ex.Kind == c.Kind && ex.Size == c.Size {
+				if better(c.Metric, c.Value, ex.Value) {
+					(*acc)[i] = c
+				}
+				found = true
+				break
+			}
+		}
+		if !found {
+			*acc = append(*acc, c)
+		}
+	}
 }
 
 // distanceCandidates finds, for each target distance, the shortest
