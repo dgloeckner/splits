@@ -29,6 +29,11 @@ func TestPhasePlanDistanceWithWarmupCooldown(t *testing.T) {
 		{"warmup mid", 0, 30, PhaseWarmup, false},
 		{"work start", 5, 61, PhaseWork, false},
 		{"work mid", 1000, 300, PhaseWork, false},
+		// (2000, 600) is the first stroke to reach the 2000m target: the
+		// crossing stroke itself is still classified as work so it counts
+		// toward totals and PB candidates. crossedAt is recorded here.
+		{"work crossing", 2000, 600, PhaseWork, false},
+		// On the next call, crossedAt is already set → falls through to cooldown.
 		{"cooldown start", 2000, 600, PhaseCooldown, false},
 		{"cooldown mid", 2000, 660, PhaseCooldown, false},
 		{"cooldown done", 2000, 721, PhaseDone, true},
@@ -62,7 +67,12 @@ func TestPhasePlanIntervalsRestExcluded(t *testing.T) {
 	if p, _ := plan.Classify(250, 60); p != PhaseWork {
 		t.Fatalf("rep1: got %v", p)
 	}
-	// hit 500 → rest segment begins; remain at 500m for the 30s rest
+	// First stroke that hits exactly 500m → crossing stroke still counted as
+	// work so it is included in totals and PB candidates.
+	if p, _ := plan.Classify(500, 121); p != PhaseWork {
+		t.Fatalf("rep1 crossing: got %v, want PhaseWork", p)
+	}
+	// Second call at same distance: crossedAt already set → rest begins.
 	if p, _ := plan.Classify(500, 121); p != PhaseRest {
 		t.Fatalf("rest: got %v", p)
 	}
@@ -70,9 +80,37 @@ func TestPhasePlanIntervalsRestExcluded(t *testing.T) {
 	if p, _ := plan.Classify(750, 200); p != PhaseWork {
 		t.Fatalf("rep2: got %v", p)
 	}
-	// cooldown=0 means after both reps done the workout is complete
+	// First stroke that hits exactly 1000m → crossing stroke for rep 2, still work.
+	if p, _ := plan.Classify(1000, 260); p != PhaseWork {
+		t.Fatalf("rep2 crossing: got %v, want PhaseWork", p)
+	}
+	// cooldown=0 means after both reps done the workout is complete;
+	// second call (crossedAt already set) falls through to PhaseDone.
 	if p, complete := plan.Classify(1000, 260); p != PhaseDone || !complete {
 		t.Fatalf("done: got %v complete=%v", p, complete)
+	}
+}
+
+func TestPhasePlanCrossingStrokeIsWork(t *testing.T) {
+	w := &workout.Workout{
+		ID:          "w1",
+		Mode:        workout.ModeDistance,
+		ParamsJSON:  []byte(`{"meters":100}`),
+		WarmupSec:   0,
+		CooldownSec: 0,
+	}
+	plan, err := BuildPhasePlan(w)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Stroke at exactly target distance → still work (crossing); first call
+	// sees not-yet-crossed, returns PhaseWork, false.
+	if p, complete := plan.Classify(100, 30); p != PhaseWork || complete {
+		t.Fatalf("crossing stroke: got %v complete=%v want PhaseWork false", p, complete)
+	}
+	// Next stroke past the crossing → done, complete=true.
+	if p, complete := plan.Classify(101, 31); p != PhaseDone || !complete {
+		t.Fatalf("post-crossing stroke: got %v complete=%v want PhaseDone true", p, complete)
 	}
 }
 

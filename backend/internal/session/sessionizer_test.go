@@ -304,7 +304,8 @@ func collectKind(evts []event.Event, k event.Kind) []event.Event {
 // Fixture: 100 m, warmup=30s, cooldown=60s.
 //   - t=5,  d=0:   warmup (5 < 30s)
 //   - t=35, d=5:   work (warmup elapsed, d=5 < 100m)
-//   - t=70, d=100: cooldown (work distance crossed exactly → next segment)
+//   - t=70, d=100: work (crossing stroke: PhasePlan records crossing but returns work)
+//   - t=75, d=101: cooldown (past target, crossedAt set → falls through to cooldown)
 func TestSessionizerTagsStrokesWithPhase(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -320,20 +321,21 @@ func TestSessionizerTagsStrokesWithPhase(t *testing.T) {
 	go func() { _ = s.Run(ctx, in, out) }()
 
 	s.StartSession("test-workout")
-	in <- frame(5, 0, 25, 200, 3)   // warmup
-	in <- frame(35, 5, 25, 200, 3)  // work
-	in <- frame(70, 100, 25, 200, 3) // cooldown (boundary: d=100 crossed)
+	in <- frame(5, 0, 25, 200, 3)    // warmup
+	in <- frame(35, 5, 25, 200, 3)   // work
+	in <- frame(70, 100, 25, 200, 3) // work (crossing stroke: tagged work, crossedAt recorded)
+	in <- frame(75, 101, 25, 200, 3) // cooldown (past target, crossedAt set)
 
-	// Events: session_start, phase_change(work→warmup), stroke,
-	//         phase_change(warmup→work), stroke,
-	//         phase_change(work→cooldown), stroke  = 7 total
-	got := drain(t, out, 7)
+	// Events: session_start, phase_change(work→warmup), stroke(warmup),
+	//         phase_change(warmup→work), stroke(work), stroke(work/crossing),
+	//         phase_change(work→cooldown), stroke(cooldown)  = 8 total
+	got := drain(t, out, 8)
 
 	strokes := collectKind(got, event.KindStroke)
-	if len(strokes) != 3 {
-		t.Fatalf("expected 3 stroke events, got %d", len(strokes))
+	if len(strokes) != 4 {
+		t.Fatalf("expected 4 stroke events, got %d", len(strokes))
 	}
-	wantPhases := []string{"warmup", "work", "cooldown"}
+	wantPhases := []string{"warmup", "work", "work", "cooldown"}
 	for i, e := range strokes {
 		if e.Stroke.Phase != wantPhases[i] {
 			t.Errorf("stroke %d phase = %q, want %q", i+1, e.Stroke.Phase, wantPhases[i])
@@ -360,10 +362,11 @@ func TestSessionizerEmitsPhaseChange(t *testing.T) {
 	s.StartSession("test-workout")
 	in <- frame(5, 0, 25, 200, 3)    // warmup
 	in <- frame(35, 5, 25, 200, 3)   // work
-	in <- frame(70, 100, 25, 200, 3) // cooldown
+	in <- frame(70, 100, 25, 200, 3) // work (crossing stroke; no phase_change yet)
+	in <- frame(75, 101, 25, 200, 3) // cooldown (past target → phase_change work→cooldown)
 
-	// 7 events: session_start, 3×phase_change, 3×stroke
-	got := drain(t, out, 7)
+	// 8 events: session_start, 3×phase_change, 4×stroke
+	got := drain(t, out, 8)
 
 	changes := collectKind(got, event.KindPhaseChange)
 	if len(changes) != 3 {
@@ -379,7 +382,7 @@ func TestSessionizerEmitsPhaseChange(t *testing.T) {
 		t.Errorf("phase_change[1] = %q→%q, want warmup→work",
 			changes[1].PhaseChange.From, changes[1].PhaseChange.To)
 	}
-	// Third: work → cooldown
+	// Third: work → cooldown (triggered by the first stroke PAST the target)
 	if changes[2].PhaseChange.From != "work" || changes[2].PhaseChange.To != "cooldown" {
 		t.Errorf("phase_change[2] = %q→%q, want work→cooldown",
 			changes[2].PhaseChange.From, changes[2].PhaseChange.To)
@@ -390,8 +393,9 @@ func TestSessionizerEmitsPhaseChange(t *testing.T) {
 // automatically closes the session (emits KindSessionEnd) when the
 // PhasePlan reports the workout is complete (cooldown elapsed).
 // Fixture: 100m, warmup=0, cooldown=30s.
-//   - t=10, d=100: work distance crossed → PhaseCooldown begins
-//   - t=41, d=100: cooldown 30s elapsed → PhaseDone+complete → session_end
+//   - t=10, d=100: crossing stroke → PhaseWork (crossedAt recorded); no phase_change
+//   - t=20, d=101: past target → PhaseCooldown begins; phase_change(work→cooldown)
+//   - t=51, d=101: cooldown 30s elapsed (51-10=41>30) → PhaseDone+complete → session_end
 func TestSessionizerEndsOnWorkoutComplete(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -407,14 +411,16 @@ func TestSessionizerEndsOnWorkoutComplete(t *testing.T) {
 	go func() { _ = s.Run(ctx, in, out) }()
 
 	s.StartSession("test-workout")
-	in <- frame(10, 100, 25, 200, 3) // work→cooldown boundary
-	in <- frame(41, 100, 25, 200, 3) // cooldown elapsed → done+complete
+	in <- frame(10, 100, 25, 200, 3) // work (crossing stroke; crossedAt=10)
+	in <- frame(20, 101, 25, 200, 3) // cooldown (past target; phase_change work→cooldown)
+	in <- frame(51, 101, 25, 200, 3) // done (cooldown 30s elapsed: 51-10=41>30; session_end)
 
 	// Events: session_start,
+	//         stroke(work/crossing),
 	//         phase_change(work→cooldown), stroke(cooldown),
 	//         phase_change(cooldown→done), stroke(done),
-	//         session_end  = 6 total
-	got := drain(t, out, 6)
+	//         session_end  = 7 total
+	got := drain(t, out, 7)
 
 	ends := collectKind(got, event.KindSessionEnd)
 	if len(ends) != 1 {

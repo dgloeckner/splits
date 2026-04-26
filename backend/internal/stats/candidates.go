@@ -111,11 +111,9 @@ func ComputeCandidates(strokes []event.StrokePayload) *PBCandidates {
 // A gap is detected when consecutive stroke_no values differ by more
 // than 1 (rest strokes were filtered before this call).
 //
-// Each run's DistanceM and TimeSec are re-zeroed relative to the
-// implicit origin anchor used by distanceCandidates (distance 0,
-// time 0 before the first stroke). Without re-zeroing, cumulative
-// values from earlier runs would make the two-pointer believe that
-// a single run contains far more distance than it actually does.
+// Runs are passed as-is (cumulative DistanceM / TimeSec preserved)
+// to distanceCandidates, which uses inter-stroke windows only and
+// therefore never requires a (0,0) origin pseudo-stroke.
 func splitByStrokeNoGap(strokes []event.StrokePayload) [][]event.StrokePayload {
 	if len(strokes) == 0 {
 		return nil
@@ -124,52 +122,13 @@ func splitByStrokeNoGap(strokes []event.StrokePayload) [][]event.StrokePayload {
 	cur := []event.StrokePayload{strokes[0]}
 	for i := 1; i < len(strokes); i++ {
 		if strokes[i].StrokeNo-strokes[i-1].StrokeNo > 1 {
-			out = append(out, normalizeRun(cur))
+			out = append(out, cur)
 			cur = nil
 		}
 		cur = append(cur, strokes[i])
 	}
 	if len(cur) > 0 {
-		out = append(out, normalizeRun(cur))
-	}
-	return out
-}
-
-// normalizeRun re-zeros DistanceM and TimeSec so they are relative to
-// the stroke immediately before the first stroke in the run (the
-// implicit origin anchor). The first stroke's pre-run distance and
-// time are subtracted from all strokes in the run.
-func normalizeRun(run []event.StrokePayload) []event.StrokePayload {
-	if len(run) == 0 {
-		return run
-	}
-	// The origin anchor sits "before" stroke 0 at (0, 0). The first
-	// stroke's DistanceM and TimeSec represent the cumulative totals
-	// up to that point in the session. We subtract the values of the
-	// stroke *before* the run; since we don't have that stroke, we
-	// use the first stroke's pre-run offset. Because distanceCandidates
-	// uses an implicit origin at (0,0) before index 0, re-zeroing so
-	// that the first stroke carries only its own contribution (i.e.
-	// the delta since the previous stroke) is not straightforward
-	// without the predecessor. Instead, subtract the first stroke's
-	// values minus its per-stroke contribution — but we don't have
-	// per-stroke data. The safest approach: subtract the predecessor's
-	// cumulative values. Since we only have the run, approximate by
-	// subtracting (firstStroke.DistanceM - 0) offset so the run
-	// appears to start from 0 at the origin. Use the first stroke's
-	// own values as the "previous" baseline and shift everything down.
-	//
-	// Concretely: offset = values of the stroke just *before* the run.
-	// We don't have it, so we subtract first.DistanceM and first.TimeSec
-	// from all strokes. This makes stroke[0] land at (0,0), which means
-	// the origin anchor cannot contribute any distance from before the run.
-	distOff := run[0].DistanceM
-	timeOff := run[0].TimeSec
-	out := make([]event.StrokePayload, len(run))
-	for i, s := range run {
-		s.DistanceM -= distOff
-		s.TimeSec -= timeOff
-		out[i] = s
+		out = append(out, cur)
 	}
 	return out
 }
@@ -218,6 +177,12 @@ func mergeWindow(acc *[]WindowCandidate, in []WindowCandidate) {
 // distanceCandidates finds, for each target distance, the shortest
 // time window whose distance delta is at least D. Strokes carry
 // cumulative DistanceM and TimeSec; the algorithm is two-pointer.
+//
+// Windows are inter-stroke only (no implicit (0,0) origin), so the
+// first achievable window runs from strokes[0] to some strokes[j].
+// This loses at most one stroke's worth of distance (~5–10 m) at run
+// start, which is far preferable to stripping the first stroke's full
+// distance contribution as the old normalizeRun approach did.
 func distanceCandidates(strokes []event.StrokePayload, distances []int) []DistanceCandidate {
 	if len(strokes) < 2 {
 		return nil
@@ -226,33 +191,16 @@ func distanceCandidates(strokes []event.StrokePayload, distances []int) []Distan
 	for _, d := range distances {
 		bestDur := math.Inf(1)
 		bestStart, bestEnd := 0, 0
-		// Origin pseudo-stroke (distance 0, time 0, stroke_no 0) is
-		// the implicit start anchor; strokes are cumulative, so a
-		// 2 k window can begin "before stroke 1".
-		i := -1
-		for j := range strokes {
-			for i+1 < j {
-				baseDist := 0
-				if i+1 >= 0 {
-					baseDist = strokes[i+1].DistanceM
-				}
-				if strokes[j].DistanceM-baseDist > d {
-					i++
-				} else {
-					break
-				}
+		i := 0
+		for j := 1; j < len(strokes); j++ {
+			for i < j-1 && strokes[j].DistanceM-strokes[i+1].DistanceM > d {
+				i++
 			}
-			baseDist, baseTime, baseNo := 0, 0.0, 0
-			if i >= 0 {
-				baseDist = strokes[i].DistanceM
-				baseTime = strokes[i].TimeSec
-				baseNo = strokes[i].StrokeNo
-			}
-			if strokes[j].DistanceM-baseDist >= d {
-				dur := strokes[j].TimeSec - baseTime
+			if strokes[j].DistanceM-strokes[i].DistanceM >= d {
+				dur := strokes[j].TimeSec - strokes[i].TimeSec
 				if dur > 0 && dur < bestDur {
 					bestDur = dur
-					bestStart, bestEnd = baseNo, strokes[j].StrokeNo
+					bestStart, bestEnd = strokes[i].StrokeNo, strokes[j].StrokeNo
 				}
 			}
 		}

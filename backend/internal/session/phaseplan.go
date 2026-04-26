@@ -179,9 +179,13 @@ func (p *PhasePlan) Classify(distanceM int, timeSec float64) (Phase, bool) {
 			if consumed < s.distanceM {
 				return s.kind, false
 			}
-			// Segment crossed. Record the crossing time if not already set.
+			// Crossing or past: record the timeSec of FIRST crossing, then
+			// for that very first crossing return the segment's own kind so
+			// the stroke that crosses still counts as work. Subsequent calls
+			// fall through to the next segment.
 			if _, already := p.crossedAt[idx]; !already {
 				p.crossedAt[idx] = timeSec
+				return s.kind, false
 			}
 			lastCrossedTime = p.crossedAt[idx]
 		}
