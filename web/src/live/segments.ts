@@ -18,6 +18,11 @@ export type Segment = {
   endDistanceM: number
 }
 
+/** Tracks the timeSec at which each distance segment was first crossed.
+ *  WeakMap ensures entries are GC'd when the segment array is recreated
+ *  (e.g. after expandWorkout is called again), preventing stale anchors. */
+const crossedAtByDistanceSeg = new WeakMap<Segment, number>()
+
 export type ActiveSegment = {
   segment: Segment
   remainingSec?: number
@@ -102,39 +107,39 @@ export function locateSegment(
   timeSec: number,
 ): ActiveSegment | null {
   if (segments.length === 0) return null
-  // timeAnchor tracks the cumulative seconds consumed by time-based segments so far.
-  // After a completed distance segment, subsequent time-based segments (e.g. rest)
-  // are measured from the current timeSec because we don't know the exact wall-clock
-  // moment the distance was reached. However, if the NEXT distance segment has
-  // already been entered, we treat any interleaved time-based segment as consumed.
   let timeAnchor = 0
-  let afterDistance = false
+  // workCompletedAt: timeSec at which the most recently completed
+  // distance segment's target distance was crossed. Tracked so that
+  // a following time-based segment (rest or cooldown) can anchor its
+  // countdown to that moment instead of session start.
+  let workCompletedAt: number | null = null
 
   for (let idx = 0; idx < segments.length; idx++) {
     const seg = segments[idx]
     if (seg.durationSec != null) {
-      if (afterDistance) {
-        // Rest (or any time-based segment) following a distance segment: it is
-        // "consumed" if the next distance-based segment in the list has already
-        // been entered (distanceM > that segment's startDistanceM).
+      if (workCompletedAt != null) {
+        // Time-based segment following a distance segment.
+        // If a later distance segment has already been entered, this
+        // time-based segment (rest) is consumed — skip it.
         const nextDistSeg = segments.slice(idx + 1).find((s) => s.distanceM != null)
         const nextDistStarted = nextDistSeg != null && distanceM > nextDistSeg.startDistanceM
-        if (!nextDistStarted) {
-          // Rest timer starts from the current moment (we just finished the distance
-          // segment). Use timeSec as the new anchor.
-          const consumed = 0
-          if (consumed < seg.durationSec) {
-            return {
-              segment: seg,
-              remainingSec: seg.durationSec,
-              progressRatio: 0,
-              totalSegments: segments.length,
-              activeIndexOneBased: seg.index + 1,
-            }
+        if (nextDistStarted) {
+          workCompletedAt += seg.durationSec
+          timeAnchor = workCompletedAt
+          continue
+        }
+        const consumed = Math.max(0, timeSec - workCompletedAt)
+        if (consumed < seg.durationSec) {
+          return {
+            segment: seg,
+            remainingSec: Math.max(0, seg.durationSec - consumed),
+            progressRatio: consumed / seg.durationSec,
+            totalSegments: segments.length,
+            activeIndexOneBased: seg.index + 1,
           }
         }
-        afterDistance = false
-        timeAnchor += seg.durationSec
+        workCompletedAt += seg.durationSec
+        timeAnchor = workCompletedAt
       } else {
         const consumed = Math.max(0, timeSec - timeAnchor)
         if (consumed < seg.durationSec) {
@@ -159,7 +164,15 @@ export function locateSegment(
           activeIndexOneBased: seg.index + 1,
         }
       }
-      afterDistance = true
+      // Record the timeSec at which this distance target was first crossed.
+      // Subsequent calls with the same segments object (same distance) will
+      // reuse this anchor so the following time-based segment (rest or
+      // cooldown) counts down correctly even when the rower has stopped and
+      // the caller advances timeSec without new strokes.
+      if (!crossedAtByDistanceSeg.has(seg)) {
+        crossedAtByDistanceSeg.set(seg, timeSec)
+      }
+      workCompletedAt = crossedAtByDistanceSeg.get(seg)!
     }
   }
   return null

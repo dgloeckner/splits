@@ -123,3 +123,40 @@ describe('locateSegment', () => {
     expect(locateSegment([], 100, 100)).toBeNull()
   })
 })
+
+describe('locateSegment cooldown after distance work', () => {
+  function makeSegs() {
+    return expandWorkout({
+      id: 'w1',
+      mode: 'distance',
+      params: { meters: 2000 },
+      warmup_sec: 60,
+      cooldown_sec: 120,
+      intensity: undefined,
+    } as unknown as Workout)
+  }
+
+  it('returns full cooldown remaining at the moment work distance is reached', () => {
+    const segs = makeSegs()
+    const active = locateSegment(segs, 2000, 600)
+    expect(active?.segment.kind).toBe('cooldown')
+    expect(active?.remainingSec).toBe(120)
+  })
+
+  it('decrements cooldown remaining as time advances after work completion', () => {
+    const segs = makeSegs()
+    // Prime the anchor at t=600 (work crossed), then observe t=660 (60s later)
+    locateSegment(segs, 2000, 600)
+    const active = locateSegment(segs, 2000, 660)
+    expect(active?.segment.kind).toBe('cooldown')
+    expect(active?.remainingSec).toBe(60)
+  })
+
+  it('returns null after cooldown elapsed', () => {
+    const segs = makeSegs()
+    // Prime the anchor at t=600 (work crossed), then observe t=721 (121s later)
+    locateSegment(segs, 2000, 600)
+    const active = locateSegment(segs, 2000, 721)
+    expect(active).toBeNull()
+  })
+})
