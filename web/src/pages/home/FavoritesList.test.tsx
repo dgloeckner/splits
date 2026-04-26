@@ -35,10 +35,13 @@ function wrap(ui: React.ReactNode) {
 afterEach(() => { global.fetch = originalFetch })
 
 describe('FavoritesList', () => {
-  it('renders nothing when empty', async () => {
+  it('always renders the system rows even when no favorites', async () => {
     mockRoutes({ '/api/v1/favorites': { body: JSON.stringify({ favorites: [] }), status: 200 } })
     const { container } = wrap(<FavoritesList rowerID="R1" />)
-    await waitFor(() => expect(container.querySelector('[data-testid="favorites-list"]')).toBeNull())
+    await waitFor(() =>
+      expect(container.querySelector('[data-testid="picker-just-row"]')).not.toBeNull(),
+    )
+    expect(container.querySelector('[data-testid="picker-new-workout"]')).not.toBeNull()
   })
 
   it('renders items with formatted summary', async () => {

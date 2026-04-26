@@ -3,24 +3,26 @@ import { useNavigate } from 'react-router-dom'
 import { startSession } from '../../api/client'
 import { deleteFavorite, listFavorites, type Favorite } from '../../api/favorites'
 import { createWorkout } from '../../api/workouts'
+import { workoutIconFor, IconJustRow } from '../../icons/workout'
+import { IconBolt } from '../../icons/IconBolt'
 import styles from './FavoritesList.module.css'
 
-export type Props = { rowerID: string }
+export type Props = { rowerID?: string }
 
 export function FavoritesList({ rowerID }: Props) {
   const nav = useNavigate()
   const qc = useQueryClient()
   const { data } = useQuery({
-    queryKey: ['favorites', rowerID],
-    queryFn: () => listFavorites(rowerID),
+    queryKey: ['favorites', rowerID ?? ''],
+    queryFn: () => listFavorites(rowerID as string),
+    enabled: !!rowerID,
     staleTime: 15_000,
   })
   const del = useMutation({
     mutationFn: deleteFavorite,
     onSuccess: () => qc.invalidateQueries({ queryKey: ['favorites', rowerID] }),
   })
-
-  if (!data || data.length === 0) return null
+  const favorites = data ?? []
 
   async function start(fav: Favorite) {
     const created = await createWorkout({
@@ -34,32 +36,71 @@ export function FavoritesList({ rowerID }: Props) {
     nav('/live')
   }
 
+  async function startJustRow() {
+    await startSession()
+    nav('/live')
+  }
+
   return (
     <section data-testid="favorites-list" className={styles.section}>
-      <h2 className={styles.heading}>Favoriten</h2>
+      <h2 className={styles.heading}>Workout wählen</h2>
       <ul className={styles.list}>
-        {data.map((fav) => (
-          <li key={fav.id} className={styles.item}>
-            <button
-              type="button"
-              className={styles.itemBody}
-              onClick={() => start(fav)}
-            >
-              <span className={styles.name}>{fav.name}</span>
-              <span className={styles.summary}>{formatFavoriteSummary(fav)}</span>
-            </button>
-            <button
-              type="button"
-              aria-label={`Favorit löschen`}
-              className={styles.delete}
-              onClick={() => {
-                if (window.confirm('Favorit löschen?')) del.mutate(fav.id)
-              }}
-            >
-              ✕
-            </button>
-          </li>
-        ))}
+        {favorites.map((fav) => {
+          const Icon = workoutIconFor(fav.mode)
+          return (
+            <li key={fav.id} className={styles.item}>
+              <button
+                type="button"
+                className={styles.itemBody}
+                onClick={() => start(fav)}
+              >
+                <span className={styles.icon}>
+                  <Icon size={24} />
+                </span>
+                <span className={styles.name}>{fav.name}</span>
+                <span className={styles.summary}>{formatFavoriteSummary(fav)}</span>
+              </button>
+              <button
+                type="button"
+                aria-label="Favorit löschen"
+                className={styles.delete}
+                onClick={() => {
+                  if (window.confirm('Favorit löschen?')) del.mutate(fav.id)
+                }}
+              >
+                ✕
+              </button>
+            </li>
+          )
+        })}
+        <li className={styles.item}>
+          <button
+            type="button"
+            className={styles.itemBody}
+            onClick={startJustRow}
+            data-testid="picker-just-row"
+          >
+            <span className={styles.icon}>
+              <IconJustRow size={24} />
+            </span>
+            <span className={styles.name}>Nur rudern</span>
+            <span className={styles.summary}>Schnellstart ohne Ziel</span>
+          </button>
+        </li>
+        <li className={styles.item}>
+          <button
+            type="button"
+            className={styles.itemBody}
+            onClick={() => nav('/workout/new')}
+            data-testid="picker-new-workout"
+          >
+            <span className={styles.icon}>
+              <IconBolt width={24} height={24} />
+            </span>
+            <span className={styles.name}>Neues Workout</span>
+            <span className={styles.summary}>Distanz · Zeit · Intervalle</span>
+          </button>
+        </li>
       </ul>
     </section>
   )
