@@ -93,6 +93,17 @@ type sessionState struct {
 	restSec       float64
 	cooldownSec   float64
 	phaseLastTime float64
+	// Anchors rebase PM5 cumulative values to session-relative.
+	// storage anchor is captured at the first stroke and never moves;
+	// every persisted/emitted stroke has its DistanceM/TimeSec rebased
+	// against it. phase anchor drives PhasePlan.Classify and resets on
+	// workout_attached so a mid-session attach gets a fresh warmup.
+	storageAnchorSet      bool
+	storageAnchorDistance int
+	storageAnchorTimeSec  float64
+	phaseAnchorSet        bool
+	phaseAnchorDistance   int
+	phaseAnchorTimeSec    float64
 }
 
 func New(o Options) *Sessionizer {
@@ -194,6 +205,18 @@ func (s *Sessionizer) handleAttach(ctx context.Context, id string, out chan<- ev
 	s.mu.Lock()
 	s.pendingWorkoutID = ""
 	s.mu.Unlock()
+	// Rebuild the phase plan against the freshly attached workout, and
+	// drop the phase anchor so the next stroke captures a new origin.
+	if s.opts.LoadWorkout != nil && id != "" {
+		if w, err := s.opts.LoadWorkout(id); err == nil && w != nil {
+			if pp, perr := BuildPhasePlan(w); perr == nil {
+				s.session.plan = pp
+			}
+		}
+	}
+	s.session.phaseAnchorSet = false
+	s.session.currentPhase = PhaseWork
+	s.session.phaseLastTime = 0
 	e := event.Event{
 		Kind:            event.KindWorkoutAttached,
 		SessionID:       s.session.id,
@@ -248,10 +271,34 @@ func (s *Sessionizer) onFrame(ctx context.Context, f ipm.Frame, out chan<- event
 		}
 	}
 
+	// Capture absolute (PM5-cumulative) values before rebasing; they are
+	// needed when re-anchoring on workout_attached.
+	absDist, absTime := f.DistanceM, f.TimeSec
+	if !s.session.storageAnchorSet {
+		s.session.storageAnchorSet = true
+		s.session.storageAnchorDistance = absDist
+		s.session.storageAnchorTimeSec = absTime
+	}
+	if !s.session.phaseAnchorSet {
+		s.session.phaseAnchorSet = true
+		s.session.phaseAnchorDistance = absDist
+		s.session.phaseAnchorTimeSec = absTime
+		if s.session.plan != nil {
+			s.session.plan.Reset()
+		}
+	}
+	// Rebase the frame in place so every downstream consumer sees
+	// session-relative values from t=0.
+	f.DistanceM -= s.session.storageAnchorDistance
+	f.TimeSec -= s.session.storageAnchorTimeSec
+
 	stroke := s.enrich(f)
 
-	// Classify stroke into its phase and detect boundaries.
-	phase, complete := s.session.plan.Classify(stroke.DistanceM, stroke.TimeSec)
+	// Phase plan operates on phase-anchor-relative values, which differ
+	// from storage-relative when the workout was attached mid-session.
+	phaseOffsetDist := s.session.phaseAnchorDistance - s.session.storageAnchorDistance
+	phaseOffsetTime := s.session.phaseAnchorTimeSec - s.session.storageAnchorTimeSec
+	phase, complete := s.session.plan.Classify(stroke.DistanceM-phaseOffsetDist, stroke.TimeSec-phaseOffsetTime)
 	stroke.Phase = phase.String()
 	if phase != s.session.currentPhase {
 		dt := stroke.TimeSec - s.session.phaseLastTime

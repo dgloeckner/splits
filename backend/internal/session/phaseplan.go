@@ -129,6 +129,16 @@ func BuildPhasePlan(w *workout.Workout) (*PhasePlan, error) {
 	return p, nil
 }
 
+// Reset clears the crossedAt cache so subsequent classifications behave
+// as if the session just started. Used when the sessionizer re-anchors
+// the phase plan (e.g. when a workout is attached mid-session).
+func (p *PhasePlan) Reset() {
+	if p == nil {
+		return
+	}
+	p.crossedAt = make(map[int]float64)
+}
+
 // Classify returns the phase for the given absolute (distanceM, timeSec).
 // The second return is true when the entire workout is complete (cooldown
 // elapsed, or last work segment done if no cooldown).

@@ -392,10 +392,12 @@ func TestSessionizerEmitsPhaseChange(t *testing.T) {
 // TestSessionizerEndsOnWorkoutComplete verifies that the sessionizer
 // automatically closes the session (emits KindSessionEnd) when the
 // PhasePlan reports the workout is complete (cooldown elapsed).
-// Fixture: 100m, warmup=0, cooldown=30s.
-//   - t=10, d=100: crossing stroke → PhaseWork (crossedAt recorded); no phase_change
-//   - t=20, d=101: past target → PhaseCooldown begins; phase_change(work→cooldown)
-//   - t=51, d=101: cooldown 30s elapsed (51-10=41>30) → PhaseDone+complete → session_end
+// Fixture: 100m, warmup=0, cooldown=30s. Frames carry PM5-cumulative
+// values; the sessionizer rebases the first stroke to (0,0).
+//   - t=10, d=0:    anchor stroke → rebased (0,0); work; no phase_change
+//   - t=20, d=100:  rebased (10,100); work crossing (crossedAt=10)
+//   - t=30, d=101:  rebased (20,101); cooldown begins; phase_change(work→cooldown)
+//   - t=61, d=101:  rebased (51,101); cooldown elapsed (51-10=41>30); session_end
 func TestSessionizerEndsOnWorkoutComplete(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -411,16 +413,16 @@ func TestSessionizerEndsOnWorkoutComplete(t *testing.T) {
 	go func() { _ = s.Run(ctx, in, out) }()
 
 	s.StartSession("test-workout")
-	in <- frame(10, 100, 25, 200, 3) // work (crossing stroke; crossedAt=10)
-	in <- frame(20, 101, 25, 200, 3) // cooldown (past target; phase_change work→cooldown)
-	in <- frame(51, 101, 25, 200, 3) // done (cooldown 30s elapsed: 51-10=41>30; session_end)
+	in <- frame(10, 0, 25, 200, 3)   // anchor stroke (rebased 0,0); work
+	in <- frame(20, 100, 25, 200, 3) // crossing (rebased 10,100); work
+	in <- frame(30, 101, 25, 200, 3) // cooldown (rebased 20,101)
+	in <- frame(61, 101, 25, 200, 3) // done (rebased 51,101); session_end
 
-	// Events: session_start,
-	//         stroke(work/crossing),
+	// Events: session_start, stroke(anchor), stroke(crossing),
 	//         phase_change(work→cooldown), stroke(cooldown),
 	//         phase_change(cooldown→done), stroke(done),
-	//         session_end  = 7 total
-	got := drain(t, out, 7)
+	//         session_end = 8 total
+	got := drain(t, out, 8)
 
 	ends := collectKind(got, event.KindSessionEnd)
 	if len(ends) != 1 {
@@ -514,5 +516,143 @@ func TestSessionizerSummaryAvgSPI(t *testing.T) {
 	wantSPI := 200 / 25
 	if sum.AvgSPI != wantSPI {
 		t.Errorf("AvgSPI = %d, want %d", sum.AvgSPI, wantSPI)
+	}
+}
+
+// TestSessionizerRebasesStrokesFromFirstStroke verifies that the first
+// stroke after session_start anchors the session, so subsequent strokes
+// are emitted with values relative to it (rather than the PM5's absolute
+// cumulative time/distance).
+func TestSessionizerRebasesStrokesFromFirstStroke(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	in := make(chan ipm.Frame, 4)
+	out := make(chan event.Event, 16)
+	s := New(Options{IdleTimeout: time.Minute, Now: time.Now})
+	go func() { _ = s.Run(ctx, in, out) }()
+
+	s.StartSession("")
+	in <- frame(30, 50, 25, 200, 3) // user rowed 30s/50m on the PM5 before pressing Start
+	in <- frame(35, 60, 25, 200, 3)
+	got := drain(t, out, 3) // session_start, stroke, stroke
+
+	strokes := collectKind(got, event.KindStroke)
+	if len(strokes) != 2 {
+		t.Fatalf("expected 2 stroke events, got %d", len(strokes))
+	}
+	if got, want := strokes[0].Stroke.TimeSec, 0.0; got != want {
+		t.Errorf("first stroke TimeSec = %v, want %v (rebased)", got, want)
+	}
+	if got, want := strokes[0].Stroke.DistanceM, 0; got != want {
+		t.Errorf("first stroke DistanceM = %d, want %d (rebased)", got, want)
+	}
+	if got, want := strokes[1].Stroke.TimeSec, 5.0; got != want {
+		t.Errorf("second stroke TimeSec = %v, want %v", got, want)
+	}
+	if got, want := strokes[1].Stroke.DistanceM, 10; got != want {
+		t.Errorf("second stroke DistanceM = %d, want %d", got, want)
+	}
+}
+
+// TestSessionizerWarmupNotSkippedWhenPM5PreCounted verifies that a
+// pre-roll on the PM5 (e.g. user rowed 2 minutes before pressing Start)
+// does not consume the workout's warmup. After rebase the first stroke
+// is at (0,0), so warmup phase is honored from there.
+func TestSessionizerWarmupNotSkippedWhenPM5PreCounted(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	in := make(chan ipm.Frame, 8)
+	out := make(chan event.Event, 32)
+
+	w := makeDistanceWorkout(100, 60, 0) // warmup 60s, distance 100m, no cooldown
+	s := New(Options{
+		IdleTimeout: time.Minute,
+		Now:         time.Now,
+		LoadWorkout: func(id string) (*workout.Workout, error) { return w, nil },
+	})
+	go func() { _ = s.Run(ctx, in, out) }()
+
+	s.StartSession("test-workout")
+	in <- frame(120, 200, 25, 200, 3) // PM5 cumulative 2 min / 200 m before press
+	in <- frame(125, 205, 25, 200, 3)
+	got := drain(t, out, 4) // session_start, phase_change(work→warmup)?, stroke, stroke
+
+	strokes := collectKind(got, event.KindStroke)
+	if len(strokes) != 2 {
+		t.Fatalf("expected 2 stroke events, got %d", len(strokes))
+	}
+	for i, st := range strokes {
+		if st.Stroke.Phase != "warmup" {
+			t.Errorf("stroke[%d] phase = %q, want %q (rebased timeSec inside warmup window)", i, st.Stroke.Phase, "warmup")
+		}
+	}
+}
+
+// TestSessionizerReanchorsOnWorkoutAttach verifies that attaching a
+// workout to a free-row session resets the phase anchor, so warmup
+// starts fresh from the next stroke after the attach. Storage anchor
+// stays put — persisted stroke distance/time keep climbing monotonically.
+func TestSessionizerReanchorsOnWorkoutAttach(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	in := make(chan ipm.Frame, 8)
+	out := make(chan event.Event, 32)
+
+	w := makeDistanceWorkout(100, 30, 0) // warmup 30s, distance 100m
+	s := New(Options{
+		IdleTimeout: time.Minute,
+		Now:         time.Now,
+		LoadWorkout: func(id string) (*workout.Workout, error) { return w, nil },
+	})
+	go func() { _ = s.Run(ctx, in, out) }()
+
+	// Free-row first.
+	s.StartSession("")
+	in <- frame(0, 0, 25, 200, 3)     // anchor
+	in <- frame(60, 300, 25, 200, 3)  // 60s / 300m into free-row
+	_ = drain(t, out, 3)              // session_start, stroke, stroke
+
+	// Attach workout mid-session.
+	s.AttachWorkout("test-workout")
+	in <- frame(65, 305, 25, 200, 3)  // first stroke after attach: phase anchor = absolute (65,305)
+	in <- frame(80, 310, 25, 200, 3)  // 15s into workout warmup
+	got := drain(t, out, 4)           // workout_attached, phase_change, stroke, stroke ?
+
+	strokes := collectKind(got, event.KindStroke)
+	if len(strokes) != 2 {
+		t.Fatalf("expected 2 stroke events after attach, got %d", len(strokes))
+	}
+	// Both strokes must classify as warmup (phase-relative time < 30s).
+	for i, st := range strokes {
+		if st.Stroke.Phase != "warmup" {
+			t.Errorf("post-attach stroke[%d] phase = %q, want warmup", i, st.Stroke.Phase)
+		}
+	}
+	// Storage anchor still at frame1 (0,0) so persisted distances climb monotonically.
+	if got, want := strokes[0].Stroke.DistanceM, 305; got != want {
+		t.Errorf("first post-attach stroke DistanceM = %d, want %d (storage-relative)", got, want)
+	}
+	if got, want := strokes[1].Stroke.DistanceM, 310; got != want {
+		t.Errorf("second post-attach stroke DistanceM = %d, want %d", got, want)
+	}
+}
+
+// TestPhasePlanReset clears the crossedAt cache so the next encounter
+// with a previously-crossed segment returns the segment's own kind again.
+func TestPhasePlanReset(t *testing.T) {
+	w := makeDistanceWorkout(100, 0, 0)
+	plan, err := BuildPhasePlan(w)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p, complete := plan.Classify(100, 10); p != PhaseWork || complete {
+		t.Fatalf("first classify: got (%v,%v), want (PhaseWork,false)", p, complete)
+	}
+	if p, complete := plan.Classify(101, 11); p != PhaseDone || !complete {
+		t.Fatalf("after crossing: got (%v,%v), want (PhaseDone,true)", p, complete)
+	}
+	plan.Reset()
+	if p, complete := plan.Classify(100, 20); p != PhaseWork || complete {
+		t.Fatalf("after reset: got (%v,%v), want (PhaseWork,false) — crossedAt cleared", p, complete)
 	}
 }
