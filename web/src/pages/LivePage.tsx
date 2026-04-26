@@ -11,13 +11,11 @@ import { WorkoutProgressStrip } from './live/WorkoutProgressStrip'
 import { SegmentStatus } from './live/SegmentStatus'
 import { SessionEndedOverlay } from './live/SessionEndedOverlay'
 import { useSegmentTransitions } from '../live/useSegmentTransitions'
-import { useAutoEndOnComplete } from '../live/useAutoEndOnComplete'
 import { usePBBanners } from './live/usePBBanners'
 import styles from './LivePage.module.css'
 
 function LiveBody() {
   useSegmentTransitions()
-  useAutoEndOnComplete()
   const state = useLiveSession()
   const { reset } = useWorkoutOverlay()
   const workoutId = state.session?.workout_id ?? null
