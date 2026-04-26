@@ -1,0 +1,45 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.sectionLabel {
+  font-family: var(--font-body, 'Inter'), sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-on-surface-variant);
+  margin: 0;
+}
+
+.row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: var(--color-surface-container, #1f2020);
+  border-radius: 8px;
+}
+
+.label {
+  font-family: var(--font-body, 'Inter'), sans-serif;
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+}
+
+.value {
+  font-family: var(--font-display, 'Space Grotesk'), sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-on-surface);
+}
+
+.empty {
+  color: var(--color-on-surface-variant);
+  font-size: 14px;
+  padding: var(--space-3);
+}
