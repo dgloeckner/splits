@@ -240,6 +240,16 @@ func (s *Sessionizer) onFrame(ctx context.Context, f ipm.Frame, out chan<- event
 	}); err != nil {
 		return err
 	}
+	// Capture the previous-stroke distance BEFORE accumulate, since
+	// accumulate overwrites s.session.lastStroke with the current
+	// stroke (so the post-accumulate comparison would always be
+	// equal and lastActivity would freeze at the first stroke,
+	// causing a spurious inactivity-timeout close).
+	prevDistance := -1
+	hadPrev := s.session.lastStroke != nil
+	if hadPrev {
+		prevDistance = s.session.lastStroke.DistanceM
+	}
 	s.accumulate(&stroke)
 
 	if s.session.lastLevel != 0 && stroke.Level != s.session.lastLevel {
@@ -259,8 +269,7 @@ func (s *Sessionizer) onFrame(ctx context.Context, f ipm.Frame, out chan<- event
 	// A frame counts as "activity" only if distance advanced. Idle
 	// broadcasts (same DistanceM repeated) leave lastActivity untouched
 	// so InactivityTimeout can fire.
-	if s.session.lastStroke != nil &&
-		s.session.lastStroke.DistanceM != stroke.DistanceM {
+	if hadPrev && prevDistance != stroke.DistanceM {
 		s.session.lastActivity = now
 	} else if s.session.strokes == 1 {
 		// First stroke: seed activity timer so a brand-new session
