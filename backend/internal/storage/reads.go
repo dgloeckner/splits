@@ -54,8 +54,12 @@ func ListSessions(ctx context.Context, db *sql.DB, limit, offset int) ([]Session
 	rows, err := db.QueryContext(ctx, `
 		SELECT s.id, s.rower_id, s.workout_id, s.started_at, s.ended_at, s.initial_level,
 		       s.total_distance_m, s.total_time_sec, s.total_strokes, s.summary_json,
-		       EXISTS(SELECT 1 FROM achievements a
-		              WHERE a.source_session_id = s.id AND a.invalidated_at IS NULL) AS has_pb
+		       (EXISTS(SELECT 1 FROM pb_distance pd
+		               WHERE pd.source_session_id = s.id AND pd.invalidated_at IS NULL)
+		        OR EXISTS(SELECT 1 FROM pb_window pw
+		                  WHERE pw.source_session_id = s.id AND pw.invalidated_at IS NULL)
+		        OR EXISTS(SELECT 1 FROM pb_workout pwo
+		                  WHERE pwo.source_session_id = s.id AND pwo.invalidated_at IS NULL)) AS has_pb
 		FROM sessions s
 		WHERE s.deleted_at IS NULL
 		  AND COALESCE(s.total_strokes, 0) > 0
@@ -83,8 +87,12 @@ func GetSession(ctx context.Context, db *sql.DB, id string) (*SessionRow, error)
 	row := db.QueryRowContext(ctx, `
 		SELECT s.id, s.rower_id, s.workout_id, s.started_at, s.ended_at, s.initial_level,
 		       s.total_distance_m, s.total_time_sec, s.total_strokes, s.summary_json,
-		       EXISTS(SELECT 1 FROM achievements a
-		              WHERE a.source_session_id = s.id AND a.invalidated_at IS NULL) AS has_pb
+		       (EXISTS(SELECT 1 FROM pb_distance pd
+		               WHERE pd.source_session_id = s.id AND pd.invalidated_at IS NULL)
+		        OR EXISTS(SELECT 1 FROM pb_window pw
+		                  WHERE pw.source_session_id = s.id AND pw.invalidated_at IS NULL)
+		        OR EXISTS(SELECT 1 FROM pb_workout pwo
+		                  WHERE pwo.source_session_id = s.id AND pwo.invalidated_at IS NULL)) AS has_pb
 		FROM sessions s
 		WHERE s.id = ? AND s.deleted_at IS NULL`, id)
 	r, err := scanSession(row)
