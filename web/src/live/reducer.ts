@@ -229,6 +229,11 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
             ...state,
             phase: p.to as LiveState['phase'],
             phaseAnchor: { distanceM: p.at_distance_m, timeSec: p.at_time_sec },
+            // Re-calibrate the live charts at every phase boundary so a
+            // slow warmup doesn't leave the work-phase y-axis squashed
+            // (and vice versa for cooldown).
+            sparklines: { power: [], split: [], dps: [], spm: [] },
+            smoothed: null,
           }
         }
       }
