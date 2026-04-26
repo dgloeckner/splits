@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useWorkoutFlow } from './WorkoutFlowProvider'
 import { distancePresets, timePresets, intervalPresets } from './presets'
 import styles from './Step2Dimension.module.css'
@@ -271,7 +272,8 @@ function IntervalsPanel() {
 // ── Root component ────────────────────────────────────────────────────────────
 
 export function Step2Dimension() {
-  const { state, dispatch } = useWorkoutFlow()
+  const { state } = useWorkoutFlow()
+  const nav = useNavigate()
 
   if (!state.mode) return null
 
@@ -281,7 +283,7 @@ export function Step2Dimension() {
         <button
           type="button"
           className={styles.back}
-          onClick={() => dispatch({ type: 'GO_BACK' })}
+          onClick={() => nav('/')}
           aria-label="Zurück"
         >
           ← Zurück

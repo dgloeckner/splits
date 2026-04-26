@@ -1,57 +1,103 @@
 .page { padding: 16px; }
 .heading { font-size: 24px; margin: 0 0 var(--space-3); }
 
-.tiles {
+.start {
   display: grid;
   gap: var(--space-2);
+  margin-bottom: var(--space-4);
 }
 
-.tilePrimary,
-.tileSecondary {
+.hero {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-0-5);
+  align-items: center;
+  gap: var(--space-2);
   width: 100%;
   padding: var(--space-3);
   border: none;
   border-radius: var(--radius-card);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
   cursor: pointer;
   text-align: left;
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
   transition: background-color var(--motion-state) var(--motion-ease),
               box-shadow var(--motion-state) var(--motion-ease);
 }
 
-.tilePrimary {
-  background: var(--color-primary);
-  color: var(--color-on-primary);
-  box-shadow: 0 2px 8px rgb(0 0 0 / 0.18);
-}
-
-.tilePrimary:active {
+.hero:active {
   background: var(--color-primary-container);
   box-shadow: none;
 }
 
-.tileSecondary {
-  background: var(--color-surface-container-high);
-  color: var(--color-on-surface);
-  box-shadow: 0 1px 4px rgb(0 0 0 / 0.10);
+.heroIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-card);
+  background: rgb(0 0 0 / 0.12);
 }
 
-.tileSecondary:active {
+.heroText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.heroLabel {
+  font-family: var(--font-display);
+  font-size: var(--text-title-md);
+  font-weight: 700;
+}
+
+.heroHint {
+  font-family: var(--font-body);
+  font-size: var(--text-label-sm);
+  opacity: 0.85;
+}
+
+.modes {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.mode {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  border-radius: var(--radius-card);
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface);
+  cursor: pointer;
+  text-align: left;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.10);
+  transition: background-color var(--motion-state) var(--motion-ease);
+}
+
+.mode:active {
   background: var(--color-surface-container-highest);
   box-shadow: none;
 }
 
-.tileLabel {
+.modeIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-card);
+  background: var(--color-surface-container);
+  color: var(--color-primary);
+}
+
+.modeLabel {
   font-family: var(--font-display);
   font-size: var(--text-title-md);
   font-weight: 600;
-}
-
-.tileHint {
-  font-family: var(--font-body);
-  font-size: var(--text-label-sm);
-  opacity: 0.8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }

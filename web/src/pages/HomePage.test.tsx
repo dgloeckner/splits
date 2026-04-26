@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { MemoryRouter, Routes, Route, useParams } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { HomePage } from './HomePage'
 
@@ -12,6 +12,11 @@ afterEach(() => {
   global.fetch = originalFetch
 })
 
+function FlowStub() {
+  const { mode } = useParams()
+  return <div>FLOW:{mode}</div>
+}
+
 function renderHome() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
@@ -20,7 +25,7 @@ function renderHome() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/live" element={<div>LIVE</div>} />
-          <Route path="/workout/new" element={<div>NEW WORKOUT</div>} />
+          <Route path="/workout/new/:mode" element={<FlowStub />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,
@@ -33,7 +38,7 @@ describe('HomePage', () => {
     expect(screen.getByRole('heading', { name: /home/i })).toBeInTheDocument()
   })
 
-  it('Nur rudern tile starts session and navigates to /live', async () => {
+  it('Nur rudern hero starts session and navigates to /live', async () => {
     let started = false
     global.fetch = vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
       if (String(url) === '/api/v1/session/start' && init?.method === 'POST') {
@@ -48,9 +53,13 @@ describe('HomePage', () => {
     expect(started).toBe(true)
   })
 
-  it('Neues Workout tile navigates to /workout/new', async () => {
+  it.each([
+    ['Distanz', 'distance'],
+    ['Zeit', 'time'],
+    ['Intervalle', 'intervals'],
+  ])('%s tile navigates to /workout/new/%s', async (label, mode) => {
     renderHome()
-    await userEvent.click(screen.getByRole('button', { name: /neues workout/i }))
-    expect(screen.getByText('NEW WORKOUT')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: new RegExp(label, 'i') }))
+    expect(await screen.findByText(`FLOW:${mode}`)).toBeInTheDocument()
   })
 })

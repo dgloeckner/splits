@@ -1,34 +1,32 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router-dom'
-import { useEffect } from 'react'
-import { WorkoutFlowProvider, useWorkoutFlow } from './WorkoutFlowProvider'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { WorkoutFlowProvider, useWorkoutFlow, type FlowMode } from './WorkoutFlowProvider'
 import { Step2Dimension } from './Step2Dimension'
 
-function Harness({
-  mode,
-  out,
-}: {
-  mode: 'distance' | 'time' | 'intervals'
-  out: { step: unknown; state: any }
-}) {
-  const { state, dispatch } = useWorkoutFlow()
-  useEffect(() => {
-    if (!state.mode) dispatch({ type: 'SELECT_MODE', mode })
-  }, [state.mode, dispatch, mode])
+function Harness({ out }: { out: { step: unknown; state: any } }) {
+  const { state } = useWorkoutFlow()
   out.step = state.step
   out.state = state
   return <Step2Dimension />
 }
 
-function renderHarness(mode: 'distance' | 'time' | 'intervals') {
+function renderHarness(mode: FlowMode) {
   const out = { step: 0 as unknown, state: null as any }
   render(
-    <MemoryRouter>
-      <WorkoutFlowProvider>
-        <Harness mode={mode} out={out} />
-      </WorkoutFlowProvider>
+    <MemoryRouter initialEntries={['/flow']}>
+      <Routes>
+        <Route
+          path="/flow"
+          element={
+            <WorkoutFlowProvider mode={mode}>
+              <Harness out={out} />
+            </WorkoutFlowProvider>
+          }
+        />
+        <Route path="/" element={<div>HOME</div>} />
+      </Routes>
     </MemoryRouter>,
   )
   return out
@@ -172,10 +170,10 @@ describe('Step2Dimension – intervals', () => {
 })
 
 describe('Step2Dimension – back navigation', () => {
-  it('back button returns to step 1', async () => {
-    const out = renderHarness('distance')
+  it('back button navigates home', async () => {
+    renderHarness('distance')
     await screen.findByRole('button', { name: /eigene/i })
     await userEvent.click(screen.getByRole('button', { name: /zurück/i }))
-    expect(out.step).toBe(1)
+    expect(screen.getByText('HOME')).toBeInTheDocument()
   })
 })

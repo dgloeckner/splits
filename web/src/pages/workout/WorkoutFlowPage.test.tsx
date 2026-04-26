@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen, act } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { WorkoutFlowPage } from './WorkoutFlowPage'
 import { WorkoutFlowProvider, useWorkoutFlow } from './WorkoutFlowProvider'
 
@@ -24,7 +24,7 @@ function Probe() {
 }
 
 describe('WorkoutFlowProvider', () => {
-  it('transitions through steps correctly', () => {
+  it('without mode prop, transitions through legacy steps via SELECT_MODE', () => {
     render(<MemoryRouter><WorkoutFlowProvider><Probe /></WorkoutFlowProvider></MemoryRouter>)
     expect(screen.getByTestId('state-step').textContent).toBe('1')
     act(() => { screen.getByText('go-dist').click() })
@@ -40,6 +40,12 @@ describe('WorkoutFlowProvider', () => {
     expect(screen.getByTestId('state-step').textContent).toBe('3')
   })
 
+  it('with mode prop, seeds step 2 and pre-selected mode', () => {
+    render(<MemoryRouter><WorkoutFlowProvider mode="time"><Probe /></WorkoutFlowProvider></MemoryRouter>)
+    expect(screen.getByTestId('state-step').textContent).toBe('2')
+    expect(screen.getByTestId('state-mode').textContent).toBe('time')
+  })
+
   it('toggles warmup independently of step', () => {
     render(<MemoryRouter><WorkoutFlowProvider><Probe /></WorkoutFlowProvider></MemoryRouter>)
     expect(screen.getByTestId('state-warmup').textContent).toBe('true-300')
@@ -49,8 +55,29 @@ describe('WorkoutFlowProvider', () => {
 })
 
 describe('WorkoutFlowPage', () => {
-  it('renders Step1Mode at mount', () => {
-    render(<MemoryRouter><WorkoutFlowPage /></MemoryRouter>)
-    expect(screen.getByRole('heading', { name: 'Workout wählen' })).toBeInTheDocument()
+  function renderAt(path: string) {
+    return render(
+      <MemoryRouter initialEntries={[path]}>
+        <Routes>
+          <Route path="/" element={<div>HOME</div>} />
+          <Route path="/workout/new/:mode" element={<WorkoutFlowPage />} />
+        </Routes>
+      </MemoryRouter>,
+    )
+  }
+
+  it('renders Step2Dimension with mode preset from URL', () => {
+    renderAt('/workout/new/distance')
+    expect(screen.getByRole('heading', { name: 'Distanz wählen' })).toBeInTheDocument()
+  })
+
+  it('redirects home for invalid mode', () => {
+    renderAt('/workout/new/bogus')
+    expect(screen.getByText('HOME')).toBeInTheDocument()
+  })
+
+  it('shows step indicator "1 / 2" at start', () => {
+    renderAt('/workout/new/time')
+    expect(screen.getByText('1 / 2')).toBeInTheDocument()
   })
 })

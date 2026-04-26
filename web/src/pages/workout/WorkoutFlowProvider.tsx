@@ -1,12 +1,14 @@
-import { createContext, useContext, useReducer, type Dispatch, type ReactNode } from 'react'
+import { createContext, useContext, useMemo, useReducer, type Dispatch, type ReactNode } from 'react'
 
 export type FlowMode = 'distance' | 'time' | 'intervals'
 export type FlowIntensity = 'locker' | 'moderat' | 'hart' | 'allout'
 export type IntervalLength = { unit: 'm' | 'min'; value: number }
 export type IntervalsParams = { reps: number; length: IntervalLength; rest_sec: number }
 
+export type FlowStep = 1 | 2 | 3 | 'confirm'
+
 export type FlowState = {
-  step: 1 | 2 | 3 | 'confirm'
+  step: FlowStep
   mode?: FlowMode
   distanceMeters?: number
   timeSeconds?: number
@@ -37,7 +39,7 @@ export type FlowAction =
   | { type: 'GO_TO_CONFIRM' }
   | { type: 'RESET' }
 
-const initial: FlowState = {
+const baseInitial: FlowState = {
   step: 1,
   warmupEnabled: true,
   warmupSec: 300,
@@ -45,6 +47,11 @@ const initial: FlowState = {
   cooldownSec: 300,
   saveAsFavorite: false,
   favoriteName: '',
+}
+
+function makeInitial(mode?: FlowMode): FlowState {
+  if (!mode) return baseInitial
+  return { ...baseInitial, step: 2, mode }
 }
 
 function reducer(state: FlowState, action: FlowAction): FlowState {
@@ -81,15 +88,16 @@ function reducer(state: FlowState, action: FlowAction): FlowState {
       if (state.step === 2) return { ...state, step: 1 }
       return state
     case 'RESET':
-      return initial
+      return baseInitial
   }
 }
 
 type Ctx = { state: FlowState; dispatch: Dispatch<FlowAction> }
 const FlowContext = createContext<Ctx | null>(null)
 
-export function WorkoutFlowProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initial)
+export function WorkoutFlowProvider({ mode, children }: { mode?: FlowMode; children: ReactNode }) {
+  const init = useMemo(() => makeInitial(mode), [mode])
+  const [state, dispatch] = useReducer(reducer, init)
   return <FlowContext.Provider value={{ state, dispatch }}>{children}</FlowContext.Provider>
 }
 

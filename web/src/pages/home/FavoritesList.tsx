@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { startSession } from '../../api/client'
 import { deleteFavorite, listFavorites, type Favorite } from '../../api/favorites'
 import { createWorkout } from '../../api/workouts'
-import { workoutIconFor, IconJustRow } from '../../icons/workout'
-import { IconBolt } from '../../icons/IconBolt'
+import { workoutIconFor } from '../../icons/workout'
 import styles from './FavoritesList.module.css'
 
 export type Props = { rowerID?: string }
@@ -36,14 +35,11 @@ export function FavoritesList({ rowerID }: Props) {
     nav('/live')
   }
 
-  async function startJustRow() {
-    await startSession()
-    nav('/live')
-  }
+  if (favorites.length === 0) return null
 
   return (
     <section data-testid="favorites-list" className={styles.section}>
-      <h2 className={styles.heading}>Workout wählen</h2>
+      <h2 className={styles.heading}>Favoriten</h2>
       <ul className={styles.list}>
         {favorites.map((fav) => {
           const Icon = workoutIconFor(fav.mode)
@@ -73,34 +69,6 @@ export function FavoritesList({ rowerID }: Props) {
             </li>
           )
         })}
-        <li className={styles.item}>
-          <button
-            type="button"
-            className={styles.itemBody}
-            onClick={startJustRow}
-            data-testid="picker-just-row"
-          >
-            <span className={styles.icon}>
-              <IconJustRow size={24} />
-            </span>
-            <span className={styles.name}>Nur rudern</span>
-            <span className={styles.summary}>Schnellstart ohne Ziel</span>
-          </button>
-        </li>
-        <li className={styles.item}>
-          <button
-            type="button"
-            className={styles.itemBody}
-            onClick={() => nav('/workout/new')}
-            data-testid="picker-new-workout"
-          >
-            <span className={styles.icon}>
-              <IconBolt width={24} height={24} />
-            </span>
-            <span className={styles.name}>Neues Workout</span>
-            <span className={styles.summary}>Distanz · Zeit · Intervalle</span>
-          </button>
-        </li>
       </ul>
     </section>
   )

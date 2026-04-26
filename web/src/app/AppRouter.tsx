@@ -8,6 +8,8 @@ import { WorkoutOverlayProvider } from '../pages/live/WorkoutOverlayContext'
 import { LivePage } from '../pages/LivePage'
 import { HomePage } from '../pages/HomePage'
 import { HistoryPage } from '../pages/HistoryPage'
+import { SessionsTab } from '../pages/history/SessionsTab'
+import { TrendsTab } from '../pages/history/TrendsTab'
 import { SessionDetailPage } from '../pages/SessionDetailPage'
 import { ProfilePage } from '../pages/ProfilePage'
 import { OnboardingPage } from '../pages/OnboardingPage'
@@ -25,8 +27,11 @@ export function AppRouter() {
               <Route element={<AppLayout />}>
                 <Route index element={<HomePage />} />
                 <Route path="/live" element={<LivePage />} />
-                <Route path="/workout/new" element={<WorkoutFlowPage />} />
-                <Route path="/historie" element={<HistoryPage />} />
+                <Route path="/workout/new/:mode" element={<WorkoutFlowPage />} />
+                <Route path="/historie" element={<HistoryPage />}>
+                  <Route index element={<SessionsTab />} />
+                  <Route path="trends" element={<TrendsTab />} />
+                </Route>
                 <Route path="/historie/:sessionId" element={<SessionDetailPage />} />
                 <Route path="/profil" element={<ProfilePage />} />
                 <Route path="*" element={<NotFound />} />
