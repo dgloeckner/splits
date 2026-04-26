@@ -47,10 +47,13 @@ ALTER TABLE sessions ADD COLUMN session_calories REAL;
 
 `total_distance_m`, `total_time_sec`, `total_strokes` already exist as columns.
 
-**Rename `summary_json` to `samples_json`** to reflect its new (narrowed)
-contents: only `{samples: [...]}`. Implementation: SQLite recreate-table
-pattern (CREATE new, INSERT-SELECT, DROP old, RENAME) since SQLite < 3.25
-lacks RENAME COLUMN. New app — no production data risk.
+**Keep `summary_json` column name and TEXT type.** After refactor it carries
+only `{samples: [...]}` — the downsampled per-bucket timeseries used by
+session-detail charts. No rename: read pattern is always whole-blob (never
+queried by row), single read site (`GET /api/v1/sessions/{id}/samples`), so
+JSON remains the natural representation. Native-table extraction was
+considered and declined — would add 200–1000 row inserts per session-end
+with no read-perf gain.
 
 **New native candidate tables:**
 
@@ -122,7 +125,7 @@ then grouping keys, then sortable value last.
 At session end, the in-memory `SessionSummary` struct (unchanged) is split:
 
 1. Aggregate metric fields → UPDATE `sessions` columns
-2. `samples` slice → marshalled into `samples_json`
+2. `samples` slice → marshalled into `summary_json` as `{samples: [...]}`
 3. `pb_candidates.distance` → INSERT rows into `session_pb_distance_candidates`
 4. `pb_candidates.window` → INSERT rows into `session_pb_window_candidates`
 5. `pb_candidates.workout` (optional) → INSERT row into `session_pb_workout_candidate`
@@ -177,19 +180,20 @@ Pure SQL. No Go-side iteration.
 
 ### Read path (`sessions.go`, session detail)
 
-Session-detail GET reads aggregate columns directly + reads `samples_json` for
-the timeseries. Builds the existing `SessionSummary` API shape from columns
-+ samples. API response shape unchanged.
+Session-detail GET reads aggregate columns directly + reads `summary_json` for
+the samples timeseries. Builds the existing `SessionSummary` API shape from
+columns + samples. API response shape unchanged.
 
 `storage/reads.go` SELECT lists updated to pull aggregate columns instead of
-`summary_json` (except where samples are needed).
+parsing the old broad `summary_json`. `summary_json` is read only on the
+session-detail / samples endpoint.
 
 ### Janitor
 
-`storage/janitor.go` currently rekeys legacy CamelCase summary_json blobs.
-Since this is a new app and we're recreating the schema, drop the rekey path
-or leave it as a no-op against `samples_json` (which holds only samples now —
-no aggregate keys to migrate).
+`storage/janitor.go` currently rekeys legacy CamelCase `summary_json` blobs
+(e.g. `AvgPowerW` → `avg_power_w`). After refactor those keys live in typed
+columns, not JSON. The remaining `summary_json` content (samples) was never
+CamelCased. Drop the rekey path entirely, or narrow it to no-op.
 
 ## Test plan
 
@@ -223,8 +227,9 @@ no aggregate keys to migrate).
 - **Index bloat.** Four covering indices increase write cost on session
   end. Acceptable: writes are infrequent (one per session), reads are
   hot.
-- **`samples_json` rename.** Any code referencing `summary_json` must be
-  updated (grep target). `storage/janitor.go` legacy path possibly drops.
+- **`summary_json` content shrink.** Code that previously parsed it for
+  aggregates/candidates must switch to columns/native tables. Grep all
+  `summary_json` reads, audit each.
 
 ## Out of scope
 
