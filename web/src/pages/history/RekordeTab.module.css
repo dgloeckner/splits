@@ -1,0 +1,183 @@
+.empty {
+  color: var(--color-on-surface-variant);
+  font-size: 14px;
+  padding: var(--space-3);
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.sectionLabel {
+  font-family: var(--font-body, 'Inter'), sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-on-surface-variant);
+  margin: 0;
+}
+
+.distanceGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+@media (min-width: 600px) {
+  .distanceGrid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.distanceCard {
+  background: var(--color-surface-container, #1f2020);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.distanceLabel {
+  font-family: var(--font-body, 'Inter'), sans-serif;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-on-surface-variant);
+}
+
+.distanceValue {
+  font-family: var(--font-display, 'Space Grotesk'), sans-serif;
+  font-size: 26px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-on-surface);
+}
+
+.distanceDate {
+  font-family: var(--font-body, 'Inter'), sans-serif;
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+}
+
+.windowList {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+}
+
+.windowCard {
+  flex: 0 0 auto;
+  min-width: 160px;
+  background: var(--color-surface-container, #1f2020);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  scroll-snap-align: start;
+}
+
+.windowLabel {
+  font-family: var(--font-body, 'Inter'), sans-serif;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-on-surface-variant);
+}
+
+.windowValue {
+  font-family: var(--font-display, 'Space Grotesk'), sans-serif;
+  font-size: 22px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-on-surface);
+}
+
+.workoutList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.workoutCard {
+  background: var(--color-surface-container, #1f2020);
+  border-radius: 12px;
+  padding: 12px 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.workoutMode {
+  font-family: var(--font-body, 'Inter'), sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+}
+
+.workoutValue {
+  font-family: var(--font-display, 'Space Grotesk'), sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-on-surface);
+}
+
+.consistencyGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.consistencyCard {
+  background: var(--color-surface-container, #1f2020);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.consistencyLabel {
+  font-family: var(--font-body, 'Inter'), sans-serif;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-on-surface-variant);
+}
+
+.consistencyValue {
+  font-family: var(--font-display, 'Space Grotesk'), sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-on-surface);
+}
+
+.milestones {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: 4px;
+}
+
+.milestone {
+  flex: 0 0 auto;
+  background: var(--color-primary-container, rgba(0, 163, 175, 0.18));
+  color: var(--color-on-primary-container, var(--color-on-surface));
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-family: var(--font-body, 'Inter'), sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
