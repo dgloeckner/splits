@@ -92,10 +92,20 @@ export function LivePage() {
   // null → summary transition; remounting LivePage when the reducer
   // still holds a stale summary from a previous, already-acknowledged
   // session must NOT re-show the overlay.
-  const [latched, setLatched] = useState<{
+  type Latched = {
     summary: NonNullable<typeof state.summary>
     sessionId: string | null
-  } | null>(null)
+  }
+  const STORAGE_KEY = 'ruderergo:latched-summary'
+  const [latched, setLatched] = useState<Latched | null>(() => {
+    if (typeof window === 'undefined') return null
+    try {
+      const raw = window.sessionStorage.getItem(STORAGE_KEY)
+      return raw ? (JSON.parse(raw) as Latched) : null
+    } catch {
+      return null
+    }
+  })
   const prevSummaryRef = useRef(state.summary)
 
   const incomingSummary = state.summary
@@ -103,7 +113,11 @@ export function LivePage() {
   useEffect(() => {
     const prev = prevSummaryRef.current
     if (!prev && incomingSummary) {
-      setLatched({ summary: incomingSummary, sessionId: incomingSessionId })
+      const next: Latched = { summary: incomingSummary, sessionId: incomingSessionId }
+      setLatched(next)
+      try {
+        window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next))
+      } catch {}
       qc.invalidateQueries({ queryKey: ['sessions'] })
     }
     prevSummaryRef.current = incomingSummary
@@ -116,7 +130,12 @@ export function LivePage() {
   // Last-Event-ID and Snapshot.
 
   const banners = usePBBanners(latched?.sessionId ?? null)
-  const dismiss = () => setLatched(null)
+  const dismiss = () => {
+    setLatched(null)
+    try {
+      window.sessionStorage.removeItem(STORAGE_KEY)
+    } catch {}
+  }
 
   return (
     <>

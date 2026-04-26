@@ -60,6 +60,7 @@ type Sessionizer struct {
 	// current session state. Cleared on closeSession.
 	currentSessionStart    *event.Event
 	currentWorkoutAttached *event.Event
+	currentPhaseChange     *event.Event
 }
 
 type sessionState struct {
@@ -217,6 +218,9 @@ func (s *Sessionizer) handleAttach(ctx context.Context, id string, out chan<- ev
 	s.session.phaseAnchorSet = false
 	s.session.currentPhase = PhaseWork
 	s.session.phaseLastTime = 0
+	s.mu.Lock()
+	s.currentPhaseChange = nil
+	s.mu.Unlock()
 	e := event.Event{
 		Kind:            event.KindWorkoutAttached,
 		SessionID:       s.session.id,
@@ -310,7 +314,7 @@ func (s *Sessionizer) onFrame(ctx context.Context, f ipm.Frame, out chan<- event
 		case PhaseCooldown:
 			s.session.cooldownSec += dt
 		}
-		if err := s.emit(ctx, out, event.Event{
+		pc := event.Event{
 			Kind:      event.KindPhaseChange,
 			SessionID: s.session.id,
 			PhaseChange: &event.PhaseChangePayload{
@@ -320,8 +324,16 @@ func (s *Sessionizer) onFrame(ctx context.Context, f ipm.Frame, out chan<- event
 				AtTimeSec:   stroke.TimeSec,
 				AtDistanceM: stroke.DistanceM,
 			},
-		}); err != nil {
-			return err
+		}
+		s.stamp(&pc)
+		s.mu.Lock()
+		snap := pc
+		s.currentPhaseChange = &snap
+		s.mu.Unlock()
+		select {
+		case out <- pc:
+		case <-ctx.Done():
+			return ctx.Err()
 		}
 		s.session.currentPhase = phase
 		s.session.phaseLastTime = stroke.TimeSec
@@ -481,6 +493,7 @@ func (s *Sessionizer) openSessionInternal(ctx context.Context, out chan<- event.
 	snap := e
 	s.currentSessionStart = &snap
 	s.currentWorkoutAttached = nil
+	s.currentPhaseChange = nil
 	s.mu.Unlock()
 	select {
 	case out <- e:
@@ -589,6 +602,7 @@ func (s *Sessionizer) closeSession(ctx context.Context, out chan<- event.Event) 
 	s.mu.Lock()
 	s.currentSessionStart = nil
 	s.currentWorkoutAttached = nil
+	s.currentPhaseChange = nil
 	s.mu.Unlock()
 	return s.emit(ctx, out, event.Event{
 		Kind:      event.KindSessionEnd,
@@ -614,6 +628,9 @@ func (s *Sessionizer) Snapshot() []event.Event {
 	}
 	if s.currentWorkoutAttached != nil {
 		out = append(out, *s.currentWorkoutAttached)
+	}
+	if s.currentPhaseChange != nil {
+		out = append(out, *s.currentPhaseChange)
 	}
 	return out
 }
