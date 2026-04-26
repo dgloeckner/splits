@@ -10,6 +10,7 @@ import { HomePage } from '../pages/HomePage'
 import { HistoryPage } from '../pages/HistoryPage'
 import { SessionsTab } from '../pages/history/SessionsTab'
 import { TrendsTab } from '../pages/history/TrendsTab'
+import { RekordeTab } from '../pages/history/RekordeTab'
 import { SessionDetailPage } from '../pages/SessionDetailPage'
 import { ProfilePage } from '../pages/ProfilePage'
 import { OnboardingPage } from '../pages/OnboardingPage'
@@ -31,6 +32,7 @@ export function AppRouter() {
                 <Route path="/historie" element={<HistoryPage />}>
                   <Route index element={<SessionsTab />} />
                   <Route path="trends" element={<TrendsTab />} />
+                  <Route path="rekorde" element={<RekordeTab />} />
                 </Route>
                 <Route path="/historie/:sessionId" element={<SessionDetailPage />} />
                 <Route path="/profil" element={<ProfilePage />} />

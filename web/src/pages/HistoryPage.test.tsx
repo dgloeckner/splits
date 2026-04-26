@@ -21,7 +21,7 @@ function wrap(initialPath = '/historie') {
 }
 
 describe('HistoryPage shell', () => {
-  it('renders the sub-nav with Sessions and Trends links', async () => {
+  it('renders the sub-nav with Sessions, Trends, and Rekorde links', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async () => new Response(JSON.stringify({ sessions: [] }), { status: 200 })),
@@ -29,6 +29,7 @@ describe('HistoryPage shell', () => {
     wrap()
     expect(screen.getByRole('link', { name: 'Sessions' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Trends' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Rekorde' })).toBeInTheDocument()
   })
 
   it('renders an empty state when backend returns no sessions', async () => {

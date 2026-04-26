@@ -23,6 +23,14 @@ export function HistoryPage() {
         >
           Trends
         </NavLink>
+        <NavLink
+          to="/historie/rekorde"
+          className={({ isActive }) =>
+            isActive ? `${styles.tab} ${styles.tabActive}` : styles.tab
+          }
+        >
+          Rekorde
+        </NavLink>
       </nav>
       <Outlet />
     </div>
