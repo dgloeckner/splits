@@ -30,7 +30,7 @@
 .rowLink {
   flex: 1 1 auto;
   display: grid;
-  grid-template-columns: 1fr auto auto auto auto;
+  grid-template-columns: 1fr auto auto auto auto auto;
   gap: var(--space-2);
   padding: var(--space-2);
   align-items: baseline;
@@ -76,6 +76,13 @@
 
 .more {
   justify-self: center;
+}
+
+.pbBadge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 16px;
+  line-height: 1;
 }
 
 .typeChip {

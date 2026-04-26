@@ -22,6 +22,7 @@ export type SessionRow = {
   total_time_sec?: number
   total_strokes?: number
   summary?: SessionSummary
+  has_pb?: boolean
 }
 
 export type Sample = {

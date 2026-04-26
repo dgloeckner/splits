@@ -95,6 +95,17 @@ function SessionCard({ session: s, workout }: { session: SessionRow; workout: Wo
       <div className={styles.row}>
         <Link to={`/historie/${s.id}`} className={styles.rowLink}>
           <span className={styles.when}>{formatSessionStart(s.started_at)}</span>
+          {s.has_pb && (
+            <span
+              className={styles.pbBadge}
+              role="img"
+              aria-label="Neue Bestleistung"
+              title="Neue Bestleistung"
+              data-testid={`history-pb-${s.id}`}
+            >
+              🏆
+            </span>
+          )}
           <span className={styles.typeChip}>{workoutChipLabel(workout)}</span>
           <span className={styles.pill}>{fmtMeters(s.total_distance_m ?? null)} m</span>
           <span className={styles.pill}>{mmss(s.total_time_sec ?? null)}</span>

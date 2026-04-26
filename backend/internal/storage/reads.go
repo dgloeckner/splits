@@ -24,6 +24,7 @@ type SessionRow struct {
 	TotalTimeSec   *float64              `json:"total_time_sec,omitempty"`
 	TotalStrokes   *int                  `json:"total_strokes,omitempty"`
 	Summary        *event.SessionSummary `json:"summary,omitempty"`
+	HasPB          bool                  `json:"has_pb,omitempty"`
 }
 
 // SampleRow mirrors one strokes table row. StrokeNo is 1-based.
@@ -51,12 +52,14 @@ func ListSessions(ctx context.Context, db *sql.DB, limit, offset int) ([]Session
 		offset = 0
 	}
 	rows, err := db.QueryContext(ctx, `
-		SELECT id, rower_id, workout_id, started_at, ended_at, initial_level,
-		       total_distance_m, total_time_sec, total_strokes, summary_json
-		FROM sessions
-		WHERE deleted_at IS NULL
-		  AND COALESCE(total_strokes, 0) > 0
-		ORDER BY started_at DESC
+		SELECT s.id, s.rower_id, s.workout_id, s.started_at, s.ended_at, s.initial_level,
+		       s.total_distance_m, s.total_time_sec, s.total_strokes, s.summary_json,
+		       EXISTS(SELECT 1 FROM achievements a
+		              WHERE a.source_session_id = s.id AND a.invalidated_at IS NULL) AS has_pb
+		FROM sessions s
+		WHERE s.deleted_at IS NULL
+		  AND COALESCE(s.total_strokes, 0) > 0
+		ORDER BY s.started_at DESC
 		LIMIT ? OFFSET ?`, limit, offset)
 	if err != nil {
 		return nil, err
@@ -78,10 +81,12 @@ func ListSessions(ctx context.Context, db *sql.DB, limit, offset int) ([]Session
 // not found or soft-deleted.
 func GetSession(ctx context.Context, db *sql.DB, id string) (*SessionRow, error) {
 	row := db.QueryRowContext(ctx, `
-		SELECT id, rower_id, workout_id, started_at, ended_at, initial_level,
-		       total_distance_m, total_time_sec, total_strokes, summary_json
-		FROM sessions
-		WHERE id = ? AND deleted_at IS NULL`, id)
+		SELECT s.id, s.rower_id, s.workout_id, s.started_at, s.ended_at, s.initial_level,
+		       s.total_distance_m, s.total_time_sec, s.total_strokes, s.summary_json,
+		       EXISTS(SELECT 1 FROM achievements a
+		              WHERE a.source_session_id = s.id AND a.invalidated_at IS NULL) AS has_pb
+		FROM sessions s
+		WHERE s.id = ? AND s.deleted_at IS NULL`, id)
 	r, err := scanSession(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -167,7 +172,7 @@ func scanSession(r rowScanner) (SessionRow, error) {
 		summaryStr  sql.NullString
 	)
 	if err := r.Scan(&out.ID, &out.RowerID, &workoutStr, &startedStr, &endedStr, &out.InitialLevel,
-		&totalDist, &totalTime, &totalStroke, &summaryStr); err != nil {
+		&totalDist, &totalTime, &totalStroke, &summaryStr, &out.HasPB); err != nil {
 		return out, err
 	}
 	if workoutStr.Valid && workoutStr.String != "" {
