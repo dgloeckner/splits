@@ -80,6 +80,58 @@ func TestPersisterCompactsStrokesAtSessionEnd(t *testing.T) {
 	}
 }
 
+func TestApplySessionEndFiltersNonWorkStrokes(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	if err := InsertSession(ctx, db.Handle(), "s1", "r1", time.Unix(0, 0).UTC(), 5, ""); err != nil {
+		t.Fatal(err)
+	}
+	mk := func(no int, ts float64, dist int, phase string, power int) event.StrokePayload {
+		return event.StrokePayload{StrokeNo: no, TimeSec: ts, DistanceM: dist, PowerW: power, Phase: phase}
+	}
+	rows := []event.StrokePayload{
+		mk(1, 1, 0, "warmup", 50),
+		mk(2, 2, 5, "work", 200),
+		mk(3, 3, 10, "work", 210),
+		mk(4, 4, 10, "cooldown", 80),
+	}
+	for i, r := range rows {
+		if err := InsertStroke(ctx, db.Handle(), uint64(i+1), "s1", time.Unix(0, 0).UTC(), r); err != nil {
+			t.Fatal(err)
+		}
+	}
+	p := &Persister{DB: db.Handle()}
+	end := event.Event{
+		Kind: event.KindSessionEnd, SessionID: "s1",
+		SessionEnd: &event.SessionEndPayload{
+			EndedAt: time.Unix(10, 0).UTC(),
+			Summary: event.SessionSummary{
+				TotalDistanceM: 10, TotalTimeSec: 4, TotalStrokes: 2,
+				AvgPowerW: 205, PeakPowerW: 210,
+			},
+		},
+	}
+	if err := p.apply(ctx, end); err != nil {
+		t.Fatal(err)
+	}
+	var blob string
+	if err := db.Handle().QueryRow(`SELECT summary_json FROM sessions WHERE id='s1'`).Scan(&blob); err != nil {
+		t.Fatal(err)
+	}
+	var sum event.SessionSummary
+	if err := json.Unmarshal([]byte(blob), &sum); err != nil {
+		t.Fatal(err)
+	}
+	if sum.Samples == nil || len(sum.Samples.Watt) == 0 {
+		t.Fatalf("expected work-only samples, got %+v", sum.Samples)
+	}
+	for _, w := range sum.Samples.Watt {
+		if w < 200 || w > 210 {
+			t.Fatalf("samples include non-work stroke: %v", sum.Samples.Watt)
+		}
+	}
+}
+
 func TestPersisterStoresWorkoutID(t *testing.T) {
 	db, err := Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {

@@ -99,9 +99,10 @@ func (p *Persister) applySessionEnd(ctx context.Context, e event.Event) error {
 	if err != nil {
 		return err
 	}
+	workStrokes := filterWorkStrokes(strokes)
 	summary := e.SessionEnd.Summary
-	summary.Samples = stats.ComputeSamples(strokes, stats.DefaultBucketStrokes)
-	summary.PBCandidates = stats.ComputeCandidates(strokes)
+	summary.Samples = stats.ComputeSamples(workStrokes, stats.DefaultBucketStrokes)
+	summary.PBCandidates = stats.ComputeCandidates(workStrokes)
 	if err := UpdateSessionEndWithEventID(ctx, tx, e.SessionID, e.SessionEnd.EndedAt, summary, e.ID); err != nil {
 		return err
 	}
@@ -119,4 +120,14 @@ func (p *Persister) applySessionEnd(ctx context.Context, e event.Event) error {
 		}
 	}
 	return nil
+}
+
+func filterWorkStrokes(in []event.StrokePayload) []event.StrokePayload {
+	out := make([]event.StrokePayload, 0, len(in))
+	for _, s := range in {
+		if s.Phase == "" || s.Phase == "work" {
+			out = append(out, s)
+		}
+	}
+	return out
 }
