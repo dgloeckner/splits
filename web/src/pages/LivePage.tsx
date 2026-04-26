@@ -143,20 +143,26 @@ export function LivePage() {
   // Latch the just-ended summary locally so a subsequent
   // `session_start` from the SSE stream (e.g. someone keeps rowing
   // and the sessionizer opens the next session) does not dismiss the
-  // overlay before the user has acknowledged it.
+  // overlay before the user has acknowledged it. Only latch on the
+  // null → summary transition; remounting LivePage when the reducer
+  // still holds a stale summary from a previous, already-acknowledged
+  // session must NOT re-show the overlay.
   const [latched, setLatched] = useState<{
     summary: NonNullable<typeof state.summary>
     sessionId: string | null
   } | null>(null)
+  const prevSummaryRef = useRef(state.summary)
 
   const incomingSummary = state.summary
   const incomingSessionId = state.session?.session_id ?? null
   useEffect(() => {
-    if (incomingSummary && !latched) {
+    const prev = prevSummaryRef.current
+    if (!prev && incomingSummary) {
       setLatched({ summary: incomingSummary, sessionId: incomingSessionId })
       qc.invalidateQueries({ queryKey: ['sessions'] })
     }
-  }, [incomingSummary, incomingSessionId, latched, qc])
+    prevSummaryRef.current = incomingSummary
+  }, [incomingSummary, incomingSessionId, qc])
 
   // FEAT-0009 acceptance: closing the tab does NOT end the session.
   // The backend's idle / inactivity timeouts and the explicit
