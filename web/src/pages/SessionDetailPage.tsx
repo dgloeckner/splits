@@ -10,6 +10,8 @@ import {
   type SessionPBBanners,
   type SessionRow,
 } from '../api/client'
+import { getWorkout, type Workout } from '../api/workouts'
+import { workoutChipLabel } from '../util/workoutLabel'
 import { LineChart } from '../components/LineChart/LineChart'
 import { fmtFloat, fmtInt, fmtMeters, mmss, mmssWhole, pace500m } from '../util/format'
 import { formatSessionStart } from '../util/dates'
@@ -30,6 +32,12 @@ export function SessionDetailPage() {
     queryKey: ['sessions', sessionId, 'samples'],
     queryFn: () => getSamples(sessionId),
     enabled: sessionId !== '',
+  })
+  const workoutQ = useQuery<Workout | null>({
+    queryKey: ['workout', sessionQ.data?.workout_id ?? null],
+    queryFn: () => (sessionQ.data?.workout_id ? getWorkout(sessionQ.data.workout_id) : Promise.resolve(null)),
+    enabled: !!sessionQ.data?.workout_id,
+    staleTime: 60_000,
   })
   const bannersQ = useQuery<SessionPBBanners>({
     queryKey: ['sessions', sessionId, 'pb-banners'],
@@ -93,9 +101,15 @@ export function SessionDetailPage() {
         )
       })()}
 
+      <header className={styles.titleBlock}>
+        <h1 className={styles.workoutTitle} data-testid="session-workout-title">
+          {workoutChipLabel(workoutQ.data ?? null)}
+        </h1>
+        <span className={`label-sm ${styles.dateSub}`}>{formatSessionStart(s.started_at)}</span>
+      </header>
+
       <section className={styles.hero}>
         <div className={styles.heroMain}>
-          <span className={`label-sm ${styles.heroLabel}`}>{formatSessionStart(s.started_at)}</span>
           <span className={styles.heroValue}>{fmtMeters(s.total_distance_m ?? null)} m</span>
           <span className={styles.heroValue}>{mmss(s.total_time_sec ?? null)}</span>
         </div>
