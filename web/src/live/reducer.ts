@@ -38,6 +38,8 @@ export type LiveState = {
   smoothed: SmoothedValues | null
   /** Wall-clock ms at first stroke after session_start. Used to gate cold-start. */
   sessionStartedAtMs: number | null
+  phase: 'warmup' | 'work' | 'rest' | 'cooldown' | null
+  phaseAnchor: { distanceM: number; timeSec: number } | null
 }
 
 export const initialLiveState: LiveState = {
@@ -49,6 +51,8 @@ export const initialLiveState: LiveState = {
   lastStrokeReceivedAtMs: null,
   smoothed: null,
   sessionStartedAtMs: null,
+  phase: null,
+  phaseAnchor: null,
 }
 
 export type LiveAction =
@@ -130,6 +134,8 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
             lastStrokeReceivedAtMs: null,
             smoothed: null,
             sessionStartedAtMs: null,
+            phase: null,
+            phaseAnchor: null,
           }
 
         case 'stroke': {
@@ -187,6 +193,7 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
           return {
             ...baseState,
             stroke: p,
+            phase: (p.phase as LiveState['phase']) ?? baseState.phase,
             sparklines: {
               power: appendOrTrim(baseState.sparklines.power, p.power_w, 'watts'),
               split: appendOrTrim(baseState.sparklines.split, p.pace_sec_per_500m, 'split'),
@@ -215,6 +222,15 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
             ...state,
             session: { ...state.session, workout_id: ev.data.workout_id },
           }
+
+        case 'phase_change': {
+          const p = ev.data
+          return {
+            ...state,
+            phase: p.to as LiveState['phase'],
+            phaseAnchor: { distanceM: p.at_distance_m, timeSec: p.at_time_sec },
+          }
+        }
       }
     }
   }

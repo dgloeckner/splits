@@ -7,6 +7,7 @@ export type LiveEventKind =
   | 'session_end'
   | 'level_change'
   | 'workout_attached'
+  | 'phase_change'
   | 'ping'
   | 'eof'
   | 'error'
@@ -24,6 +25,7 @@ export type StrokePayload = {
   stroke_cycle_sec: number
   pace_sec_per_500m: number
   energy_joules: number
+  phase?: string
 }
 
 export type SessionStartPayload = {
@@ -67,12 +69,22 @@ export type WorkoutAttachedPayload = {
   workout_id: string
 }
 
+export type PhaseChangePayload = {
+  session_id: string
+  from: string
+  to: string
+  at_stroke: number
+  at_time_sec: number
+  at_distance_m: number
+}
+
 export type LiveEvent =
   | { kind: 'stroke'; id: number; data: StrokePayload }
   | { kind: 'session_start'; id: number; data: SessionStartPayload }
   | { kind: 'session_end'; id: number; data: SessionEndPayload }
   | { kind: 'level_change'; id: number; data: LevelChangePayload }
   | { kind: 'workout_attached'; id: number; data: WorkoutAttachedPayload }
+  | { kind: 'phase_change'; id: number; data: PhaseChangePayload }
   | { kind: 'ping'; id: number | null; data: Record<string, never> }
   | { kind: 'eof'; id: number | null; data: EofPayload }
   | { kind: 'error'; id: number | null; data: { message: string } }

@@ -194,4 +194,50 @@ describe('liveReducer', () => {
     })
     expect(after).toBe(before)
   })
+
+  it('phase_change updates phase and phaseAnchor', () => {
+    const state = liveReducer(initialLiveState, {
+      type: 'event',
+      event: {
+        kind: 'phase_change',
+        id: 1,
+        data: {
+          session_id: 's1',
+          from: 'warmup',
+          to: 'work',
+          at_stroke: 5,
+          at_time_sec: 30.5,
+          at_distance_m: 10,
+        },
+      },
+    })
+    expect(state.phase).toBe('work')
+    expect(state.phaseAnchor).toEqual({ distanceM: 10, timeSec: 30.5 })
+  })
+
+  it('stroke updates phase from payload', () => {
+    const state = liveReducer(initialLiveState, {
+      type: 'event',
+      event: {
+        kind: 'stroke',
+        id: 2,
+        data: {
+          session_id: 's1',
+          stroke: 1,
+          time_sec: 1,
+          distance_m: 5,
+          spm: 20,
+          power_w: 100,
+          cal_per_hr: 0,
+          level: 0,
+          dps: 5,
+          stroke_cycle_sec: 1,
+          pace_sec_per_500m: 150,
+          energy_joules: 100,
+          phase: 'warmup',
+        },
+      },
+    })
+    expect(state.phase).toBe('warmup')
+  })
 })
