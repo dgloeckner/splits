@@ -117,3 +117,22 @@ func TestInsertSession_WorkoutID(t *testing.T) {
 		t.Errorf("workout_id = %q, want NULL", *nullWID)
 	}
 }
+
+func TestStrokePhaseRoundTrip(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	if err := InsertSession(ctx, db.Handle(), "s1", "r1", time.Now().UTC(), 5, ""); err != nil {
+		t.Fatal(err)
+	}
+	p := event.StrokePayload{StrokeNo: 1, TimeSec: 1.0, DistanceM: 5, Phase: "warmup"}
+	if err := InsertStroke(ctx, db.Handle(), 1, "s1", time.Now().UTC(), p); err != nil {
+		t.Fatal(err)
+	}
+	got, err := LoadSessionStrokes(ctx, db.Handle(), "s1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Phase != "warmup" {
+		t.Fatalf("phase round-trip: %+v", got)
+	}
+}

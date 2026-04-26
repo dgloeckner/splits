@@ -58,7 +58,7 @@ func UpdateSessionEndWithEventID(ctx context.Context, db dbExec, id string, ende
 func LoadSessionStrokes(ctx context.Context, db dbExec, sessionID string) ([]event.StrokePayload, error) {
 	rows, err := db.QueryContext(ctx, `
 		SELECT stroke_no, time_sec, distance_m, spm, power_w, cal_per_hr, level,
-		       dps, stroke_cycle_sec, pace_sec_per_500m, energy_joules
+		       dps, stroke_cycle_sec, pace_sec_per_500m, energy_joules, phase
 		FROM strokes WHERE session_id = ? ORDER BY stroke_no`, sessionID)
 	if err != nil {
 		return nil, err
@@ -69,7 +69,7 @@ func LoadSessionStrokes(ctx context.Context, db dbExec, sessionID string) ([]eve
 		var p event.StrokePayload
 		if err := rows.Scan(&p.StrokeNo, &p.TimeSec, &p.DistanceM, &p.SPM, &p.PowerW,
 			&p.CalPerHr, &p.Level, &p.DPS, &p.StrokeCycleSec, &p.PaceSecPer500m,
-			&p.EnergyJoules); err != nil {
+			&p.EnergyJoules, &p.Phase); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -86,13 +86,17 @@ func DeleteSessionStrokes(ctx context.Context, db dbExec, sessionID string) erro
 }
 
 func InsertStroke(ctx context.Context, db *sql.DB, globalID uint64, sessionID string, at time.Time, p event.StrokePayload) error {
+	phase := p.Phase
+	if phase == "" {
+		phase = "work"
+	}
 	_, err := db.ExecContext(ctx,
 		`INSERT INTO strokes(
 			global_id, session_id, stroke_no, time_sec, distance_m, spm, power_w, cal_per_hr, level,
-			dps, stroke_cycle_sec, pace_sec_per_500m, energy_joules, at
-		) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			dps, stroke_cycle_sec, pace_sec_per_500m, energy_joules, at, phase
+		) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		globalID, sessionID, p.StrokeNo, p.TimeSec, p.DistanceM, p.SPM, p.PowerW, p.CalPerHr, p.Level,
 		p.DPS, p.StrokeCycleSec, p.PaceSecPer500m, p.EnergyJoules,
-		at.UTC().Format(time.RFC3339Nano))
+		at.UTC().Format(time.RFC3339Nano), phase)
 	return err
 }
