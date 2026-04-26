@@ -39,17 +39,20 @@ func TestInsertSessionAndUpdateEnd(t *testing.T) {
 	}
 
 	var totalDistance int
-	var summaryJSON string
+	var avgPower, avgPace float64
 	if err := db.Handle().QueryRow(
-		`SELECT total_distance_m, summary_json FROM sessions WHERE id=?`, "S1",
-	).Scan(&totalDistance, &summaryJSON); err != nil {
+		`SELECT total_distance_m, avg_power_w, avg_pace_sec_per_500m FROM sessions WHERE id=?`, "S1",
+	).Scan(&totalDistance, &avgPower, &avgPace); err != nil {
 		t.Fatalf("select: %v", err)
 	}
 	if totalDistance != 1000 {
 		t.Errorf("total_distance_m = %d", totalDistance)
 	}
-	if summaryJSON == "" {
-		t.Errorf("summary_json empty")
+	if avgPower != 250 {
+		t.Errorf("avg_power_w = %v, want 250", avgPower)
+	}
+	if avgPace != 135 {
+		t.Errorf("avg_pace_sec_per_500m = %v, want 135", avgPace)
 	}
 }
 

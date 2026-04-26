@@ -26,17 +26,18 @@ func TestPBsHandlerSmoke(t *testing.T) {
 		time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
 		t.Fatal(err)
 	}
-	type sumWire struct {
-		PBCandidates *stats.PBCandidates `json:"pb_candidates"`
-	}
-	blob, _ := json.Marshal(sumWire{&stats.PBCandidates{
-		Distance: []stats.DistanceCandidate{{DistanceM: 2000, TimeSec: 480, WindowEndStroke: 200, WindowStartStroke: 1}},
-	}})
 	t0 := time.Date(2026, 4, 1, 8, 0, 0, 0, time.UTC)
+	startedStr := t0.Format(time.RFC3339Nano)
 	if _, err := db.Handle().Exec(`INSERT INTO sessions(id, rower_id, started_at, ended_at,
-		initial_level, total_distance_m, total_time_sec, total_strokes, summary_json)
-		VALUES('S1','R1',?,?,3,5000,1500,500,?)`,
-		t0.Format(time.RFC3339Nano), t0.Add(time.Minute).Format(time.RFC3339Nano), string(blob)); err != nil {
+		initial_level, total_distance_m, total_time_sec, total_strokes)
+		VALUES('S1','R1',?,?,3,5000,1500,500)`,
+		startedStr, t0.Add(time.Minute).Format(time.RFC3339Nano)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Handle().Exec(`
+		INSERT INTO session_pb_distance_candidates(session_id, rower_id, started_at,
+			distance_m, time_sec, window_start_stroke, window_end_stroke)
+		VALUES('S1','R1',?,2000,480,1,200)`, startedStr); err != nil {
 		t.Fatal(err)
 	}
 	if err := stats.Recompute(ctx, db.Handle(), "R1"); err != nil {

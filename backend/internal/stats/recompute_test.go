@@ -3,7 +3,6 @@ package stats_test
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"path/filepath"
 	"testing"
 	"time"
@@ -21,26 +20,60 @@ func Recompute(ctx context.Context, db *sql.DB, rowerID string) error {
 	return stats.Recompute(ctx, db, rowerID)
 }
 
-// seedSession inserts a fully-ended session row with a summary_json
-// that already carries pb_candidates. Mirrors what the persister
-// would have written at session_end + Mode 0 compaction.
+// seedSession inserts a fully-ended session row plus its native
+// candidate rows. Mirrors what the persister would have written at
+// session_end + Mode 0 compaction post-refactor.
 func seedSession(t *testing.T, db *sql.DB, id, rowerID string, started time.Time,
 	dist, strokes int, timeSec float64, candidates *PBCandidates) {
 	t.Helper()
-	type sumWire struct {
-		TotalDistanceM int           `json:"TotalDistanceM"`
-		TotalTimeSec   float64       `json:"TotalTimeSec"`
-		TotalStrokes   int           `json:"TotalStrokes"`
-		PBCandidates   *PBCandidates `json:"pb_candidates"`
-	}
-	blob, _ := json.Marshal(sumWire{dist, timeSec, strokes, candidates})
+	startedStr := started.UTC().Format(time.RFC3339Nano)
 	if _, err := db.Exec(`INSERT INTO sessions(id, rower_id, started_at, ended_at,
-		initial_level, total_distance_m, total_time_sec, total_strokes, summary_json)
-		VALUES(?,?,?,?,?,?,?,?,?)`,
-		id, rowerID, started.UTC().Format(time.RFC3339Nano),
+		initial_level, total_distance_m, total_time_sec, total_strokes)
+		VALUES(?,?,?,?,?,?,?,?)`,
+		id, rowerID, startedStr,
 		started.Add(time.Minute).UTC().Format(time.RFC3339Nano),
-		3, dist, timeSec, strokes, string(blob)); err != nil {
+		3, dist, timeSec, strokes); err != nil {
 		t.Fatal(err)
+	}
+	if candidates == nil {
+		return
+	}
+	for _, c := range candidates.Distance {
+		if _, err := db.Exec(`
+			INSERT INTO session_pb_distance_candidates(session_id, rower_id, started_at,
+				distance_m, time_sec, window_start_stroke, window_end_stroke)
+			VALUES(?,?,?,?,?,?,?)`,
+			id, rowerID, startedStr, c.DistanceM, c.TimeSec,
+			c.WindowStartStroke, c.WindowEndStroke); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, c := range candidates.Window {
+		if _, err := db.Exec(`
+			INSERT INTO session_pb_window_candidates(session_id, rower_id, started_at,
+				metric, window_kind, window_size, value)
+			VALUES(?,?,?,?,?,?,?)`,
+			id, rowerID, startedStr, c.Metric, c.Kind, c.Size, c.Value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if w := candidates.Workout; w != nil {
+		if _, err := db.Exec(`
+			INSERT INTO session_pb_workout_candidate(session_id, rower_id, started_at,
+				shape_hash, mode, value_kind, value)
+			VALUES(?,?,?,?,?,?,?)`,
+			id, rowerID, startedStr, w.ShapeHash, w.Mode, w.ValueKind, w.Value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if c := candidates.Consistency; c != nil {
+		if _, err := db.Exec(`
+			INSERT INTO session_consistency(session_id, rower_id, started_at,
+				power_cv, pace_split_cv, spm_cv)
+			VALUES(?,?,?,?,?,?)`,
+			id, rowerID, startedStr, c.PowerCV, c.PaceSplitCV, c.SPMCV); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

@@ -3,7 +3,6 @@ package stats
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -32,20 +31,10 @@ var VolumeMilestoneStrokes = []int{10_000, 50_000, 100_000, 250_000, 500_000, 1_
 // seconds (10h, 50h, 100h, 250h, 500h).
 var VolumeMilestoneSeconds = []int{36_000, 180_000, 360_000, 900_000, 1_800_000}
 
-type sessionRec struct {
-	id         string
-	startedAt  string
-	distanceM  int
-	timeSec    float64
-	strokes    int
-	workoutID  sql.NullString
-	candidates *PBCandidates
-}
-
-// Recompute reads every non-deleted session for the rower, picks the
-// best candidates, and writes pb_distance / pb_window / pb_workout /
-// achievements + rower_lifetime_stats. Idempotent. Bumps the
-// rower's stats_version on every call.
+// Recompute reads each session's persisted candidate rows, picks the
+// best per group via SQL, and writes pb_distance / pb_window /
+// pb_workout / achievements + rower_lifetime_stats. Idempotent. Bumps
+// stats_version on every call.
 func Recompute(ctx context.Context, db *sql.DB, rowerID string) error {
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
@@ -53,237 +42,260 @@ func Recompute(ctx context.Context, db *sql.DB, rowerID string) error {
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	rows, err := tx.QueryContext(ctx, `
-		SELECT id, started_at, total_distance_m, total_time_sec, total_strokes, summary_json, workout_id
-		FROM sessions
-		WHERE rower_id = ? AND deleted_at IS NULL AND ended_at IS NOT NULL
-		ORDER BY started_at`, rowerID)
-	if err != nil {
-		return err
-	}
-	var recs []sessionRec
-	for rows.Next() {
-		var r sessionRec
-		var summaryStr sql.NullString
-		var dist, strokes sql.NullInt64
-		var timeSec sql.NullFloat64
-		if err := rows.Scan(&r.id, &r.startedAt, &dist, &timeSec, &strokes, &summaryStr, &r.workoutID); err != nil {
-			rows.Close()
-			return err
-		}
-		r.distanceM = int(dist.Int64)
-		r.timeSec = timeSec.Float64
-		r.strokes = int(strokes.Int64)
-		if summaryStr.Valid {
-			var sum struct {
-				PBCandidates *PBCandidates `json:"pb_candidates"`
-			}
-			if err := json.Unmarshal([]byte(summaryStr.String), &sum); err == nil {
-				r.candidates = sum.PBCandidates
-			}
-		}
-		recs = append(recs, r)
-	}
-	rows.Close()
-
 	now := time.Now().UTC().Format(time.RFC3339Nano)
 
-	if err := recomputeDistance(ctx, tx, rowerID, recs, now); err != nil {
+	if err := recomputeDistance(ctx, tx, rowerID, now); err != nil {
 		return err
 	}
-	if err := recomputeWindow(ctx, tx, rowerID, recs, now); err != nil {
+	if err := recomputeWindow(ctx, tx, rowerID, now); err != nil {
 		return err
 	}
-	if err := recomputeWorkout(ctx, tx, rowerID, recs, now); err != nil {
+	if err := recomputeWorkout(ctx, tx, rowerID, now); err != nil {
 		return err
 	}
-	if err := recomputeConsistency(ctx, tx, rowerID, recs, now); err != nil {
+	if err := recomputeConsistency(ctx, tx, rowerID, now); err != nil {
 		return err
 	}
 
 	var totalDist, totalSec, totalStrokes, totalSessions int
-	for _, r := range recs {
-		totalDist += r.distanceM
-		totalSec += int(r.timeSec)
-		totalStrokes += r.strokes
-		totalSessions++
+	row := tx.QueryRowContext(ctx, `
+		SELECT COALESCE(SUM(total_distance_m), 0),
+		       COALESCE(SUM(total_time_sec), 0),
+		       COALESCE(SUM(total_strokes), 0),
+		       COUNT(*)
+		FROM sessions
+		WHERE rower_id = ? AND deleted_at IS NULL AND ended_at IS NOT NULL`, rowerID)
+	var totalSecF float64
+	if err := row.Scan(&totalDist, &totalSecF, &totalStrokes, &totalSessions); err != nil {
+		return err
 	}
+	totalSec = int(totalSecF)
+
 	if err := upsertLifetimeStats(ctx, tx, rowerID, totalDist, totalSec, totalStrokes, totalSessions, now); err != nil {
 		return err
 	}
 	if err := recomputeVolumeMilestones(ctx, tx, rowerID, totalDist, totalSec, totalStrokes, now); err != nil {
 		return err
 	}
-
 	return tx.Commit()
 }
 
-func recomputeDistance(ctx context.Context, tx *sql.Tx, rowerID string, recs []sessionRec, now string) error {
-	type best struct {
-		val       float64
-		sessionID string
-		startedAt string
-		startNo   int
-		endNo     int
-	}
-	bests := map[int]*best{}
-	for _, r := range recs {
-		if r.candidates == nil {
-			continue
-		}
-		for _, c := range r.candidates.Distance {
-			cur := bests[c.DistanceM]
-			if cur == nil || c.TimeSec < cur.val {
-				bests[c.DistanceM] = &best{c.TimeSec, r.id, r.startedAt, c.WindowStartStroke, c.WindowEndStroke}
-			}
-		}
-	}
+func recomputeDistance(ctx context.Context, tx *sql.Tx, rowerID, now string) error {
 	if _, err := tx.ExecContext(ctx,
 		`UPDATE pb_distance SET invalidated_at = ? WHERE rower_id = ? AND invalidated_at IS NULL`,
 		now, rowerID); err != nil {
 		return err
 	}
-	for d, b := range bests {
+	rows, err := tx.QueryContext(ctx, `
+		SELECT distance_m, time_sec, session_id, started_at,
+		       window_start_stroke, window_end_stroke
+		FROM (
+		  SELECT distance_m, time_sec, session_id, started_at,
+		         window_start_stroke, window_end_stroke,
+		         ROW_NUMBER() OVER (
+		           PARTITION BY distance_m ORDER BY time_sec ASC, started_at ASC
+		         ) AS rn
+		  FROM session_pb_distance_candidates
+		  WHERE rower_id = ?
+		)
+		WHERE rn = 1`, rowerID)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var distM, startNo, endNo int
+		var timeSec float64
+		var sessionID, startedAt string
+		if err := rows.Scan(&distM, &timeSec, &sessionID, &startedAt, &startNo, &endNo); err != nil {
+			return err
+		}
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO pb_distance(rower_id, distance_m, time_sec,
 				source_session_id, source_session_started_at, achieved_at,
 				window_start_stroke, window_end_stroke)
 			VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
-			rowerID, d, b.val, b.sessionID, b.startedAt, now, b.startNo, b.endNo,
+			rowerID, distM, timeSec, sessionID, startedAt, now, startNo, endNo,
 		); err != nil {
 			return err
 		}
 	}
-	return nil
+	return rows.Err()
 }
 
-func recomputeWindow(ctx context.Context, tx *sql.Tx, rowerID string, recs []sessionRec, now string) error {
-	type key struct {
-		metric string
-		kind   string
-		size   int
-	}
-	type best struct {
-		val       float64
-		sessionID string
-		startedAt string
-	}
-	bests := map[key]*best{}
-	for _, r := range recs {
-		if r.candidates == nil {
-			continue
-		}
-		for _, c := range r.candidates.Window {
-			k := key{c.Metric, c.Kind, c.Size}
-			cur := bests[k]
-			if cur == nil || better(c.Metric, c.Value, cur.val) {
-				bests[k] = &best{c.Value, r.id, r.startedAt}
-			}
-		}
-	}
+func recomputeWindow(ctx context.Context, tx *sql.Tx, rowerID, now string) error {
 	if _, err := tx.ExecContext(ctx,
 		`UPDATE pb_window SET invalidated_at = ? WHERE rower_id = ? AND invalidated_at IS NULL`,
 		now, rowerID); err != nil {
 		return err
 	}
-	for k, b := range bests {
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO pb_window(rower_id, metric, window_kind, window_size, value,
-				source_session_id, source_session_started_at, achieved_at)
-			VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
-			rowerID, k.metric, k.kind, k.size, b.val, b.sessionID, b.startedAt, now,
-		); err != nil {
+	// Pace is lower-is-better; everything else is higher-is-better.
+	// Run two passes so the SQL stays simple.
+	for _, p := range []struct {
+		filter string
+		order  string
+	}{
+		{filter: "metric = 'pace'", order: "ASC"},
+		{filter: "metric <> 'pace'", order: "DESC"},
+	} {
+		q := fmt.Sprintf(`
+			SELECT metric, window_kind, window_size, value, session_id, started_at
+			FROM (
+			  SELECT metric, window_kind, window_size, value, session_id, started_at,
+			         ROW_NUMBER() OVER (
+			           PARTITION BY metric, window_kind, window_size
+			           ORDER BY value %s, started_at ASC
+			         ) AS rn
+			  FROM session_pb_window_candidates
+			  WHERE rower_id = ? AND %s
+			)
+			WHERE rn = 1`, p.order, p.filter)
+		rows, err := tx.QueryContext(ctx, q, rowerID)
+		if err != nil {
 			return err
 		}
+		for rows.Next() {
+			var metric, kind, sessionID, startedAt string
+			var size int
+			var value float64
+			if err := rows.Scan(&metric, &kind, &size, &value, &sessionID, &startedAt); err != nil {
+				rows.Close()
+				return err
+			}
+			if _, err := tx.ExecContext(ctx, `
+				INSERT INTO pb_window(rower_id, metric, window_kind, window_size, value,
+					source_session_id, source_session_started_at, achieved_at)
+				VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
+				rowerID, metric, kind, size, value, sessionID, startedAt, now,
+			); err != nil {
+				rows.Close()
+				return err
+			}
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return err
+		}
+		rows.Close()
 	}
 	return nil
 }
 
-func recomputeWorkout(ctx context.Context, tx *sql.Tx, rowerID string, recs []sessionRec, now string) error {
-	type best struct {
-		val       float64
-		valKind   string
-		mode      string
-		params    string
-		sessionID string
-		startedAt string
-	}
-	bests := map[string]*best{}
-	for _, r := range recs {
-		if r.candidates == nil || r.candidates.Workout == nil {
-			continue
-		}
-		c := r.candidates.Workout
-		isBetter := func(v, ref float64) bool {
-			if c.ValueKind == "time_sec" {
-				return v < ref
-			}
-			return v > ref
-		}
-		cur := bests[c.ShapeHash]
-		if cur != nil && !isBetter(c.Value, cur.val) {
-			continue
-		}
-		b := &best{val: c.Value, valKind: c.ValueKind, mode: c.Mode, sessionID: r.id, startedAt: r.startedAt}
-		if r.workoutID.Valid {
-			_ = tx.QueryRowContext(ctx, `SELECT mode, params_json FROM workout WHERE id = ?`,
-				r.workoutID.String).Scan(&b.mode, &b.params)
-		}
-		bests[c.ShapeHash] = b
-	}
+func recomputeWorkout(ctx context.Context, tx *sql.Tx, rowerID, now string) error {
 	if _, err := tx.ExecContext(ctx,
 		`UPDATE pb_workout SET invalidated_at = ? WHERE rower_id = ? AND invalidated_at IS NULL`,
 		now, rowerID); err != nil {
 		return err
 	}
-	for hash, b := range bests {
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO pb_workout(rower_id, shape_hash, mode, params_json, value_kind, value,
-				source_session_id, source_session_started_at, achieved_at)
-			VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			rowerID, hash, b.mode, b.params, b.valKind, b.val, b.sessionID, b.startedAt, now,
-		); err != nil {
+	// time_sec values rank ASC (faster is better); other value_kinds
+	// (distance_m) rank DESC. Branch on value_kind by partitioning the
+	// query, same shape as the window recompute.
+	for _, p := range []struct {
+		filter string
+		order  string
+	}{
+		{filter: "value_kind = 'time_sec'", order: "ASC"},
+		{filter: "value_kind <> 'time_sec'", order: "DESC"},
+	} {
+		q := fmt.Sprintf(`
+			SELECT shape_hash, mode, value_kind, value, session_id, started_at
+			FROM (
+			  SELECT shape_hash, mode, value_kind, value, session_id, started_at,
+			         ROW_NUMBER() OVER (
+			           PARTITION BY shape_hash
+			           ORDER BY value %s, started_at ASC
+			         ) AS rn
+			  FROM session_pb_workout_candidate
+			  WHERE rower_id = ? AND %s
+			)
+			WHERE rn = 1`, p.order, p.filter)
+		rows, err := tx.QueryContext(ctx, q, rowerID)
+		if err != nil {
 			return err
+		}
+		type best struct {
+			shapeHash, mode, valKind string
+			value                    float64
+			sessionID, startedAt     string
+		}
+		var bests []best
+		for rows.Next() {
+			var b best
+			if err := rows.Scan(&b.shapeHash, &b.mode, &b.valKind, &b.value, &b.sessionID, &b.startedAt); err != nil {
+				rows.Close()
+				return err
+			}
+			bests = append(bests, b)
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return err
+		}
+		rows.Close()
+		for _, b := range bests {
+			// Pull the workout row tied to the source session for the
+			// canonical mode + params snapshot. Fall back to the
+			// candidate's own mode if the session has no attached
+			// workout (defensive — workout candidates are only emitted
+			// for attached workouts).
+			mode := b.mode
+			var params string
+			var workoutID sql.NullString
+			_ = tx.QueryRowContext(ctx,
+				`SELECT workout_id FROM sessions WHERE id = ?`, b.sessionID).Scan(&workoutID)
+			if workoutID.Valid {
+				_ = tx.QueryRowContext(ctx,
+					`SELECT mode, params_json FROM workout WHERE id = ?`,
+					workoutID.String).Scan(&mode, &params)
+			}
+			if _, err := tx.ExecContext(ctx, `
+				INSERT INTO pb_workout(rower_id, shape_hash, mode, params_json, value_kind, value,
+					source_session_id, source_session_started_at, achieved_at)
+				VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				rowerID, b.shapeHash, mode, params, b.valKind, b.value, b.sessionID, b.startedAt, now,
+			); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
 }
 
-func recomputeConsistency(ctx context.Context, tx *sql.Tx, rowerID string, recs []sessionRec, now string) error {
-	type best struct {
-		val       float64
-		sessionID string
-		startedAt string
-	}
-	bests := map[string]*best{}
-	for _, r := range recs {
-		if r.candidates == nil || r.candidates.Consistency == nil {
-			continue
-		}
-		c := r.candidates.Consistency
-		for k, v := range map[string]float64{
-			"consistency_power_cv":      c.PowerCV,
-			"consistency_pace_split_cv": c.PaceSplitCV,
-			"consistency_spm_cv":        c.SPMCV,
-		} {
-			cur := bests[k]
-			if cur == nil || v < cur.val {
-				bests[k] = &best{v, r.id, r.startedAt}
-			}
-		}
-	}
+func recomputeConsistency(ctx context.Context, tx *sql.Tx, rowerID, now string) error {
 	if _, err := tx.ExecContext(ctx,
 		`UPDATE achievements SET invalidated_at = ?
 		 WHERE rower_id = ? AND achievement_type = 'consistency_intra' AND invalidated_at IS NULL`,
 		now, rowerID); err != nil {
 		return err
 	}
-	for k, b := range bests {
+	// One best per CV metric. Each metric is lower-is-better.
+	for _, m := range []struct {
+		col, key string
+	}{
+		{"power_cv", "consistency_power_cv"},
+		{"pace_split_cv", "consistency_pace_split_cv"},
+		{"spm_cv", "consistency_spm_cv"},
+	} {
+		var value float64
+		var sessionID, startedAt string
+		err := tx.QueryRowContext(ctx, fmt.Sprintf(`
+			SELECT %s, session_id, started_at
+			FROM session_consistency
+			WHERE rower_id = ?
+			ORDER BY %s ASC, started_at ASC
+			LIMIT 1`, m.col, m.col),
+			rowerID).Scan(&value, &sessionID, &startedAt)
+		if err == sql.ErrNoRows {
+			continue
+		}
+		if err != nil {
+			return err
+		}
 		if _, err := tx.ExecContext(ctx, `
 			INSERT INTO achievements(rower_id, achievement_type, achievement_key, value,
 				source_session_id, source_session_started_at, achieved_at)
 			VALUES(?, 'consistency_intra', ?, ?, ?, ?, ?)`,
-			rowerID, k, b.val, b.sessionID, b.startedAt, now,
+			rowerID, m.key, value, sessionID, startedAt, now,
 		); err != nil {
 			return err
 		}

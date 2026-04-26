@@ -43,6 +43,21 @@ type SampleRow struct {
 	SPI            int     `json:"spi"`
 }
 
+// sessionSelectCols is the column list shared by ListSessions and
+// GetSession. summary_json now carries only the samples envelope; all
+// aggregate metrics live in their own typed columns.
+const sessionSelectCols = `s.id, s.rower_id, s.workout_id, s.started_at, s.ended_at, s.initial_level,
+		       s.total_distance_m, s.total_time_sec, s.total_strokes,
+		       s.avg_power_w, s.peak_power_w, s.avg_spm, s.avg_dps, s.avg_spi,
+		       s.avg_pace_sec_per_500m, s.session_calories,
+		       s.summary_json,
+		       (EXISTS(SELECT 1 FROM pb_distance pd
+		               WHERE pd.source_session_id = s.id AND pd.invalidated_at IS NULL)
+		        OR EXISTS(SELECT 1 FROM pb_window pw
+		                  WHERE pw.source_session_id = s.id AND pw.invalidated_at IS NULL)
+		        OR EXISTS(SELECT 1 FROM pb_workout pwo
+		                  WHERE pwo.source_session_id = s.id AND pwo.invalidated_at IS NULL)) AS has_pb`
+
 // ListSessions returns non-deleted sessions newest first.
 func ListSessions(ctx context.Context, db *sql.DB, limit, offset int) ([]SessionRow, error) {
 	if limit <= 0 || limit > 100 {
@@ -52,14 +67,7 @@ func ListSessions(ctx context.Context, db *sql.DB, limit, offset int) ([]Session
 		offset = 0
 	}
 	rows, err := db.QueryContext(ctx, `
-		SELECT s.id, s.rower_id, s.workout_id, s.started_at, s.ended_at, s.initial_level,
-		       s.total_distance_m, s.total_time_sec, s.total_strokes, s.summary_json,
-		       (EXISTS(SELECT 1 FROM pb_distance pd
-		               WHERE pd.source_session_id = s.id AND pd.invalidated_at IS NULL)
-		        OR EXISTS(SELECT 1 FROM pb_window pw
-		                  WHERE pw.source_session_id = s.id AND pw.invalidated_at IS NULL)
-		        OR EXISTS(SELECT 1 FROM pb_workout pwo
-		                  WHERE pwo.source_session_id = s.id AND pwo.invalidated_at IS NULL)) AS has_pb
+		SELECT `+sessionSelectCols+`
 		FROM sessions s
 		WHERE s.deleted_at IS NULL
 		  AND COALESCE(s.total_strokes, 0) > 0
@@ -85,14 +93,7 @@ func ListSessions(ctx context.Context, db *sql.DB, limit, offset int) ([]Session
 // not found or soft-deleted.
 func GetSession(ctx context.Context, db *sql.DB, id string) (*SessionRow, error) {
 	row := db.QueryRowContext(ctx, `
-		SELECT s.id, s.rower_id, s.workout_id, s.started_at, s.ended_at, s.initial_level,
-		       s.total_distance_m, s.total_time_sec, s.total_strokes, s.summary_json,
-		       (EXISTS(SELECT 1 FROM pb_distance pd
-		               WHERE pd.source_session_id = s.id AND pd.invalidated_at IS NULL)
-		        OR EXISTS(SELECT 1 FROM pb_window pw
-		                  WHERE pw.source_session_id = s.id AND pw.invalidated_at IS NULL)
-		        OR EXISTS(SELECT 1 FROM pb_workout pwo
-		                  WHERE pwo.source_session_id = s.id AND pwo.invalidated_at IS NULL)) AS has_pb
+		SELECT `+sessionSelectCols+`
 		FROM sessions s
 		WHERE s.id = ? AND s.deleted_at IS NULL`, id)
 	r, err := scanSession(row)
@@ -177,10 +178,19 @@ func scanSession(r rowScanner) (SessionRow, error) {
 		totalDist   sql.NullInt64
 		totalTime   sql.NullFloat64
 		totalStroke sql.NullInt64
+		avgPower    sql.NullFloat64
+		peakPower   sql.NullFloat64
+		avgSPM      sql.NullFloat64
+		avgDPS      sql.NullFloat64
+		avgSPI      sql.NullFloat64
+		avgPace     sql.NullFloat64
+		sessionCal  sql.NullFloat64
 		summaryStr  sql.NullString
 	)
 	if err := r.Scan(&out.ID, &out.RowerID, &workoutStr, &startedStr, &endedStr, &out.InitialLevel,
-		&totalDist, &totalTime, &totalStroke, &summaryStr, &out.HasPB); err != nil {
+		&totalDist, &totalTime, &totalStroke,
+		&avgPower, &peakPower, &avgSPM, &avgDPS, &avgSPI, &avgPace, &sessionCal,
+		&summaryStr, &out.HasPB); err != nil {
 		return out, err
 	}
 	if workoutStr.Valid && workoutStr.String != "" {
@@ -211,12 +221,44 @@ func scanSession(r rowScanner) (SessionRow, error) {
 		v := int(totalStroke.Int64)
 		out.TotalStrokes = &v
 	}
-	if summaryStr.Valid && summaryStr.String != "" {
-		var s event.SessionSummary
-		if err := json.Unmarshal([]byte(summaryStr.String), &s); err != nil {
-			return out, err
+	// Build Summary from typed columns + samples blob (if either side
+	// has data). After ended_at is set, columns hold every aggregate
+	// the API used to read out of summary_json.
+	if out.EndedAt != nil {
+		s := event.SessionSummary{
+			TotalDistanceM:    intOr(totalDist),
+			TotalTimeSec:      totalTime.Float64,
+			TotalStrokes:      intOr(totalStroke),
+			AvgPowerW:         intOrFloat(avgPower),
+			PeakPowerW:        intOrFloat(peakPower),
+			AvgSPM:            avgSPM.Float64,
+			AvgDPS:            avgDPS.Float64,
+			AvgSPI:            intOrFloat(avgSPI),
+			AvgPaceSecPer500m: intOrFloat(avgPace),
+			SessionCalories:   intOrFloat(sessionCal),
+		}
+		if summaryStr.Valid && summaryStr.String != "" {
+			var env samplesEnvelope
+			if err := json.Unmarshal([]byte(summaryStr.String), &env); err != nil {
+				return out, err
+			}
+			s.Samples = env.Samples
 		}
 		out.Summary = &s
 	}
 	return out, nil
+}
+
+func intOr(n sql.NullInt64) int {
+	if n.Valid {
+		return int(n.Int64)
+	}
+	return 0
+}
+
+func intOrFloat(n sql.NullFloat64) int {
+	if n.Valid {
+		return int(n.Float64)
+	}
+	return 0
 }
