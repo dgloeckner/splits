@@ -1,5 +1,5 @@
-import { useRef } from 'react'
-import { useLiveSession } from './LiveSessionContext'
+import { useContext, useRef } from 'react'
+import { LiveSessionContext } from './LiveSessionContext'
 
 export type PhaseBaseline = {
   phase: 'warmup' | 'work' | 'rest' | 'cooldown' | null
@@ -9,9 +9,15 @@ export type PhaseBaseline = {
 }
 
 export function usePhaseBaseline(): PhaseBaseline {
-  const state = useLiveSession()
+  const state = useContext(LiveSessionContext)
   const frozenWork = useRef<{ d: number; t: number }>({ d: 0, t: 0 })
   const workAnchor = useRef<{ d: number; t: number } | null>(null)
+
+  // When rendered outside a LiveSessionProvider (e.g. storybook, tests),
+  // treat as a free-row session with no phase.
+  if (!state) {
+    return { phase: null, displayDistanceM: 0, displayTimeSec: 0, frozen: false }
+  }
 
   const phase = state.phase
   const stroke = state.stroke

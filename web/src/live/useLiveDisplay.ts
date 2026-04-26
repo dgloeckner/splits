@@ -159,6 +159,36 @@ export function useDeadReckonedDistance(state: LiveState): DeadReckoned {
   return { text: fmtInt(extrapolated), paused: false }
 }
 
+import { usePhaseBaseline } from './usePhaseBaseline'
+
+/**
+ * Phase-aware distance display. During warmup shows 0; during work shows
+ * distance relative to the work-phase anchor; during rest/cooldown freezes
+ * at the last work value. Falls back to raw dead-reckoning when phase is
+ * null (free-row session) or when rendered outside a LiveSessionProvider.
+ */
+export function usePhasedDistance(state: LiveState): DeadReckoned {
+  const raw = useDeadReckonedDistance(state)
+  const baseline = usePhaseBaseline()
+  if (baseline.phase === null) return raw
+  if (baseline.phase === 'warmup') return { text: fmtInt(0), paused: raw.paused }
+  return { text: fmtInt(baseline.displayDistanceM), paused: raw.paused }
+}
+
+/**
+ * Phase-aware time display. During warmup shows 0:00; during work shows
+ * time relative to the work-phase anchor; during rest/cooldown freezes
+ * at the last work value. Falls back to raw dead-reckoning when phase is
+ * null (free-row session) or when rendered outside a LiveSessionProvider.
+ */
+export function usePhasedTime(state: LiveState): DeadReckoned {
+  const raw = useDeadReckonedTime(state)
+  const baseline = usePhaseBaseline()
+  if (baseline.phase === null) return raw
+  if (baseline.phase === 'warmup') return { text: mmssWhole(0), paused: raw.paused }
+  return { text: mmssWhole(baseline.displayTimeSec), paused: raw.paused }
+}
+
 export type SmoothedDisplay = {
   watts: string
   split: string

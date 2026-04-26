@@ -4,14 +4,21 @@ import type { LiveState } from '../live/reducer'
 import styles from './NumericTile.module.css'
 import { TargetDot } from '../pages/live/TargetDot'
 import { useWorkoutProgress } from '../live/useWorkoutProgress'
-import { useIsLivePaused } from '../live/useLiveDisplay'
+import { useIsLivePaused, usePhasedDistance, usePhasedTime } from '../live/useLiveDisplay'
 import { inRange } from '../live/targetRange'
 
 type Props = { def: TileDef; state: LiveState; disabled?: boolean }
 
 export function NumericTile({ def, state, disabled }: Props) {
-  const v = selectNumeric(state, def.id)
+  const rawV = selectNumeric(state, def.id)
   const paused = useIsLivePaused(state)
+  const phasedDist = usePhasedDistance(state)
+  const phasedTime = usePhasedTime(state)
+
+  // For distance and time tiles, replace the selector value with phase-aware values.
+  let v = rawV
+  if (def.id === 'distanz') v = { value: phasedDist.text, unit: rawV.unit }
+  if (def.id === 'zeit') v = { value: phasedTime.text }
   const unit = v.unit ?? def.unit
   const cls = [styles.tile, disabled && styles.disabled].filter(Boolean).join(' ')
 

@@ -2,9 +2,9 @@ import type { LiveState } from '../live/reducer'
 import type { Range } from '../live/segments'
 import {
   useCountUp,
-  useDeadReckonedDistance,
-  useDeadReckonedTime,
   useIsLivePaused,
+  usePhasedDistance,
+  usePhasedTime,
   useSmoothed,
 } from '../live/useLiveDisplay'
 import { smoothingConfig } from '../live/smoothing'
@@ -63,8 +63,8 @@ type Props = {
 }
 
 export function LiveHero({ state, target }: Props) {
-  const time = useDeadReckonedTime(state)
-  const distance = useDeadReckonedDistance(state)
+  const time = usePhasedTime(state)
+  const distance = usePhasedDistance(state)
   const smoothed = useSmoothed(state)
   const paused = useIsLivePaused(state)
 
