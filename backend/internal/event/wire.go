@@ -20,6 +20,8 @@ func EventName(k Kind) string {
 		return "level_change"
 	case KindWorkoutAttached:
 		return "workout_attached"
+	case KindPhaseChange:
+		return "phase_change"
 	}
 	return ""
 }
@@ -44,6 +46,7 @@ func Marshal(e Event) ([]byte, error) {
 			StrokeCycleSec: p.StrokeCycleSec,
 			PaceSecPer500m: p.PaceSecPer500m,
 			EnergyJoules:   p.EnergyJoules,
+			Phase:          p.Phase,
 		})
 	case KindSessionStart:
 		p := e.SessionStart
@@ -86,6 +89,16 @@ func Marshal(e Event) ([]byte, error) {
 			SessionID: e.SessionID,
 			WorkoutID: p.WorkoutID,
 		})
+	case KindPhaseChange:
+		p := e.PhaseChange
+		return json.Marshal(phaseChangeWire{
+			SessionID:   e.SessionID,
+			From:        p.From,
+			To:          p.To,
+			AtStroke:    p.AtStroke,
+			AtTimeSec:   p.AtTimeSec,
+			AtDistanceM: p.AtDistanceM,
+		})
 	}
 	return nil, nil
 }
@@ -103,6 +116,16 @@ type strokeWire struct {
 	StrokeCycleSec float64 `json:"stroke_cycle_sec"`
 	PaceSecPer500m int     `json:"pace_sec_per_500m"`
 	EnergyJoules   int     `json:"energy_joules"`
+	Phase          string  `json:"phase,omitempty"`
+}
+
+type phaseChangeWire struct {
+	SessionID   string  `json:"session_id"`
+	From        string  `json:"from"`
+	To          string  `json:"to"`
+	AtStroke    int     `json:"at_stroke"`
+	AtTimeSec   float64 `json:"at_time_sec"`
+	AtDistanceM int     `json:"at_distance_m"`
 }
 
 type sessionStartWire struct {
