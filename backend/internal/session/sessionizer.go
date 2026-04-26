@@ -7,6 +7,7 @@ import (
 
 	"github.com/gloeckner-daniel/home-ergo/internal/event"
 	"github.com/gloeckner-daniel/home-ergo/internal/ipm"
+	"github.com/gloeckner-daniel/home-ergo/internal/workout"
 	"github.com/oklog/ulid/v2"
 )
 
@@ -31,6 +32,10 @@ type Options struct {
 	// receives StartID+1. Use to resume across process restarts so
 	// stroke global_id stays unique (max(global_id) from storage).
 	StartID uint64
+	// LoadWorkout fetches a workout by ID so the sessionizer can build a
+	// PhasePlan when a session opens. If nil, every session is treated as
+	// a free-row (all strokes are PhaseWork).
+	LoadWorkout func(id string) (*workout.Workout, error)
 }
 
 // Sessionizer is the pipeline stage that turns a stream of ipm.Frame
@@ -60,6 +65,9 @@ type Sessionizer struct {
 type sessionState struct {
 	id            string
 	startedAt     time.Time
+	// strokeSeq counts every stroke (all phases) for StrokeNo assignment.
+	strokeSeq     int
+	// strokes counts work-phase strokes only (used for summary averages).
 	strokes       int
 	totalDistance int
 	totalTime     float64
@@ -75,8 +83,14 @@ type sessionState struct {
 	// real progress (distance increased). Used by InactivityTimeout to
 	// close sessions where frames keep flowing but the user isn't
 	// actually rowing.
-	lastActivity time.Time
-	lastLevel    int
+	lastActivity  time.Time
+	lastLevel     int
+	plan          *PhasePlan
+	currentPhase  Phase
+	warmupSec     float64
+	restSec       float64
+	cooldownSec   float64
+	phaseLastTime float64
 }
 
 func New(o Options) *Sessionizer {
@@ -233,6 +247,37 @@ func (s *Sessionizer) onFrame(ctx context.Context, f ipm.Frame, out chan<- event
 	}
 
 	stroke := s.enrich(f)
+
+	// Classify stroke into its phase and detect boundaries.
+	phase, complete := s.session.plan.Classify(stroke.DistanceM, stroke.TimeSec)
+	stroke.Phase = phase.String()
+	if phase != s.session.currentPhase {
+		dt := stroke.TimeSec - s.session.phaseLastTime
+		switch s.session.currentPhase {
+		case PhaseWarmup:
+			s.session.warmupSec += dt
+		case PhaseRest:
+			s.session.restSec += dt
+		case PhaseCooldown:
+			s.session.cooldownSec += dt
+		}
+		if err := s.emit(ctx, out, event.Event{
+			Kind:      event.KindPhaseChange,
+			SessionID: s.session.id,
+			PhaseChange: &event.PhaseChangePayload{
+				From:        s.session.currentPhase.String(),
+				To:          phase.String(),
+				AtStroke:    stroke.StrokeNo,
+				AtTimeSec:   stroke.TimeSec,
+				AtDistanceM: stroke.DistanceM,
+			},
+		}); err != nil {
+			return err
+		}
+		s.session.currentPhase = phase
+		s.session.phaseLastTime = stroke.TimeSec
+	}
+
 	if err := s.emit(ctx, out, event.Event{
 		Kind:      event.KindStroke,
 		SessionID: s.session.id,
@@ -250,7 +295,14 @@ func (s *Sessionizer) onFrame(ctx context.Context, f ipm.Frame, out chan<- event
 	if hadPrev {
 		prevDistance = s.session.lastStroke.DistanceM
 	}
-	s.accumulate(&stroke)
+	if phase == PhaseWork {
+		s.accumulate(&stroke)
+	} else {
+		// Still need lastStroke updated for inactivity / DPS enrichment,
+		// but don't count this stroke in session totals.
+		p2 := stroke
+		s.session.lastStroke = &p2
+	}
 
 	if s.session.lastLevel != 0 && stroke.Level != s.session.lastLevel {
 		if err := s.emit(ctx, out, event.Event{
@@ -271,17 +323,21 @@ func (s *Sessionizer) onFrame(ctx context.Context, f ipm.Frame, out chan<- event
 	// so InactivityTimeout can fire.
 	if hadPrev && prevDistance != stroke.DistanceM {
 		s.session.lastActivity = now
-	} else if s.session.strokes == 1 {
+	} else if s.session.strokeSeq == 1 {
 		// First stroke: seed activity timer so a brand-new session
 		// doesn't immediately trigger inactivity.
 		s.session.lastActivity = now
+	}
+	if complete {
+		return s.closeSession(ctx, out)
 	}
 	return nil
 }
 
 func (s *Sessionizer) enrich(f ipm.Frame) event.StrokePayload {
+	s.session.strokeSeq++
 	p := event.StrokePayload{
-		StrokeNo:   s.session.strokes + 1,
+		StrokeNo:   s.session.strokeSeq,
 		TimeSec:    f.TimeSec,
 		DistanceM:  f.DistanceM,
 		SPM:        f.SPM,
@@ -345,6 +401,17 @@ func (s *Sessionizer) openSessionInternal(ctx context.Context, out chan<- event.
 	workoutID := s.pendingWorkoutID
 	s.pendingWorkoutID = ""
 	s.mu.Unlock()
+
+	plan := FreeRowPhasePlan()
+	if s.opts.LoadWorkout != nil && workoutID != "" {
+		if w, err := s.opts.LoadWorkout(workoutID); err == nil && w != nil {
+			if pp, perr := BuildPhasePlan(w); perr == nil {
+				plan = pp
+			}
+		}
+	}
+	s.session.plan = plan
+	s.session.currentPhase = PhaseWork
 	e := event.Event{
 		Kind:      event.KindSessionStart,
 		SessionID: id,
@@ -433,11 +500,28 @@ func (s *Sessionizer) resolveRower() (string, string) {
 func (s *Sessionizer) closeSession(ctx context.Context, out chan<- event.Event) error {
 	st := s.session
 	s.session = nil
+
+	// Credit the trailing phase slice (time from last boundary to last stroke).
+	if st.lastStroke != nil {
+		dt := st.lastStroke.TimeSec - st.phaseLastTime
+		switch st.currentPhase {
+		case PhaseWarmup:
+			st.warmupSec += dt
+		case PhaseRest:
+			st.restSec += dt
+		case PhaseCooldown:
+			st.cooldownSec += dt
+		}
+	}
+
 	summary := event.SessionSummary{
 		TotalDistanceM: st.totalDistance,
 		TotalTimeSec:   st.totalTime,
 		TotalStrokes:   st.strokes,
 		PeakPowerW:     st.peakPower,
+		WarmupSec:      st.warmupSec,
+		RestSec:        st.restSec,
+		CooldownSec:    st.cooldownSec,
 	}
 	if st.strokes > 0 {
 		summary.AvgPowerW = st.powerSum / st.strokes

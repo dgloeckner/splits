@@ -2,11 +2,13 @@ package session
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/gloeckner-daniel/home-ergo/internal/event"
 	"github.com/gloeckner-daniel/home-ergo/internal/ipm"
+	"github.com/gloeckner-daniel/home-ergo/internal/workout"
 )
 
 func frame(timeSec float64, distanceM, spm, powerW, level int) ipm.Frame {
@@ -270,5 +272,207 @@ func TestAttachWorkout_OneShot(t *testing.T) {
 	}
 	if start2.SessionStart.WorkoutID != "" {
 		t.Errorf("second session WorkoutID = %q, want empty (one-shot)", start2.SessionStart.WorkoutID)
+	}
+}
+
+// makeDistanceWorkout builds a workout.Workout for use in phase tests.
+// meters=100, warmupSec=30, cooldownSec=60 is the canonical test fixture.
+func makeDistanceWorkout(meters, warmupSec, cooldownSec int) *workout.Workout {
+	params, _ := json.Marshal(map[string]int{"meters": meters})
+	return &workout.Workout{
+		ID:          "test-workout",
+		Mode:        workout.ModeDistance,
+		ParamsJSON:  json.RawMessage(params),
+		WarmupSec:   warmupSec,
+		CooldownSec: cooldownSec,
+	}
+}
+
+// collectKind drains events from a slice and returns those matching the given kind.
+func collectKind(evts []event.Event, k event.Kind) []event.Event {
+	var out []event.Event
+	for _, e := range evts {
+		if e.Kind == k {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// TestSessionizerTagsStrokesWithPhase verifies that stroke events carry the
+// correct Phase field when a distance workout with warmup and cooldown is used.
+// Fixture: 100 m, warmup=30s, cooldown=60s.
+//   - t=5,  d=0:   warmup (5 < 30s)
+//   - t=35, d=5:   work (warmup elapsed, d=5 < 100m)
+//   - t=70, d=100: cooldown (work distance crossed exactly → next segment)
+func TestSessionizerTagsStrokesWithPhase(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	in := make(chan ipm.Frame, 8)
+	out := make(chan event.Event, 32)
+
+	w := makeDistanceWorkout(100, 30, 60)
+	s := New(Options{
+		IdleTimeout: time.Minute,
+		Now:         time.Now,
+		LoadWorkout: func(id string) (*workout.Workout, error) { return w, nil },
+	})
+	go func() { _ = s.Run(ctx, in, out) }()
+
+	s.StartSession("test-workout")
+	in <- frame(5, 0, 25, 200, 3)   // warmup
+	in <- frame(35, 5, 25, 200, 3)  // work
+	in <- frame(70, 100, 25, 200, 3) // cooldown (boundary: d=100 crossed)
+
+	// Events: session_start, phase_change(work→warmup), stroke,
+	//         phase_change(warmup→work), stroke,
+	//         phase_change(work→cooldown), stroke  = 7 total
+	got := drain(t, out, 7)
+
+	strokes := collectKind(got, event.KindStroke)
+	if len(strokes) != 3 {
+		t.Fatalf("expected 3 stroke events, got %d", len(strokes))
+	}
+	wantPhases := []string{"warmup", "work", "cooldown"}
+	for i, e := range strokes {
+		if e.Stroke.Phase != wantPhases[i] {
+			t.Errorf("stroke %d phase = %q, want %q", i+1, e.Stroke.Phase, wantPhases[i])
+		}
+	}
+}
+
+// TestSessionizerEmitsPhaseChange verifies that KindPhaseChange events are
+// emitted at boundaries with correct From/To fields.
+func TestSessionizerEmitsPhaseChange(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	in := make(chan ipm.Frame, 8)
+	out := make(chan event.Event, 32)
+
+	w := makeDistanceWorkout(100, 30, 60)
+	s := New(Options{
+		IdleTimeout: time.Minute,
+		Now:         time.Now,
+		LoadWorkout: func(id string) (*workout.Workout, error) { return w, nil },
+	})
+	go func() { _ = s.Run(ctx, in, out) }()
+
+	s.StartSession("test-workout")
+	in <- frame(5, 0, 25, 200, 3)    // warmup
+	in <- frame(35, 5, 25, 200, 3)   // work
+	in <- frame(70, 100, 25, 200, 3) // cooldown
+
+	// 7 events: session_start, 3×phase_change, 3×stroke
+	got := drain(t, out, 7)
+
+	changes := collectKind(got, event.KindPhaseChange)
+	if len(changes) != 3 {
+		t.Fatalf("expected 3 phase_change events, got %d", len(changes))
+	}
+	// First: work → warmup (initial sentinel is PhaseWork)
+	if changes[0].PhaseChange.From != "work" || changes[0].PhaseChange.To != "warmup" {
+		t.Errorf("phase_change[0] = %q→%q, want work→warmup",
+			changes[0].PhaseChange.From, changes[0].PhaseChange.To)
+	}
+	// Second: warmup → work
+	if changes[1].PhaseChange.From != "warmup" || changes[1].PhaseChange.To != "work" {
+		t.Errorf("phase_change[1] = %q→%q, want warmup→work",
+			changes[1].PhaseChange.From, changes[1].PhaseChange.To)
+	}
+	// Third: work → cooldown
+	if changes[2].PhaseChange.From != "work" || changes[2].PhaseChange.To != "cooldown" {
+		t.Errorf("phase_change[2] = %q→%q, want work→cooldown",
+			changes[2].PhaseChange.From, changes[2].PhaseChange.To)
+	}
+}
+
+// TestSessionizerEndsOnWorkoutComplete verifies that the sessionizer
+// automatically closes the session (emits KindSessionEnd) when the
+// PhasePlan reports the workout is complete (cooldown elapsed).
+// Fixture: 100m, warmup=0, cooldown=30s.
+//   - t=10, d=100: work distance crossed → PhaseCooldown begins
+//   - t=41, d=100: cooldown 30s elapsed → PhaseDone+complete → session_end
+func TestSessionizerEndsOnWorkoutComplete(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	in := make(chan ipm.Frame, 8)
+	out := make(chan event.Event, 32)
+
+	w := makeDistanceWorkout(100, 0, 30)
+	s := New(Options{
+		IdleTimeout: time.Minute,
+		Now:         time.Now,
+		LoadWorkout: func(id string) (*workout.Workout, error) { return w, nil },
+	})
+	go func() { _ = s.Run(ctx, in, out) }()
+
+	s.StartSession("test-workout")
+	in <- frame(10, 100, 25, 200, 3) // work→cooldown boundary
+	in <- frame(41, 100, 25, 200, 3) // cooldown elapsed → done+complete
+
+	// Events: session_start,
+	//         phase_change(work→cooldown), stroke(cooldown),
+	//         phase_change(cooldown→done), stroke(done),
+	//         session_end  = 6 total
+	got := drain(t, out, 6)
+
+	ends := collectKind(got, event.KindSessionEnd)
+	if len(ends) != 1 {
+		t.Fatalf("expected 1 session_end, got %d", len(ends))
+	}
+}
+
+// TestSessionizerSummaryWorkOnlyTotals verifies that warmup-phase strokes
+// are excluded from summary totals (AvgPowerW, TotalDistanceM) and that
+// WarmupSec is correctly counted.
+// Fixture: 10m distance, warmup=10s.
+//   - t=5,  d=0,  power=100: warmup stroke (not counted in work totals)
+//   - t=15, d=5,  power=200: work stroke (counted)
+// Then EndSession() to flush.
+func TestSessionizerSummaryWorkOnlyTotals(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	in := make(chan ipm.Frame, 8)
+	out := make(chan event.Event, 32)
+
+	w := makeDistanceWorkout(10, 10, 0)
+	s := New(Options{
+		IdleTimeout: time.Minute,
+		Now:         time.Now,
+		LoadWorkout: func(id string) (*workout.Workout, error) { return w, nil },
+	})
+	go func() { _ = s.Run(ctx, in, out) }()
+
+	s.StartSession("test-workout")
+	in <- frame(5, 0, 25, 100, 3)  // warmup
+	in <- frame(15, 5, 25, 200, 3) // work (d=5 < 10m, still PhaseWork)
+
+	// Events so far: session_start, phase_change(work→warmup), stroke(warmup),
+	//                phase_change(warmup→work), stroke(work)  = 5
+	_ = drain(t, out, 5)
+
+	// Manually end the session.
+	s.EndSession()
+	got := drain(t, out, 1) // session_end
+
+	end := got[0]
+	if end.Kind != event.KindSessionEnd {
+		t.Fatalf("expected session_end, got %v", end.Kind)
+	}
+	sum := end.SessionEnd.Summary
+
+	// Only the work stroke (d=5, power=200) should be counted.
+	if sum.TotalDistanceM != 5 {
+		t.Errorf("TotalDistanceM = %d, want 5", sum.TotalDistanceM)
+	}
+	if sum.AvgPowerW != 200 {
+		t.Errorf("AvgPowerW = %d, want 200", sum.AvgPowerW)
+	}
+	if sum.TotalStrokes != 1 {
+		t.Errorf("TotalStrokes = %d, want 1 (work only)", sum.TotalStrokes)
+	}
+	// WarmupSec: boundary from t=5 (warmup start) to t=15 (work start) = 10s.
+	if sum.WarmupSec < 9.9 || sum.WarmupSec > 10.1 {
+		t.Errorf("WarmupSec = %v, want ~10", sum.WarmupSec)
 	}
 }
