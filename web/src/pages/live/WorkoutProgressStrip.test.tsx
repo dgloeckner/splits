@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter } from 'react-router-dom'
 import { LiveSessionContext } from '../../live/LiveSessionContext'
 import { initialLiveState, type LiveState } from '../../live/reducer'
 import type { Segment, ActiveSegment } from '../../live/segments'
@@ -94,9 +95,11 @@ function wrap(state: LiveState) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={qc}>
-      <LiveSessionContext.Provider value={state}>
-        <WorkoutOverlayProvider>{children}</WorkoutOverlayProvider>
-      </LiveSessionContext.Provider>
+      <MemoryRouter>
+        <LiveSessionContext.Provider value={state}>
+          <WorkoutOverlayProvider>{children}</WorkoutOverlayProvider>
+        </LiveSessionContext.Provider>
+      </MemoryRouter>
     </QueryClientProvider>
   )
 }

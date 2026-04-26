@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { deleteSession, endSession } from '../../api/client'
 import { useLiveSession } from '../../live/LiveSessionContext'
@@ -13,6 +14,7 @@ export function WorkoutProgressStrip() {
   const { abort } = useWorkoutOverlay()
   const state = useLiveSession()
   const qc = useQueryClient()
+  const nav = useNavigate()
   const [open, setOpen] = useState(false)
   const sessionId = state.session?.session_id ?? null
   if (segments.length === 0) return null
@@ -34,6 +36,7 @@ export function WorkoutProgressStrip() {
             .catch(() => {})
           abort()
           setOpen(false)
+          nav('/')
         }}
         onContinue={() => setOpen(false)}
         onDiscard={() => {
@@ -44,6 +47,7 @@ export function WorkoutProgressStrip() {
           }
           abort()
           setOpen(false)
+          nav('/')
         }}
       />
     </>
