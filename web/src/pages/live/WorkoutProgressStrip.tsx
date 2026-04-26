@@ -7,10 +7,12 @@ import { useWorkoutProgress } from '../../live/useWorkoutProgress'
 import type { ActiveSegment, Segment } from '../../live/segments'
 import { useWorkoutOverlay } from './WorkoutOverlayContext'
 import { AbortWorkoutDialog } from './AbortWorkoutDialog'
+import { useExtrapolatedActiveSegment } from './SegmentStatus'
 import styles from './WorkoutProgressStrip.module.css'
 
 export function WorkoutProgressStrip() {
-  const { segments, active } = useWorkoutProgress()
+  const { segments, active: activeRaw } = useWorkoutProgress()
+  const active = useExtrapolatedActiveSegment(activeRaw)
   const { abort } = useWorkoutOverlay()
   const state = useLiveSession()
   const qc = useQueryClient()

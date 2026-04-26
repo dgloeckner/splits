@@ -1,6 +1,8 @@
 import type { ActiveSegment } from '../../live/segments'
 import type { Workout } from '../../api/workouts'
 import { useWorkoutProgress } from '../../live/useWorkoutProgress'
+import { useLiveSession } from '../../live/LiveSessionContext'
+import { useExtrapolatedDistanceM, useExtrapolatedTimeSec } from '../../live/useLiveDisplay'
 import styles from './SegmentStatus.module.css'
 
 export type ViewProps = { active: ActiveSegment | null; workout: Workout | null }
@@ -69,7 +71,35 @@ function countWorkUpTo(includingIndex: number, workout: Workout): number {
   return count
 }
 
+/**
+ * Returns an ActiveSegment whose remainingSec / remainingM / progressRatio
+ * are recomputed from the dead-reckoned extrapolated time/distance, so
+ * countdowns and the progress marker tick smoothly between strokes.
+ */
+export function useExtrapolatedActiveSegment(active: ActiveSegment | null): ActiveSegment | null {
+  const state = useLiveSession()
+  const extT = useExtrapolatedTimeSec(state)
+  const extD = useExtrapolatedDistanceM(state)
+  if (!active) return null
+  const seg = active.segment
+  const anchor = state.phaseAnchor
+  if (seg.durationSec != null && extT.value != null) {
+    const origin = anchor?.timeSec ?? seg.startTimeSec
+    const elapsed = Math.max(0, extT.value - origin)
+    const remaining = Math.max(0, seg.durationSec - elapsed)
+    return { ...active, remainingSec: remaining, progressRatio: elapsed / seg.durationSec }
+  }
+  if (seg.distanceM != null && extD.value != null) {
+    const origin = anchor?.distanceM ?? seg.startDistanceM
+    const consumed = Math.max(0, extD.value - origin)
+    const remaining = Math.max(0, seg.distanceM - consumed)
+    return { ...active, remainingM: remaining, progressRatio: consumed / seg.distanceM }
+  }
+  return active
+}
+
 export function SegmentStatus() {
   const { active, workout } = useWorkoutProgress()
-  return <SegmentStatusView active={active} workout={workout} />
+  const display = useExtrapolatedActiveSegment(active)
+  return <SegmentStatusView active={display} workout={workout} />
 }
