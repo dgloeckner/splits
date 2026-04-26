@@ -38,3 +38,32 @@ export function fmtFloat(v: number | null | undefined, decimals: number): string
 export function fmtMeters(meters: number | null | undefined): string {
   return fmtInt(meters)
 }
+
+// hhmm renders a duration in seconds as h:mm — e.g. 5_400 → "1:30".
+// For sub-hour durations it falls back to "0:MM".
+export function hhmm(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return DASH
+  const s = Math.max(0, Math.floor(seconds))
+  const h = Math.floor(s / 3600)
+  const m = Math.floor((s - h * 3600) / 60)
+  return `${h}:${m.toString().padStart(2, '0')}`
+}
+
+// signedPct renders a percentage delta with a leading sign — e.g. 0.123 → "+12 %".
+// The argument is a fraction, not a percentage. NaN / Infinity → DASH.
+export function signedPct(fraction: number | null | undefined): string {
+  if (fraction === null || fraction === undefined || !Number.isFinite(fraction)) return DASH
+  const pct = Math.round(fraction * 100)
+  if (pct === 0) return '0 %'
+  return `${pct > 0 ? '+' : ''}${pct} %`
+}
+
+// signedNum renders a numeric delta with a leading sign and configurable
+// decimal precision — e.g. 0.42 → "+0.4". 0 stays unsigned ("0.0").
+export function signedNum(v: number | null | undefined, decimals = 1): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return DASH
+  const factor = 10 ** decimals
+  const rounded = Math.round(v * factor) / factor
+  if (rounded === 0) return rounded.toFixed(decimals)
+  return `${rounded > 0 ? '+' : ''}${rounded.toFixed(decimals)}`
+}

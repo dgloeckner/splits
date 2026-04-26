@@ -7,7 +7,7 @@
 .line {
   fill: none;
   stroke: var(--color-primary);
-  stroke-width: 2;
+  stroke-width: 3;
   stroke-linejoin: round;
   stroke-linecap: round;
 }

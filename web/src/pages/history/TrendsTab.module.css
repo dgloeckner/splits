@@ -1,0 +1,148 @@
+.wrap {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.headline {
+  background: var(--color-surface-container);
+  border-radius: var(--radius-card);
+  padding: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.headlineRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.periodLabel {
+  color: var(--color-on-surface-variant);
+  font-family: var(--font-body);
+  font-size: var(--text-label-md);
+  margin: 0;
+}
+
+.headlineNum {
+  font-family: var(--font-display);
+  font-size: var(--text-display-md, 36px);
+  color: var(--color-on-surface);
+  margin: 0;
+  line-height: 1;
+}
+
+.deltaChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: var(--text-label-sm);
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface-variant);
+  white-space: nowrap;
+}
+
+.deltaUp {
+  color: var(--color-primary);
+}
+
+.deltaDown {
+  color: var(--color-error, #ffb4ab);
+}
+
+.subRow {
+  display: flex;
+  gap: var(--space-3);
+  color: var(--color-on-surface-variant);
+  font-family: var(--font-body);
+  font-size: var(--text-label-md);
+}
+
+.card {
+  background: var(--color-surface-container);
+  border-radius: var(--radius-card);
+  padding: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.cardHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.cardTitle {
+  font-family: var(--font-display);
+  font-size: var(--text-title-md);
+  color: var(--color-on-surface);
+}
+
+.tag {
+  font-family: var(--font-body);
+  font-size: var(--text-label-sm);
+  color: var(--color-on-surface-variant);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--color-surface-container-high);
+}
+
+.legend {
+  display: grid;
+  gap: 4px;
+  font-family: var(--font-body);
+  font-size: var(--text-label-md);
+  color: var(--color-on-surface-variant);
+}
+
+.legendRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  display: inline-block;
+}
+
+.dotNeutral {
+  background: var(--color-on-surface);
+  opacity: 0.7;
+}
+
+.statRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.statCell {
+  display: grid;
+  gap: 2px;
+}
+
+.statLabel {
+  font-family: var(--font-body);
+  font-size: var(--text-label-sm);
+  color: var(--color-on-surface-variant);
+}
+
+.statValue {
+  font-family: var(--font-display);
+  font-size: var(--text-title-md);
+  color: var(--color-on-surface);
+}
+
+.placeholder {
+  padding: var(--space-4);
+  text-align: center;
+  color: var(--color-on-surface-variant);
+}

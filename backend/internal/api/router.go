@@ -55,6 +55,9 @@ func NewRouter(in Inputs) http.Handler {
 	mux.Handle("GET /api/v1/favorites", favs)
 	mux.Handle("DELETE /api/v1/favorites/{id}", favs)
 
+	trends := TrendsHandler(in.DB)
+	mux.Handle("GET /api/v1/rowers/{id}/trends", trends)
+
 	pbs := PBsHandler(in.DB)
 	mux.Handle("GET /api/v1/rowers/{id}/pbs", pbs)
 	mux.Handle("GET /api/v1/rowers/{id}/pbs/history", pbs)

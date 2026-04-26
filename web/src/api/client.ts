@@ -129,6 +129,41 @@ export async function getSessionPBBanners(id: string): Promise<SessionPBBanners>
   return json<SessionPBBanners>(r)
 }
 
+export type TrendsRange = 'week' | 'month' | 'year' | 'all'
+
+export type TrendsTotals = {
+  distance_m: number
+  active_sec: number
+  sessions: number
+}
+
+export type TrendsResponse = {
+  range: TrendsRange
+  period: { label: string; from: string; to: string }
+  totals: TrendsTotals
+  prior?: TrendsTotals
+  performance: {
+    points: { t: string; avg_power_w: number; avg_pace_sec_per_500m: number }[]
+    avg_power_w: number
+    avg_pace_sec_per_500m: number
+  }
+  efficiency: {
+    points: { t: string; avg_dps: number; avg_spi: number }[]
+    avg_dps: number
+    avg_spi: number
+    delta_dps: number
+    delta_spi: number
+  }
+  stats_version: number
+}
+
+export async function getRowerTrends(rowerID: string, range: TrendsRange): Promise<TrendsResponse> {
+  const r = await fetch(
+    `/api/v1/rowers/${encodeURIComponent(rowerID)}/trends?range=${range}`,
+  )
+  return json<TrendsResponse>(r)
+}
+
 // statsVersion is read from the X-Stats-Version response header. Used
 // by the post-session-end UI to detect when the asynchronous PB
 // recompute has completed.

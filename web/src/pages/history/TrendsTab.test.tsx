@@ -1,0 +1,109 @@
+import { render, screen, waitFor, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { MemoryRouter, Route, Routes } from 'react-router-dom'
+import { TrendsTab } from './TrendsTab'
+
+function trendsBody(over: Partial<{ sessions: number; range: string }> = {}) {
+  return {
+    range: over.range ?? 'month',
+    period: { label: 'Diesen Monat', from: '', to: '' },
+    totals: { distance_m: 12_000, active_sec: 5_400, sessions: over.sessions ?? 3 },
+    prior: { distance_m: 10_000, active_sec: 4_000, sessions: 2 },
+    performance: {
+      points: [
+        { t: '2026-04-01T10:00:00Z', avg_power_w: 200, avg_pace_sec_per_500m: 130 },
+        { t: '2026-04-10T10:00:00Z', avg_power_w: 215, avg_pace_sec_per_500m: 124 },
+      ],
+      avg_power_w: 207,
+      avg_pace_sec_per_500m: 127,
+    },
+    efficiency: {
+      points: [
+        { t: '2026-04-01T10:00:00Z', avg_dps: 9.5, avg_spi: 8 },
+        { t: '2026-04-10T10:00:00Z', avg_dps: 10.2, avg_spi: 8.5 },
+      ],
+      avg_dps: 9.85,
+      avg_spi: 8.25,
+      delta_dps: 0.4,
+      delta_spi: 0.2,
+    },
+    stats_version: 1,
+  }
+}
+
+function setupFetch(custom?: (url: string) => Response) {
+  const fn = vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input)
+    if (custom) {
+      const r = custom(url)
+      if (r) return r
+    }
+    if (url.includes('/api/v1/active-rower')) {
+      return new Response(JSON.stringify({ id: 'R1', name: 'D', color: '#0f0', created_at: '' }), {
+        status: 200,
+      })
+    }
+    if (url.includes('/api/v1/rowers/R1/trends')) {
+      const u = new URL(url, 'http://x')
+      const range = u.searchParams.get('range') ?? 'month'
+      return new Response(JSON.stringify(trendsBody({ range })), { status: 200 })
+    }
+    return new Response('{}', { status: 200 })
+  })
+  vi.stubGlobal('fetch', fn)
+  return fn
+}
+
+function wrap(initialPath = '/historie/trends') {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  return render(
+    <QueryClientProvider client={qc}>
+      <MemoryRouter initialEntries={[initialPath]}>
+        <Routes>
+          <Route path="/historie/trends" element={<TrendsTab />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  )
+}
+
+describe('TrendsTab', () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('renders all 4 sections with mocked trends data', async () => {
+    setupFetch()
+    wrap()
+    await waitFor(() => expect(screen.getByText('Diesen Monat')).toBeInTheDocument())
+    expect(screen.getByRole('tablist', { name: 'Zeitraum' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Zusammenfassung' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Leistung' })).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Effizienz' })).toBeInTheDocument()
+  })
+
+  it('switches the trends query when the user picks a different range', async () => {
+    const fetchFn = setupFetch()
+    wrap()
+    await waitFor(() => expect(screen.getByText('Diesen Monat')).toBeInTheDocument())
+    const tablist = screen.getByRole('tablist', { name: 'Zeitraum' })
+    await userEvent.click(within(tablist).getByRole('tab', { name: 'Woche' }))
+    await waitFor(() => {
+      const calls = fetchFn.mock.calls.map((c) => String(c[0]))
+      expect(calls.some((u) => u.includes('range=week'))).toBe(true)
+    })
+  })
+
+  it('shows the empty placeholder when totals.sessions is zero', async () => {
+    setupFetch((url) => {
+      if (url.includes('/api/v1/rowers/R1/trends')) {
+        return new Response(JSON.stringify(trendsBody({ sessions: 0 })), { status: 200 })
+      }
+      return null as unknown as Response
+    })
+    wrap()
+    await waitFor(() => expect(screen.getByTestId('trends-empty')).toBeInTheDocument())
+  })
+})

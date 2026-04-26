@@ -1,0 +1,47 @@
+.wrap {
+  width: 100%;
+}
+
+.svg {
+  width: 100%;
+  display: block;
+}
+
+.line {
+  fill: none;
+  stroke-width: 3;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.solid {
+  /* solid */
+}
+
+.dashed {
+  stroke-dasharray: 4 4;
+}
+
+.primary {
+  stroke: var(--color-primary);
+}
+
+.neutral {
+  stroke: var(--color-on-surface);
+  opacity: 0.7;
+}
+
+.dot {
+  /* used when only one point exists */
+}
+
+.empty {
+  height: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-on-surface-variant);
+  font-family: var(--font-body);
+  font-size: var(--text-label-sm);
+}

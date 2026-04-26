@@ -1,3 +1,4 @@
+import { monotonePath } from '../charts/path'
 import styles from './LineChart.module.css'
 
 const WIDTH = 300
@@ -50,9 +51,7 @@ export function LineChart({ title, points, fmt = (v) => String(Math.round(v)) }:
         ) : (
           <path
             className={styles.line}
-            d={points
-              .map((p, i) => `${i === 0 ? 'M' : 'L'} ${toX(p.x).toFixed(2)} ${toY(p.y).toFixed(2)}`)
-              .join(' ')}
+            d={monotonePath(points.map((p) => ({ x: toX(p.x), y: toY(p.y) })))}
           />
         )}
       </svg>

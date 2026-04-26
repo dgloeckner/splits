@@ -1,145 +1,30 @@
-import { useState } from 'react'
-import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link } from 'react-router-dom'
-import { deleteSession, listSessions, type SessionRow } from '../api/client'
-import { getWorkout, type Workout } from '../api/workouts'
-import { formatSessionStart } from '../util/dates'
-import { fmtMeters, mmss, pace500m } from '../util/format'
-import { workoutChipLabel } from '../util/workoutLabel'
-import { DeleteSessionDialog } from './history/DeleteSessionDialog'
+import { NavLink, Outlet } from 'react-router-dom'
 import styles from './HistoryPage.module.css'
 
 export function HistoryPage() {
-  const { data, isPending, error } = useQuery<SessionRow[]>({
-    queryKey: ['sessions', 'list'],
-    queryFn: () => listSessions(50, 0),
-  })
-
-  // Fetch the referenced workouts in parallel so each card can render a
-  // workout-type chip. React Query dedupes/caches per id so repeat views
-  // stay cheap.
-  const workoutIds = Array.from(
-    new Set((data ?? []).map((s) => s.workout_id).filter((v): v is string => !!v)),
-  )
-  const workoutQueries = useQueries({
-    queries: workoutIds.map((id) => ({
-      queryKey: ['workout', id],
-      queryFn: () => getWorkout(id),
-      staleTime: 60_000,
-    })),
-  })
-  const workoutById = new Map<string, Workout>()
-  workoutQueries.forEach((q, i) => {
-    if (q.data) workoutById.set(workoutIds[i], q.data)
-  })
-
-  if (isPending) {
-    return (
-      <div className={styles.page}>
-        <h1 className="headline-sm">Historie</h1>
-        <p className={styles.empty}>Lädt …</p>
-      </div>
-    )
-  }
-  if (error) {
-    return (
-      <div className={styles.page}>
-        <h1 className="headline-sm">Historie</h1>
-        <p className={styles.empty}>Konnte Sessions nicht laden.</p>
-      </div>
-    )
-  }
-
-  if (!data || data.length === 0) {
-    return (
-      <div className={styles.page}>
-        <h1 className="headline-sm">Historie</h1>
-        <p className={styles.empty}>
-          Noch keine Sessions. Rudere eine Session und sie erscheint hier.
-        </p>
-      </div>
-    )
-  }
-
   return (
     <div className={styles.page}>
       <h1 className="headline-sm">Historie</h1>
-      <div className={styles.list}>
-        {data.map((s) => (
-          <SessionCard
-            key={s.id}
-            session={s}
-            workout={s.workout_id ? workoutById.get(s.workout_id) ?? null : null}
-          />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function SessionCard({ session: s, workout }: { session: SessionRow; workout: Workout | null }) {
-  const qc = useQueryClient()
-  const [confirmOpen, setConfirmOpen] = useState(false)
-  const deleteM = useMutation({
-    mutationFn: () => deleteSession(s.id),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['sessions'] })
-      qc.invalidateQueries({ queryKey: ['rower-pbs'] })
-      qc.invalidateQueries({ queryKey: ['rower-lifetime'] })
-      qc.invalidateQueries({ queryKey: ['rower-achievements'] })
-      setConfirmOpen(false)
-    },
-  })
-  return (
-    <>
-      <div className={styles.row}>
-        <Link to={`/historie/${s.id}`} className={styles.rowLink}>
-          <div className={styles.head}>
-            <span className={styles.when}>{formatSessionStart(s.started_at)}</span>
-            {s.has_pb && (
-              <span
-                className={styles.pbBadge}
-                role="img"
-                aria-label="Neue Bestleistung"
-                title="Neue Bestleistung"
-                data-testid={`history-pb-${s.id}`}
-              >
-                🏆
-              </span>
-            )}
-            <span className={styles.typeChip}>{workoutChipLabel(workout)}</span>
-          </div>
-          <div className={styles.metrics}>
-            <span className={styles.pill}>{fmtMeters(s.total_distance_m ?? null)} m</span>
-            <span className={styles.pill}>{mmss(s.total_time_sec ?? null)}</span>
-            {s.summary?.avg_pace_sec_per_500m != null && (
-              <span className={`${styles.pill} ${styles.pillStrong}`}>
-                {pace500m(s.summary.avg_pace_sec_per_500m)}
-              </span>
-            )}
-          </div>
-        </Link>
-        <button
-          type="button"
-          className={styles.deleteIcon}
-          aria-label={`Sitzung ${formatSessionStart(s.started_at)} löschen`}
-          onClick={(e) => {
-            e.preventDefault()
-            e.stopPropagation()
-            setConfirmOpen(true)
-          }}
-          data-testid={`history-delete-${s.id}`}
+      <nav className={styles.subnav} aria-label="Historie">
+        <NavLink
+          to="/historie"
+          end
+          className={({ isActive }) =>
+            isActive ? `${styles.tab} ${styles.tabActive}` : styles.tab
+          }
         >
-          ✕
-        </button>
-      </div>
-      <DeleteSessionDialog
-        open={confirmOpen}
-        session={s}
-        busy={deleteM.isPending}
-        onConfirm={() => deleteM.mutate()}
-        onCancel={() => setConfirmOpen(false)}
-      />
-    </>
+          Sessions
+        </NavLink>
+        <NavLink
+          to="/historie/trends"
+          className={({ isActive }) =>
+            isActive ? `${styles.tab} ${styles.tabActive}` : styles.tab
+          }
+        >
+          Trends
+        </NavLink>
+      </nav>
+      <Outlet />
+    </div>
   )
 }

@@ -32,9 +32,10 @@
 .line {
   fill: none;
   stroke: var(--color-primary);
-  stroke-width: 1.5;
+  stroke-width: 3;
   stroke-linejoin: round;
   stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
 }
 
 .dot {

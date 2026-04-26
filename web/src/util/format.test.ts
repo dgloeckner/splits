@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mmss, mmssWhole, pace500m, fmtInt, fmtFloat, fmtMeters } from './format'
+import { mmss, mmssWhole, pace500m, fmtInt, fmtFloat, fmtMeters, hhmm, signedPct, signedNum } from './format'
 
 describe('mmss', () => {
   it.each([
@@ -73,5 +73,44 @@ describe('fmtMeters', () => {
     expect(fmtMeters(342)).toBe('342')
     expect(fmtMeters(1234)).toBe('1234')
     expect(fmtMeters(0)).toBe('0')
+  })
+})
+
+describe('hhmm', () => {
+  it('formats seconds as h:mm', () => {
+    expect(hhmm(0)).toBe('0:00')
+    expect(hhmm(60)).toBe('0:01')
+    expect(hhmm(5_400)).toBe('1:30')
+    expect(hhmm(36_000)).toBe('10:00')
+  })
+
+  it('returns em-dash for null / NaN', () => {
+    expect(hhmm(null)).toBe('—')
+    expect(hhmm(NaN)).toBe('—')
+  })
+})
+
+describe('signedPct', () => {
+  it('formats fractions with leading sign', () => {
+    expect(signedPct(0.123)).toBe('+12 %')
+    expect(signedPct(-0.05)).toBe('-5 %')
+    expect(signedPct(0)).toBe('0 %')
+  })
+
+  it('returns em-dash for null / NaN', () => {
+    expect(signedPct(null)).toBe('—')
+    expect(signedPct(NaN)).toBe('—')
+  })
+})
+
+describe('signedNum', () => {
+  it('formats with leading sign and given decimals', () => {
+    expect(signedNum(0.42, 1)).toBe('+0.4')
+    expect(signedNum(-1.27, 1)).toBe('-1.3')
+    expect(signedNum(0, 1)).toBe('0.0')
+  })
+
+  it('returns em-dash for null', () => {
+    expect(signedNum(null)).toBe('—')
   })
 })
