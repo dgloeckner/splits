@@ -13,6 +13,7 @@ const (
 	KindSessionEnd
 	KindLevelChange
 	KindWorkoutAttached
+	KindPhaseChange
 )
 
 // Event is the internal envelope handed from the sessionizer to every
@@ -29,6 +30,7 @@ type Event struct {
 	SessionEnd      *SessionEndPayload
 	LevelChange     *LevelChangePayload
 	WorkoutAttached *WorkoutAttachedPayload
+	PhaseChange     *PhaseChangePayload
 }
 
 // WorkoutAttachedPayload signals that a workout was attached to the
@@ -49,6 +51,7 @@ type StrokePayload struct {
 	PowerW      int
 	CalPerHr    int
 	Level       int
+	Phase       string
 	RawPayload  string
 	UnknownJSON []byte
 
@@ -81,6 +84,9 @@ type SessionSummary struct {
 	AvgDPS            float64 `json:"avg_dps"`
 	AvgPaceSecPer500m int     `json:"avg_pace_sec_per_500m"`
 	SessionCalories   int     `json:"session_calories"`
+	WarmupSec         float64 `json:"warmup_sec,omitempty"`
+	RestSec           float64 `json:"rest_sec,omitempty"`
+	CooldownSec       float64 `json:"cooldown_sec,omitempty"`
 
 	// Samples is the downsampled per-stroke series used by past-session
 	// charts after compaction (FEAT-0009). Populated by the persister at
@@ -117,4 +123,12 @@ type LevelChangePayload struct {
 	To         int
 	AtStroke   int
 	AtTimeSec  float64
+}
+
+type PhaseChangePayload struct {
+	From        string  `json:"from"`
+	To          string  `json:"to"`
+	AtStroke    int     `json:"at_stroke"`
+	AtTimeSec   float64 `json:"at_time_sec"`
+	AtDistanceM int     `json:"at_distance_m"`
 }
