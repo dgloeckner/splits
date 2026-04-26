@@ -135,7 +135,33 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
         case 'stroke': {
           const p = ev.data
           const now = Date.now()
-          const prevMs = state.lastStrokeReceivedAtMs
+          // If the stroke belongs to a session we haven't observed a
+          // session_start for (e.g. SSE replayed past the start, or the
+          // backend dropped the early events while we were latched on
+          // the previous summary), treat the very first stroke for the
+          // new session as an implicit start: clear sparklines and
+          // summary so we render the new session, not the old one.
+          const newSession = state.session?.session_id !== p.session_id
+          const baseState: LiveState = newSession
+            ? {
+                ...state,
+                session: state.session
+                  ? { ...state.session, session_id: p.session_id }
+                  : {
+                      session_id: p.session_id,
+                      started_at: new Date().toISOString(),
+                      rower_id: '',
+                      rower_name: '',
+                      initial_level: p.level,
+                    },
+                summary: null,
+                sparklines: { power: [], split: [], dps: [], spm: [] },
+                lastStrokeReceivedAtMs: null,
+                smoothed: null,
+                sessionStartedAtMs: null,
+              }
+            : state
+          const prevMs = baseState.lastStrokeReceivedAtMs
           const resumedFromPause = prevMs !== null && now - prevMs > PAUSE_GAP_MS
           const appendOrTrim = (
             series: SparklinePoint[],
@@ -154,18 +180,18 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
             }
             return trimWindow(next, p.time_sec)
           }
-          const sessionStartedAtMs = state.sessionStartedAtMs ?? now
+          const sessionStartedAtMs = baseState.sessionStartedAtMs ?? now
           const inColdStart =
             now - sessionStartedAtMs < smoothingConfig.coldStartSeconds * 1000
-          const smoothed = nextSmoothed(state.smoothed, p, inColdStart)
+          const smoothed = nextSmoothed(baseState.smoothed, p, inColdStart)
           return {
-            ...state,
+            ...baseState,
             stroke: p,
             sparklines: {
-              power: appendOrTrim(state.sparklines.power, p.power_w, 'watts'),
-              split: appendOrTrim(state.sparklines.split, p.pace_sec_per_500m, 'split'),
-              dps: appendOrTrim(state.sparklines.dps, p.dps, 'dps'),
-              spm: appendOrTrim(state.sparklines.spm, p.spm, 'spm'),
+              power: appendOrTrim(baseState.sparklines.power, p.power_w, 'watts'),
+              split: appendOrTrim(baseState.sparklines.split, p.pace_sec_per_500m, 'split'),
+              dps: appendOrTrim(baseState.sparklines.dps, p.dps, 'dps'),
+              spm: appendOrTrim(baseState.sparklines.spm, p.spm, 'spm'),
             },
             lastStrokeReceivedAtMs: now,
             sessionStartedAtMs,
