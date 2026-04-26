@@ -82,6 +82,7 @@ type SessionSummary struct {
 	PeakPowerW        int     `json:"peak_power_w"`
 	AvgSPM            float64 `json:"avg_spm"`
 	AvgDPS            float64 `json:"avg_dps"`
+	AvgSPI            int     `json:"avg_spi"`
 	AvgPaceSecPer500m int     `json:"avg_pace_sec_per_500m"`
 	SessionCalories   int     `json:"session_calories"`
 	WarmupSec         float64 `json:"warmup_sec,omitempty"`
@@ -108,7 +109,7 @@ type SessionSummary struct {
 }
 
 // SessionSamples is N-stroke-bucket-averaged time series. Length is
-// always equal across all four arrays. T is the time-axis in seconds
+// always equal across all arrays. T is the time-axis in seconds
 // from session start (one entry per bucket).
 type SessionSamples struct {
 	BucketStrokes int       `json:"bucket_strokes"`
@@ -116,6 +117,8 @@ type SessionSamples struct {
 	Split         []int     `json:"split"`
 	Watt          []int     `json:"watt"`
 	SPM           []int     `json:"spm"`
+	DPS           []float64 `json:"dps"`
+	SPI           []int     `json:"spi"`
 }
 
 type LevelChangePayload struct {

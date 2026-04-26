@@ -482,3 +482,37 @@ func TestSessionizerSummaryWorkOnlyTotals(t *testing.T) {
 		t.Errorf("WarmupSec = %v, want ~10", sum.WarmupSec)
 	}
 }
+
+// TestSessionizerSummaryAvgSPI verifies that AvgSPI is populated when
+// strokes have valid power and spm (power >= 20 && spm > 0).
+// Two work strokes: power=200, spm=25 → SPI = 200/25 = 8 each → AvgSPI = 8.
+func TestSessionizerSummaryAvgSPI(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	in := make(chan ipm.Frame, 8)
+	out := make(chan event.Event, 32)
+
+	s := New(Options{
+		IdleTimeout: time.Minute,
+		Now:         time.Now,
+	})
+	go func() { _ = s.Run(ctx, in, out) }()
+
+	s.StartSession("")
+	in <- frame(2, 8, 25, 200, 3)
+	in <- frame(4, 16, 25, 200, 3)
+	// Events: session_start, stroke, stroke = 3
+	_ = drain(t, out, 3)
+
+	s.EndSession()
+	got := drain(t, out, 1) // session_end
+
+	sum := got[0].SessionEnd.Summary
+	if sum.AvgSPI <= 0 {
+		t.Errorf("AvgSPI = %d, want > 0 (power=200, spm=25 → SPI=8)", sum.AvgSPI)
+	}
+	wantSPI := 200 / 25
+	if sum.AvgSPI != wantSPI {
+		t.Errorf("AvgSPI = %d, want %d", sum.AvgSPI, wantSPI)
+	}
+}

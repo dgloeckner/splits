@@ -75,6 +75,8 @@ type sessionState struct {
 	peakPower     int
 	spmSum        int
 	dpsSum        float64
+	spiSum        int
+	spiCount      int
 	paceSum       int
 	calSum        int
 	lastStroke    *event.StrokePayload
@@ -370,6 +372,10 @@ func (s *Sessionizer) accumulate(p *event.StrokePayload) {
 	}
 	s.session.spmSum += p.SPM
 	s.session.dpsSum += p.DPS
+	if p.SPM > 0 && p.PowerW >= 20 {
+		s.session.spiSum += p.PowerW / p.SPM
+		s.session.spiCount++
+	}
 	s.session.paceSum += p.PaceSecPer500m
 	s.session.calSum += p.EnergyJoules
 	p2 := *p
@@ -529,6 +535,9 @@ func (s *Sessionizer) closeSession(ctx context.Context, out chan<- event.Event) 
 		summary.AvgDPS = st.dpsSum / float64(st.strokes)
 		summary.AvgPaceSecPer500m = st.paceSum / st.strokes
 		summary.SessionCalories = st.calSum / 1000 // joules → kcal
+		if st.spiCount > 0 {
+			summary.AvgSPI = st.spiSum / st.spiCount
+		}
 	}
 	s.mu.Lock()
 	s.currentSessionStart = nil

@@ -114,6 +114,65 @@ func TestGetSessionSamples(t *testing.T) {
 	}
 }
 
+func TestGetSessionSamplesFromSummary(t *testing.T) {
+	// Simulate a compacted session: strokes deleted, summary has Samples with DPS+SPI.
+	db, err := storage.Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	started := time.Date(2026, 4, 21, 10, 0, 0, 0, time.UTC)
+	if err := storage.InsertSession(ctx, db.Handle(), "S2", "R1", started, 3, ""); err != nil {
+		t.Fatal(err)
+	}
+	// Compacted session: store summary_json with Samples, no stroke rows.
+	summary := event.SessionSummary{
+		TotalDistanceM:    100,
+		TotalTimeSec:      60,
+		TotalStrokes:      10,
+		AvgPaceSecPer500m: 125,
+		AvgSPI:            8,
+		Samples: &event.SessionSamples{
+			BucketStrokes: 5,
+			T:             []float64{10.0, 20.0},
+			Split:         []int{125, 130},
+			Watt:          []int{200, 210},
+			SPM:           []int{25, 26},
+			DPS:           []float64{8.5, 9.0},
+			SPI:           []int{8, 8},
+		},
+	}
+	if err := storage.UpdateSessionEnd(ctx, db.Handle(), "S2", started.Add(time.Minute), summary); err != nil {
+		t.Fatal(err)
+	}
+
+	h := SessionsHandler(db.Handle(), nil)
+	rec := doReq(t, h, "GET", "/api/v1/sessions/S2/samples")
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, body=%s", rec.Code, rec.Body.String())
+	}
+	var body struct {
+		Samples []map[string]any `json:"samples"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Samples) != 2 {
+		t.Fatalf("got %d samples, want 2", len(body.Samples))
+	}
+	// DPS and SPI should be non-zero.
+	dps0, _ := body.Samples[0]["dps"].(float64)
+	if dps0 == 0 {
+		t.Errorf("samples[0].dps = 0, want non-zero (from summary)")
+	}
+	spi0, _ := body.Samples[0]["spi"].(float64)
+	if spi0 == 0 {
+		t.Errorf("samples[0].spi = 0, want non-zero (from summary)")
+	}
+}
+
 func TestDeleteSessionSoftDeletes(t *testing.T) {
 	db := seedDB(t)
 	h := SessionsHandler(db.Handle(), nil)

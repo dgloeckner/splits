@@ -39,6 +39,7 @@ type SampleRow struct {
 	StrokeCycleSec float64 `json:"stroke_cycle_sec"`
 	PaceSecPer500m int     `json:"pace_sec_per_500m"`
 	EnergyJoules   int     `json:"energy_joules"`
+	SPI            int     `json:"spi"`
 }
 
 // ListSessions returns non-deleted sessions newest first.
@@ -127,7 +128,8 @@ func MaxStrokeGlobalID(ctx context.Context, db *sql.DB) (uint64, error) {
 func ListSamples(ctx context.Context, db *sql.DB, sessionID string) ([]SampleRow, error) {
 	rows, err := db.QueryContext(ctx, `
 		SELECT stroke_no, time_sec, distance_m, spm, power_w, cal_per_hr, level,
-		       dps, stroke_cycle_sec, pace_sec_per_500m, energy_joules
+		       dps, stroke_cycle_sec, pace_sec_per_500m, energy_joules,
+		       (CASE WHEN spm > 0 AND power_w >= 20 THEN power_w / spm ELSE 0 END) AS spi
 		FROM strokes
 		WHERE session_id = ?
 		ORDER BY stroke_no ASC`, sessionID)
@@ -140,7 +142,7 @@ func ListSamples(ctx context.Context, db *sql.DB, sessionID string) ([]SampleRow
 	for rows.Next() {
 		var s SampleRow
 		if err := rows.Scan(&s.StrokeNo, &s.TimeSec, &s.DistanceM, &s.SPM, &s.PowerW, &s.CalPerHr, &s.Level,
-			&s.DPS, &s.StrokeCycleSec, &s.PaceSecPer500m, &s.EnergyJoules); err != nil {
+			&s.DPS, &s.StrokeCycleSec, &s.PaceSecPer500m, &s.EnergyJoules, &s.SPI); err != nil {
 			return nil, err
 		}
 		out = append(out, s)

@@ -16,6 +16,17 @@ func mkStroke(no int, t float64, pace, watt, spm int) event.StrokePayload {
 	}
 }
 
+func mkStrokeFull(no int, t float64, pace, watt, spm int, dps float64) event.StrokePayload {
+	return event.StrokePayload{
+		StrokeNo:       no,
+		TimeSec:        t,
+		PaceSecPer500m: pace,
+		PowerW:         watt,
+		SPM:            spm,
+		DPS:            dps,
+	}
+}
+
 func TestComputeSamplesEmpty(t *testing.T) {
 	s := ComputeSamples(nil, 5)
 	if s == nil || len(s.T) != 0 || s.BucketStrokes != 5 {
@@ -82,5 +93,40 @@ func TestComputeSamplesDefaultBucket(t *testing.T) {
 	}
 	if len(s.T) != 1 {
 		t.Errorf("expected 1 bucket from 1 stroke, got %d", len(s.T))
+	}
+}
+
+func TestComputeSamplesDPSandSPI(t *testing.T) {
+	// Two strokes in one bucket: dps=8 and dps=10; watt=200,spm=25 for both.
+	// Expected DPS mean = 9.0, SPI mean = 200/25 = 8.
+	strokes := []event.StrokePayload{
+		mkStrokeFull(1, 2, 120, 200, 25, 8.0),
+		mkStrokeFull(2, 4, 124, 200, 25, 10.0),
+	}
+	s := ComputeSamples(strokes, 5)
+	if len(s.DPS) != 1 {
+		t.Fatalf("expected 1 DPS bucket, got %d", len(s.DPS))
+	}
+	if len(s.SPI) != 1 {
+		t.Fatalf("expected 1 SPI bucket, got %d", len(s.SPI))
+	}
+	wantDPS := (8.0 + 10.0) / 2.0
+	if s.DPS[0] != wantDPS {
+		t.Errorf("DPS[0] = %v, want %v", s.DPS[0], wantDPS)
+	}
+	wantSPI := 200 / 25 // per-stroke SPI, both equal so mean is same
+	if s.SPI[0] != wantSPI {
+		t.Errorf("SPI[0] = %d, want %d", s.SPI[0], wantSPI)
+	}
+}
+
+func TestComputeSamplesSPIZeroWhenNoValidStrokes(t *testing.T) {
+	// spm=0 strokes should produce SPI bucket of 0.
+	strokes := []event.StrokePayload{
+		mkStrokeFull(1, 2, 120, 0, 0, 5.0),
+	}
+	s := ComputeSamples(strokes, 5)
+	if s.SPI[0] != 0 {
+		t.Errorf("SPI[0] = %d, want 0 when spm=0", s.SPI[0])
 	}
 }

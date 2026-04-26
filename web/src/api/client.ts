@@ -6,6 +6,7 @@ export type SessionSummary = {
   peak_power_w: number
   avg_spm: number
   avg_dps: number
+  avg_spi: number
   avg_pace_sec_per_500m: number
   session_calories: number
 }
@@ -32,6 +33,7 @@ export type Sample = {
   cal_per_hr: number
   level: number
   dps: number
+  spi: number
   stroke_cycle_sec: number
   pace_sec_per_500m: number
   energy_joules: number

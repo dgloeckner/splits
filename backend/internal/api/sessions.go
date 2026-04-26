@@ -90,7 +90,9 @@ func getSamples(db *sql.DB) http.HandlerFunc {
 // expandSamples zips summary_json.samples into per-bucket SampleRows
 // using the same field names the live samples endpoint already
 // returns. stroke_no is the bucket index; fields not stored in the
-// downsampled series (distance_m, level, dps, …) are zeroed.
+// downsampled series (distance_m, level, …) are zeroed.
+// DPS and SPI are populated when present; older summaries written
+// before these fields were added will leave them at zero.
 func expandSamples(s *event.SessionSamples) []storage.SampleRow {
 	if s == nil {
 		return nil
@@ -98,13 +100,20 @@ func expandSamples(s *event.SessionSamples) []storage.SampleRow {
 	n := len(s.T)
 	out := make([]storage.SampleRow, 0, n)
 	for i := 0; i < n; i++ {
-		out = append(out, storage.SampleRow{
+		row := storage.SampleRow{
 			StrokeNo:       i + 1,
 			TimeSec:        s.T[i],
 			PaceSecPer500m: s.Split[i],
 			PowerW:         s.Watt[i],
 			SPM:            s.SPM[i],
-		})
+		}
+		if i < len(s.DPS) {
+			row.DPS = s.DPS[i]
+		}
+		if i < len(s.SPI) {
+			row.SPI = s.SPI[i]
+		}
+		out = append(out, row)
 	}
 	return out
 }
