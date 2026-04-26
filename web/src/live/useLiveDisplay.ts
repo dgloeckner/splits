@@ -78,18 +78,20 @@ export function useIsLivePaused(state: LiveState): boolean {
   return Date.now() - last >= smoothingConfig.deadReckoning.pauseThresholdMs
 }
 
+type Extrapolated = { value: number | null; paused: boolean }
+
 /**
- * Returns the displayed elapsed time as mm:ss, extrapolated between
- * strokes using wall-clock deltas. Freezes when stroke frames stop
- * arriving for more than `pauseThresholdMs`.
+ * Numeric core of the time dead-reckoning. Returns absolute extrapolated
+ * timeSec since session start. Use the formatting wrappers below for
+ * display.
  */
-export function useDeadReckonedTime(state: LiveState): DeadReckoned {
+export function useExtrapolatedTimeSec(state: LiveState): Extrapolated {
   const reduced = usePrefersReducedMotion()
   const visible = usePageVisible()
   useFrameTick(!reduced && visible)
 
   const s = state.stroke
-  if (!s) return { text: mmssWhole(null), paused: false }
+  if (!s) return { value: null, paused: false }
 
   const receivedAt = state.lastStrokeReceivedAtMs ?? Date.now()
   const now = Date.now()
@@ -97,25 +99,31 @@ export function useDeadReckonedTime(state: LiveState): DeadReckoned {
   const paused = sinceFrame >= smoothingConfig.deadReckoning.pauseThresholdMs
 
   if (reduced || !visible || paused) {
-    return { text: mmssWhole(s.time_sec), paused }
+    return { value: s.time_sec, paused }
   }
-
-  const extrapolated = s.time_sec + sinceFrame / 1000
-  return { text: mmssWhole(extrapolated), paused: false }
+  return { value: s.time_sec + sinceFrame / 1000, paused: false }
 }
 
 /**
- * Returns the displayed distance as an integer meters string, extrapolated
- * using the speed derived from the last two frames (Δm/Δs).
+ * Returns the displayed elapsed time as mm:ss, extrapolated between
+ * strokes using wall-clock deltas. Freezes when stroke frames stop
+ * arriving for more than `pauseThresholdMs`.
  */
-export function useDeadReckonedDistance(state: LiveState): DeadReckoned {
+export function useDeadReckonedTime(state: LiveState): DeadReckoned {
+  const e = useExtrapolatedTimeSec(state)
+  return { text: mmssWhole(e.value), paused: e.paused }
+}
+
+/**
+ * Numeric core of distance dead-reckoning. Returns absolute extrapolated
+ * distance in meters since session start. Use the formatting wrapper
+ * below for display.
+ */
+export function useExtrapolatedDistanceM(state: LiveState): Extrapolated {
   const reduced = usePrefersReducedMotion()
   const visible = usePageVisible()
   useFrameTick(!reduced && visible)
 
-  // Track the previous-previous stroke so we can derive speed from the last
-  // two strokes. When a new stroke number arrives, the CURRENT snapshot
-  // becomes "previous" for speed calc.
   const lastSnapshotRef = useRef<{
     stroke: number
     time_sec: number
@@ -138,7 +146,7 @@ export function useDeadReckonedDistance(state: LiveState): DeadReckoned {
     }
   }, [s])
 
-  if (!s) return { text: fmtInt(null), paused: false }
+  if (!s) return { value: null, paused: false }
 
   const receivedAt = state.lastStrokeReceivedAtMs ?? Date.now()
   const now = Date.now()
@@ -146,47 +154,63 @@ export function useDeadReckonedDistance(state: LiveState): DeadReckoned {
   const paused = sinceFrame >= smoothingConfig.deadReckoning.pauseThresholdMs
 
   if (reduced || !visible || paused) {
-    return { text: fmtInt(s.distance_m), paused }
+    return { value: s.distance_m, paused }
   }
-
   let speed = 0
   const prev = prevSnapshotRef.current
   if (prev && s.time_sec > prev.time_sec) {
     speed = (s.distance_m - prev.distance_m) / (s.time_sec - prev.time_sec)
   }
-
-  const extrapolated = s.distance_m + speed * (sinceFrame / 1000)
-  return { text: fmtInt(extrapolated), paused: false }
+  return { value: s.distance_m + speed * (sinceFrame / 1000), paused: false }
 }
 
-import { usePhaseBaseline } from './usePhaseBaseline'
+/**
+ * Returns the displayed distance as an integer meters string, extrapolated
+ * using the speed derived from the last two frames (Δm/Δs).
+ */
+export function useDeadReckonedDistance(state: LiveState): DeadReckoned {
+  const e = useExtrapolatedDistanceM(state)
+  return { text: fmtInt(e.value), paused: e.paused }
+}
+
+import { useContext } from 'react'
+import { LiveSessionContext } from './LiveSessionContext'
 
 /**
- * Phase-aware distance display. During warmup shows 0; during work shows
- * distance relative to the work-phase anchor; during rest/cooldown freezes
- * at the last work value. Falls back to raw dead-reckoning when phase is
- * null (free-row session) or when rendered outside a LiveSessionProvider.
+ * Phase-aware distance display. Counts up smoothly from 0 inside every
+ * phase (warmup, work, rest, cooldown) by subtracting the active phase
+ * anchor from the dead-reckoned absolute distance. Falls back to raw
+ * dead-reckoning when there is no phase information (free-row session or
+ * outside a LiveSessionProvider).
  */
 export function usePhasedDistance(state: LiveState): DeadReckoned {
-  const raw = useDeadReckonedDistance(state)
-  const baseline = usePhaseBaseline()
-  if (baseline.phase === null) return raw
-  if (baseline.phase === 'warmup') return { text: fmtInt(0), paused: raw.paused }
-  return { text: fmtInt(baseline.displayDistanceM), paused: raw.paused }
+  const e = useExtrapolatedDistanceM(state)
+  const live = useContext(LiveSessionContext)
+  const phase = live?.phase ?? null
+  const anchor = live?.phaseAnchor ?? null
+  if (e.value === null) return { text: fmtInt(null), paused: e.paused }
+  if (phase === null || anchor === null) {
+    return { text: fmtInt(e.value), paused: e.paused }
+  }
+  return { text: fmtInt(Math.max(0, e.value - anchor.distanceM)), paused: e.paused }
 }
 
 /**
- * Phase-aware time display. During warmup shows 0:00; during work shows
- * time relative to the work-phase anchor; during rest/cooldown freezes
- * at the last work value. Falls back to raw dead-reckoning when phase is
- * null (free-row session) or when rendered outside a LiveSessionProvider.
+ * Phase-aware time display. Counts up smoothly from 0 inside every phase
+ * (warmup, work, rest, cooldown) by subtracting the active phase anchor
+ * from the dead-reckoned absolute timeSec. Falls back to raw
+ * dead-reckoning when there is no phase information.
  */
 export function usePhasedTime(state: LiveState): DeadReckoned {
-  const raw = useDeadReckonedTime(state)
-  const baseline = usePhaseBaseline()
-  if (baseline.phase === null) return raw
-  if (baseline.phase === 'warmup') return { text: mmssWhole(0), paused: raw.paused }
-  return { text: mmssWhole(baseline.displayTimeSec), paused: raw.paused }
+  const e = useExtrapolatedTimeSec(state)
+  const live = useContext(LiveSessionContext)
+  const phase = live?.phase ?? null
+  const anchor = live?.phaseAnchor ?? null
+  if (e.value === null) return { text: mmssWhole(null), paused: e.paused }
+  if (phase === null || anchor === null) {
+    return { text: mmssWhole(e.value), paused: e.paused }
+  }
+  return { text: mmssWhole(Math.max(0, e.value - anchor.timeSec)), paused: e.paused }
 }
 
 export type SmoothedDisplay = {
