@@ -72,21 +72,21 @@ type SessionEndPayload struct {
 }
 
 type SessionSummary struct {
-	TotalDistanceM    int
-	TotalTimeSec      float64
-	TotalStrokes      int
-	AvgPowerW         int
-	PeakPowerW        int
-	AvgSPM            float64
-	AvgDPS            float64
-	AvgPaceSecPer500m int
-	SessionCalories   int
+	TotalDistanceM    int     `json:"total_distance_m"`
+	TotalTimeSec      float64 `json:"total_time_sec"`
+	TotalStrokes      int     `json:"total_strokes"`
+	AvgPowerW         int     `json:"avg_power_w"`
+	PeakPowerW        int     `json:"peak_power_w"`
+	AvgSPM            float64 `json:"avg_spm"`
+	AvgDPS            float64 `json:"avg_dps"`
+	AvgPaceSecPer500m int     `json:"avg_pace_sec_per_500m"`
+	SessionCalories   int     `json:"session_calories"`
 
 	// Samples is the downsampled per-stroke series used by past-session
 	// charts after compaction (FEAT-0009). Populated by the persister at
 	// session_end; the sessionizer leaves it nil. Omitted from JSON when
 	// nil so existing summaries don't grow a useless empty field.
-	Samples *SessionSamples `json:",omitempty"`
+	Samples *SessionSamples `json:"samples,omitempty"`
 
 	// PBCandidates is the per-session best-effort set used by the
 	// FEAT-0010 recompute path. Stored as opaque JSON here — the
@@ -98,7 +98,7 @@ type SessionSummary struct {
 	// session (e.g. ["recovered"] when the boot janitor finalised an
 	// orphaned session). Cheap surface for "soft" annotations
 	// without per-flag schema columns.
-	Flags []string `json:",omitempty"`
+	Flags []string `json:"flags,omitempty"`
 }
 
 // SessionSamples is N-stroke-bucket-averaged time series. Length is
