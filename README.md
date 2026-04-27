@@ -52,4 +52,4 @@ visualisations under [`docs/visualizations/`](docs/visualizations/).
 
 ## License
 
-TBD — favour MIT or Apache-2.0 to keep the door open for FRGS / OSS reuse.
+Apache License 2.0 — see [`LICENSE`](LICENSE).
