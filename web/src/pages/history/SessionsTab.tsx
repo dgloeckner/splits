@@ -15,8 +15,8 @@ export function SessionsTab() {
   const rowerId = active.data?.id ?? null
   const { data, isPending, error } = useQuery<SessionRow[]>({
     queryKey: ['sessions', 'list', rowerId],
-    queryFn: () => listSessions(50, 0, rowerId ?? undefined),
-    enabled: !active.isPending,
+    queryFn: () => listSessions(50, 0, rowerId!),
+    enabled: !!rowerId,
   })
 
   const workoutIds = Array.from(
