@@ -1,4 +1,4 @@
-# home-ergo
+<img src="splits-logo.svg" alt="splits" height="48" />
 
 Self-hosted PWA for rowing ergometer session tracking.
 

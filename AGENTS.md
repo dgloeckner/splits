@@ -5,11 +5,13 @@ CLI, Cursor, …) working on this repository.
 
 ## Project
 
-**home-ergo** — a self-hosted PWA for capturing, visualising and archiving
+**splits** — a self-hosted PWA for capturing, visualising and archiving
 rowing-ergometer sessions from a **Life Fitness Row GX Trainer** (OEM: First
 Degree Fitness IPM console) in a household setting.
 
-Project name is a placeholder; rename before first publish.
+Note: the backend module, binary, env vars, and DB filename retain the
+`homeergo` / `HOMEERGO_` prefix from the project's earlier name. Only
+user-visible branding is `splits`.
 
 ### Mission
 
@@ -94,7 +96,7 @@ Templates are in each directory.
 ## Layout (once tech stack is chosen)
 
 ```
-home-ergo/
+splits/
 ├── AGENTS.md
 ├── README.md
 ├── specs/

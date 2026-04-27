@@ -1,4 +1,4 @@
-# web — Home Ergo frontend
+# web — splits frontend
 
 Vite + React + TypeScript PWA. Talks to the Go backend in `../backend`.
 
