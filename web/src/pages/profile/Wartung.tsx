@@ -16,7 +16,14 @@ export function Wartung({ rowerID }: Props) {
     queryFn: () => getRowerLifetime(rowerID),
   })
   // Warm sessions cache for other surfaces; return value intentionally unused.
-  useQueries({ queries: [{ queryKey: ['sessions', 'list'], queryFn: () => listSessions(50, 0) }] })
+  useQueries({
+    queries: [
+      {
+        queryKey: ['sessions', 'list', rowerID],
+        queryFn: () => listSessions(50, 0, rowerID),
+      },
+    ],
+  })
 
   if (lifetimeQ.isPending) {
     return <p className={styles.empty}>Wartung wird geladen …</p>

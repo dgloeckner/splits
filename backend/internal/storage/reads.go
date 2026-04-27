@@ -58,21 +58,30 @@ const sessionSelectCols = `s.id, s.rower_id, s.workout_id, s.started_at, s.ended
 		        OR EXISTS(SELECT 1 FROM pb_workout pwo
 		                  WHERE pwo.source_session_id = s.id AND pwo.invalidated_at IS NULL)) AS has_pb`
 
-// ListSessions returns non-deleted sessions newest first.
-func ListSessions(ctx context.Context, db *sql.DB, limit, offset int) ([]SessionRow, error) {
+// ListSessions returns non-deleted sessions newest first. When
+// rowerID is non-empty, only sessions belonging to that rower are
+// returned.
+func ListSessions(ctx context.Context, db *sql.DB, limit, offset int, rowerID string) ([]SessionRow, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 50
 	}
 	if offset < 0 {
 		offset = 0
 	}
+	args := []any{}
+	rowerFilter := ""
+	if rowerID != "" {
+		rowerFilter = " AND s.rower_id = ?"
+		args = append(args, rowerID)
+	}
+	args = append(args, limit, offset)
 	rows, err := db.QueryContext(ctx, `
 		SELECT `+sessionSelectCols+`
 		FROM sessions s
 		WHERE s.deleted_at IS NULL
-		  AND COALESCE(s.total_strokes, 0) > 0
+		  AND COALESCE(s.total_strokes, 0) > 0`+rowerFilter+`
 		ORDER BY s.started_at DESC
-		LIMIT ? OFFSET ?`, limit, offset)
+		LIMIT ? OFFSET ?`, args...)
 	if err != nil {
 		return nil, err
 	}

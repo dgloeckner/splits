@@ -3,6 +3,7 @@ import { useMutation, useQueries, useQuery, useQueryClient } from '@tanstack/rea
 import { Link } from 'react-router-dom'
 import { deleteSession, listSessions, type SessionRow } from '../../api/client'
 import { getWorkout, type Workout } from '../../api/workouts'
+import { useActiveRower } from '../../hooks/useActiveRower'
 import { formatSessionStart } from '../../util/dates'
 import { fmtMeters, mmss, pace500m } from '../../util/format'
 import { workoutChipLabel } from '../../util/workoutLabel'
@@ -10,9 +11,12 @@ import { DeleteSessionDialog } from './DeleteSessionDialog'
 import styles from '../HistoryPage.module.css'
 
 export function SessionsTab() {
+  const active = useActiveRower()
+  const rowerId = active.data?.id ?? null
   const { data, isPending, error } = useQuery<SessionRow[]>({
-    queryKey: ['sessions', 'list'],
-    queryFn: () => listSessions(50, 0),
+    queryKey: ['sessions', 'list', rowerId],
+    queryFn: () => listSessions(50, 0, rowerId ?? undefined),
+    enabled: !active.isPending,
   })
 
   const workoutIds = Array.from(

@@ -27,7 +27,8 @@ func listSessions(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		limit := intQuery(r, "limit", 50)
 		offset := intQuery(r, "offset", 0)
-		rows, err := storage.ListSessions(r.Context(), db, limit, offset)
+		rowerID := r.URL.Query().Get("rower_id")
+		rows, err := storage.ListSessions(r.Context(), db, limit, offset, rowerID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
