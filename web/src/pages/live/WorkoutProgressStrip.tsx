@@ -117,6 +117,9 @@ export function WorkoutProgressStripView({ segments, active, onAbort }: ViewProp
 
 function segmentCost(seg: Segment): number {
   if (seg.distanceM) return seg.distanceM
+  if (seg.kind === 'warmup' || seg.kind === 'cooldown' || seg.kind === 'rest') {
+    return Math.min(seg.durationSec ?? 30, 60)
+  }
   if (seg.durationSec) return seg.durationSec * 3
   return 1
 }
