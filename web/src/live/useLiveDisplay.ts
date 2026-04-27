@@ -116,36 +116,22 @@ export function useDeadReckonedTime(state: LiveState): DeadReckoned {
 
 /**
  * Numeric core of distance dead-reckoning. Returns absolute extrapolated
- * distance in meters since session start. Use the formatting wrapper
- * below for display.
+ * distance in meters since session start.
+ *
+ * Speed source: EMA-smoothed split (`state.smoothed.paceSecPer500m`),
+ * preferred over a two-stroke Δm/Δs delta because boat velocity surges
+ * within each stroke cycle (peak mid-drive, valley during recovery), so
+ * the per-pair delta jumps as cadence/power varies. EMA across recent
+ * strokes gives a stable mean velocity for the inter-stroke counter.
+ * Falls back to the current stroke's dps / stroke_cycle_sec when the
+ * EMA isn't yet seeded (cold start).
  */
 export function useExtrapolatedDistanceM(state: LiveState): Extrapolated {
   const reduced = usePrefersReducedMotion()
   const visible = usePageVisible()
   useFrameTick(!reduced && visible)
 
-  const lastSnapshotRef = useRef<{
-    stroke: number
-    time_sec: number
-    distance_m: number
-  } | null>(null)
-  const prevSnapshotRef = useRef<{ time_sec: number; distance_m: number } | null>(null)
   const s = state.stroke
-  useEffect(() => {
-    if (!s) return
-    const last = lastSnapshotRef.current
-    if (last === null || last.stroke !== s.stroke) {
-      if (last) {
-        prevSnapshotRef.current = { time_sec: last.time_sec, distance_m: last.distance_m }
-      }
-      lastSnapshotRef.current = {
-        stroke: s.stroke,
-        time_sec: s.time_sec,
-        distance_m: s.distance_m,
-      }
-    }
-  }, [s])
-
   if (!s) return { value: null, paused: false }
 
   const receivedAt = state.lastStrokeReceivedAtMs ?? Date.now()
@@ -157,9 +143,11 @@ export function useExtrapolatedDistanceM(state: LiveState): Extrapolated {
     return { value: s.distance_m, paused }
   }
   let speed = 0
-  const prev = prevSnapshotRef.current
-  if (prev && s.time_sec > prev.time_sec) {
-    speed = (s.distance_m - prev.distance_m) / (s.time_sec - prev.time_sec)
+  const emaPace = state.smoothed?.paceSecPer500m ?? null
+  if (emaPace !== null && emaPace > 0) {
+    speed = 500 / emaPace
+  } else if (s.stroke_cycle_sec > 0) {
+    speed = s.dps / s.stroke_cycle_sec
   }
   return { value: s.distance_m + speed * (sinceFrame / 1000), paused: false }
 }

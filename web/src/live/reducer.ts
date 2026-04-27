@@ -218,9 +218,15 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
 
         case 'workout_attached':
           if (!state.session) return state
+          // Reset live charts + smoothing on attach: any sparkline points
+          // and EMA values gathered during the pre-attach free-row prelude
+          // belong to a different intent (no target band, no phase) and
+          // would skew the work-phase y-axis until trimmed by the window.
           return {
             ...state,
             session: { ...state.session, workout_id: ev.data.workout_id },
+            sparklines: { power: [], split: [], dps: [], spm: [] },
+            smoothed: null,
           }
 
         case 'phase_change': {

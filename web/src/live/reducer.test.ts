@@ -215,6 +215,21 @@ describe('liveReducer', () => {
     expect(state.phaseAnchor).toEqual({ distanceM: 10, timeSec: 30.5 })
   })
 
+  it('workout_attached resets sparklines and smoothed (drops free-row prelude)', () => {
+    let s: LiveState = liveReducer(initialLiveState, { type: 'event', event: start() })
+    s = liveReducer(s, { type: 'event', event: stroke(1, {}) })
+    s = liveReducer(s, { type: 'event', event: stroke(2, {}) })
+    expect(s.sparklines.power.length).toBeGreaterThan(0)
+    expect(s.smoothed).not.toBeNull()
+    s = liveReducer(s, {
+      type: 'event',
+      event: { kind: 'workout_attached', id: 99, data: { session_id: 'S1', workout_id: 'W7' } },
+    })
+    expect(s.session?.workout_id).toBe('W7')
+    expect(s.sparklines).toEqual({ power: [], split: [], dps: [], spm: [] })
+    expect(s.smoothed).toBeNull()
+  })
+
   it('stroke updates phase from payload', () => {
     const state = liveReducer(initialLiveState, {
       type: 'event',
