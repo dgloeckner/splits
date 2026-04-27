@@ -82,7 +82,7 @@ export function OnboardingPage() {
               className={styles.input}
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Daniel"
+              placeholder="Vorname"
               autoFocus
             />
           </div>
