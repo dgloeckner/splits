@@ -1,5 +1,5 @@
 .shell {
-  min-height: 100dvh;
+  height: 100dvh;
   display: grid;
   grid-template-rows: auto 1fr auto;
   background: var(--color-surface);
@@ -70,6 +70,7 @@
 }
 
 .main {
+  min-height: 0;
   overflow-y: auto;
   padding-bottom: var(--layout-bottom-nav-h);
 }

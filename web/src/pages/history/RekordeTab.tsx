@@ -49,15 +49,216 @@ export function RekordeTab() {
     )
   }
 
+  const newest = pickNewest(pbs, achievementsQ.data ?? [])
+  const timeline = buildTimeline(pbs, achievementsQ.data ?? [])
+
   return (
     <>
+      {newest && <HeroCard item={newest} />}
       <DistanceGrid byM={distanceByM} />
       {pbs.window.length > 0 && <WindowSection items={pbs.window} />}
       {pbs.workout.length > 0 && <WorkoutSection items={pbs.workout} />}
       {consistency.length > 0 && <ConsistencyCards items={consistency} />}
       {milestones.length > 0 && <MilestonesStrip items={milestones} />}
+      {timeline.length > 0 && <Timeline items={timeline} />}
     </>
   )
+}
+
+type TimelineItem = {
+  id: string
+  emoji: string
+  label: string
+  achievedAt: string
+}
+
+type HeroItem = TimelineItem & {
+  eyebrow: string
+  chip: string
+  value: string
+  unit?: string
+  delta?: string
+}
+
+function pickNewest(pbs: RowerPBs, achievements: Achievement[]): HeroItem | null {
+  let best: HeroItem | null = null
+  const consider = (h: HeroItem) => {
+    if (!best || h.achievedAt > best.achievedAt) best = h
+  }
+  for (const d of pbs.distance) {
+    consider({
+      id: `dist-${d.distance_m}`,
+      emoji: '🏆',
+      label: `Neue Bestzeit · ${distanceLabel(d.distance_m)}`,
+      achievedAt: d.source_session_started_at || d.achieved_at,
+      eyebrow: 'NEUESTER ERFOLG',
+      chip: `🏆 NEUE BESTZEIT · ${distanceLabel(d.distance_m).toUpperCase()}`,
+      value: mmssWhole(d.time_sec),
+      unit: 'min',
+      delta: deltaSeconds(d.time_sec, d.previous_time_sec),
+    })
+  }
+  for (const w of pbs.window) {
+    consider({
+      id: `win-${w.metric}-${w.window_size}`,
+      emoji: '🏆',
+      label: `Bestleistung · ${windowLabel(w)}`,
+      achievedAt: w.source_session_started_at || w.achieved_at,
+      eyebrow: 'NEUESTER ERFOLG',
+      chip: `🏆 ${windowLabel(w).toUpperCase()}`,
+      value: windowValue(w).split(' ')[0],
+      unit: windowValue(w).split(' ').slice(1).join(' ') || undefined,
+      delta: deltaWindow(w),
+    })
+  }
+  for (const a of achievements) {
+    consider({
+      id: `ach-${a.key}`,
+      emoji: '🏆',
+      label: achievementLabel(a),
+      achievedAt: a.source_session_started_at || a.achieved_at,
+      eyebrow: 'NEUESTER ERFOLG',
+      chip: `🏆 ${achievementLabel(a).toUpperCase()}`,
+      value: achievementValueText(a),
+    })
+  }
+  return best
+}
+
+function buildTimeline(pbs: RowerPBs, achievements: Achievement[]): TimelineItem[] {
+  const items: TimelineItem[] = []
+  for (const d of pbs.distance) {
+    items.push({
+      id: `dist-${d.distance_m}`,
+      emoji: '🏆',
+      label: `Neue Bestzeit · ${distanceLabel(d.distance_m)} · ${mmssWhole(d.time_sec)}`,
+      achievedAt: d.source_session_started_at || d.achieved_at,
+    })
+  }
+  for (const w of pbs.window) {
+    items.push({
+      id: `win-${w.metric}-${w.window_size}`,
+      emoji: '🏆',
+      label: `Bestleistung · ${windowLabel(w)} · ${windowValue(w)}`,
+      achievedAt: w.source_session_started_at || w.achieved_at,
+    })
+  }
+  for (const w of pbs.workout) {
+    items.push({
+      id: `wo-${w.shape_hash}`,
+      emoji: '🏆',
+      label: `Workout-PB · ${modeLabel(w.mode)}`,
+      achievedAt: w.source_session_started_at || w.achieved_at,
+    })
+  }
+  for (const a of achievements) {
+    items.push({
+      id: `ach-${a.key}`,
+      emoji: '🏆',
+      label: achievementLabel(a),
+      achievedAt: a.source_session_started_at || a.achieved_at,
+    })
+  }
+  items.sort((x, y) => (x.achievedAt < y.achievedAt ? 1 : -1))
+  return items
+}
+
+function HeroCard({ item }: { item: HeroItem }) {
+  return (
+    <section className={styles.heroCard}>
+      <span className={styles.heroEyebrow}>{item.eyebrow}</span>
+      <span className={styles.heroChip}>{item.chip}</span>
+      <div className={styles.heroValueRow}>
+        <span className={styles.heroValue}>{item.value}</span>
+        {item.unit && <span className={styles.heroUnit}>{item.unit}</span>}
+      </div>
+      <div className={styles.heroFooter}>
+        <span className={styles.heroDate}>{formatRelative(item.achievedAt)}</span>
+        {item.delta && <span className={styles.heroDelta}>{item.delta} vs. vorher</span>}
+      </div>
+    </section>
+  )
+}
+
+function Timeline({ items }: { items: TimelineItem[] }) {
+  return (
+    <section className={styles.section}>
+      <h2 className={styles.sectionLabel}>Achievement-Verlauf</h2>
+      <div className={styles.timeline}>
+        {items.slice(0, 8).map((it) => (
+          <div key={it.id} className={styles.timelineRow}>
+            <div className={styles.timelineMain}>
+              <span className={styles.timelineLabel}>
+                {it.emoji} {it.label}
+              </span>
+              <span className={styles.timelineWhen}>{formatRelative(it.achievedAt)}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function deltaSeconds(current: number, previous: number | undefined): string | undefined {
+  if (previous === undefined || !Number.isFinite(previous)) return undefined
+  const diff = Math.round(current - previous)
+  if (diff === 0) return undefined
+  return `${diff > 0 ? '+' : '-'}${Math.abs(diff)}s`
+}
+
+function deltaWindow(w: RowerPBs['window'][number]): string | undefined {
+  if (w.previous_value === undefined) return undefined
+  const diff = w.value - w.previous_value
+  if (Math.abs(diff) < 1e-9) return undefined
+  switch (w.metric) {
+    case 'pace': {
+      const d = Math.round(diff)
+      return d === 0 ? undefined : `${d > 0 ? '+' : '-'}${Math.abs(d)}s`
+    }
+    case 'power':
+      return `${diff > 0 ? '+' : ''}${Math.round(diff)} W`
+    case 'dps':
+      return `${diff > 0 ? '+' : ''}${diff.toFixed(2)} m`
+    case 'spi':
+      return `${diff > 0 ? '+' : ''}${diff.toFixed(1)} J`
+  }
+  return undefined
+}
+
+function achievementLabel(a: Achievement): string {
+  if (a.type === 'volume') return milestoneLabel(a.key)
+  if (a.type === 'consistency_intra') {
+    const map: Record<string, string> = {
+      consistency_power_cv: 'Power-Konstanz',
+      consistency_pace_split_cv: 'Split-Konstanz',
+      consistency_spm_cv: 'SPM-Konstanz',
+    }
+    return map[a.key] ?? a.key
+  }
+  return a.key
+}
+
+function achievementValueText(a: Achievement): string {
+  if (a.type === 'consistency_intra' && typeof a.value === 'number') {
+    return `CV ${(a.value * 100).toFixed(1)} %`
+  }
+  if (a.type === 'volume') return milestoneLabel(a.key)
+  return ''
+}
+
+function formatRelative(iso: string): string {
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const ms = Date.now() - d.getTime()
+  const day = 86_400_000
+  if (ms < day) return 'Heute'
+  if (ms < 2 * day) return 'Gestern'
+  const days = Math.floor(ms / day)
+  if (days < 7) return `vor ${days} Tagen`
+  if (days < 14) return 'vor 1 Woche'
+  if (days < 30) return `vor ${Math.floor(days / 7)} Wochen`
+  return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
 
 const STANDARD_DISTANCES = [500, 1000, 2000, 5000, 6000, 10000]

@@ -21,45 +21,48 @@ func PBsHandler(db *sql.DB) http.Handler {
 }
 
 type distancePBRow struct {
-	DistanceM             int     `json:"distance_m"`
-	TimeSec               float64 `json:"time_sec"`
-	SourceSessionID       string  `json:"source_session_id"`
-	SourceSessionStartedAt string `json:"source_session_started_at"`
-	AchievedAt            string  `json:"achieved_at"`
-	InvalidatedAt         *string `json:"invalidated_at,omitempty"`
+	DistanceM              int      `json:"distance_m"`
+	TimeSec                float64  `json:"time_sec"`
+	PreviousTimeSec        *float64 `json:"previous_time_sec,omitempty"`
+	SourceSessionID        string   `json:"source_session_id"`
+	SourceSessionStartedAt string   `json:"source_session_started_at"`
+	AchievedAt             string   `json:"achieved_at"`
+	InvalidatedAt          *string  `json:"invalidated_at,omitempty"`
 }
 
 type windowPBRow struct {
-	Metric                string  `json:"metric"`
-	WindowKind            string  `json:"window_kind"`
-	WindowSize            int     `json:"window_size"`
-	Value                 float64 `json:"value"`
-	SourceSessionID       string  `json:"source_session_id"`
-	SourceSessionStartedAt string `json:"source_session_started_at"`
-	AchievedAt            string  `json:"achieved_at"`
-	InvalidatedAt         *string `json:"invalidated_at,omitempty"`
+	Metric                 string   `json:"metric"`
+	WindowKind             string   `json:"window_kind"`
+	WindowSize             int      `json:"window_size"`
+	Value                  float64  `json:"value"`
+	PreviousValue          *float64 `json:"previous_value,omitempty"`
+	SourceSessionID        string   `json:"source_session_id"`
+	SourceSessionStartedAt string   `json:"source_session_started_at"`
+	AchievedAt             string   `json:"achieved_at"`
+	InvalidatedAt          *string  `json:"invalidated_at,omitempty"`
 }
 
 type workoutPBRow struct {
-	ShapeHash             string          `json:"shape_hash"`
-	Mode                  string          `json:"mode"`
-	Params                json.RawMessage `json:"params"`
-	ValueKind             string          `json:"value_kind"`
-	Value                 float64         `json:"value"`
-	SourceSessionID       string          `json:"source_session_id"`
-	SourceSessionStartedAt string         `json:"source_session_started_at"`
-	AchievedAt            string          `json:"achieved_at"`
-	InvalidatedAt         *string         `json:"invalidated_at,omitempty"`
+	ShapeHash              string          `json:"shape_hash"`
+	Mode                   string          `json:"mode"`
+	Params                 json.RawMessage `json:"params"`
+	ValueKind              string          `json:"value_kind"`
+	Value                  float64         `json:"value"`
+	PreviousValue          *float64        `json:"previous_value,omitempty"`
+	SourceSessionID        string          `json:"source_session_id"`
+	SourceSessionStartedAt string          `json:"source_session_started_at"`
+	AchievedAt             string          `json:"achieved_at"`
+	InvalidatedAt          *string         `json:"invalidated_at,omitempty"`
 }
 
 type achievementRow struct {
-	Type                  string   `json:"type"`
-	Key                   string   `json:"key"`
-	Value                 *float64 `json:"value,omitempty"`
-	SourceSessionID       *string  `json:"source_session_id,omitempty"`
-	SourceSessionStartedAt *string `json:"source_session_started_at,omitempty"`
-	AchievedAt            string   `json:"achieved_at"`
-	InvalidatedAt         *string  `json:"invalidated_at,omitempty"`
+	Type                   string   `json:"type"`
+	Key                    string   `json:"key"`
+	Value                  *float64 `json:"value,omitempty"`
+	SourceSessionID        *string  `json:"source_session_id,omitempty"`
+	SourceSessionStartedAt *string  `json:"source_session_started_at,omitempty"`
+	AchievedAt             string   `json:"achieved_at"`
+	InvalidatedAt          *string  `json:"invalidated_at,omitempty"`
 }
 
 func listActivePBs(db *sql.DB) http.HandlerFunc {
@@ -255,7 +258,7 @@ func queryDistancePBs(ctx context.Context, db *sql.DB, rid string, activeOnly bo
 		cond = ""
 	}
 	rows, err := db.QueryContext(ctx, `
-		SELECT distance_m, time_sec, source_session_id, source_session_started_at, achieved_at, invalidated_at
+		SELECT distance_m, time_sec, previous_time_sec, source_session_id, source_session_started_at, achieved_at, invalidated_at
 		FROM pb_distance WHERE rower_id = ? `+cond+`
 		ORDER BY distance_m, achieved_at DESC`, rid)
 	if err != nil {
@@ -266,9 +269,14 @@ func queryDistancePBs(ctx context.Context, db *sql.DB, rid string, activeOnly bo
 	for rows.Next() {
 		var d distancePBRow
 		var inv sql.NullString
-		if err := rows.Scan(&d.DistanceM, &d.TimeSec, &d.SourceSessionID,
+		var prev sql.NullFloat64
+		if err := rows.Scan(&d.DistanceM, &d.TimeSec, &prev, &d.SourceSessionID,
 			&d.SourceSessionStartedAt, &d.AchievedAt, &inv); err != nil {
 			return nil, err
+		}
+		if prev.Valid {
+			v := prev.Float64
+			d.PreviousTimeSec = &v
 		}
 		if inv.Valid {
 			s := inv.String
@@ -285,7 +293,7 @@ func queryWindowPBs(ctx context.Context, db *sql.DB, rid string, activeOnly bool
 		cond = ""
 	}
 	rows, err := db.QueryContext(ctx, `
-		SELECT metric, window_kind, window_size, value,
+		SELECT metric, window_kind, window_size, value, previous_value,
 		       source_session_id, source_session_started_at, achieved_at, invalidated_at
 		FROM pb_window WHERE rower_id = ? `+cond+`
 		ORDER BY metric, window_size, achieved_at DESC`, rid)
@@ -297,9 +305,14 @@ func queryWindowPBs(ctx context.Context, db *sql.DB, rid string, activeOnly bool
 	for rows.Next() {
 		var x windowPBRow
 		var inv sql.NullString
-		if err := rows.Scan(&x.Metric, &x.WindowKind, &x.WindowSize, &x.Value,
+		var prev sql.NullFloat64
+		if err := rows.Scan(&x.Metric, &x.WindowKind, &x.WindowSize, &x.Value, &prev,
 			&x.SourceSessionID, &x.SourceSessionStartedAt, &x.AchievedAt, &inv); err != nil {
 			return nil, err
+		}
+		if prev.Valid {
+			v := prev.Float64
+			x.PreviousValue = &v
 		}
 		if inv.Valid {
 			s := inv.String
@@ -316,7 +329,7 @@ func queryWorkoutPBs(ctx context.Context, db *sql.DB, rid string, activeOnly boo
 		cond = ""
 	}
 	rows, err := db.QueryContext(ctx, `
-		SELECT shape_hash, mode, params_json, value_kind, value,
+		SELECT shape_hash, mode, params_json, value_kind, value, previous_value,
 		       source_session_id, source_session_started_at, achieved_at, invalidated_at
 		FROM pb_workout WHERE rower_id = ? `+cond+`
 		ORDER BY mode, shape_hash, achieved_at DESC`, rid)
@@ -329,11 +342,16 @@ func queryWorkoutPBs(ctx context.Context, db *sql.DB, rid string, activeOnly boo
 		var x workoutPBRow
 		var paramsStr string
 		var inv sql.NullString
-		if err := rows.Scan(&x.ShapeHash, &x.Mode, &paramsStr, &x.ValueKind, &x.Value,
+		var prev sql.NullFloat64
+		if err := rows.Scan(&x.ShapeHash, &x.Mode, &paramsStr, &x.ValueKind, &x.Value, &prev,
 			&x.SourceSessionID, &x.SourceSessionStartedAt, &x.AchievedAt, &inv); err != nil {
 			return nil, err
 		}
 		x.Params = json.RawMessage(paramsStr)
+		if prev.Valid {
+			v := prev.Float64
+			x.PreviousValue = &v
+		}
 		if inv.Valid {
 			s := inv.String
 			x.InvalidatedAt = &s

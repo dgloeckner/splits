@@ -72,7 +72,7 @@ describe('RekordeTab', () => {
     await waitFor(() =>
       expect(screen.getByText(/Persönliche Bestzeiten · Distanzen/)).toBeInTheDocument(),
     )
-    expect(screen.getByText('8:00')).toBeInTheDocument()
+    expect(screen.getAllByText('8:00').length).toBeGreaterThanOrEqual(1)
     const dashes = screen.getAllByText('—')
     expect(dashes.length).toBeGreaterThanOrEqual(5)
   })
@@ -90,6 +90,63 @@ describe('RekordeTab', () => {
     })
     renderTab()
     await waitFor(() => expect(screen.getByText(/Meilensteine/)).toBeInTheDocument())
-    expect(screen.getByText(/10 km Gesamt/)).toBeInTheDocument()
+    expect(screen.getAllByText(/10 km Gesamt/).length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('renders hero card with newest PB and delta when previous_time_sec present', async () => {
+    mockBackend({
+      pbs: {
+        distance: [
+          {
+            distance_m: 500,
+            time_sec: 134,
+            previous_time_sec: 137,
+            achieved_at: new Date(Date.now() - 86_400_000).toISOString(),
+            source_session_started_at: new Date(Date.now() - 86_400_000).toISOString(),
+            source_session_id: 'S1',
+          },
+        ],
+        window: [],
+        workout: [],
+      },
+    })
+    renderTab()
+    await waitFor(() => expect(screen.getByText('NEUESTER ERFOLG')).toBeInTheDocument())
+    expect(screen.getByText(/NEUE BESTZEIT · 500 M/)).toBeInTheDocument()
+    expect(screen.getByText(/-3s vs\. vorher/)).toBeInTheDocument()
+  })
+
+  it('renders achievement timeline with PB events sorted newest first', async () => {
+    const old = new Date(Date.now() - 5 * 86_400_000).toISOString()
+    const recent = new Date(Date.now() - 1 * 86_400_000).toISOString()
+    mockBackend({
+      pbs: {
+        distance: [
+          {
+            distance_m: 2000,
+            time_sec: 480,
+            achieved_at: old,
+            source_session_started_at: old,
+            source_session_id: 'S0',
+          },
+          {
+            distance_m: 500,
+            time_sec: 134,
+            achieved_at: recent,
+            source_session_started_at: recent,
+            source_session_id: 'S1',
+          },
+        ],
+        window: [],
+        workout: [],
+      },
+    })
+    renderTab()
+    await waitFor(() => expect(screen.getByText(/Achievement-Verlauf/)).toBeInTheDocument())
+    const labels = screen.getAllByText(/Neue Bestzeit ·/)
+    // First timeline row is the recent 500 m, second is older 2000 m.
+    const timelineLabels = labels.filter((el) => el.className.includes('timelineLabel'))
+    expect(timelineLabels[0].textContent).toMatch(/500 m · 2:14/)
+    expect(timelineLabels[1].textContent).toMatch(/2 k · 8:00/)
   })
 })

@@ -104,6 +104,7 @@ export async function getActiveSession(): Promise<ActiveSession | null> {
 export type DistancePB = {
   distance_m: number
   time_sec: number
+  previous_time_sec?: number
   source_session_id: string
   source_session_started_at: string
   achieved_at: string
@@ -114,6 +115,7 @@ export type WindowPB = {
   window_kind: string
   window_size: number
   value: number
+  previous_value?: number
   source_session_id: string
   source_session_started_at: string
   achieved_at: string
@@ -178,6 +180,7 @@ export type WorkoutPB = {
   params: Record<string, unknown>
   value_kind: 'time_sec' | 'distance_m'
   value: number
+  previous_value?: number
   source_session_id: string
   source_session_started_at: string
   achieved_at: string
