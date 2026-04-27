@@ -152,7 +152,16 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
             ? {
                 ...state,
                 session: state.session
-                  ? { ...state.session, session_id: p.session_id }
+                  ? {
+                      ...state.session,
+                      session_id: p.session_id,
+                      // Clear workout_id: it belongs to the previous
+                      // session and would otherwise keep BottomNav
+                      // locked / strip rendering for a workout that
+                      // is no longer active. The next workout_attached
+                      // event will repopulate it.
+                      workout_id: undefined,
+                    }
                   : {
                       session_id: p.session_id,
                       started_at: new Date().toISOString(),

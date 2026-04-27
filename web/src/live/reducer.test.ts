@@ -186,6 +186,15 @@ describe('liveReducer', () => {
     expect(s.session?.workout_id).toBe('W1')
   })
 
+  it('stroke with new session_id clears stale workout_id from prior session', () => {
+    let s: LiveState = initialLiveState
+    s = liveReducer(s, { type: 'event', event: start({ workout_id: 'W1' }) })
+    expect(s.session?.workout_id).toBe('W1')
+    s = liveReducer(s, { type: 'event', event: stroke(1, { session_id: 'S2' }) })
+    expect(s.session?.session_id).toBe('S2')
+    expect(s.session?.workout_id).toBeUndefined()
+  })
+
   it('ping does not mutate state (identity-stable)', () => {
     const before = liveReducer(initialLiveState, { type: 'event', event: start() })
     const after = liveReducer(before, {
