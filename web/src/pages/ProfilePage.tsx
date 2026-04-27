@@ -213,7 +213,7 @@ export function ProfilePage() {
       </section>
 
       <footer className={styles.footer}>
-        <p className={styles.footerLine}>home-ergo</p>
+        <p className={styles.footerLine}>splits</p>
       </footer>
     </main>
   )

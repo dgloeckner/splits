@@ -25,7 +25,7 @@ export function AppLayout() {
       <header className={styles.topBar}>
         <div className={styles.brand}>
           <AppIcon size={22} className={styles.brandIcon} />
-          <h1 className={styles.brandText}>home-ergo</h1>
+          <h1 className={styles.brandText}>splits</h1>
         </div>
         <UserAvatar initial="D" connected={connected} />
       </header>
