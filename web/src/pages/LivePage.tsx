@@ -16,13 +16,6 @@ import styles from './LivePage.module.css'
 function LiveBody() {
   useSegmentTransitions()
   const state = useLiveSession()
-  const { reset } = useWorkoutOverlay()
-  const workoutId = state.session?.workout_id ?? null
-  const prevWorkoutId = useRef<string | null>(workoutId)
-  useEffect(() => {
-    if (workoutId && workoutId !== prevWorkoutId.current) reset()
-    prevWorkoutId.current = workoutId
-  }, [workoutId, reset])
   const { active, segments, workout, isLoading } = useWorkoutProgress()
   const { aborted } = useWorkoutOverlay()
   const seg = active?.segment
