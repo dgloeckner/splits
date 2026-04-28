@@ -20,7 +20,7 @@ export function Wartung({ rowerID }: Props) {
     queries: [
       {
         queryKey: ['sessions', 'list', rowerID],
-        queryFn: () => listSessions(50, 0, rowerID),
+        queryFn: () => listSessions(rowerID, 50, 0),
       },
     ],
   })

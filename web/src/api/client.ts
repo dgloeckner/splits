@@ -46,12 +46,15 @@ async function json<T>(r: Response): Promise<T> {
 }
 
 export async function listSessions(
+  rowerID: string,
   limit = 50,
   offset = 0,
-  rowerID?: string,
 ): Promise<SessionRow[]> {
-  const qs = new URLSearchParams({ limit: String(limit), offset: String(offset) })
-  if (rowerID) qs.set('rower_id', rowerID)
+  const qs = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+    rower_id: rowerID,
+  })
   const r = await fetch(`/api/v1/sessions?${qs.toString()}`)
   const body = await json<{ sessions: SessionRow[] }>(r)
   return body.sessions
