@@ -38,6 +38,26 @@ func Recover() Middleware {
 	}
 }
 
+const defaultBodyLimit int64 = 256 * 1024 // 256 KiB
+
+// BodyLimit caps request bodies at maxBytes (defaults to 256 KiB
+// when maxBytes <= 0). When the limit is exceeded, MaxBytesReader
+// writes a 413 to the response and the underlying Read returns an
+// error to the handler.
+func BodyLimit(maxBytes int64) Middleware {
+	if maxBytes <= 0 {
+		maxBytes = defaultBodyLimit
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Body != nil {
+				r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // Logging records one structured log line per completed request.
 func Logging() Middleware {
 	return func(next http.Handler) http.Handler {

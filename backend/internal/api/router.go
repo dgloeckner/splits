@@ -91,7 +91,7 @@ func NewRouter(in Inputs) http.Handler {
 		Broadcaster: in.Broadcaster,
 		StartedAt:   in.StartedAt,
 	}))
-	mws := []Middleware{Recover(), Logging(), SecurityHeaders(), DeviceCookie(DeviceCookieOptions{Secure: in.DeviceCookieSecure})}
+	mws := []Middleware{Recover(), Logging(), SecurityHeaders(), BodyLimit(0), DeviceCookie(DeviceCookieOptions{Secure: in.DeviceCookieSecure})}
 	if in.RowerHolder != nil {
 		mws = append(mws, StatsVersionHeader(in.DB, in.RowerHolder))
 	}
