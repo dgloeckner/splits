@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/event"
-	"github.com/gloeckner-daniel/home-ergo/internal/stats"
+	"github.com/gloeckner-daniel/splits/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/stats"
 )
 
 // Persister consumes events and persists sessions and strokes to

@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/event"
-	"github.com/gloeckner-daniel/home-ergo/internal/ipm"
-	"github.com/gloeckner-daniel/home-ergo/internal/workout"
+	"github.com/gloeckner-daniel/splits/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/ipm"
+	"github.com/gloeckner-daniel/splits/internal/workout"
 	"github.com/oklog/ulid/v2"
 )
 

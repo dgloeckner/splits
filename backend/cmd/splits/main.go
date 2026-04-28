@@ -14,17 +14,17 @@ import (
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/api"
-	"github.com/gloeckner-daniel/home-ergo/internal/config"
-	"github.com/gloeckner-daniel/home-ergo/internal/event"
-	"github.com/gloeckner-daniel/home-ergo/internal/ipm"
-	"github.com/gloeckner-daniel/home-ergo/internal/pipeline"
-	"github.com/gloeckner-daniel/home-ergo/internal/rower"
-	"github.com/gloeckner-daniel/home-ergo/internal/session"
-	"github.com/gloeckner-daniel/home-ergo/internal/stats"
-	"github.com/gloeckner-daniel/home-ergo/internal/storage"
-	"github.com/gloeckner-daniel/home-ergo/internal/stream"
-	"github.com/gloeckner-daniel/home-ergo/internal/workout"
+	"github.com/gloeckner-daniel/splits/internal/api"
+	"github.com/gloeckner-daniel/splits/internal/config"
+	"github.com/gloeckner-daniel/splits/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/ipm"
+	"github.com/gloeckner-daniel/splits/internal/pipeline"
+	"github.com/gloeckner-daniel/splits/internal/rower"
+	"github.com/gloeckner-daniel/splits/internal/session"
+	"github.com/gloeckner-daniel/splits/internal/stats"
+	"github.com/gloeckner-daniel/splits/internal/storage"
+	"github.com/gloeckner-daniel/splits/internal/stream"
+	"github.com/gloeckner-daniel/splits/internal/workout"
 )
 
 const httpShutdownTimeout = 30 * time.Second

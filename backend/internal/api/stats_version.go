@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/rower"
-	"github.com/gloeckner-daniel/home-ergo/internal/stats"
+	"github.com/gloeckner-daniel/splits/internal/rower"
+	"github.com/gloeckner-daniel/splits/internal/stats"
 )
 
 // StatsVersionHeader resolves the active rower for each request and

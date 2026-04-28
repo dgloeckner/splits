@@ -9,10 +9,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/api"
-	"github.com/gloeckner-daniel/home-ergo/internal/rower"
-	"github.com/gloeckner-daniel/home-ergo/internal/stats"
-	"github.com/gloeckner-daniel/home-ergo/internal/storage"
+	"github.com/gloeckner-daniel/splits/internal/api"
+	"github.com/gloeckner-daniel/splits/internal/rower"
+	"github.com/gloeckner-daniel/splits/internal/stats"
+	"github.com/gloeckner-daniel/splits/internal/storage"
 )
 
 func TestPBsHandlerSmoke(t *testing.T) {

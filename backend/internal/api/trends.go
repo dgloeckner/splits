@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/rower"
+	"github.com/gloeckner-daniel/splits/internal/rower"
 )
 
 // TrendsHandler exposes per-rower aggregate trends for a configurable

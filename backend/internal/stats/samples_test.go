@@ -3,7 +3,7 @@ package stats
 import (
 	"testing"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/event"
 )
 
 func mkStroke(no int, t float64, pace, watt, spm int) event.StrokePayload {

@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/pipeline"
-	"github.com/gloeckner-daniel/home-ergo/internal/rower"
-	"github.com/gloeckner-daniel/home-ergo/internal/stats"
-	"github.com/gloeckner-daniel/home-ergo/internal/stream"
-	"github.com/gloeckner-daniel/home-ergo/internal/workout"
+	"github.com/gloeckner-daniel/splits/internal/pipeline"
+	"github.com/gloeckner-daniel/splits/internal/rower"
+	"github.com/gloeckner-daniel/splits/internal/stats"
+	"github.com/gloeckner-daniel/splits/internal/stream"
+	"github.com/gloeckner-daniel/splits/internal/workout"
 )
 
 type Inputs struct {

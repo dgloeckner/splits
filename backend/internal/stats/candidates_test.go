@@ -4,7 +4,7 @@ import (
 	"math"
 	"testing"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/event"
 )
 
 // makeStrokes synthesises a session with constant pace.

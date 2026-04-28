@@ -7,7 +7,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/event"
 )
 
 // SessionRow is the read-side shape of a persisted session. Kept flat

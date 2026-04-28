@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/stats"
-	storage "github.com/gloeckner-daniel/home-ergo/internal/storage"
+	"github.com/gloeckner-daniel/splits/internal/stats"
+	storage "github.com/gloeckner-daniel/splits/internal/storage"
 )
 
 // Local aliases so tests read tightly without re-typing the package

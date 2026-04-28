@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/storage"
-	"github.com/gloeckner-daniel/home-ergo/internal/workout"
+	"github.com/gloeckner-daniel/splits/internal/storage"
+	"github.com/gloeckner-daniel/splits/internal/workout"
 )
 
 func newWorkoutTestServer(t *testing.T) (*httptest.Server, *workout.Repo) {

@@ -3,7 +3,7 @@ package stats
 import (
 	"math"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/event"
 )
 
 // PBCandidates is the per-session set of best-effort values that

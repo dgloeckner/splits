@@ -6,7 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/rower"
+	"github.com/gloeckner-daniel/splits/internal/rower"
 )
 
 // PBsHandler exposes per-rower PB tables and the lifetime-stats

@@ -1,4 +1,4 @@
-module github.com/gloeckner-daniel/home-ergo
+module github.com/gloeckner-daniel/splits
 
 go 1.25.3
 

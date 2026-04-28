@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/pipeline"
-	"github.com/gloeckner-daniel/home-ergo/internal/stream"
+	"github.com/gloeckner-daniel/splits/internal/pipeline"
+	"github.com/gloeckner-daniel/splits/internal/stream"
 )
 
 type DebugIngestInputs struct {

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/rower"
+	"github.com/gloeckner-daniel/splits/internal/rower"
 )
 
 func RowersHandler(repo *rower.Repo, link *rower.DeviceLink) http.Handler {

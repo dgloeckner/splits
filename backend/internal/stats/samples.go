@@ -3,7 +3,7 @@
 // compacted away. See FEAT-0009 (cleanup) and FEAT-0010 (PBs).
 package stats
 
-import "github.com/gloeckner-daniel/home-ergo/internal/event"
+import "github.com/gloeckner-daniel/splits/internal/event"
 
 // DefaultBucketStrokes is the bucket size used by ComputeSamples when
 // the caller does not specify one. Five strokes is roughly 6–10 s of
