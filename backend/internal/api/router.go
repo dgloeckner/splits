@@ -31,7 +31,13 @@ func NewRouter(in Inputs) http.Handler {
 	mux.HandleFunc("GET /api/health", healthHandler)
 	mux.Handle("GET /api/v1/stream", stream.NewHandler(in.Ring, in.Broadcaster, in.SessionSnapshot))
 
-	sessions := SessionsHandler(in.DB, in.Scheduler)
+	var activeIDer ActiveSessionIDer
+	if in.SessionSnapshot != nil {
+		if a, ok := in.SessionSnapshot.(ActiveSessionIDer); ok {
+			activeIDer = a
+		}
+	}
+	sessions := SessionsHandler(in.DB, in.Scheduler, activeIDer)
 	mux.Handle("GET /api/v1/sessions", sessions)
 	mux.Handle("GET /api/v1/sessions/{id}", sessions)
 	mux.Handle("GET /api/v1/sessions/{id}/samples", sessions)

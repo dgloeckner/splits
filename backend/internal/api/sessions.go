@@ -12,15 +12,24 @@ import (
 	"github.com/gloeckner-daniel/home-ergo/internal/storage"
 )
 
+// ActiveSessionIDer reports the id of the currently broadcasting
+// session, or "" when none is open. SessionsHandler uses it to reject
+// DELETE of a live session — deleting rows while the sessionizer is
+// still writing them races the persister and corrupts the summary.
+type ActiveSessionIDer interface {
+	ActiveSessionID() string
+}
+
 // SessionsHandler returns a mux handling every session-read endpoint.
 // Auth is a middleware concern — this handler assumes the request has
-// been authenticated (ARCH-0001 M1 note: rower stub).
-func SessionsHandler(db *sql.DB, sched *stats.RecomputeScheduler) http.Handler {
+// been authenticated (ARCH-0001 M1 note: rower stub). active may be
+// nil (tests, or a router that doesn't wire the sessionizer).
+func SessionsHandler(db *sql.DB, sched *stats.RecomputeScheduler, active ActiveSessionIDer) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/sessions", listSessions(db))
 	mux.HandleFunc("GET /api/v1/sessions/{id}", getSession(db))
 	mux.HandleFunc("GET /api/v1/sessions/{id}/samples", getSamples(db))
-	mux.HandleFunc("DELETE /api/v1/sessions/{id}", deleteSession(db, sched))
+	mux.HandleFunc("DELETE /api/v1/sessions/{id}", deleteSession(db, sched, active))
 	return mux
 }
 
@@ -135,9 +144,15 @@ func expandSamples(s *event.SessionSamples) []storage.SampleRow {
 // deleteSession hard-deletes a session: drops PB rows tied to it,
 // removes the session row, and triggers a recompute (FEAT-0009 Mode
 // 1). No soft-delete; confirmation lives in the UI.
-func deleteSession(db *sql.DB, sched *stats.RecomputeScheduler) http.HandlerFunc {
+func deleteSession(db *sql.DB, sched *stats.RecomputeScheduler, active ActiveSessionIDer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
+		if active != nil {
+			if cur := active.ActiveSessionID(); cur != "" && cur == id {
+				http.Error(w, "session is currently active; end it first", http.StatusConflict)
+				return
+			}
+		}
 		var rowerID string
 		if err := db.QueryRowContext(r.Context(),
 			`SELECT rower_id FROM sessions WHERE id = ?`, id).Scan(&rowerID); err != nil {

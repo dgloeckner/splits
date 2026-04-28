@@ -511,6 +511,19 @@ func (s *Sessionizer) openSessionInternal(ctx context.Context, out chan<- event.
 // are compatible: Run's handleAttach clears the pending slot when it
 // emits the mid-session event, so the same workout isn't re-applied to
 // a subsequent session.
+// ActiveSessionID returns the id of the currently open session, or
+// "" when none is open. Used by the sessions API to reject DELETE of
+// a session that is still being broadcast (a delete during live
+// recording would race the sessionizer's own writes).
+func (s *Sessionizer) ActiveSessionID() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.currentSessionStart == nil {
+		return ""
+	}
+	return s.currentSessionStart.SessionID
+}
+
 // MaxEventID returns the highest event id this sessionizer has
 // stamped so far. Used by the SSE handler to detect a stale client
 // cursor (Last-Event-ID from a prior backend run that emitted larger
