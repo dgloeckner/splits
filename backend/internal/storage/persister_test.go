@@ -2,12 +2,14 @@ package storage
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/gloeckner-daniel/home-ergo/internal/event"
+	_ "modernc.org/sqlite"
 )
 
 // At session_end, strokes are deleted in the same transaction that
@@ -195,5 +197,26 @@ func TestPersisterStoresWorkoutID(t *testing.T) {
 	}
 	if wb != "WB" {
 		t.Errorf("session B workout_id = %q, want %q (workout_attached should update)", wb, "WB")
+	}
+}
+
+func TestPersister_DeadLettersAfterMaxRetries(t *testing.T) {
+	t.Parallel()
+	db, err := sql.Open("sqlite", ":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	p := &Persister{DB: db, MaxRetries: 3}
+	in := make(chan event.Event, 1)
+	in <- event.Event{ID: 1, Kind: event.KindSessionStart, SessionID: "s1", SessionStart: &event.SessionStartPayload{StartedAt: time.Now()}}
+	close(in)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := p.Run(ctx, in); err != nil {
+		t.Fatal(err)
+	}
+	if p.DeadLettered != 1 {
+		t.Fatalf("want 1, got %d", p.DeadLettered)
 	}
 }
