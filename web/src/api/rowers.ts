@@ -18,14 +18,8 @@ export type CreateRowerInput = {
 
 export type UpdateRowerInput = Partial<CreateRowerInput>
 
-export class ApiError extends Error {
-  status: number
-  constructor(status: number, message: string) {
-    super(message)
-    this.name = 'ApiError'
-    this.status = status
-  }
-}
+export { ApiError } from './error'
+import { ApiError } from './error'
 
 async function json<T>(r: Response): Promise<T> {
   if (!r.ok) throw new ApiError(r.status, `${r.status} ${r.statusText}`)
