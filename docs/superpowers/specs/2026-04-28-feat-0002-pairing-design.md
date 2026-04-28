@@ -209,6 +209,122 @@ If the lost device is a security concern (suspected theft), run `splits revoke <
 
 These cover rotation and removal without a Household admin screen. They're documented in `backend/README.md` for the household maintainer.
 
+## Ops manual
+
+Step-by-step playbook for the household maintainer. The implementation plan will mirror the CLI sections into `backend/README.md` so they're discoverable next to the binary.
+
+### Conventions
+
+- All `splits …` commands run on the backend host with the same env (`SPLITS_DB_PATH`, etc.) as the running service. Stop the service before running mutating CLI commands? **Not required** — SQLite WAL mode permits concurrent readers + writers; CLI operations use the same DB connection rules as the HTTP layer. Document this so the maintainer knows it's safe.
+- Pairing URLs always have shape `https://<host>/pair#t=<token>`. Token is single-use, expires in 24h.
+- The HTTPS host (e.g. `https://splits.example.de`) comes from the Caddy config (ADR-0006). On a fresh deploy, a TLS cert via DNS-01 is set up before pairing works (T10 startup gate refuses plain HTTP).
+
+### Scenario 1 — First install (bootstrap)
+
+1. Deploy backend + Caddy on the host. Confirm `https://splits.example.de` returns 200.
+2. Open the URL on whichever device should be the founder rower (your phone is fine).
+3. App shows "Welcome — create first rower". Enter name. Submit.
+4. Device is auto-paired. You're in.
+
+No CLI step. No special admin URL. The first device on the LAN to reach the install becomes the founder.
+
+### Scenario 2 — Adding another rower (new household member)
+
+Two flavors:
+
+**A. New rower already has a paired device of their own (rare for fresh adds).**
+   They simply open the app on their device — but there's no path here, because they're not yet a rower. Use flavor B.
+
+**B. New rower's device is unpaired (the normal case).**
+   1. On any paired device, open Profile tab.
+   2. Tap `+` → "Neuer Ruderer auf diesem Gerät anlegen" (creates rower locally) — **only** if you want this device to also be paired with the new rower (e.g. shared tablet at the ergo).
+   3. Otherwise: tap `+` → "Pairing-Link für ein anderes Gerät erstellen" → enter new rower's name (system creates rower if not yet present, then mints token).
+   4. Send the URL to the new rower via Signal/SMS/AirDrop.
+   5. They open URL on their device. Paired. Profile visible in their RowerStrip.
+
+> **Note for implementation plan:** the modal needs the "create rower + mint token in one go" path for flavor B. Backend endpoint `POST /api/v1/rowers/{id}/pairing-tokens` requires `id` to exist; UI should call `POST /api/v1/rowers` first, then mint. Or add `POST /api/v1/pairing-tokens` that accepts `{rower_id?, name?}` and creates-then-mints atomically. Decide in plan.
+
+### Scenario 3 — Adding existing rower to a new device (your second device)
+
+1. Open Profile on already-paired device.
+2. Tap `+` → "Pairing-Link für ein anderes Gerät erstellen" → pick yourself.
+3. Open the URL on the second device. Done.
+
+### Scenario 4 — Lost device, household has at least one other paired device
+
+1. (Optional but recommended if device theft suspected.) On the backend host:
+   ```
+   splits revoke <rower-id>
+   ```
+   This deletes every `device_rowers` row for that rower. The lost device, if recovered by the wrong hands, can no longer act as that rower.
+2. From any other paired device, follow Scenario 3 to pair the replacement device.
+
+### Scenario 5 — Lost device, single-rower install (no other paired device)
+
+The household path is unavailable. Use CLI:
+```
+splits invite <rower-id>
+```
+URL is printed to stdout. Send it to yourself out-of-band (email to yourself, AirDrop from a different device). Open URL on the new device.
+
+If theft is suspected, run `splits revoke <rower-id>` first.
+
+### Scenario 6 — Removing a household member
+
+```
+splits delete-rower <rower-id>
+```
+Soft-deletes the rower. Their sessions remain in the DB attributed to them (no historical revisionism), but they're hidden from the UI. FK CASCADE removes all their `device_rowers` rows; their devices get a "rower not found" state and the user must pick another rower or unpair.
+
+To restore (undo within reason): manually clear the soft-delete flag in SQLite. No UI for this in v1.
+
+### Scenario 7 — Rotating a rower's pairing for any reason
+
+```
+splits revoke <rower-id>     # invalidate every device pairing
+splits invite <rower-id>     # mint fresh URL
+```
+Send the new URL to the legitimate owner. They re-pair on each device they actually use.
+
+### Scenario 8 — Inspecting state
+
+For diagnostics:
+```
+splits ls-rowers             # list rowers with id, name, soft-deleted flag
+splits ls-pairings            # list (device_id, rower_id, paired_at) rows
+splits ls-tokens              # list outstanding pairing_tokens (hash, rower_id, expires_at)
+```
+
+(These read-only commands are nice-to-have; implementation plan will keep them tiny — single SELECT each.)
+
+### Scenario 9 — Backup & restore
+
+Out of scope of FEAT-0002 but linked: see M6 deploy plan for the SQLite snapshot cron. The pairing tables are part of the regular DB backup.
+
+### CLI reference (summary)
+
+| Command | Purpose |
+|---|---|
+| `splits invite <rower-id>` | Print pairing URL for that rower (24h expiry, single use). |
+| `splits revoke <rower-id>` | Delete all device pairings + outstanding tokens for that rower. Forces re-pair. |
+| `splits delete-rower <rower-id>` | Soft-delete rower; CASCADE removes pairings. |
+| `splits ls-rowers` | List rowers (read-only). |
+| `splits ls-pairings` | List `device_rowers` rows (read-only). |
+| `splits ls-tokens` | List outstanding pairing tokens (read-only). |
+
+All CLI commands use `os.LookupEnv` for `SPLITS_DB_PATH` (or legacy `HOMEERGO_DB_PATH` per T14 fallback).
+
+### Failure modes
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| New device shows "Code abgelaufen" on `/pair` | Token > 24h old or already consumed | Mint fresh URL via Profile or `splits invite`. |
+| New device shows "Du musst mit diesem Profil verbunden sein" when minting | Active device is not paired with that rower | Switch to a device that IS paired, or use CLI invite. |
+| `splits invite` prints `rower not found` | Rower id wrong, or rower soft-deleted | `splits ls-rowers` to confirm; restore by clearing soft-delete flag if needed. |
+| TLS error on first deploy | Caddy cert not yet provisioned | Check Caddy logs; DNS-01 may take 1-5 min on first issue. |
+| Backend refuses to start | T10 gate hit (no TLS, no dev mode) | Set `SPLITS_TLS_TERMINATED_BY=proxy` if behind Caddy, or `SPLITS_DEV_MODE=1` for local dev. |
+| `splits …` CLI errors with "database is locked" | Another writer holding the WAL | SQLite normally handles this; retry. If persistent, check for stuck process via `lsof <db>`. |
+
 ## Out of scope (v1)
 
 The following items are part of FEAT-0002's original spec but deferred:
