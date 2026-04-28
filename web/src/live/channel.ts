@@ -1,6 +1,13 @@
 import type { LiveEvent } from './events'
 
-export type ChannelStatus = 'idle' | 'connecting' | 'open' | 'closed' | 'error'
+export type ChannelStatus =
+  | 'idle'
+  | 'connecting'
+  | 'open'
+  | 'reconnecting'
+  | 'permanently_disconnected'
+  | 'closed'
+  | 'error'
 
 export type Subscriber = {
   onEvent: (e: LiveEvent) => void
@@ -10,6 +17,13 @@ export type Subscriber = {
 export interface Channel {
   subscribe(sub: Subscriber): void
   close(): void
+  /**
+   * Manually trigger an immediate reconnect attempt and reset the
+   * failure counter. Used by the "Erneut verbinden" banner button
+   * when the channel has reached `permanently_disconnected`.
+   * No-op for channels that don't auto-reconnect (e.g. MockChannel).
+   */
+  reconnect?(): void
 }
 
 /**
@@ -50,33 +64,102 @@ export class MockChannel implements Channel {
   }
 }
 
+// Reconnect schedule (ms). After step N each subsequent failure adds
+// MAX_BACKOFF_MS. Jitter is ±25%.
+const BACKOFF_STEPS_MS = [1_000, 2_000, 4_000, 8_000, 15_000, 30_000, 60_000]
+const MAX_BACKOFF_MS = 60_000
+// After this many consecutive failed connects (without ever reaching
+// `open`), the channel surfaces `permanently_disconnected` and stops
+// auto-retrying until `reconnect()` is called explicitly.
+const PERMANENT_FAILURE_AFTER = 5
+// If no message (event or ping) arrives for this long, the channel
+// assumes the connection is dead and forces a reconnect. Backend pings
+// every 20s; this gives one missed ping plus a slack window.
+const STALE_TIMEOUT_MS = 35_000
+
+type EventSourceFactory = (url: string) => EventSource
+
 /**
- * Production channel — wraps EventSource.
+ * Production channel — wraps EventSource with app-level reconnect
+ * backoff and a stale-detection watchdog.
  *
  * URL: /api/v1/stream (credentials included; same-origin cookie auth).
  * Persists `lastEventId` in localStorage so cold reloads resume
  * (INT-0002 client expectations).
+ *
+ * Reconnect policy: on EventSource error or stale-detection trigger,
+ * close the current EventSource and schedule a fresh connect with
+ * exponential backoff (1,2,4,8,15,30,60s capped, ±25% jitter). After
+ * `PERMANENT_FAILURE_AFTER` consecutive failed connects without ever
+ * reaching `open`, surface `permanently_disconnected` and stop. The
+ * UI's banner can call `reconnect()` to reset and try again.
  */
 export class EventSourceChannel implements Channel {
   private es: EventSource | null = null
   private sub: Subscriber | null = null
   private readonly storageKey = 'home-ergo:last-event-id'
+  private readonly factory: EventSourceFactory
+  private readonly random: () => number
+  private failureCount = 0
+  private retryTimer: ReturnType<typeof setTimeout> | null = null
+  private watchdogTimer: ReturnType<typeof setTimeout> | null = null
+  private destroyed = false
+
+  constructor(opts?: { factory?: EventSourceFactory; random?: () => number }) {
+    this.factory =
+      opts?.factory ??
+      ((url: string) => new EventSource(url, { withCredentials: true }))
+    this.random = opts?.random ?? Math.random
+  }
 
   subscribe(sub: Subscriber): void {
     this.sub = sub
-    sub.onStatus('connecting')
+    this.connect()
+  }
+
+  close(): void {
+    this.destroyed = true
+    this.clearTimers()
+    this.es?.close()
+    this.es = null
+    this.sub?.onStatus('closed')
+    this.sub = null
+  }
+
+  reconnect(): void {
+    if (this.destroyed) return
+    this.failureCount = 0
+    this.clearTimers()
+    this.es?.close()
+    this.es = null
+    this.connect()
+  }
+
+  private connect(): void {
+    if (this.destroyed || !this.sub) return
+    const sub = this.sub
+    sub.onStatus(this.failureCount === 0 ? 'connecting' : 'reconnecting')
 
     const last = this.readLastEventId()
-    const url = last ? `/api/v1/stream?since=${encodeURIComponent(last)}` : '/api/v1/stream'
+    const url = last
+      ? `/api/v1/stream?since=${encodeURIComponent(last)}`
+      : '/api/v1/stream'
 
-    const es = new EventSource(url, { withCredentials: true })
+    const es = this.factory(url)
     this.es = es
 
-    es.onopen = () => sub.onStatus('open')
-    es.onerror = () => sub.onStatus('error')
+    es.onopen = () => {
+      this.failureCount = 0
+      this.armWatchdog()
+      sub.onStatus('open')
+    }
+    es.onerror = () => this.handleConnectionLost()
 
-    const handle = <T>(kind: Exclude<LiveEvent['kind'], 'ping' | 'eof' | 'error'>) => {
+    const handle = <T>(
+      kind: Exclude<LiveEvent['kind'], 'ping' | 'eof' | 'error'>,
+    ) => {
       es.addEventListener(kind, (raw) => {
+        this.armWatchdog()
         const ev = raw as MessageEvent
         try {
           const data = JSON.parse(ev.data) as T
@@ -99,10 +182,12 @@ export class EventSourceChannel implements Channel {
     handle('level_change')
     handle('workout_attached')
 
-    es.addEventListener('ping', () =>
-      sub.onEvent({ kind: 'ping', id: null, data: {} as Record<string, never> }),
-    )
+    es.addEventListener('ping', () => {
+      this.armWatchdog()
+      sub.onEvent({ kind: 'ping', id: null, data: {} as Record<string, never> })
+    })
     es.addEventListener('eof', (raw) => {
+      this.armWatchdog()
       const ev = raw as MessageEvent
       try {
         const data = JSON.parse(ev.data) as { session_id: string }
@@ -117,11 +202,48 @@ export class EventSourceChannel implements Channel {
     })
   }
 
-  close(): void {
+  private handleConnectionLost(): void {
+    if (this.destroyed || !this.sub) return
+    this.clearTimers()
     this.es?.close()
     this.es = null
-    this.sub?.onStatus('closed')
-    this.sub = null
+    this.failureCount += 1
+    if (this.failureCount >= PERMANENT_FAILURE_AFTER) {
+      this.sub.onStatus('permanently_disconnected')
+      return
+    }
+    const delay = this.scheduleDelayMs(this.failureCount)
+    this.sub.onStatus('reconnecting')
+    this.retryTimer = setTimeout(() => {
+      this.retryTimer = null
+      this.connect()
+    }, delay)
+  }
+
+  private scheduleDelayMs(failureNumber: number): number {
+    const idx = Math.min(failureNumber - 1, BACKOFF_STEPS_MS.length - 1)
+    const base = BACKOFF_STEPS_MS[idx] ?? MAX_BACKOFF_MS
+    const jitter = base * 0.25 * (this.random() * 2 - 1) // ±25%
+    return Math.max(0, Math.round(base + jitter))
+  }
+
+  private armWatchdog(): void {
+    if (this.watchdogTimer) clearTimeout(this.watchdogTimer)
+    this.watchdogTimer = setTimeout(() => {
+      this.watchdogTimer = null
+      this.handleConnectionLost()
+    }, STALE_TIMEOUT_MS)
+  }
+
+  private clearTimers(): void {
+    if (this.retryTimer) {
+      clearTimeout(this.retryTimer)
+      this.retryTimer = null
+    }
+    if (this.watchdogTimer) {
+      clearTimeout(this.watchdogTimer)
+      this.watchdogTimer = null
+    }
   }
 
   private readLastEventId(): string | null {

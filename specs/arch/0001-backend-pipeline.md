@@ -154,6 +154,15 @@ reconnecting with `Last-Event-ID` can never see a gap between "last id
 in ring" and "next live id" — the ring always contains the event the
 broadcaster is about to ship.
 
+**Replay window sizing.** Capacity is 10 000 events. At a steady-state
+stroke rate of ~0.5 Hz this covers roughly 5–6 hours of activity, far
+exceeding any plausible client-side reconnect window. The PWA's stale-
+detection watchdog forces a fresh connect after 35 s without any frame
+or ping (`web/src/live/channel.ts`); the ring trivially covers that
+gap and any realistic Wi-Fi blip during a single session. Resizing the
+ring is a one-line change in `cmd/splits/main.go` if a higher event
+density (multi-rower fan-in, finer-grained telemetry) is ever added.
+
 ### Persister (`internal/storage`)
 
 Consumes `chan event.Event`. Per event:

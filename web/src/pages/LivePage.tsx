@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useLiveSession } from '../live/LiveSessionContext'
+import { ConnectionBanner } from '../live/ConnectionBanner'
 import { useWorkoutProgress } from '../live/useWorkoutProgress'
 import { LiveHero } from './LiveHero'
 import { TileGrid } from './TileGrid'
@@ -133,6 +134,7 @@ export function LivePage() {
   return (
     <>
       <LiveBody />
+      <ConnectionBanner />
       {latched && (
         <SessionEndedOverlay
           summary={latched.summary}

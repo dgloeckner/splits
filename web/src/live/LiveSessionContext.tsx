@@ -3,7 +3,16 @@ import { EventSourceChannel, type Channel } from './channel'
 import { useEventSource } from './useEventSource'
 import type { LiveState } from './reducer'
 
-export const LiveSessionContext = createContext<LiveState | null>(null)
+type LiveSession = LiveState & {
+  /**
+   * Manually trigger a reconnect. Wired to the "Erneut verbinden"
+   * banner button when the channel reaches `permanently_disconnected`.
+   * No-op for channels that don't support reconnect.
+   */
+  reconnect: () => void
+}
+
+export const LiveSessionContext = createContext<LiveSession | null>(null)
 
 type Props = {
   children: ReactNode
@@ -14,11 +23,15 @@ type Props = {
 export function LiveSessionProvider({ children, channel }: Props) {
   const resolved = useMemo(() => channel ?? new EventSourceChannel(), [channel])
   const state = useEventSource(resolved)
-  return <LiveSessionContext.Provider value={state}>{children}</LiveSessionContext.Provider>
+  const value = useMemo<LiveSession>(
+    () => ({ ...state, reconnect: () => resolved.reconnect?.() }),
+    [state, resolved],
+  )
+  return <LiveSessionContext.Provider value={value}>{children}</LiveSessionContext.Provider>
 }
 
 // eslint-disable-next-line react-refresh/only-export-components
-export function useLiveSession(): LiveState {
+export function useLiveSession(): LiveSession {
   const v = useContext(LiveSessionContext)
   if (!v) throw new Error('useLiveSession must be used inside <LiveSessionProvider>')
   return v
