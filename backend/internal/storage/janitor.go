@@ -20,6 +20,24 @@ type BootJanitor struct {
 	Scheduler *stats.RecomputeScheduler
 }
 
+// RunJanitorOnce runs all stateless cleanup passes once and returns.
+// Exposed so integration tests can invoke the janitor deterministically
+// without spinning up a goroutine. Production callers use BootJanitor.
+func RunJanitorOnce(ctx context.Context, db *sql.DB) error {
+	return purgeExpiredPairingTokens(ctx, db)
+}
+
+// purgeExpiredPairingTokens deletes pairing_tokens whose expires_at is
+// in the past. FEAT-0002.
+func purgeExpiredPairingTokens(ctx context.Context, db *sql.DB) error {
+	if _, err := db.ExecContext(ctx,
+		`DELETE FROM pairing_tokens WHERE expires_at < ?`,
+		time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+		return err
+	}
+	return nil
+}
+
 // Run sweeps the database. Best-effort: errors are logged, never
 // returned (we never want to refuse to start the process for a
 // janitor hiccup).
@@ -29,6 +47,9 @@ func (j *BootJanitor) Run(ctx context.Context) {
 	}
 	if err := j.repairLeftoverStrokes(ctx); err != nil {
 		slog.Error("janitor.leftover_strokes", "err", err)
+	}
+	if err := purgeExpiredPairingTokens(ctx, j.DB); err != nil {
+		slog.Error("janitor.purge_pairing_tokens", "err", err)
 	}
 }
 

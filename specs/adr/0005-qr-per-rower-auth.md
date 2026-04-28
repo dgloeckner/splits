@@ -134,3 +134,23 @@ Adopt **Option C — per-rower QR-code pairing**.
     show it in a one-shot setup wizard).
   - Everyone else: admin hands over a QR; scan with the phone camera
     (or the PWA's "scan QR" action once paired); done.
+
+## Subsequent decisions (2026-04-28, FEAT-0002 v1)
+
+- **Token hashing: SHA-256 instead of Argon2id.** Pairing tokens are
+  256 bits of cryptographic randomness (`crypto/rand`), so the password-
+  hardening properties of Argon2id add CPU cost without security gain.
+  SHA-256(token) stored as hex; computationally indistinguishable from a
+  random 256-bit string when the input is itself random.
+- **No admin tier.** Trust model is flat: every paired rower can mint
+  pairing URLs for new rowers / new devices. Removes `is_admin` flag
+  and the "Household" admin screen from FEAT-0002 scope.
+- **Token TTL: 24h, single use.** Reduces blast radius of leaked URLs
+  vs. ADR's "long-lived (years)" wording. Recovery flow uses
+  `splits invite` CLI to mint a fresh URL on demand.
+- **No separate session cookie.** The existing `device_id` cookie
+  (HttpOnly, Secure, SameSite=Lax, set by middleware) plus the
+  `device_rowers` row IS the session. "Logout" = delete the row.
+- **Rotation policy: cookie value never rotates.** It identifies a
+  device, not a rower. To force re-pair after suspected device theft,
+  use `splits revoke <rower-id>` to drop the device_rowers rows.

@@ -67,7 +67,7 @@ func (r *Repo) Create(ctx context.Context, in CreateInput) (*Rower, error) {
 func (r *Repo) List(ctx context.Context) ([]Rower, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, weight_kg, height_cm, dob, color, created_at
-		 FROM rowers ORDER BY created_at ASC`)
+		 FROM rowers WHERE deleted_at IS NULL ORDER BY created_at ASC`)
 	if err != nil {
 		return nil, err
 	}
