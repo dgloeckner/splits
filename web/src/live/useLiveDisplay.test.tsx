@@ -62,14 +62,44 @@ describe('useDeadReckonedTime', () => {
 })
 
 describe('useDeadReckonedDistance', () => {
-  it('falls back to raw distance when only one stroke seen (speed=0)', () => {
+  it('reports raw distance at the instant the stroke arrives (sinceFrame=0)', () => {
     const s = liveReducer(initialLiveState, {
       type: 'event',
       event: stroke(1, { time_sec: 2, distance_m: 8 }),
     })
     const { result } = renderHook(() => useDeadReckonedDistance(s))
-    // Only one stroke → no speed → text reflects raw distance formatted.
     expect(result.current.text).toBe('8')
+  })
+
+  it('extrapolates using EMA-smoothed pace, not the two-stroke Δm/Δs delta', () => {
+    // Cold-start: smoothed seeds with the first stroke's raw values, so
+    // EMA pace = 132 → speed = 500/132 ≈ 3.788 m/s.
+    let s = liveReducer(initialLiveState, {
+      type: 'event',
+      event: stroke(1, { time_sec: 2, distance_m: 8, pace_sec_per_500m: 132 }),
+    })
+    s = liveReducer(s, {
+      type: 'event',
+      event: stroke(2, { time_sec: 4, distance_m: 16, pace_sec_per_500m: 132 }),
+    })
+    // Advance wall-clock 800 ms past the latest stroke receipt.
+    vi.advanceTimersByTime(800)
+    const { result } = renderHook(() => useDeadReckonedDistance(s))
+    // 16 + 0.8 * (500/132) ≈ 19.03 → fmtInt truncates to 19.
+    expect(result.current.text).toBe('19')
+  })
+
+  it('falls back to dps / stroke_cycle_sec when EMA pace is unavailable', () => {
+    let s = liveReducer(initialLiveState, {
+      type: 'event',
+      event: stroke(1, { time_sec: 2, distance_m: 8, dps: 8, stroke_cycle_sec: 2 }),
+    })
+    // Force the smoothed slot to null to simulate pre-seed state.
+    s = { ...s, smoothed: null }
+    vi.advanceTimersByTime(250)
+    const { result } = renderHook(() => useDeadReckonedDistance(s))
+    // speed = 8/2 = 4 m/s; 8 + 0.25 * 4 = 9.
+    expect(result.current.text).toBe('9')
   })
 })
 

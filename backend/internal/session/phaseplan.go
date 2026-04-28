@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/workout"
+	"github.com/gloeckner-daniel/splits/internal/workout"
 )
 
 // Phase classifies a stroke against the workout's segment plan.

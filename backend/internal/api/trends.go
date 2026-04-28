@@ -4,13 +4,15 @@ import (
 	"database/sql"
 	"net/http"
 	"time"
+
+	"github.com/gloeckner-daniel/splits/internal/rower"
 )
 
 // TrendsHandler exposes per-rower aggregate trends for a configurable
 // range. Sub-project B in the 2026-04-26 history-trends spec.
-func TrendsHandler(db *sql.DB) http.Handler {
+func TrendsHandler(db *sql.DB, repo *rower.Repo) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/v1/rowers/{id}/trends", getTrends(db))
+	mux.HandleFunc("GET /api/v1/rowers/{id}/trends", requireRower(repo, getTrends(db)))
 	return mux
 }
 

@@ -3,12 +3,13 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/event"
-	"github.com/gloeckner-daniel/home-ergo/internal/ipm"
-	"github.com/gloeckner-daniel/home-ergo/internal/workout"
+	"github.com/gloeckner-daniel/splits/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/ipm"
+	"github.com/gloeckner-daniel/splits/internal/workout"
 )
 
 func frame(timeSec float64, distanceM, spm, powerW, level int) ipm.Frame {
@@ -655,4 +656,34 @@ func TestPhasePlanReset(t *testing.T) {
 	if p, complete := plan.Classify(100, 20); p != PhaseWork || complete {
 		t.Fatalf("after reset: got (%v,%v), want (PhaseWork,false) — crossedAt cleared", p, complete)
 	}
+}
+
+func TestSessionizer_ConcurrentSnapshotDuringStart(t *testing.T) {
+	t.Parallel()
+	s := New(Options{IdleTimeout: time.Minute, Now: time.Now})
+	in := make(chan ipm.Frame, 8)
+	out := make(chan event.Event, 64)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go s.Run(ctx, in, out)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 200; i++ {
+			s.AttachWorkout("w1")
+			s.StartSession("w1")
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 1000; i++ {
+			_ = s.Snapshot()
+			_ = s.MaxEventID()
+		}
+	}()
+	wg.Wait()
+	cancel()
+	<-out
 }

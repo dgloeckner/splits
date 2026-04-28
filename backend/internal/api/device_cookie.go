@@ -15,11 +15,18 @@ var deviceIDKey = ctxKey{"device_id"}
 const deviceCookieName = "device_id"
 const deviceCookieMaxAge = 10 * 365 * 24 * 60 * 60 // ~10 years
 
+// DeviceCookieOptions configures the DeviceCookie middleware.
+type DeviceCookieOptions struct {
+	// Secure controls the Secure flag on the issued cookie. Set true
+	// in production (HTTPS) and false in dev (plain HTTP loopback).
+	Secure bool
+}
+
 // DeviceCookie returns middleware that ensures every request carries a
 // stable "device_id" cookie. On first contact the middleware generates
 // a UUIDv4, sets an HttpOnly cookie, and stuffs the id into the request
 // context for downstream handlers.
-func DeviceCookie() func(http.Handler) http.Handler {
+func DeviceCookie(opts DeviceCookieOptions) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			id := ""
@@ -32,6 +39,7 @@ func DeviceCookie() func(http.Handler) http.Handler {
 					Value:    id,
 					Path:     "/",
 					HttpOnly: true,
+					Secure:   opts.Secure,
 					SameSite: http.SameSiteLaxMode,
 					MaxAge:   deviceCookieMaxAge,
 					Expires:  time.Now().Add(time.Duration(deviceCookieMaxAge) * time.Second),

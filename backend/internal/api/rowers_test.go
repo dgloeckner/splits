@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/rower"
-	"github.com/gloeckner-daniel/home-ergo/internal/storage"
+	"github.com/gloeckner-daniel/splits/internal/rower"
+	"github.com/gloeckner-daniel/splits/internal/storage"
 )
 
 func newRowerTestServer(t *testing.T) (http.Handler, *rower.Repo, *rower.Holder) {
@@ -20,15 +20,16 @@ func newRowerTestServer(t *testing.T) (http.Handler, *rower.Repo, *rower.Holder)
 	t.Cleanup(func() { _ = db.Close() })
 	repo := rower.NewRepo(db.Handle())
 	holder := rower.NewHolder()
+	link := rower.NewDeviceLink(db.Handle())
 	mux := http.NewServeMux()
-	h := RowersHandler(repo)
+	h := RowersHandler(repo, link)
 	mux.Handle("GET /api/v1/rowers", h)
 	mux.Handle("POST /api/v1/rowers", h)
 	mux.Handle("PATCH /api/v1/rowers/{id}", h)
-	a := ActiveRowerHandler(repo, holder)
+	a := ActiveRowerHandler(repo, holder, link)
 	mux.Handle("GET /api/v1/active-rower", a)
 	mux.Handle("PUT /api/v1/active-rower", a)
-	return Chain(mux, DeviceCookie()), repo, holder
+	return Chain(mux, DeviceCookie(DeviceCookieOptions{})), repo, holder
 }
 
 func TestRowers_CreateListPatch(t *testing.T) {
@@ -78,6 +79,28 @@ func TestRowers_CreateListPatch(t *testing.T) {
 	_ = json.Unmarshal(rec3.Body.Bytes(), &patched)
 	if patched["name"] != "Alicia" {
 		t.Fatalf("patched name: %+v", patched)
+	}
+}
+
+func TestActiveRower_PUT_RejectsUnpairedRower(t *testing.T) {
+	h, repo, _ := newRowerTestServer(t)
+
+	// Create a rower directly via the repo so no device is auto-paired.
+	r, err := repo.Create(t.Context(), rower.CreateInput{Name: "Solo", Color: "#ff6b6b"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	body := `{"rower_id":"` + r.ID + `"}`
+	req := httptest.NewRequest("PUT", "/api/v1/active-rower", bytes.NewBufferString(body))
+	req.Header.Set("Content-Type", "application/json")
+	// fresh device cookie, never paired with r
+	req.AddCookie(&http.Cookie{Name: "device_id", Value: "device-without-pairing"})
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("want 403, got %d body=%s", rec.Code, rec.Body.String())
 	}
 }
 

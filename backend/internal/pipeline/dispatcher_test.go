@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/event"
 )
 
 func TestDispatcherFansOut(t *testing.T) {

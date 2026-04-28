@@ -1,4 +1,4 @@
-# web — Home Ergo frontend
+# web — splits frontend
 
 Vite + React + TypeScript PWA. Talks to the Go backend in `../backend`.
 
@@ -6,7 +6,7 @@ Vite + React + TypeScript PWA. Talks to the Go backend in `../backend`.
 
 - Node 20 or later
 - npm 10 or later
-- The backend running on `http://localhost:8080` (see `../backend/README` once written; today: `cd ../backend && go run ./cmd/homeergo` with a fixture env set)
+- The backend running on `http://localhost:8080` (see `../backend/README` once written; today: `cd ../backend && go run ./cmd/splits` with a fixture env set)
 
 ## Develop
 

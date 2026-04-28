@@ -6,8 +6,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/event"
-	"github.com/gloeckner-daniel/home-ergo/internal/stats"
+	"github.com/gloeckner-daniel/splits/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/stats"
 )
 
 func InsertSession(ctx context.Context, db *sql.DB, id, rowerID string, startedAt time.Time, initialLevel int, workoutID string) error {

@@ -8,12 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/api"
-	"github.com/gloeckner-daniel/home-ergo/internal/event"
-	"github.com/gloeckner-daniel/home-ergo/internal/pipeline"
-	"github.com/gloeckner-daniel/home-ergo/internal/storage"
-	"github.com/gloeckner-daniel/home-ergo/internal/stream"
-	"github.com/gloeckner-daniel/home-ergo/internal/workout"
+	"github.com/gloeckner-daniel/splits/internal/api"
+	"github.com/gloeckner-daniel/splits/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/pipeline"
+	"github.com/gloeckner-daniel/splits/internal/storage"
+	"github.com/gloeckner-daniel/splits/internal/stream"
+	"github.com/gloeckner-daniel/splits/internal/workout"
 )
 
 func newTestRouter(t *testing.T) http.Handler {

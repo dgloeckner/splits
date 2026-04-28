@@ -1,3 +1,5 @@
+import { ApiError } from './error'
+
 export type WorkoutMode = 'just_row' | 'distance' | 'time' | 'intervals'
 export type Intensity = 'locker' | 'moderat' | 'hart' | 'allout'
 
@@ -38,24 +40,24 @@ export async function createWorkout(input: CreateWorkoutInput): Promise<Workout>
       cooldown_sec: input.cooldown_sec ?? 0,
     }),
   })
-  if (!res.ok) throw new Error(`createWorkout: ${res.status}`)
+  if (!res.ok) throw new ApiError(res.status, `createWorkout: ${res.status}`)
   return res.json()
 }
 
 export async function attachWorkout(id: string): Promise<void> {
   const res = await fetch(`/api/v1/workouts/${encodeURIComponent(id)}/attach`, { method: 'POST' })
-  if (!res.ok) throw new Error(`attachWorkout: ${res.status}`)
+  if (!res.ok) throw new ApiError(res.status, `attachWorkout: ${res.status}`)
 }
 
 export async function getWorkout(id: string): Promise<Workout> {
   const res = await fetch(`/api/v1/workouts/${encodeURIComponent(id)}`)
-  if (!res.ok) throw new Error(`getWorkout: ${res.status}`)
+  if (!res.ok) throw new ApiError(res.status, `getWorkout: ${res.status}`)
   return res.json()
 }
 
 export async function getLastWorkout(rowerID: string): Promise<Workout | null> {
   const res = await fetch(`/api/v1/workouts/last?rower_id=${encodeURIComponent(rowerID)}`)
   if (res.status === 404) return null
-  if (!res.ok) throw new Error(`getLastWorkout: ${res.status}`)
+  if (!res.ok) throw new ApiError(res.status, `getLastWorkout: ${res.status}`)
   return res.json()
 }

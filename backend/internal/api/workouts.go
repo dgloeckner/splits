@@ -5,7 +5,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/workout"
+	"github.com/gloeckner-daniel/splits/internal/workout"
 )
 
 // SessionAttacher tags the next session with a workout ID and can

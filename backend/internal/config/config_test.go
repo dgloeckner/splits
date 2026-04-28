@@ -18,11 +18,17 @@ func TestLoad_AllDefaults(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load() unexpected error: %v", err)
 	}
+	// DBPath default is ./splits.db, but Load auto-falls-back to
+	// ./homeergo.db if only the legacy file exists in CWD. Accept either.
+	wantDB := got.DBPath
+	if wantDB != "./splits.db" && wantDB != "./homeergo.db" {
+		t.Errorf("DBPath = %q, want ./splits.db or ./homeergo.db", wantDB)
+	}
 	want := &Config{
 		Addr:        ":8080",
 		SerialPort:  "",
 		SerialBaud:  9600,
-		DBPath:      "./homeergo.db",
+		DBPath:      wantDB,
 		Fixture:     "",
 		FixtureRate: "realtime",
 		LogLevel:    "info",
@@ -30,6 +36,68 @@ func TestLoad_AllDefaults(t *testing.T) {
 	}
 	if *got != *want {
 		t.Errorf("Load() = %+v, want %+v", got, want)
+	}
+}
+
+func TestLoad_AcceptsSPLITSEnvVars(t *testing.T) {
+	env := func(k string) (string, bool) {
+		switch k {
+		case "SPLITS_ADDR":
+			return ":9999", true
+		case "SPLITS_DB_PATH":
+			return "/tmp/splits.db", true
+		case "SPLITS_FIXTURE":
+			return "fixt.bin", true
+		}
+		return "", false
+	}
+	cfg, err := Load(env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Addr != ":9999" || cfg.DBPath != "/tmp/splits.db" || cfg.Fixture != "fixt.bin" {
+		t.Fatalf("got %+v", cfg)
+	}
+}
+
+func TestLoad_LegacyHOMEERGOVarsStillWork(t *testing.T) {
+	env := func(k string) (string, bool) {
+		if k == "HOMEERGO_ADDR" {
+			return ":7777", true
+		}
+		if k == "HOMEERGO_DB_PATH" {
+			return "/tmp/legacy.db", true
+		}
+		return "", false
+	}
+	cfg, err := Load(env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Addr != ":7777" {
+		t.Fatalf("want :7777 got %s", cfg.Addr)
+	}
+	if cfg.DBPath != "/tmp/legacy.db" {
+		t.Fatalf("want legacy db got %s", cfg.DBPath)
+	}
+}
+
+func TestLoad_PrimaryWinsOverLegacy(t *testing.T) {
+	env := func(k string) (string, bool) {
+		if k == "SPLITS_ADDR" {
+			return ":9999", true
+		}
+		if k == "HOMEERGO_ADDR" {
+			return ":1111", true
+		}
+		return "", false
+	}
+	cfg, err := Load(env)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Addr != ":9999" {
+		t.Fatalf("primary should win, got %s", cfg.Addr)
 	}
 }
 
@@ -84,6 +152,21 @@ func TestLoad_InvalidBaud(t *testing.T) {
 func TestLoad_InvalidIdleTimeout(t *testing.T) {
 	if _, err := Load(mapLookup(map[string]string{"HOMEERGO_IDLE_TIMEOUT": "not-a-duration"})); err == nil {
 		t.Fatal("Load() expected error for bad idle timeout, got nil")
+	}
+}
+
+func TestLoad_DevModeFromSPLITS(t *testing.T) {
+	cfg, err := Load(func(k string) (string, bool) {
+		if k == "SPLITS_DEV_MODE" {
+			return "1", true
+		}
+		return "", false
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.DevMode {
+		t.Fatal("want DevMode=true")
 	}
 }
 

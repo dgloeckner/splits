@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/workout"
+	"github.com/gloeckner-daniel/splits/internal/workout"
 )
 
 func TestPhasePlanDistanceWithWarmupCooldown(t *testing.T) {

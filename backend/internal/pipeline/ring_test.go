@@ -3,7 +3,7 @@ package pipeline
 import (
 	"testing"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/event"
 )
 
 func TestRingWriteAndSince(t *testing.T) {

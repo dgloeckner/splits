@@ -31,7 +31,8 @@
 
 .block_rest {
   background: transparent;
-  border: 1px solid color-mix(in srgb, var(--color-outline-variant, #3d494a) 60%, transparent);
+  border: none;
+  min-width: 4px;
 }
 
 .block_warmup,
@@ -44,6 +45,17 @@
   background: var(--color-primary);
   border: 2px solid rgba(255, 255, 255, 0.5);
   opacity: 1;
+}
+
+.block_warmup[data-active='true'],
+.block_cooldown[data-active='true'] {
+  background: color-mix(in srgb, var(--color-primary) 25%, transparent);
+  border: 1px dashed var(--color-primary);
+}
+
+.block_rest[data-active='true'] {
+  background: color-mix(in srgb, var(--color-primary) 15%, transparent);
+  border: none;
 }
 
 .marker {

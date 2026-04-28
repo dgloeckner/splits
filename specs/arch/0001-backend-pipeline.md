@@ -108,7 +108,7 @@ heartbeats) are also parsed but usually ignored by the sessionizer.
 
 Single goroutine, single owner of:
 
-- **Idle-timeout FSM** — if > `HOMEERGO_IDLE_TIMEOUT` (default 60 s)
+- **Idle-timeout FSM** — if > `SPLITS_IDLE_TIMEOUT` (default 60 s)
   elapses between consecutive stroke frames, the next stroke opens a
   new session. Synthesises a `session_start` event immediately before
   that stroke and a `session_end` event after the last pre-idle stroke.
@@ -220,14 +220,14 @@ Auth middleware reads the session cookie, looks up the rower, puts
 
 ```go
 type Config struct {
-    Addr           string        // HOMEERGO_ADDR, default ":8080"
-    SerialPort     string        // HOMEERGO_SERIAL_PORT, auto-detect FTDI 0403:6001
-    SerialBaud     int           // HOMEERGO_SERIAL_BAUD, default 9600
-    DBPath         string        // HOMEERGO_DB_PATH, default "./homeergo.db"
-    Fixture        string        // HOMEERGO_FIXTURE, empty = use serial
-    FixtureRate    string        // HOMEERGO_FIXTURE_RATE, "realtime" | "fast"
-    LogLevel       string        // HOMEERGO_LOG_LEVEL, default "info"
-    IdleTimeout    time.Duration // HOMEERGO_IDLE_TIMEOUT, default 60s
+    Addr           string        // SPLITS_ADDR, default ":8080"
+    SerialPort     string        // SPLITS_SERIAL_PORT, auto-detect FTDI 0403:6001
+    SerialBaud     int           // SPLITS_SERIAL_BAUD, default 9600
+    DBPath         string        // SPLITS_DB_PATH, default "./splits.db"
+    Fixture        string        // SPLITS_FIXTURE, empty = use serial
+    FixtureRate    string        // SPLITS_FIXTURE_RATE, "realtime" | "fast"
+    LogLevel       string        // SPLITS_LOG_LEVEL, default "info"
+    IdleTimeout    time.Duration // SPLITS_IDLE_TIMEOUT, default 60s
 }
 
 func Load() (*Config, error)
@@ -325,7 +325,7 @@ wires them together in an `errgroup`.
 
 ```
 backend/
-├── cmd/homeergo/
+├── cmd/splits/
 │   └── main.go                 # config.Load → build pipeline → http.Serve → shutdown
 ├── internal/
 │   ├── config/                 # env+flag loader, Config struct
@@ -386,7 +386,7 @@ backend/
 
 ## Observability
 
-- `log/slog` JSON handler to stderr at `HOMEERGO_LOG_LEVEL`.
+- `log/slog` JSON handler to stderr at `SPLITS_LOG_LEVEL`.
 - Every stage logs `stage.started` and `stage.stopped` with reason.
 - `GET /debug/ingest` (LAN-only, no auth in v1) returns JSON:
 
@@ -432,14 +432,14 @@ an `errgroup.Group` for the long-running goroutines. Ordering:
 
 | Env var                     | Default                           | Purpose                                                |
 |-----------------------------|-----------------------------------|--------------------------------------------------------|
-| `HOMEERGO_ADDR`             | `:8080`                           | HTTP listen address                                    |
-| `HOMEERGO_SERIAL_PORT`      | auto-detect FTDI `0403:6001`      | Override for non-FTDI or multi-device                  |
-| `HOMEERGO_SERIAL_BAUD`      | `9600`                            | Per INT-0001                                           |
-| `HOMEERGO_DB_PATH`          | `./homeergo.db`                   | SQLite file                                            |
-| `HOMEERGO_FIXTURE`          | unset                             | CSV / bin fixture in place of serial (dev mode)        |
-| `HOMEERGO_FIXTURE_RATE`     | `realtime`                        | `realtime` or `fast` pacing                            |
-| `HOMEERGO_LOG_LEVEL`        | `info`                            | `debug` / `info` / `warn` / `error`                    |
-| `HOMEERGO_IDLE_TIMEOUT`     | `60s`                             | Gap between strokes that closes a session              |
+| `SPLITS_ADDR`               | `:8080`                           | HTTP listen address                                    |
+| `SPLITS_SERIAL_PORT`        | auto-detect FTDI `0403:6001`      | Override for non-FTDI or multi-device                  |
+| `SPLITS_SERIAL_BAUD`        | `9600`                            | Per INT-0001                                           |
+| `SPLITS_DB_PATH`            | `./splits.db`                     | SQLite file                                            |
+| `SPLITS_FIXTURE`            | unset                             | CSV / bin fixture in place of serial (dev mode)        |
+| `SPLITS_FIXTURE_RATE`       | `realtime`                        | `realtime` or `fast` pacing                            |
+| `SPLITS_LOG_LEVEL`          | `info`                            | `debug` / `info` / `warn` / `error`                    |
+| `SPLITS_IDLE_TIMEOUT`       | `60s`                             | Gap between strokes that closes a session              |
 
 CLI flags mirror env vars via `flag`; flag wins over env.
 

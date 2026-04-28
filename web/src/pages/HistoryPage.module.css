@@ -2,6 +2,14 @@
   padding: var(--space-3);
   display: grid;
   gap: var(--space-2);
+  min-width: 0;
+}
+
+/* Grid items default to min-width: auto, which lets wide children
+   (e.g. .windowList cards with min-width: 160px) stretch the column
+   past the viewport on mobile. Force shrink-to-fit. */
+.page > * {
+  min-width: 0;
 }
 
 .empty {
@@ -19,6 +27,13 @@
   display: flex;
   gap: var(--space-2);
   border-bottom: 1px solid var(--color-outline-variant, rgba(255, 255, 255, 0.12));
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.subnav::-webkit-scrollbar {
+  display: none;
 }
 
 .tab {
@@ -28,6 +43,15 @@
   font-family: var(--font-body);
   font-size: var(--text-body-lg);
   border-bottom: 2px solid transparent;
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+
+@media (max-width: 480px) {
+  .tab {
+    padding: var(--space-1);
+    font-size: var(--text-body-md);
+  }
 }
 
 .tabActive {

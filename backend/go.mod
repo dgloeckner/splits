@@ -1,4 +1,4 @@
-module github.com/gloeckner-daniel/home-ergo
+module github.com/gloeckner-daniel/splits
 
 go 1.25.3
 
@@ -7,6 +7,7 @@ require (
 	github.com/oklog/ulid/v2 v2.1.1
 	go.bug.st/serial v1.6.4
 	golang.org/x/sync v0.20.0
+	golang.org/x/time v0.15.0
 	modernc.org/sqlite v1.49.1
 )
 

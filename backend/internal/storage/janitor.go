@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/event"
-	"github.com/gloeckner-daniel/home-ergo/internal/stats"
+	"github.com/gloeckner-daniel/splits/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/stats"
 )
 
 // BootJanitor finalises any session that was left open across a

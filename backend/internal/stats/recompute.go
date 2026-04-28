@@ -81,11 +81,6 @@ func Recompute(ctx context.Context, db *sql.DB, rowerID string) error {
 }
 
 func recomputeDistance(ctx context.Context, tx *sql.Tx, rowerID, now string) error {
-	if _, err := tx.ExecContext(ctx,
-		`UPDATE pb_distance SET invalidated_at = ? WHERE rower_id = ? AND invalidated_at IS NULL`,
-		now, rowerID); err != nil {
-		return err
-	}
 	rows, err := tx.QueryContext(ctx, `
 		SELECT distance_m, time_sec, session_id, started_at,
 		       window_start_stroke, window_end_stroke
@@ -102,33 +97,70 @@ func recomputeDistance(ctx context.Context, tx *sql.Tx, rowerID, now string) err
 	if err != nil {
 		return err
 	}
-	defer rows.Close()
+	type best struct {
+		distM, startNo, endNo int
+		timeSec               float64
+		sessionID, startedAt  string
+	}
+	var bests []best
 	for rows.Next() {
-		var distM, startNo, endNo int
-		var timeSec float64
-		var sessionID, startedAt string
-		if err := rows.Scan(&distM, &timeSec, &sessionID, &startedAt, &startNo, &endNo); err != nil {
+		var b best
+		if err := rows.Scan(&b.distM, &b.timeSec, &b.sessionID, &b.startedAt, &b.startNo, &b.endNo); err != nil {
+			rows.Close()
 			return err
 		}
+		bests = append(bests, b)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE pb_distance SET invalidated_at = ? WHERE rower_id = ? AND invalidated_at IS NULL`,
+		now, rowerID); err != nil {
+		return err
+	}
+	for _, b := range bests {
+		// Look at the row we just invalidated — keep the chain across
+		// idempotent recomputes by carrying its previous_time_sec when
+		// the active value did not actually improve.
+		var oldTime sql.NullFloat64
+		var oldPrev sql.NullFloat64
+		_ = tx.QueryRowContext(ctx, `
+			SELECT time_sec, previous_time_sec FROM pb_distance
+			WHERE rower_id=? AND distance_m=? AND invalidated_at=?
+			ORDER BY id DESC LIMIT 1`,
+			rowerID, b.distM, now).Scan(&oldTime, &oldPrev)
+		var prev sql.NullFloat64
+		if oldTime.Valid {
+			if oldTime.Float64 == b.timeSec {
+				prev = oldPrev
+			} else {
+				prev = sql.NullFloat64{Float64: oldTime.Float64, Valid: true}
+			}
+		}
 		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO pb_distance(rower_id, distance_m, time_sec,
+			INSERT INTO pb_distance(rower_id, distance_m, time_sec, previous_time_sec,
 				source_session_id, source_session_started_at, achieved_at,
 				window_start_stroke, window_end_stroke)
-			VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
-			rowerID, distM, timeSec, sessionID, startedAt, now, startNo, endNo,
+			VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			rowerID, b.distM, b.timeSec, prev, b.sessionID, b.startedAt, now, b.startNo, b.endNo,
 		); err != nil {
 			return err
 		}
 	}
-	return rows.Err()
+	return nil
 }
 
 func recomputeWindow(ctx context.Context, tx *sql.Tx, rowerID, now string) error {
-	if _, err := tx.ExecContext(ctx,
-		`UPDATE pb_window SET invalidated_at = ? WHERE rower_id = ? AND invalidated_at IS NULL`,
-		now, rowerID); err != nil {
-		return err
+	type best struct {
+		metric, kind, sessionID, startedAt string
+		size                               int
+		value                              float64
 	}
+	var bests []best
 	// Pace is lower-is-better; everything else is higher-is-better.
 	// Run two passes so the SQL stays simple.
 	for _, p := range []struct {
@@ -155,22 +187,12 @@ func recomputeWindow(ctx context.Context, tx *sql.Tx, rowerID, now string) error
 			return err
 		}
 		for rows.Next() {
-			var metric, kind, sessionID, startedAt string
-			var size int
-			var value float64
-			if err := rows.Scan(&metric, &kind, &size, &value, &sessionID, &startedAt); err != nil {
+			var b best
+			if err := rows.Scan(&b.metric, &b.kind, &b.size, &b.value, &b.sessionID, &b.startedAt); err != nil {
 				rows.Close()
 				return err
 			}
-			if _, err := tx.ExecContext(ctx, `
-				INSERT INTO pb_window(rower_id, metric, window_kind, window_size, value,
-					source_session_id, source_session_started_at, achieved_at)
-				VALUES(?, ?, ?, ?, ?, ?, ?, ?)`,
-				rowerID, metric, kind, size, value, sessionID, startedAt, now,
-			); err != nil {
-				rows.Close()
-				return err
-			}
+			bests = append(bests, b)
 		}
 		if err := rows.Err(); err != nil {
 			rows.Close()
@@ -178,15 +200,47 @@ func recomputeWindow(ctx context.Context, tx *sql.Tx, rowerID, now string) error
 		}
 		rows.Close()
 	}
+
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE pb_window SET invalidated_at = ? WHERE rower_id = ? AND invalidated_at IS NULL`,
+		now, rowerID); err != nil {
+		return err
+	}
+	for _, b := range bests {
+		var oldVal sql.NullFloat64
+		var oldPrev sql.NullFloat64
+		_ = tx.QueryRowContext(ctx, `
+			SELECT value, previous_value FROM pb_window
+			WHERE rower_id=? AND metric=? AND window_kind=? AND window_size=? AND invalidated_at=?
+			ORDER BY id DESC LIMIT 1`,
+			rowerID, b.metric, b.kind, b.size, now).Scan(&oldVal, &oldPrev)
+		var prev sql.NullFloat64
+		if oldVal.Valid {
+			if oldVal.Float64 == b.value {
+				prev = oldPrev
+			} else {
+				prev = sql.NullFloat64{Float64: oldVal.Float64, Valid: true}
+			}
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO pb_window(rower_id, metric, window_kind, window_size, value, previous_value,
+				source_session_id, source_session_started_at, achieved_at)
+			VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			rowerID, b.metric, b.kind, b.size, b.value, prev, b.sessionID, b.startedAt, now,
+		); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
 func recomputeWorkout(ctx context.Context, tx *sql.Tx, rowerID, now string) error {
-	if _, err := tx.ExecContext(ctx,
-		`UPDATE pb_workout SET invalidated_at = ? WHERE rower_id = ? AND invalidated_at IS NULL`,
-		now, rowerID); err != nil {
-		return err
+	type best struct {
+		shapeHash, mode, valKind string
+		value                    float64
+		sessionID, startedAt     string
 	}
+	var allBests []best
 	// time_sec values rank ASC (faster is better); other value_kinds
 	// (distance_m) rank DESC. Branch on value_kind by partitioning the
 	// query, same shape as the window recompute.
@@ -213,49 +267,64 @@ func recomputeWorkout(ctx context.Context, tx *sql.Tx, rowerID, now string) erro
 		if err != nil {
 			return err
 		}
-		type best struct {
-			shapeHash, mode, valKind string
-			value                    float64
-			sessionID, startedAt     string
-		}
-		var bests []best
 		for rows.Next() {
 			var b best
 			if err := rows.Scan(&b.shapeHash, &b.mode, &b.valKind, &b.value, &b.sessionID, &b.startedAt); err != nil {
 				rows.Close()
 				return err
 			}
-			bests = append(bests, b)
+			allBests = append(allBests, b)
 		}
 		if err := rows.Err(); err != nil {
 			rows.Close()
 			return err
 		}
 		rows.Close()
-		for _, b := range bests {
-			// Pull the workout row tied to the source session for the
-			// canonical mode + params snapshot. Fall back to the
-			// candidate's own mode if the session has no attached
-			// workout (defensive — workout candidates are only emitted
-			// for attached workouts).
-			mode := b.mode
-			var params string
-			var workoutID sql.NullString
+	}
+
+	if _, err := tx.ExecContext(ctx,
+		`UPDATE pb_workout SET invalidated_at = ? WHERE rower_id = ? AND invalidated_at IS NULL`,
+		now, rowerID); err != nil {
+		return err
+	}
+	for _, b := range allBests {
+		// Pull the workout row tied to the source session for the
+		// canonical mode + params snapshot. Fall back to the
+		// candidate's own mode if the session has no attached
+		// workout (defensive — workout candidates are only emitted
+		// for attached workouts).
+		mode := b.mode
+		var params string
+		var workoutID sql.NullString
+		_ = tx.QueryRowContext(ctx,
+			`SELECT workout_id FROM sessions WHERE id = ?`, b.sessionID).Scan(&workoutID)
+		if workoutID.Valid {
 			_ = tx.QueryRowContext(ctx,
-				`SELECT workout_id FROM sessions WHERE id = ?`, b.sessionID).Scan(&workoutID)
-			if workoutID.Valid {
-				_ = tx.QueryRowContext(ctx,
-					`SELECT mode, params_json FROM workout WHERE id = ?`,
-					workoutID.String).Scan(&mode, &params)
+				`SELECT mode, params_json FROM workout WHERE id = ?`,
+				workoutID.String).Scan(&mode, &params)
+		}
+		var oldVal sql.NullFloat64
+		var oldPrev sql.NullFloat64
+		_ = tx.QueryRowContext(ctx, `
+			SELECT value, previous_value FROM pb_workout
+			WHERE rower_id=? AND shape_hash=? AND invalidated_at=?
+			ORDER BY id DESC LIMIT 1`,
+			rowerID, b.shapeHash, now).Scan(&oldVal, &oldPrev)
+		var prev sql.NullFloat64
+		if oldVal.Valid {
+			if oldVal.Float64 == b.value {
+				prev = oldPrev
+			} else {
+				prev = sql.NullFloat64{Float64: oldVal.Float64, Valid: true}
 			}
-			if _, err := tx.ExecContext(ctx, `
-				INSERT INTO pb_workout(rower_id, shape_hash, mode, params_json, value_kind, value,
-					source_session_id, source_session_started_at, achieved_at)
-				VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				rowerID, b.shapeHash, mode, params, b.valKind, b.value, b.sessionID, b.startedAt, now,
-			); err != nil {
-				return err
-			}
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO pb_workout(rower_id, shape_hash, mode, params_json, value_kind, value, previous_value,
+				source_session_id, source_session_started_at, achieved_at)
+			VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			rowerID, b.shapeHash, mode, params, b.valKind, b.value, prev, b.sessionID, b.startedAt, now,
+		); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -295,7 +364,7 @@ func recomputeConsistency(ctx context.Context, tx *sql.Tx, rowerID, now string) 
 			INSERT INTO achievements(rower_id, achievement_type, achievement_key, value,
 				source_session_id, source_session_started_at, achieved_at)
 			VALUES(?, 'consistency_intra', ?, ?, ?, ?, ?)`,
-			rowerID, m.key, value, sessionID, startedAt, now,
+			rowerID, m.key, value, sessionID, startedAt, startedAt,
 		); err != nil {
 			return err
 		}
@@ -310,32 +379,116 @@ func recomputeVolumeMilestones(ctx context.Context, tx *sql.Tx, rowerID string, 
 		now, rowerID); err != nil {
 		return err
 	}
-	insert := func(key string, value float64) error {
-		_, err := tx.ExecContext(ctx, `
-			INSERT INTO achievements(rower_id, achievement_type, achievement_key, value, achieved_at)
-			VALUES(?, 'volume', ?, ?, ?)`,
-			rowerID, key, value, now)
+
+	// Walk sessions in chronological order, tracking cumulative
+	// distance / strokes / seconds. The first row whose running total
+	// reaches a threshold is the genuine first-crossing — its
+	// started_at becomes the milestone's achieved_at, stable across
+	// subsequent recomputes.
+	rows, err := tx.QueryContext(ctx, `
+		SELECT id, started_at, total_distance_m, total_time_sec, total_strokes
+		FROM sessions
+		WHERE rower_id = ? AND deleted_at IS NULL AND ended_at IS NOT NULL
+		ORDER BY started_at ASC, id ASC`, rowerID)
+	if err != nil {
 		return err
+	}
+	type crossing struct {
+		key, sessionID, startedAt string
+		value                     float64
+	}
+	var (
+		crossings                             []crossing
+		cumDist, cumStrokes                   int
+		cumSec                                float64
+		nextDistI, nextStrokesI, nextSecondsI int
+	)
+	for rows.Next() {
+		var sid, startedAt string
+		var d, s int
+		var t float64
+		if err := rows.Scan(&sid, &startedAt, &d, &t, &s); err != nil {
+			rows.Close()
+			return err
+		}
+		cumDist += d
+		cumStrokes += s
+		cumSec += t
+		for nextDistI < len(VolumeMilestonesM) && cumDist >= VolumeMilestonesM[nextDistI] {
+			th := VolumeMilestonesM[nextDistI]
+			crossings = append(crossings, crossing{
+				key: fmt.Sprintf("distance_%dm", th), value: float64(th),
+				sessionID: sid, startedAt: startedAt,
+			})
+			nextDistI++
+		}
+		for nextStrokesI < len(VolumeMilestoneStrokes) && cumStrokes >= VolumeMilestoneStrokes[nextStrokesI] {
+			th := VolumeMilestoneStrokes[nextStrokesI]
+			crossings = append(crossings, crossing{
+				key: fmt.Sprintf("strokes_%d", th), value: float64(th),
+				sessionID: sid, startedAt: startedAt,
+			})
+			nextStrokesI++
+		}
+		for nextSecondsI < len(VolumeMilestoneSeconds) && int(cumSec) >= VolumeMilestoneSeconds[nextSecondsI] {
+			th := VolumeMilestoneSeconds[nextSecondsI]
+			crossings = append(crossings, crossing{
+				key: fmt.Sprintf("active_seconds_%d", th), value: float64(th),
+				sessionID: sid, startedAt: startedAt,
+			})
+			nextSecondsI++
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+
+	// Defensive: the lifetime totals computed up-tree should agree
+	// with the cumulative walk. If the walk missed any threshold the
+	// totals say is crossed, fall back to `now` for that one — better
+	// than silently dropping the milestone.
+	have := map[string]bool{}
+	for _, c := range crossings {
+		have[c.key] = true
+	}
+	addFallback := func(key string, value float64) {
+		if have[key] {
+			return
+		}
+		crossings = append(crossings, crossing{key: key, value: value, startedAt: now})
+		have[key] = true
 	}
 	for _, t := range VolumeMilestonesM {
 		if dist >= t {
-			if err := insert(fmt.Sprintf("distance_%dm", t), float64(t)); err != nil {
-				return err
-			}
+			addFallback(fmt.Sprintf("distance_%dm", t), float64(t))
 		}
 	}
 	for _, t := range VolumeMilestoneStrokes {
 		if strokes >= t {
-			if err := insert(fmt.Sprintf("strokes_%d", t), float64(t)); err != nil {
-				return err
-			}
+			addFallback(fmt.Sprintf("strokes_%d", t), float64(t))
 		}
 	}
 	for _, t := range VolumeMilestoneSeconds {
 		if sec >= t {
-			if err := insert(fmt.Sprintf("active_seconds_%d", t), float64(t)); err != nil {
-				return err
-			}
+			addFallback(fmt.Sprintf("active_seconds_%d", t), float64(t))
+		}
+	}
+
+	for _, c := range crossings {
+		var sessionID, sessionStart sql.NullString
+		if c.sessionID != "" {
+			sessionID = sql.NullString{String: c.sessionID, Valid: true}
+			sessionStart = sql.NullString{String: c.startedAt, Valid: true}
+		}
+		if _, err := tx.ExecContext(ctx, `
+			INSERT INTO achievements(rower_id, achievement_type, achievement_key, value,
+				source_session_id, source_session_started_at, achieved_at)
+			VALUES(?, 'volume', ?, ?, ?, ?, ?)`,
+			rowerID, c.key, c.value, sessionID, sessionStart, c.startedAt,
+		); err != nil {
+			return err
 		}
 	}
 	return nil

@@ -65,7 +65,7 @@ export function OnboardingPage() {
     <div className={styles.page}>
       <header className={styles.header}>
         <span className={styles.dot} aria-hidden />
-        <span className={styles.brand}>HOME-ERGO</span>
+        <span className={styles.brand}>SPLITS</span>
       </header>
       <main className={styles.root}>
         <section className={styles.intro}>
@@ -82,7 +82,7 @@ export function OnboardingPage() {
               className={styles.input}
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Daniel"
+              placeholder="Vorname"
               autoFocus
             />
           </div>

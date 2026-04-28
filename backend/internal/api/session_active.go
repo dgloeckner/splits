@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/event"
 )
 
 // SessionActiveProvider is satisfied by the sessionizer. Returns the

@@ -152,7 +152,16 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
             ? {
                 ...state,
                 session: state.session
-                  ? { ...state.session, session_id: p.session_id }
+                  ? {
+                      ...state.session,
+                      session_id: p.session_id,
+                      // Clear workout_id: it belongs to the previous
+                      // session and would otherwise keep BottomNav
+                      // locked / strip rendering for a workout that
+                      // is no longer active. The next workout_attached
+                      // event will repopulate it.
+                      workout_id: undefined,
+                    }
                   : {
                       session_id: p.session_id,
                       started_at: new Date().toISOString(),
@@ -218,9 +227,15 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
 
         case 'workout_attached':
           if (!state.session) return state
+          // Reset live charts + smoothing on attach: any sparkline points
+          // and EMA values gathered during the pre-attach free-row prelude
+          // belong to a different intent (no target band, no phase) and
+          // would skew the work-phase y-axis until trimmed by the window.
           return {
             ...state,
             session: { ...state.session, workout_id: ev.data.workout_id },
+            sparklines: { power: [], split: [], dps: [], spm: [] },
+            smoothed: null,
           }
 
         case 'phase_change': {

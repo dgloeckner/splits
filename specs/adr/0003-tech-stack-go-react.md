@@ -58,7 +58,7 @@ footprint, cross-compile, and ergonomic fit.
 
 | Concern            | Choice                         | Notes |
 |--------------------|--------------------------------|-------|
-| Module path        | `github.com/<owner>/home-ergo` | TBD at first commit |
+| Module path        | `splits`                       | Local module name; bare path until upstream is published. |
 | Go version         | Latest stable (≥ 1.22)         | Uses the new `http.ServeMux` routing & `slog`. |
 | Router             | `net/http` stdlib (1.22+)       | Avoid chi/gin unless a real need surfaces. |
 | Serial             | `go.bug.st/serial`              | Actively maintained, cross-platform, no CGO on macOS/Linux. |
@@ -127,9 +127,9 @@ Formal schema + migrations live in a future INT-0003.
 ## Repo layout
 
 ```
-home-ergo/
+splits/
 ├── backend/
-│   ├── cmd/homeergo/          # main package (binary entry point)
+│   ├── cmd/splits/          # main package (binary entry point)
 │   ├── internal/
 │   │   ├── ipm/               # A8 parser (port of traces/ipm_parser.py)
 │   │   ├── session/           # aggregation + state machine
@@ -165,7 +165,7 @@ the `//go:embed web/dist` path obvious.
 
 ## Development workflow
 
-- **Backend dev**: `cd backend && go run ./cmd/homeergo` — serves API
+- **Backend dev**: `cd backend && go run ./cmd/splits` — serves API
   on `:8080`. Reads fixtures via a CLI flag for offline dev when the
   ergo isn't connected.
 - **Frontend dev**: `cd web && pnpm dev` — Vite dev server on `:5173`,

@@ -1,7 +1,11 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
+	"log/slog"
+	"os"
 	"strconv"
 	"time"
 )
@@ -17,6 +21,7 @@ type Config struct {
 	FixtureRate string
 	LogLevel    string
 	IdleTimeout time.Duration // consumed by the sessionizer in M2
+	DevMode     bool
 }
 
 // Lookup mirrors os.LookupEnv: it reports whether the key was set and,
@@ -29,33 +34,46 @@ type Lookup func(key string) (value string, ok bool)
 // in tests to keep Load pure and deterministic.
 func Load(env Lookup) (*Config, error) {
 	c := &Config{
-		Addr:        get(env, "HOMEERGO_ADDR", ":8080"),
-		SerialPort:  get(env, "HOMEERGO_SERIAL_PORT", ""),
-		DBPath:      get(env, "HOMEERGO_DB_PATH", "./homeergo.db"),
-		Fixture:     get(env, "HOMEERGO_FIXTURE", ""),
-		FixtureRate: get(env, "HOMEERGO_FIXTURE_RATE", "realtime"),
-		LogLevel:    get(env, "HOMEERGO_LOG_LEVEL", "info"),
+		Addr:        get2(env, "SPLITS_ADDR", "HOMEERGO_ADDR", ":8080"),
+		SerialPort:  get2(env, "SPLITS_SERIAL_PORT", "HOMEERGO_SERIAL_PORT", ""),
+		DBPath:      get2(env, "SPLITS_DB_PATH", "HOMEERGO_DB_PATH", "./splits.db"),
+		Fixture:     get2(env, "SPLITS_FIXTURE", "HOMEERGO_FIXTURE", ""),
+		FixtureRate: get2(env, "SPLITS_FIXTURE_RATE", "HOMEERGO_FIXTURE_RATE", "realtime"),
+		LogLevel:    get2(env, "SPLITS_LOG_LEVEL", "HOMEERGO_LOG_LEVEL", "info"),
 	}
 
-	baudStr := get(env, "HOMEERGO_SERIAL_BAUD", "9600")
+	baudStr := get2(env, "SPLITS_SERIAL_BAUD", "HOMEERGO_SERIAL_BAUD", "9600")
 	baud, err := strconv.Atoi(baudStr)
 	if err != nil {
-		return nil, fmt.Errorf("HOMEERGO_SERIAL_BAUD %q: %w", baudStr, err)
+		return nil, fmt.Errorf("SPLITS_SERIAL_BAUD %q: %w", baudStr, err)
 	}
 	c.SerialBaud = baud
 
-	idleStr := get(env, "HOMEERGO_IDLE_TIMEOUT", "60s")
+	idleStr := get2(env, "SPLITS_IDLE_TIMEOUT", "HOMEERGO_IDLE_TIMEOUT", "60s")
 	idle, err := time.ParseDuration(idleStr)
 	if err != nil {
-		return nil, fmt.Errorf("HOMEERGO_IDLE_TIMEOUT %q: %w", idleStr, err)
+		return nil, fmt.Errorf("SPLITS_IDLE_TIMEOUT %q: %w", idleStr, err)
 	}
 	c.IdleTimeout = idle
+
+	c.DevMode = get(env, "SPLITS_DEV_MODE", "") == "1"
 
 	switch c.FixtureRate {
 	case "realtime", "fast":
 		// ok
 	default:
-		return nil, fmt.Errorf("HOMEERGO_FIXTURE_RATE %q: want realtime or fast", c.FixtureRate)
+		return nil, fmt.Errorf("SPLITS_FIXTURE_RATE %q: want realtime or fast", c.FixtureRate)
+	}
+
+	// One-release migration window: if the user did not override DBPath
+	// and only the legacy ./homeergo.db exists, keep using it and warn.
+	if c.DBPath == "./splits.db" {
+		if _, err := os.Stat(c.DBPath); errors.Is(err, fs.ErrNotExist) {
+			if _, err := os.Stat("./homeergo.db"); err == nil {
+				c.DBPath = "./homeergo.db"
+				slog.Warn("config.legacy_db_path", "path", "./homeergo.db", "advice", "rename to splits.db at next downtime")
+			}
+		}
 	}
 
 	return c, nil
@@ -66,6 +84,18 @@ func Load(env Lookup) (*Config, error) {
 // distinct from leaving it unset.
 func get(env Lookup, key, fallback string) string {
 	if v, ok := env(key); ok {
+		return v
+	}
+	return fallback
+}
+
+// get2 prefers the primary key; falls back to a legacy key for one
+// release window during the homeergo→splits brand migration.
+func get2(env Lookup, primary, legacy, fallback string) string {
+	if v, ok := env(primary); ok {
+		return v
+	}
+	if v, ok := env(legacy); ok {
 		return v
 	}
 	return fallback

@@ -3,14 +3,16 @@ package api_test
 import (
 	"context"
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
 	"time"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/api"
-	"github.com/gloeckner-daniel/home-ergo/internal/stats"
-	"github.com/gloeckner-daniel/home-ergo/internal/storage"
+	"github.com/gloeckner-daniel/splits/internal/api"
+	"github.com/gloeckner-daniel/splits/internal/rower"
+	"github.com/gloeckner-daniel/splits/internal/stats"
+	"github.com/gloeckner-daniel/splits/internal/storage"
 )
 
 func TestPBsHandlerSmoke(t *testing.T) {
@@ -44,7 +46,7 @@ func TestPBsHandlerSmoke(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	h := api.PBsHandler(db.Handle())
+	h := api.PBsHandler(db.Handle(), rower.NewRepo(db.Handle()))
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/rowers/R1/pbs", nil))
@@ -85,5 +87,36 @@ func TestPBsHandlerSmoke(t *testing.T) {
 	_ = json.Unmarshal(rec.Body.Bytes(), &banners)
 	if len(banners.Distance) != 1 {
 		t.Errorf("session banners: %+v", banners)
+	}
+}
+
+func TestRowerEndpoints_UnknownRowerReturns404(t *testing.T) {
+	t.Parallel()
+	db, err := storage.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	repo := rower.NewRepo(db.Handle())
+	pbs := api.PBsHandler(db.Handle(), repo)
+	trends := api.TrendsHandler(db.Handle(), repo)
+
+	for _, tc := range []struct {
+		path string
+		h    http.Handler
+	}{
+		{"/api/v1/rowers/missing/pbs", pbs},
+		{"/api/v1/rowers/missing/pbs/history", pbs},
+		{"/api/v1/rowers/missing/lifetime", pbs},
+		{"/api/v1/rowers/missing/achievements", pbs},
+		{"/api/v1/rowers/missing/trends", trends},
+	} {
+		t.Run(tc.path, func(t *testing.T) {
+			rec := httptest.NewRecorder()
+			tc.h.ServeHTTP(rec, httptest.NewRequest("GET", tc.path, nil))
+			if rec.Code != http.StatusNotFound {
+				t.Errorf("%s: want 404, got %d body=%s", tc.path, rec.Code, rec.Body.String())
+			}
+		})
 	}
 }

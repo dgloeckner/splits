@@ -6,7 +6,7 @@ package pipeline
 import (
 	"sync"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/event"
 )
 
 // Ring is a bounded replay buffer of events. Writes never block; when

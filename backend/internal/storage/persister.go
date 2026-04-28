@@ -7,16 +7,18 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/event"
-	"github.com/gloeckner-daniel/home-ergo/internal/stats"
+	"github.com/gloeckner-daniel/splits/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/stats"
 )
 
 // Persister consumes events and persists sessions and strokes to
 // SQLite. Retries with exponential backoff on transient SQLite errors
 // (100 ms → 5 s cap, infinite); never drops.
 type Persister struct {
-	DB      *sql.DB
-	Retries int // exposed for /debug/ingest
+	DB           *sql.DB
+	Retries      int // exposed for /debug/ingest
+	MaxRetries   int // 0 = use defaultMaxRetries
+	DeadLettered int // count of events dropped after exhausting retries
 
 	// Scheduler is the recompute dispatcher (FEAT-0010 / ADR-0008).
 	// Optional: when nil, session_end commits without triggering a
@@ -25,8 +27,9 @@ type Persister struct {
 }
 
 const (
-	minBackoff = 100 * time.Millisecond
-	maxBackoff = 5 * time.Second
+	minBackoff        = 100 * time.Millisecond
+	maxBackoff        = 5 * time.Second
+	defaultMaxRetries = 60
 )
 
 func (p *Persister) Run(ctx context.Context, in <-chan event.Event) error {
@@ -44,13 +47,31 @@ func (p *Persister) Run(ctx context.Context, in <-chan event.Event) error {
 }
 
 func (p *Persister) applyWithRetry(ctx context.Context, e event.Event) {
+	maxRetries := p.MaxRetries
+	if maxRetries <= 0 {
+		maxRetries = defaultMaxRetries
+	}
 	backoff := minBackoff
+	attempts := 0
 	for {
 		err := p.apply(ctx, e)
 		if err == nil {
 			return
 		}
 		if errors.Is(err, context.Canceled) {
+			return
+		}
+		attempts++
+		if attempts >= maxRetries {
+			sessionID := e.SessionID
+			slog.Error("storage.persister.dead_letter",
+				"event_id", e.ID,
+				"kind", e.Kind,
+				"session_id", sessionID,
+				"retries", attempts,
+				"err", err,
+			)
+			p.DeadLettered++
 			return
 		}
 		p.Retries++

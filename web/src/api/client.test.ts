@@ -18,10 +18,10 @@ afterEach(() => {
 describe('api client', () => {
   it('listSessions requests /api/v1/sessions and unwraps envelope', async () => {
     mockFetch(async (url) => {
-      expect(String(url)).toBe('/api/v1/sessions?limit=50&offset=0')
+      expect(String(url)).toBe('/api/v1/sessions?limit=50&offset=0&rower_id=R')
       return new Response(JSON.stringify({ sessions: [{ id: 'S1', rower_id: 'R', started_at: '2026-04-21T10:00:00Z', initial_level: 3 }] }), { status: 200 })
     })
-    const out = await listSessions()
+    const out = await listSessions('R')
     expect(out).toHaveLength(1)
     expect(out[0].id).toBe('S1')
   })

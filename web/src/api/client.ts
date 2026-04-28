@@ -40,13 +40,24 @@ export type Sample = {
   energy_joules: number
 }
 
+import { ApiError } from './error'
+
 async function json<T>(r: Response): Promise<T> {
-  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
+  if (!r.ok) throw new ApiError(r.status, `${r.status} ${r.statusText}`)
   return (await r.json()) as T
 }
 
-export async function listSessions(limit = 50, offset = 0): Promise<SessionRow[]> {
-  const r = await fetch(`/api/v1/sessions?limit=${limit}&offset=${offset}`)
+export async function listSessions(
+  rowerID: string,
+  limit = 50,
+  offset = 0,
+): Promise<SessionRow[]> {
+  const qs = new URLSearchParams({
+    limit: String(limit),
+    offset: String(offset),
+    rower_id: rowerID,
+  })
+  const r = await fetch(`/api/v1/sessions?${qs.toString()}`)
   const body = await json<{ sessions: SessionRow[] }>(r)
   return body.sessions
 }
@@ -64,12 +75,12 @@ export async function getSamples(id: string): Promise<Sample[]> {
 
 export async function deleteSession(id: string): Promise<void> {
   const r = await fetch(`/api/v1/sessions/${encodeURIComponent(id)}`, { method: 'DELETE' })
-  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
+  if (!r.ok) throw new ApiError(r.status, `${r.status} ${r.statusText}`)
 }
 
 export async function endSession(): Promise<void> {
   const r = await fetch('/api/v1/session/end', { method: 'POST' })
-  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
+  if (!r.ok) throw new ApiError(r.status, `${r.status} ${r.statusText}`)
 }
 
 // startSession opens a new session on the backend with an optional
@@ -83,7 +94,7 @@ export async function startSession(workoutID?: string): Promise<void> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ workout_id: workoutID ?? '' }),
   })
-  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`)
+  if (!r.ok) throw new ApiError(r.status, `${r.status} ${r.statusText}`)
 }
 
 export type ActiveSession = {
@@ -104,6 +115,7 @@ export async function getActiveSession(): Promise<ActiveSession | null> {
 export type DistancePB = {
   distance_m: number
   time_sec: number
+  previous_time_sec?: number
   source_session_id: string
   source_session_started_at: string
   achieved_at: string
@@ -114,6 +126,7 @@ export type WindowPB = {
   window_kind: string
   window_size: number
   value: number
+  previous_value?: number
   source_session_id: string
   source_session_started_at: string
   achieved_at: string
@@ -178,6 +191,7 @@ export type WorkoutPB = {
   params: Record<string, unknown>
   value_kind: 'time_sec' | 'distance_m'
   value: number
+  previous_value?: number
   source_session_id: string
   source_session_started_at: string
   achieved_at: string

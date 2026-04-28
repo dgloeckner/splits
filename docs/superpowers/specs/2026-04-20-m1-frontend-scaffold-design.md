@@ -114,7 +114,7 @@ Minimal CSS (~30 lines) in `App.css`. No polling loop — a one-shot check is en
 ## Verification
 
 1. `cd web && npm install && npm run dev` — Vite dev server on `http://localhost:5173` renders the placeholder.
-2. With `homeergo` running (`cd backend && go run ./cmd/homeergo` with a fixture env set): health indicator shows "backend: ok".
+2. With `homeergo` running (`cd backend && go run ./cmd/splits` with a fixture env set): health indicator shows "backend: ok".
 3. With backend stopped: indicator shows "backend: unreachable".
 4. `npm run typecheck` passes.
 5. `npm run lint` passes.

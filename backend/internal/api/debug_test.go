@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/event"
-	"github.com/gloeckner-daniel/home-ergo/internal/pipeline"
-	"github.com/gloeckner-daniel/home-ergo/internal/stream"
+	"github.com/gloeckner-daniel/splits/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/pipeline"
+	"github.com/gloeckner-daniel/splits/internal/stream"
 )
 
 func TestDebugIngestShape(t *testing.T) {

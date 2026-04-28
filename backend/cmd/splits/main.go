@@ -3,33 +3,35 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
 	"golang.org/x/sync/errgroup"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/api"
-	"github.com/gloeckner-daniel/home-ergo/internal/config"
-	"github.com/gloeckner-daniel/home-ergo/internal/event"
-	"github.com/gloeckner-daniel/home-ergo/internal/ipm"
-	"github.com/gloeckner-daniel/home-ergo/internal/pipeline"
-	"github.com/gloeckner-daniel/home-ergo/internal/rower"
-	"github.com/gloeckner-daniel/home-ergo/internal/session"
-	"github.com/gloeckner-daniel/home-ergo/internal/stats"
-	"github.com/gloeckner-daniel/home-ergo/internal/storage"
-	"github.com/gloeckner-daniel/home-ergo/internal/stream"
-	"github.com/gloeckner-daniel/home-ergo/internal/workout"
+	"github.com/gloeckner-daniel/splits/internal/api"
+	"github.com/gloeckner-daniel/splits/internal/config"
+	"github.com/gloeckner-daniel/splits/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/ipm"
+	"github.com/gloeckner-daniel/splits/internal/pipeline"
+	"github.com/gloeckner-daniel/splits/internal/rower"
+	"github.com/gloeckner-daniel/splits/internal/session"
+	"github.com/gloeckner-daniel/splits/internal/stats"
+	"github.com/gloeckner-daniel/splits/internal/storage"
+	"github.com/gloeckner-daniel/splits/internal/stream"
+	"github.com/gloeckner-daniel/splits/internal/workout"
 )
 
 const httpShutdownTimeout = 30 * time.Second
 
 func main() {
 	if err := run(); err != nil {
-		slog.Error("homeergo.exit", "err", err)
+		slog.Error("splits.exit", "err", err)
 		os.Exit(1)
 	}
 }
@@ -39,8 +41,11 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	if err := enforceTLSPolicy(cfg.Addr, cfg.DevMode, os.Getenv); err != nil {
+		return err
+	}
 	configureLogger(cfg.LogLevel)
-	slog.Info("homeergo.start",
+	slog.Info("splits.start",
 		"addr", cfg.Addr, "fixture", cfg.Fixture, "fixture_rate", cfg.FixtureRate,
 		"serial_port", cfg.SerialPort, "db_path", cfg.DBPath, "idle_timeout", cfg.IdleTimeout,
 	)
@@ -58,10 +63,19 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	slog.Info("homeergo.resume", "start_id", startID)
+	slog.Info("splits.resume", "start_id", startID)
 
 	rowerRepo := rower.NewRepo(db.Handle())
 	rowerHolder := rower.NewHolder()
+	deviceLink := rower.NewDeviceLink(db.Handle())
+	// Backfill device_rowers from existing per-device active selections
+	// so households who already paired before T4 keep working without
+	// re-pairing.
+	if _, err := db.Handle().ExecContext(ctx, `
+		INSERT OR IGNORE INTO device_rowers(device_id, rower_id)
+		SELECT device_id, rower_id FROM device_active_rower`); err != nil {
+		return err
+	}
 	workoutRepo := workout.NewRepo(db.Handle())
 	if n, err := workoutRepo.CleanupOrphans(ctx); err != nil {
 		slog.Error("workout.cleanup", "err", err)
@@ -119,11 +133,13 @@ func run() error {
 			DB:          db.Handle(),
 			RowerRepo:   rowerRepo,
 			RowerHolder: rowerHolder,
+			DeviceLink:  deviceLink,
 			WorkoutRepo: workoutRepo,
 			Sessionizer:     sessionizer,
 			SessionSnapshot: sessionizer,
 			Scheduler:       scheduler,
 			StartedAt:       time.Now(),
+			DeviceCookieSecure: !cfg.DevMode,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
@@ -160,6 +176,33 @@ func pickProducer(cfg *config.Config) ipm.Producer {
 		return &ipm.FixtureProducer{Path: cfg.Fixture, Pacing: pacing}
 	}
 	return &ipm.SerialProducer{Port: cfg.SerialPort, Baud: cfg.SerialBaud}
+}
+
+// enforceTLSPolicy refuses to start in production-like configurations
+// when no TLS termination is in evidence. Plain HTTP on a non-localhost
+// bind without an explicit proxy hint is almost always a misconfiguration
+// that would expose device-pairing cookies and session data in the clear.
+func enforceTLSPolicy(addr string, devMode bool, getenv func(string) string) error {
+	if devMode {
+		return nil
+	}
+	if isLocalhost(addr) {
+		return nil
+	}
+	if strings.EqualFold(getenv("SPLITS_TLS_TERMINATED_BY"), "proxy") {
+		return nil
+	}
+	return fmt.Errorf("refusing to start: cfg.Addr=%q without TLS. Set SPLITS_DEV_MODE=1 for local dev or SPLITS_TLS_TERMINATED_BY=proxy when behind Caddy/nginx", addr)
+}
+
+// isLocalhost reports whether addr binds only the loopback interface.
+// A bare ":8080" binds all interfaces and is intentionally NOT considered
+// localhost-only.
+func isLocalhost(addr string) bool {
+	a := strings.ToLower(addr)
+	return strings.HasPrefix(a, "127.0.0.1") ||
+		strings.HasPrefix(a, "localhost") ||
+		strings.HasPrefix(a, "[::1]")
 }
 
 func configureLogger(level string) {

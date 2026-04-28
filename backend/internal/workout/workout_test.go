@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/storage"
+	"github.com/gloeckner-daniel/splits/internal/storage"
 	"github.com/google/uuid"
 )
 

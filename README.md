@@ -1,4 +1,4 @@
-# home-ergo
+<img src="splits-logo.svg" alt="splits" height="48" />
 
 Self-hosted PWA for rowing ergometer session tracking.
 
@@ -52,4 +52,4 @@ visualisations under [`docs/visualizations/`](docs/visualizations/).
 
 ## License
 
-TBD — favour MIT or Apache-2.0 to keep the door open for FRGS / OSS reuse.
+Apache License 2.0 — see [`LICENSE`](LICENSE).

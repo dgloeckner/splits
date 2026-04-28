@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/event"
 )
 
 func seedSessions(t *testing.T, db *DB, n int) []string {
@@ -46,7 +46,7 @@ func TestListSessionsDescByStartedAt(t *testing.T) {
 	defer db.Close()
 	seedSessions(t, db, 3)
 
-	rows, err := ListSessions(context.Background(), db.Handle(), 10, 0)
+	rows, err := ListSessions(context.Background(), db.Handle(), 10, 0, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,13 +63,58 @@ func TestListSessionsPagination(t *testing.T) {
 	defer db.Close()
 	seedSessions(t, db, 5)
 
-	p1, _ := ListSessions(context.Background(), db.Handle(), 2, 0)
-	p2, _ := ListSessions(context.Background(), db.Handle(), 2, 2)
+	p1, _ := ListSessions(context.Background(), db.Handle(), 2, 0, "")
+	p2, _ := ListSessions(context.Background(), db.Handle(), 2, 2, "")
 	if len(p1) != 2 || len(p2) != 2 {
 		t.Fatalf("page sizes: %d %d", len(p1), len(p2))
 	}
 	if p1[0].ID == p2[0].ID {
 		t.Errorf("pages overlap")
+	}
+}
+
+func TestListSessionsFiltersByRowerID(t *testing.T) {
+	db, _ := Open(filepath.Join(t.TempDir(), "t.db"))
+	defer db.Close()
+	ctx := context.Background()
+	// Two rowers, two sessions each.
+	for i, rower := range []string{"R1", "R2"} {
+		for j := 0; j < 2; j++ {
+			id := rower + "_" + string(rune('A'+j))
+			started := time.Date(2026, 4, 20+i*10+j, 10, 0, 0, 0, time.UTC)
+			if err := InsertSession(ctx, db.Handle(), id, rower, started, 3, ""); err != nil {
+				t.Fatalf("insert: %v", err)
+			}
+			stroke := event.StrokePayload{
+				StrokeNo: 1, TimeSec: 2, DistanceM: 8, SPM: 25, PowerW: 200,
+				CalPerHr: 1000, Level: 3, DPS: 8, StrokeCycleSec: 2,
+				PaceSecPer500m: 125, EnergyJoules: 400,
+			}
+			if err := InsertStroke(ctx, db.Handle(), uint64(1000+i*10+j), id, started, stroke); err != nil {
+				t.Fatalf("stroke: %v", err)
+			}
+			if err := UpdateSessionEnd(ctx, db.Handle(), id, started.Add(time.Minute),
+				event.SessionSummary{TotalDistanceM: 500, TotalTimeSec: 60, TotalStrokes: 50}); err != nil {
+				t.Fatalf("end: %v", err)
+			}
+		}
+	}
+	all, _ := ListSessions(ctx, db.Handle(), 10, 0, "")
+	if len(all) != 4 {
+		t.Fatalf("all: got %d", len(all))
+	}
+	r1, _ := ListSessions(ctx, db.Handle(), 10, 0, "R1")
+	if len(r1) != 2 {
+		t.Fatalf("R1: got %d", len(r1))
+	}
+	for _, row := range r1 {
+		if row.RowerID != "R1" {
+			t.Errorf("R1 leak: %q", row.RowerID)
+		}
+	}
+	none, _ := ListSessions(ctx, db.Handle(), 10, 0, "R3")
+	if len(none) != 0 {
+		t.Fatalf("R3: got %d", len(none))
 	}
 }
 
@@ -80,7 +125,7 @@ func TestListSessionsExcludesDeleted(t *testing.T) {
 	if err := SoftDeleteSession(context.Background(), db.Handle(), ids[1], time.Now().UTC()); err != nil {
 		t.Fatalf("soft delete: %v", err)
 	}
-	rows, _ := ListSessions(context.Background(), db.Handle(), 10, 0)
+	rows, _ := ListSessions(context.Background(), db.Handle(), 10, 0, "")
 	if len(rows) != 2 {
 		t.Errorf("got %d rows, want 2 (one soft-deleted)", len(rows))
 	}

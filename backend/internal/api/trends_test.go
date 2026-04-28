@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/api"
-	"github.com/gloeckner-daniel/home-ergo/internal/storage"
+	"github.com/gloeckner-daniel/splits/internal/api"
+	"github.com/gloeckner-daniel/splits/internal/rower"
+	"github.com/gloeckner-daniel/splits/internal/storage"
 )
 
 type seedSession struct {
@@ -61,7 +62,7 @@ func seedSessions(t *testing.T, db *storage.DB, rowerID string, ss []seedSession
 
 func mustGetTrends(t *testing.T, db *storage.DB, rowerID, rng string) map[string]any {
 	t.Helper()
-	h := api.TrendsHandler(db.Handle())
+	h := api.TrendsHandler(db.Handle(), rower.NewRepo(db.Handle()))
 	rec := httptest.NewRecorder()
 	url := "/api/v1/rowers/" + rowerID + "/trends"
 	if rng != "" {
@@ -284,7 +285,7 @@ func TestTrendsInvalidRange(t *testing.T) {
 	defer db.Close()
 	seedRower(t, db, "R1")
 
-	h := api.TrendsHandler(db.Handle())
+	h := api.TrendsHandler(db.Handle(), rower.NewRepo(db.Handle()))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/rowers/R1/trends?range=quarter", nil))
 	if rec.Code != 400 {

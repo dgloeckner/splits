@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/event"
-	"github.com/gloeckner-daniel/home-ergo/internal/storage"
+	"github.com/gloeckner-daniel/splits/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/storage"
 )
 
 func seedDB(t *testing.T) *storage.DB {
@@ -55,9 +55,9 @@ func doReq(t *testing.T, mux http.Handler, method, target string) *httptest.Resp
 
 func TestGetSessionsList(t *testing.T) {
 	db := seedDB(t)
-	h := SessionsHandler(db.Handle(), nil)
+	h := SessionsHandler(db.Handle(), nil, nil)
 
-	rec := doReq(t, h, "GET", "/api/v1/sessions")
+	rec := doReq(t, h, "GET", "/api/v1/sessions?rower_id=R1")
 	if rec.Code != 200 {
 		t.Fatalf("status = %d, body=%s", rec.Code, rec.Body.String())
 	}
@@ -73,9 +73,20 @@ func TestGetSessionsList(t *testing.T) {
 	}
 }
 
+func TestListSessions_MissingRowerID_Returns400(t *testing.T) {
+	t.Parallel()
+	db := seedDB(t)
+	h := SessionsHandler(db.Handle(), nil, nil)
+
+	rec := doReq(t, h, "GET", "/api/v1/sessions?limit=10")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", rec.Code)
+	}
+}
+
 func TestGetSessionByID(t *testing.T) {
 	db := seedDB(t)
-	h := SessionsHandler(db.Handle(), nil)
+	h := SessionsHandler(db.Handle(), nil, nil)
 
 	rec := doReq(t, h, "GET", "/api/v1/sessions/S1")
 	if rec.Code != 200 {
@@ -89,7 +100,7 @@ func TestGetSessionByID(t *testing.T) {
 
 func TestGetSessionByIDNotFound(t *testing.T) {
 	db := seedDB(t)
-	h := SessionsHandler(db.Handle(), nil)
+	h := SessionsHandler(db.Handle(), nil, nil)
 
 	rec := doReq(t, h, "GET", "/api/v1/sessions/nope")
 	if rec.Code != 404 {
@@ -97,9 +108,19 @@ func TestGetSessionByIDNotFound(t *testing.T) {
 	}
 }
 
+func TestGetSessionSamplesNotFound(t *testing.T) {
+	db := seedDB(t)
+	h := SessionsHandler(db.Handle(), nil, nil)
+
+	rec := doReq(t, h, "GET", "/api/v1/sessions/nope/samples")
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}
+
 func TestGetSessionSamples(t *testing.T) {
 	db := seedDB(t)
-	h := SessionsHandler(db.Handle(), nil)
+	h := SessionsHandler(db.Handle(), nil, nil)
 
 	rec := doReq(t, h, "GET", "/api/v1/sessions/S1/samples")
 	if rec.Code != 200 {
@@ -148,7 +169,7 @@ func TestGetSessionSamplesFromSummary(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	h := SessionsHandler(db.Handle(), nil)
+	h := SessionsHandler(db.Handle(), nil, nil)
 	rec := doReq(t, h, "GET", "/api/v1/sessions/S2/samples")
 	if rec.Code != 200 {
 		t.Fatalf("status = %d, body=%s", rec.Code, rec.Body.String())
@@ -173,9 +194,30 @@ func TestGetSessionSamplesFromSummary(t *testing.T) {
 	}
 }
 
+type fakeActive struct{ id string }
+
+func (f fakeActive) ActiveSessionID() string { return f.id }
+
+func TestDeleteSession_ActiveSession_Returns409(t *testing.T) {
+	t.Parallel()
+	db := seedDB(t)
+	h := SessionsHandler(db.Handle(), nil, fakeActive{id: "S1"})
+
+	rec := doReq(t, h, "DELETE", "/api/v1/sessions/S1")
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409 (body=%s)", rec.Code, rec.Body.String())
+	}
+
+	// Sanity: the session row should still exist.
+	rec = doReq(t, h, "GET", "/api/v1/sessions/S1")
+	if rec.Code != http.StatusOK {
+		t.Errorf("after rejected DELETE, GET status = %d, want 200", rec.Code)
+	}
+}
+
 func TestDeleteSessionSoftDeletes(t *testing.T) {
 	db := seedDB(t)
-	h := SessionsHandler(db.Handle(), nil)
+	h := SessionsHandler(db.Handle(), nil, nil)
 
 	rec := doReq(t, h, "DELETE", "/api/v1/sessions/S1")
 	if rec.Code != 204 {
@@ -187,7 +229,7 @@ func TestDeleteSessionSoftDeletes(t *testing.T) {
 		t.Errorf("after delete, GET status = %d, want 404", rec.Code)
 	}
 
-	rec = doReq(t, h, "GET", "/api/v1/sessions")
+	rec = doReq(t, h, "GET", "/api/v1/sessions?rower_id=R1")
 	var body struct {
 		Sessions []map[string]any `json:"sessions"`
 	}

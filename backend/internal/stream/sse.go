@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/event"
-	"github.com/gloeckner-daniel/home-ergo/internal/pipeline"
+	"github.com/gloeckner-daniel/splits/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/pipeline"
 )
 
 // Snapshotter returns a set of synthetic events describing the

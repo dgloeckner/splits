@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gloeckner-daniel/home-ergo/internal/stats"
-	storage "github.com/gloeckner-daniel/home-ergo/internal/storage"
+	"github.com/gloeckner-daniel/splits/internal/stats"
+	storage "github.com/gloeckner-daniel/splits/internal/storage"
 )
 
 // Local aliases so tests read tightly without re-typing the package
@@ -211,5 +211,113 @@ func TestRecomputeVolumeMilestones(t *testing.T) {
 	}
 	if got["distance_100000m"] {
 		t.Error("100km should not be unlocked at 50km")
+	}
+}
+
+func TestRecomputeDistancePBPreviousValue(t *testing.T) {
+	db := openDB(t)
+	ctx := context.Background()
+	t0 := time.Date(2026, 4, 1, 8, 0, 0, 0, time.UTC)
+
+	seedSession(t, db, "S1", "R1", t0, 2000, 200, 480, &PBCandidates{
+		Distance: []DistanceCandidate{{DistanceM: 2000, TimeSec: 480}},
+	})
+	if err := Recompute(ctx, db, "R1"); err != nil {
+		t.Fatal(err)
+	}
+	var prev sql.NullFloat64
+	_ = db.QueryRow(`SELECT previous_time_sec FROM pb_distance
+		WHERE rower_id='R1' AND distance_m=2000 AND invalidated_at IS NULL`).Scan(&prev)
+	if prev.Valid {
+		t.Errorf("first PB previous_time_sec = %v, want NULL", prev.Float64)
+	}
+
+	// Improvement: previous_time_sec captures the prior active value.
+	seedSession(t, db, "S2", "R1", t0.Add(24*time.Hour), 2000, 200, 470, &PBCandidates{
+		Distance: []DistanceCandidate{{DistanceM: 2000, TimeSec: 470}},
+	})
+	if err := Recompute(ctx, db, "R1"); err != nil {
+		t.Fatal(err)
+	}
+	var cur float64
+	if err := db.QueryRow(`SELECT time_sec, previous_time_sec FROM pb_distance
+		WHERE rower_id='R1' AND distance_m=2000 AND invalidated_at IS NULL`).Scan(&cur, &prev); err != nil {
+		t.Fatal(err)
+	}
+	if cur != 470 || !prev.Valid || prev.Float64 != 480 {
+		t.Errorf("after improvement: cur=%.0f prev=%v, want 470 / 480", cur, prev)
+	}
+
+	// Idempotent recompute: chain preserves previous_time_sec=480.
+	if err := Recompute(ctx, db, "R1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.QueryRow(`SELECT time_sec, previous_time_sec FROM pb_distance
+		WHERE rower_id='R1' AND distance_m=2000 AND invalidated_at IS NULL`).Scan(&cur, &prev); err != nil {
+		t.Fatal(err)
+	}
+	if cur != 470 || !prev.Valid || prev.Float64 != 480 {
+		t.Errorf("after idempotent recompute: cur=%.0f prev=%v, want 470 / 480", cur, prev)
+	}
+}
+
+func TestRecomputeVolumeMilestonesRealAchievedAt(t *testing.T) {
+	db := openDB(t)
+	ctx := context.Background()
+	t0 := time.Date(2026, 4, 1, 8, 0, 0, 0, time.UTC)
+	t1 := t0.Add(24 * time.Hour)
+
+	// S1 reaches 5k cumulative — no milestone crossed.
+	seedSession(t, db, "S1", "R1", t0, 5_000, 500, 1500, nil)
+	// S2 brings cumulative to 12k — crosses 10k threshold.
+	seedSession(t, db, "S2", "R1", t1, 7_000, 700, 2100, nil)
+	if err := Recompute(ctx, db, "R1"); err != nil {
+		t.Fatal(err)
+	}
+
+	var achievedAt, srcID string
+	if err := db.QueryRow(`SELECT achieved_at, source_session_id FROM achievements
+		WHERE rower_id='R1' AND achievement_key='distance_10000m' AND invalidated_at IS NULL`).
+		Scan(&achievedAt, &srcID); err != nil {
+		t.Fatal(err)
+	}
+	wantAt := t1.UTC().Format(time.RFC3339Nano)
+	if achievedAt != wantAt || srcID != "S2" {
+		t.Errorf("10k milestone: achieved_at=%q src=%q, want (%q, S2)", achievedAt, srcID, wantAt)
+	}
+
+	// Idempotent recompute preserves real achieved_at.
+	if err := Recompute(ctx, db, "R1"); err != nil {
+		t.Fatal(err)
+	}
+	var achievedAt2 string
+	_ = db.QueryRow(`SELECT achieved_at FROM achievements
+		WHERE rower_id='R1' AND achievement_key='distance_10000m' AND invalidated_at IS NULL`).
+		Scan(&achievedAt2)
+	if achievedAt2 != wantAt {
+		t.Errorf("after second recompute: achieved_at=%q, want %q", achievedAt2, wantAt)
+	}
+}
+
+func TestRecomputeConsistencyRealAchievedAt(t *testing.T) {
+	db := openDB(t)
+	ctx := context.Background()
+	t0 := time.Date(2026, 4, 1, 8, 0, 0, 0, time.UTC)
+
+	seedSession(t, db, "S1", "R1", t0, 5000, 500, 1500, &PBCandidates{
+		Consistency: &stats.ConsistencyCandidates{PowerCV: 0.05, PaceSplitCV: 0.04, SPMCV: 0.03},
+	})
+	if err := Recompute(ctx, db, "R1"); err != nil {
+		t.Fatal(err)
+	}
+	var achievedAt string
+	if err := db.QueryRow(`SELECT achieved_at FROM achievements
+		WHERE rower_id='R1' AND achievement_key='consistency_power_cv' AND invalidated_at IS NULL`).
+		Scan(&achievedAt); err != nil {
+		t.Fatal(err)
+	}
+	want := t0.UTC().Format(time.RFC3339Nano)
+	if achievedAt != want {
+		t.Errorf("consistency achieved_at=%q, want %q (session start)", achievedAt, want)
 	}
 }

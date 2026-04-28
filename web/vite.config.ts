@@ -23,8 +23,8 @@ export default defineConfig({
         ],
       },
       manifest: {
-        name: 'Home Ergo',
-        short_name: 'Ergo',
+        name: 'splits',
+        short_name: 'splits',
         description: 'Home rowing ergometer companion',
         theme_color: '#000000',
         background_color: '#000000',

@@ -1,4 +1,5 @@
 import type { Intensity, WorkoutMode, WorkoutParams } from './workouts'
+import { ApiError } from './error'
 
 export type Favorite = {
   id: string
@@ -24,7 +25,7 @@ export type CreateFavoriteInput = {
 
 export async function listFavorites(rowerID: string): Promise<Favorite[]> {
   const res = await fetch(`/api/v1/favorites?rower_id=${encodeURIComponent(rowerID)}`)
-  if (!res.ok) throw new Error(`listFavorites: ${res.status}`)
+  if (!res.ok) throw new ApiError(res.status, `listFavorites: ${res.status}`)
   const body = (await res.json()) as { favorites?: Favorite[] }
   return body.favorites ?? []
 }
@@ -39,11 +40,11 @@ export async function createFavorite(input: CreateFavoriteInput): Promise<Favori
       cooldown_sec: input.cooldown_sec ?? 0,
     }),
   })
-  if (!res.ok) throw new Error(`createFavorite: ${res.status}`)
+  if (!res.ok) throw new ApiError(res.status, `createFavorite: ${res.status}`)
   return res.json()
 }
 
 export async function deleteFavorite(id: string): Promise<void> {
   const res = await fetch(`/api/v1/favorites/${encodeURIComponent(id)}`, { method: 'DELETE' })
-  if (!res.ok) throw new Error(`deleteFavorite: ${res.status}`)
+  if (!res.ok) throw new ApiError(res.status, `deleteFavorite: ${res.status}`)
 }

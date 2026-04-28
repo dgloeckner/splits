@@ -1,6 +1,6 @@
 // Package ipm decodes the FDF IPM serial protocol (INT-0001). Frames
 // emitted by the parser are consumed by the sessionizer in M2; in M1
-// they are printed to stdout by cmd/homeergo for protocol verification.
+// they are printed to stdout by cmd/splits for protocol verification.
 package ipm
 
 import "time"
