@@ -26,9 +26,13 @@ func SessionsHandler(db *sql.DB, sched *stats.RecomputeScheduler) http.Handler {
 
 func listSessions(db *sql.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		rowerID := r.URL.Query().Get("rower_id")
+		if rowerID == "" {
+			http.Error(w, "rower_id required", http.StatusBadRequest)
+			return
+		}
 		limit := intQuery(r, "limit", 50)
 		offset := intQuery(r, "offset", 0)
-		rowerID := r.URL.Query().Get("rower_id")
 		rows, err := storage.ListSessions(r.Context(), db, limit, offset, rowerID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

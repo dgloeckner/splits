@@ -57,7 +57,7 @@ func TestGetSessionsList(t *testing.T) {
 	db := seedDB(t)
 	h := SessionsHandler(db.Handle(), nil)
 
-	rec := doReq(t, h, "GET", "/api/v1/sessions")
+	rec := doReq(t, h, "GET", "/api/v1/sessions?rower_id=R1")
 	if rec.Code != 200 {
 		t.Fatalf("status = %d, body=%s", rec.Code, rec.Body.String())
 	}
@@ -70,6 +70,17 @@ func TestGetSessionsList(t *testing.T) {
 	}
 	if body.Sessions[0]["id"] != "S1" {
 		t.Errorf("id = %v", body.Sessions[0]["id"])
+	}
+}
+
+func TestListSessions_MissingRowerID_Returns400(t *testing.T) {
+	t.Parallel()
+	db := seedDB(t)
+	h := SessionsHandler(db.Handle(), nil)
+
+	rec := doReq(t, h, "GET", "/api/v1/sessions?limit=10")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("want 400, got %d", rec.Code)
 	}
 }
 
@@ -197,7 +208,7 @@ func TestDeleteSessionSoftDeletes(t *testing.T) {
 		t.Errorf("after delete, GET status = %d, want 404", rec.Code)
 	}
 
-	rec = doReq(t, h, "GET", "/api/v1/sessions")
+	rec = doReq(t, h, "GET", "/api/v1/sessions?rower_id=R1")
 	var body struct {
 		Sessions []map[string]any `json:"sessions"`
 	}
