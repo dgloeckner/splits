@@ -187,6 +187,18 @@ If rotation becomes a requirement (e.g. policy change, suspected device theft), 
 
 Same-origin XSS on the PWA could issue authenticated requests because the HttpOnly cookie is auto-attached by the browser. This is the standard browser auth model and orthogonal to pairing design. CSP plus the absence of any user-generated HTML in the app keep the XSS attack surface small.
 
+## Recovery: lost device
+
+If a rower loses their device and wants to access existing history on a new device:
+
+1. **Household path (preferred).** Any other paired household member opens Profile → `+` → "Pairing-Link für ein anderes Gerät erstellen" → picks the affected rower → mints URL → sends to them. They open on new device → paired. All history visible immediately.
+
+2. **CLI path (single-rower install or no other paired device).** Operator runs `splits invite <rower-id>` on the backend host; URL printed to stdout. Send URL out-of-band; new device opens → paired.
+
+A fresh unpaired device **cannot** claim an existing rower from the UI without a token. This is intentional: otherwise any LAN visitor could take over a rower whose last device died. Token + CLI access is the deliberate safety boundary.
+
+If the lost device is a security concern (suspected theft), run `splits revoke <rower-id>` first to invalidate every existing device pairing for that rower, THEN `splits invite <rower-id>` to mint a fresh token. The lost device is now signed out of that rower without affecting other rowers on the same physical device.
+
 ## Operator workflows (CLI v1)
 
 `backend/cmd/splits/main.go` gains subcommands. Today the binary takes no subcommands; we add a thin dispatch layer:
