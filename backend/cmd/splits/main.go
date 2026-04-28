@@ -41,6 +41,25 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	if len(os.Args) >= 2 {
+		switch os.Args[1] {
+		case "invite":
+			cliDB, err := storage.Open(cfg.DBPath)
+			if err != nil {
+				return err
+			}
+			defer cliDB.Close()
+			baseURL := cfg.PublicURL
+			if baseURL == "" {
+				baseURL = "https://" + cfg.Addr
+			}
+			if err := runCLI(context.Background(), cliDB.Handle(), baseURL, os.Args[1:], os.Stdout); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			return nil
+		}
+	}
 	if err := enforceTLSPolicy(cfg.Addr, cfg.DevMode, os.Getenv); err != nil {
 		return err
 	}
