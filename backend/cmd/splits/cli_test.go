@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gloeckner-daniel/splits/internal/rower"
 	"github.com/gloeckner-daniel/splits/internal/storage"
@@ -61,5 +62,65 @@ func TestCLI_Invite_UnknownRower_Errors(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "rower not found") {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestCLI_Revoke_RemovesPairingsAndTokens(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	r := mustCreateRower(t, db, "Alice")
+	link := rower.NewDeviceLink(db)
+	if err := link.Pair(ctx, "dev1", r.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := link.Pair(ctx, "dev2", r.ID); err != nil {
+		t.Fatal(err)
+	}
+	store := rower.NewPairingStore(db)
+	if _, err := store.Mint(ctx, r.ID, time.Hour); err != nil {
+		t.Fatal(err)
+	}
+
+	out := &bytes.Buffer{}
+	if err := runCLI(ctx, db, "", []string{"revoke", r.ID}, out); err != nil {
+		t.Fatal(err)
+	}
+
+	var pairs, tokens int
+	db.QueryRow(`SELECT COUNT(*) FROM device_rowers WHERE rower_id = ?`, r.ID).Scan(&pairs)
+	db.QueryRow(`SELECT COUNT(*) FROM pairing_tokens WHERE rower_id = ?`, r.ID).Scan(&tokens)
+	if pairs != 0 || tokens != 0 {
+		t.Fatalf("want 0/0, got %d pairings, %d tokens", pairs, tokens)
+	}
+}
+
+func TestCLI_DeleteRower_SoftDeletesAndCascades(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	r := mustCreateRower(t, db, "Alice")
+	link := rower.NewDeviceLink(db)
+	if err := link.Pair(ctx, "dev1", r.ID); err != nil {
+		t.Fatal(err)
+	}
+	out := &bytes.Buffer{}
+	if err := runCLI(ctx, db, "", []string{"delete-rower", r.ID}, out); err != nil {
+		t.Fatal(err)
+	}
+	// Soft-deleted rowers must NOT appear in Repo.List.
+	repo := rower.NewRepo(db)
+	list, err := repo.List(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, x := range list {
+		if x.ID == r.ID {
+			t.Fatal("rower should not appear in active list")
+		}
+	}
+	// Pairings cascaded.
+	var n int
+	db.QueryRow(`SELECT COUNT(*) FROM device_rowers WHERE rower_id = ?`, r.ID).Scan(&n)
+	if n != 0 {
+		t.Fatalf("device_rowers not cleaned: %d", n)
 	}
 }
