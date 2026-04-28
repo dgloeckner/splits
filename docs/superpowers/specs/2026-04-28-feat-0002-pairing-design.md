@@ -152,6 +152,30 @@ The `/api/v1/pair` endpoint is unauthenticated (no prior pairing required) — i
 
 Use existing `ApiError` shape (T22). 410 maps to a German "Code abgelaufen" toast. 403 on token mint maps to "Du musst mit diesem Profil verbunden sein". 429 → existing rate-limit toast.
 
+## PWA secret handling
+
+The PWA never holds a long-lived secret in JavaScript-accessible storage.
+
+| Item | Storage | Lifetime | JS-readable |
+|---|---|---|---|
+| Pairing token | URL fragment → JS memory → POST body | sub-second on receiver device only; deleted server-side after exchange | yes (briefly, on receiver) |
+| Device session | `device_id` cookie (`HttpOnly; Secure; SameSite=Lax`) | 10 years sliding | **no** |
+| Rower display data (name, id, color) | `localStorage` `home-ergo:*` | persistent | yes — non-secret |
+| `last-event-id` SSE cursor | `localStorage` | persistent | yes — non-secret |
+
+### Defenses
+
+- URL fragment is not transmitted in the HTTP request line; backend never logs the plaintext token because it never receives it via GET.
+- Pairing exchange is `POST /api/v1/pair` with token in JSON body, over TLS only (T10 startup gate).
+- Backend deletes the token row inside the same transaction that inserts `device_rowers`, so a leaked URL is single-use.
+- After successful exchange, the PWA calls `history.replaceState(null, '', '/')` to remove the fragment from the URL bar AND from session history.
+- Service-worker config (`web/vite.config.ts`) already routes `/api/*` to `NetworkOnly` — pairing exchange is never cached.
+- T11 CSP (`script-src 'self'`) blocks inline-script XSS that could exfiltrate the in-memory token during the sub-second exchange window.
+
+### Residual risk (accepted)
+
+Same-origin XSS on the PWA could issue authenticated requests because the HttpOnly cookie is auto-attached by the browser. This is the standard browser auth model and orthogonal to pairing design. CSP plus the absence of any user-generated HTML in the app keep the XSS attack surface small.
+
 ## Operator workflows (CLI v1)
 
 `backend/cmd/splits/main.go` gains subcommands. Today the binary takes no subcommands; we add a thin dispatch layer:
