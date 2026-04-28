@@ -170,6 +170,36 @@ func TestLoad_DevModeFromSPLITS(t *testing.T) {
 	}
 }
 
+func TestLoad_PublicURL(t *testing.T) {
+	cfg, err := Load(func(k string) (string, bool) {
+		if k == "SPLITS_PUBLIC_URL" {
+			return "https://splits.example.de", true
+		}
+		return "", false
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.PublicURL != "https://splits.example.de" {
+		t.Fatalf("got %q", cfg.PublicURL)
+	}
+}
+
+func TestLoad_PublicURL_LegacyVar(t *testing.T) {
+	cfg, err := Load(func(k string) (string, bool) {
+		if k == "HOMEERGO_PUBLIC_URL" {
+			return "https://legacy.example.de", true
+		}
+		return "", false
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.PublicURL != "https://legacy.example.de" {
+		t.Fatalf("got %q", cfg.PublicURL)
+	}
+}
+
 func TestLoad_InvalidFixtureRate(t *testing.T) {
 	if _, err := Load(mapLookup(map[string]string{"HOMEERGO_FIXTURE_RATE": "hyperspeed"})); err == nil {
 		t.Fatal("Load() expected error for unknown fixture rate, got nil")

@@ -140,6 +140,7 @@ func run() error {
 			Scheduler:       scheduler,
 			StartedAt:       time.Now(),
 			DeviceCookieSecure: !cfg.DevMode,
+			PublicURL:          cfg.PublicURL,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}

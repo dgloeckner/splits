@@ -22,6 +22,11 @@ type Config struct {
 	LogLevel    string
 	IdleTimeout time.Duration // consumed by the sessionizer in M2
 	DevMode     bool
+	// PublicURL is the externally-reachable base URL of this instance
+	// (e.g. https://splits.example.de). Used to build absolute pairing
+	// URLs encoded into QR codes. Empty means "derive from request Host".
+	// Primary env: SPLITS_PUBLIC_URL; legacy: HOMEERGO_PUBLIC_URL.
+	PublicURL string
 }
 
 // Lookup mirrors os.LookupEnv: it reports whether the key was set and,
@@ -57,6 +62,7 @@ func Load(env Lookup) (*Config, error) {
 	c.IdleTimeout = idle
 
 	c.DevMode = get(env, "SPLITS_DEV_MODE", "") == "1"
+	c.PublicURL = get2(env, "SPLITS_PUBLIC_URL", "HOMEERGO_PUBLIC_URL", "")
 
 	switch c.FixtureRate {
 	case "realtime", "fast":

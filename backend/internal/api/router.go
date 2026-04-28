@@ -27,6 +27,10 @@ type Inputs struct {
 	// DeviceCookieSecure is forwarded to the DeviceCookie middleware as
 	// the Secure flag. Set true in production, false in dev (plain HTTP).
 	DeviceCookieSecure bool
+	// PublicURL is the externally-reachable base URL used to build
+	// absolute pairing URLs encoded into QR codes. Empty falls back to
+	// "https://" + request Host.
+	PublicURL string
 }
 
 func NewRouter(in Inputs) http.Handler {
@@ -50,6 +54,10 @@ func NewRouter(in Inputs) http.Handler {
 	mux.Handle("GET /api/v1/rowers", rowers)
 	mux.Handle("POST /api/v1/rowers", rowers)
 	mux.Handle("PATCH /api/v1/rowers/{id}", rowers)
+
+	pairingStore := rower.NewPairingStore(in.DB)
+	mux.Handle("POST /api/v1/rowers/{id}/pairing-tokens",
+		MintTokenHandler(in.RowerRepo, in.DeviceLink, pairingStore, in.PublicURL))
 
 	active := ActiveRowerHandler(in.RowerRepo, in.RowerHolder, in.DeviceLink)
 	mux.Handle("GET /api/v1/active-rower", active)
