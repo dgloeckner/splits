@@ -41,7 +41,7 @@ Backend not renamed. Env-var contract still old.
 - Default DB path `./homeergo.db` → `./split.db`
 - Log prefixes `homeergo.start|exit|resume` (`cmd/homeergo/main.go:32,43`) → `split.*`
 - Docs to update: `backend/README.md:1-49`, `web/README.md:9`, `specs/arch/0001-backend-pipeline.md:227-440`, `docs/plans/*.md` (5 files), e2e specs (`web/tests/e2e/*.spec.ts` — temp dir prefixes + spawn paths), `.claude/settings.local.json:16,18` (pkill filters).
-- Web localStorage keys already use `home-ergo:*` — decide: keep (data preserved) or migrate to `split:*` (clean break, requires migration shim reading old keys once).
+- Web localStorage keys keep `home-ergo:*` prefix (decision recorded 2026-04-28). Migrating means writing a one-shot reader of legacy keys; low value vs. cost. Revisit when a user-visible reset becomes acceptable; out of scope for v1.
 
 ### v1 features missing
 
