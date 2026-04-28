@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 
@@ -188,6 +189,9 @@ func deleteSession(db *sql.DB, sched *stats.RecomputeScheduler, active ActiveSes
 		}
 		if sched != nil {
 			stats.OnSessionChange(sched, rowerID, stats.SessionHardDeleted)
+			if err := sched.Wait(r.Context(), rowerID); err != nil {
+				slog.Warn("delete.recompute_wait", "rower_id", rowerID, "err", err)
+			}
 		}
 		w.WriteHeader(http.StatusNoContent)
 	}

@@ -15,12 +15,18 @@ type RecomputeScheduler struct {
 	db *sql.DB
 
 	mu      sync.Mutex
-	pending map[string]bool // rower_id → has-pending-job
-	running map[string]bool
+	pending map[string]bool          // rower_id → has-pending-job
+	running map[string]bool          // rower_id → currently processing
+	idle    map[string]chan struct{} // rower_id → channel closed when no work in flight
 }
 
 func NewRecomputeScheduler(db *sql.DB) *RecomputeScheduler {
-	return &RecomputeScheduler{db: db, pending: map[string]bool{}, running: map[string]bool{}}
+	return &RecomputeScheduler{
+		db:      db,
+		pending: map[string]bool{},
+		running: map[string]bool{},
+		idle:    map[string]chan struct{}{},
+	}
 }
 
 // Trigger asks for a recompute of `rowerID`. Returns immediately. If
@@ -31,6 +37,10 @@ func (s *RecomputeScheduler) Trigger(rowerID string) {
 		return
 	}
 	s.mu.Lock()
+	// Mark this rower as not-idle so any new Wait observes the in-flight job.
+	if _, ok := s.idle[rowerID]; !ok {
+		s.idle[rowerID] = make(chan struct{})
+	}
 	if s.running[rowerID] {
 		s.pending[rowerID] = true
 		s.mu.Unlock()
@@ -50,11 +60,40 @@ func (s *RecomputeScheduler) run(rowerID string) {
 		s.mu.Lock()
 		if !s.pending[rowerID] {
 			s.running[rowerID] = false
+			// Signal idle: close + remove the channel so future Triggers create a fresh one.
+			if ch, ok := s.idle[rowerID]; ok {
+				close(ch)
+				delete(s.idle, rowerID)
+			}
 			s.mu.Unlock()
 			return
 		}
 		delete(s.pending, rowerID)
 		s.mu.Unlock()
+	}
+}
+
+// Wait blocks until there is no in-flight or queued recompute for
+// rowerID, or the context is done. Returns nil if the recompute drained
+// (or was already idle); returns ctx.Err() if the context expired first.
+//
+// Callers (e.g. DELETE /sessions/{id}) use this to ensure subsequent
+// reads observe the post-recompute state.
+func (s *RecomputeScheduler) Wait(ctx context.Context, rowerID string) error {
+	if rowerID == "" {
+		return nil
+	}
+	s.mu.Lock()
+	ch, ok := s.idle[rowerID]
+	s.mu.Unlock()
+	if !ok {
+		return nil
+	}
+	select {
+	case <-ch:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
 
