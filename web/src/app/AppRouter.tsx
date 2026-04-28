@@ -14,6 +14,7 @@ import { RekordeTab } from '../pages/history/RekordeTab'
 import { SessionDetailPage } from '../pages/SessionDetailPage'
 import { ProfilePage } from '../pages/ProfilePage'
 import { OnboardingPage } from '../pages/OnboardingPage'
+import { PairPage } from '../pages/PairPage'
 import { WorkoutFlowPage } from '../pages/workout/WorkoutFlowPage'
 
 export function AppRouter() {
@@ -24,6 +25,7 @@ export function AppRouter() {
         <BrowserRouter>
           <Routes>
             <Route path="/onboarding" element={<OnboardingPage />} />
+            <Route path="/pair" element={<PairPage />} />
             <Route element={<RowerGate />}>
               <Route element={<AppLayout />}>
                 <Route index element={<HomePage />} />
