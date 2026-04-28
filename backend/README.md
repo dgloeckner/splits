@@ -72,3 +72,54 @@ release; the fallback will be removed.
 ## Debugging
 
 `GET /debug/ingest` returns pipeline health JSON (LAN-only; no auth in v1).
+
+## Pairing & rower management
+
+Per-rower pairing per `docs/superpowers/specs/2026-04-28-feat-0002-pairing-design.md`. Trust model is flat (no admin tier): every paired rower can mint pairing URLs for new rowers / new devices.
+
+### CLI subcommands
+
+All commands run on the backend host with the same env (`SPLITS_DB_PATH`, etc.) as the running service. SQLite WAL mode allows the CLI to run while the server is up.
+
+| Command | Purpose |
+|---|---|
+| `splits invite <rower-id>` | Print pairing URL for that rower (24h expiry, single use). |
+| `splits revoke <rower-id>` | Delete all device pairings + outstanding tokens for that rower. Forces re-pair. |
+| `splits delete-rower <rower-id>` | Soft-delete rower; pairings + tokens removed. |
+| `splits ls-rowers` | List rowers (read-only). |
+| `splits ls-pairings` | List `device_rowers` rows (read-only). |
+| `splits ls-tokens` | List outstanding pairing tokens (read-only). |
+
+### Common scenarios
+
+**First install** — open the deployed URL on whichever device should be the founder; "Welcome — create first rower" form auto-pairs that device. No CLI needed.
+
+**Adding another rower** — on any paired device: Profile tab → `+` → "Pairing-Link für ein anderes Gerät erstellen" → pick rower (or first create them) → send the URL via Signal/AirDrop/SMS. Receiver opens the URL on their device → paired.
+
+**Adding existing rower to a new device (your second device)** — same flow as above, picking yourself. Or use `splits invite <your-rower-id>` and open the URL on the second device.
+
+**Lost device, household has another paired device** — optionally `splits revoke <rower-id>` on the host (invalidates all of that rower's existing device pairings, recommended if theft suspected). Then mint a fresh pairing link from any other paired device → open URL on replacement device.
+
+**Lost device, single-rower install (no other paired device)** — SSH to the host: `splits invite <rower-id>` prints URL → send to yourself out-of-band → open on new device.
+
+**Removing a household member** — `splits delete-rower <rower-id>` on the host. Soft-deletes the rower (sessions remain attributed) and removes all their device pairings + outstanding tokens.
+
+**Rotating a rower's pairing for any reason** — `splits revoke <rower-id>` then `splits invite <rower-id>`; share the new URL with the legitimate owner who re-pairs each of their devices.
+
+### Failure modes
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| New device shows "Code abgelaufen" on `/pair` | Token > 24h old or already consumed | Mint a fresh URL via Profile or `splits invite`. |
+| Mint button returns 403 | Active device is not paired with that rower | Use a device that IS paired, or use `splits invite`. |
+| `splits invite` prints `rower not found` | Rower id wrong or rower soft-deleted | `splits ls-rowers` to confirm. |
+| TLS error on first deploy | Caddy cert not yet provisioned | Check Caddy logs; DNS-01 may take 1-5 min on first issue. |
+| Backend refuses to start | T10 gate hit (no TLS, no dev mode) | Set `SPLITS_TLS_TERMINATED_BY=proxy` if behind Caddy, or `SPLITS_DEV_MODE=1` for local dev. |
+
+### What we explicitly do NOT support
+
+- A fresh unpaired device cannot claim an existing rower from the UI without a token. Use the CLI invite path instead. This is intentional: otherwise any LAN visitor could take over a rower whose last device died.
+- No in-app camera scanner. The pairing URL works either pasted directly or via the phone's native QR-code scanner / camera app.
+- No admin tier. Any paired rower can create pairing links for any rower.
+
+See the design doc for full rationale: `docs/superpowers/specs/2026-04-28-feat-0002-pairing-design.md`.
