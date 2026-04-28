@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useRowers } from '../hooks/useRowers'
 import { useActiveRower } from '../hooks/useActiveRower'
 import { updateRower, type Rower } from '../api/rowers'
 import { computeBMI } from '../util/bmi'
 import { RowerStrip } from '../app/RowerStrip'
+import { PairingModal } from '../app/PairingModal'
 import { Wartung } from './profile/Wartung'
 import styles from './ProfilePage.module.css'
 
@@ -172,7 +172,7 @@ function RowerEditor({ r }: { r: Rower }) {
 export function ProfilePage() {
   const rowers = useRowers()
   const active = useActiveRower()
-  const nav = useNavigate()
+  const [pairingOpen, setPairingOpen] = useState(false)
 
   const activeRower = active.data
   const others = (rowers.data ?? []).filter((r) => r.id !== activeRower?.id)
@@ -206,11 +206,19 @@ export function ProfilePage() {
         <button
           type="button"
           className={styles.addBtn}
-          onClick={() => nav('/onboarding')}
+          onClick={() => setPairingOpen(true)}
         >
           Rudernde/n hinzufügen
         </button>
       </section>
+
+      {activeRower && (
+        <PairingModal
+          open={pairingOpen}
+          onClose={() => setPairingOpen(false)}
+          activeRowerID={activeRower.id}
+        />
+      )}
 
       <footer className={styles.footer}>
         <p className={styles.footerLine}>splits</p>
