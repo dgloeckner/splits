@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -54,6 +55,49 @@ func MintTokenHandler(repo *rower.Repo, link *rower.DeviceLink, store *rower.Pai
 			"qr_svg":     svg,
 			"expires_at": time.Now().Add(pairingTokenTTL).UTC().Format(time.RFC3339),
 		})
+	}
+}
+
+// PairExchangeHandler returns POST /api/v1/pair. Unauthenticated by
+// design — the token IS the proof. On success: inserts (device_id,
+// rower_id) into device_rowers, sets the active rower for the device,
+// updates the Holder. Token row is deleted (single-use).
+func PairExchangeHandler(repo *rower.Repo, holder *rower.Holder, link *rower.DeviceLink, store *rower.PairingStore) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var body struct {
+			Token string `json:"token"`
+		}
+		dec := json.NewDecoder(r.Body)
+		dec.DisallowUnknownFields()
+		if err := dec.Decode(&body); err != nil || body.Token == "" {
+			http.Error(w, "token required", http.StatusBadRequest)
+			return
+		}
+		rowerID, err := store.Consume(r.Context(), body.Token)
+		if errors.Is(err, rower.ErrInvalidToken) {
+			http.Error(w, "token unknown, expired, or consumed", http.StatusGone)
+			return
+		}
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		target, err := repo.Get(r.Context(), rowerID)
+		if err != nil || target == nil {
+			http.Error(w, "rower vanished", http.StatusGone)
+			return
+		}
+		devID := DeviceIDFromContext(r.Context())
+		if err := link.Pair(r.Context(), devID, rowerID); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := repo.SetActiveForDevice(r.Context(), devID, rowerID); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		holder.Set(target.ID, target.Name)
+		w.WriteHeader(http.StatusOK)
 	}
 }
 

@@ -58,6 +58,8 @@ func NewRouter(in Inputs) http.Handler {
 	pairingStore := rower.NewPairingStore(in.DB)
 	mux.Handle("POST /api/v1/rowers/{id}/pairing-tokens",
 		MintTokenHandler(in.RowerRepo, in.DeviceLink, pairingStore, in.PublicURL))
+	mux.Handle("POST /api/v1/pair",
+		PairExchangeHandler(in.RowerRepo, in.RowerHolder, in.DeviceLink, pairingStore))
 
 	active := ActiveRowerHandler(in.RowerRepo, in.RowerHolder, in.DeviceLink)
 	mux.Handle("GET /api/v1/active-rower", active)
