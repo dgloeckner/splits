@@ -172,6 +172,17 @@ The PWA never holds a long-lived secret in JavaScript-accessible storage.
 - Service-worker config (`web/vite.config.ts`) already routes `/api/*` to `NetworkOnly` — pairing exchange is never cached.
 - T11 CSP (`script-src 'self'`) blocks inline-script XSS that could exfiltrate the in-memory token during the sub-second exchange window.
 
+### Cookie rotation policy
+
+The `device_id` cookie value does **not** rotate in v1.
+
+- It identifies a device, not a rower. Rotating the value would invalidate every `device_rowers` row referencing the old id, forcing every rower on that device to re-pair on every rotation.
+- HttpOnly + Secure + SameSite=Lax already block extraction via XSS; there is no realistic exfiltration path on the PWA origin.
+- Effective "logout" of a (device, rower) pair is achieved by removing the `device_rowers` row, not by changing the cookie. CLI `splits revoke` is the operator path; FK CASCADE handles `splits delete-rower`.
+- The cookie's `Expires` / `MaxAge` is refreshed (sliding) on each visit, but the value stays stable across the device's lifetime.
+
+If rotation becomes a requirement (e.g. policy change, suspected device theft), add a `splits rotate-device <cookie-value-or-fingerprint>` CLI later that deletes the device's `device_rowers` rows; the next visit issues a fresh cookie naturally.
+
 ### Residual risk (accepted)
 
 Same-origin XSS on the PWA could issue authenticated requests because the HttpOnly cookie is auto-attached by the browser. This is the standard browser auth model and orthogonal to pairing design. CSP plus the absence of any user-generated HTML in the app keep the XSS attack surface small.
