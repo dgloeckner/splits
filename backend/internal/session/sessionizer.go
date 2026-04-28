@@ -120,8 +120,10 @@ func New(o Options) *Sessionizer {
 }
 
 func (s *Sessionizer) stamp(e *event.Event) {
+	s.mu.Lock()
 	s.nextID++
 	e.ID = s.nextID
+	s.mu.Unlock()
 	if e.At.IsZero() {
 		e.At = s.opts.Now()
 	}
