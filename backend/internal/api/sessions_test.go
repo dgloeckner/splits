@@ -97,6 +97,16 @@ func TestGetSessionByIDNotFound(t *testing.T) {
 	}
 }
 
+func TestGetSessionSamplesNotFound(t *testing.T) {
+	db := seedDB(t)
+	h := SessionsHandler(db.Handle(), nil)
+
+	rec := doReq(t, h, "GET", "/api/v1/sessions/nope/samples")
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}
+
 func TestGetSessionSamples(t *testing.T) {
 	db := seedDB(t)
 	h := SessionsHandler(db.Handle(), nil)
