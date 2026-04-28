@@ -13,9 +13,9 @@
       "Bash(git commit -m 'test\\(config\\): add failing tests for env loader *)",
       "Bash(kill bvub8jhle *)",
       "Bash(kill bklt4cixb *)",
-      "Bash(pkill -f \"go run ./cmd/homeergo\")",
+      "Bash(pkill -f \"go run ./cmd/splits\")",
       "Bash(pkill -f \"vite\")",
-      "Bash(pkill -f homeergo)",
+      "Bash(pkill -f splits)",
       "Bash(git commit *)",
       "Bash(npm run *)"
     ]

@@ -9,7 +9,7 @@ cd backend
 SPLITS_FIXTURE=../specs/int/fixtures/ipm/session-short.csv \
 SPLITS_FIXTURE_RATE=realtime \
 SPLITS_DB_PATH=./dev.db \
-go run ./cmd/homeergo
+go run ./cmd/splits
 ```
 
 - `realtime` pacing honours the original inter-stroke timing (~0.5 Hz).
@@ -21,7 +21,7 @@ The PWA at `http://localhost:5173/` proxies `/api/*` to `http://localhost:8080/`
 
 ```bash
 cd backend
-SPLITS_SERIAL_PORT=/dev/cu.usbserial-AB0JKG07 go run ./cmd/homeergo
+SPLITS_SERIAL_PORT=/dev/cu.usbserial-AB0JKG07 go run ./cmd/splits
 ```
 
 If the port is left unset the backend auto-detects the FTDI `0403:6001` (see INT-0001).
@@ -32,7 +32,7 @@ If the port is left unset the backend auto-detects the FTDI `0403:6001` (see INT
 go test ./...
 ```
 
-The e2e smoke in `cmd/homeergo/main_sse_test.go` boots a real server against a fixture and asserts the SSE stream shape.
+The e2e smoke in `cmd/splits/main_sse_test.go` boots a real server against a fixture and asserts the SSE stream shape.
 
 ## Config
 

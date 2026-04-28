@@ -129,7 +129,7 @@ Formal schema + migrations live in a future INT-0003.
 ```
 home-ergo/
 ├── backend/
-│   ├── cmd/homeergo/          # main package (binary entry point)
+│   ├── cmd/splits/          # main package (binary entry point)
 │   ├── internal/
 │   │   ├── ipm/               # A8 parser (port of traces/ipm_parser.py)
 │   │   ├── session/           # aggregation + state machine
@@ -165,7 +165,7 @@ the `//go:embed web/dist` path obvious.
 
 ## Development workflow
 
-- **Backend dev**: `cd backend && go run ./cmd/homeergo` — serves API
+- **Backend dev**: `cd backend && go run ./cmd/splits` — serves API
   on `:8080`. Reads fixtures via a CLI flag for offline dev when the
   ergo isn't connected.
 - **Frontend dev**: `cd web && pnpm dev` — Vite dev server on `:5173`,

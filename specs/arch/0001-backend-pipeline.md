@@ -325,7 +325,7 @@ wires them together in an `errgroup`.
 
 ```
 backend/
-├── cmd/homeergo/
+├── cmd/splits/
 │   └── main.go                 # config.Load → build pipeline → http.Serve → shutdown
 ├── internal/
 │   ├── config/                 # env+flag loader, Config struct

@@ -8,7 +8,7 @@ let backend: ChildProcessWithoutNullStreams | null = null
 
 test.beforeAll(async () => {
   const tmp = mkdtempSync(join(tmpdir(), 'homeergo-e2e-onboarding-'))
-  backend = spawn('go', ['run', './cmd/homeergo'], {
+  backend = spawn('go', ['run', './cmd/splits'], {
     cwd: join(process.cwd(), '..', 'backend'),
     env: {
       ...process.env,

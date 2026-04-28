@@ -1,10 +1,10 @@
 .PHONY: build test vet lint run fmt clean
 
 GO ?= go
-BIN := homeergo
+BIN := splits
 
 build:
-	$(GO) build -o $(BIN) ./cmd/homeergo
+	$(GO) build -o $(BIN) ./cmd/splits
 
 test:
 	$(GO) test ./...
@@ -20,7 +20,7 @@ fmt:
 	$(GO) fmt ./...
 
 run:
-	$(GO) run ./cmd/homeergo
+	$(GO) run ./cmd/splits
 
 clean:
 	rm -f $(BIN) $(BIN).exe coverage.out coverage.html

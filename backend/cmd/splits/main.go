@@ -31,7 +31,7 @@ const httpShutdownTimeout = 30 * time.Second
 
 func main() {
 	if err := run(); err != nil {
-		slog.Error("homeergo.exit", "err", err)
+		slog.Error("splits.exit", "err", err)
 		os.Exit(1)
 	}
 }
@@ -45,7 +45,7 @@ func run() error {
 		return err
 	}
 	configureLogger(cfg.LogLevel)
-	slog.Info("homeergo.start",
+	slog.Info("splits.start",
 		"addr", cfg.Addr, "fixture", cfg.Fixture, "fixture_rate", cfg.FixtureRate,
 		"serial_port", cfg.SerialPort, "db_path", cfg.DBPath, "idle_timeout", cfg.IdleTimeout,
 	)
@@ -63,7 +63,7 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	slog.Info("homeergo.resume", "start_id", startID)
+	slog.Info("splits.resume", "start_id", startID)
 
 	rowerRepo := rower.NewRepo(db.Handle())
 	rowerHolder := rower.NewHolder()
