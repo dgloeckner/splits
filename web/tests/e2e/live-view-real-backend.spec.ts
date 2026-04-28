@@ -8,7 +8,7 @@ import { seedRower } from './helpers/rower'
 let backend: ChildProcessWithoutNullStreams | null = null
 
 test.beforeAll(async () => {
-  const tmp = mkdtempSync(join(tmpdir(), 'homeergo-e2e-'))
+  const tmp = mkdtempSync(join(tmpdir(), 'splits-e2e-'))
   backend = spawn('go', ['run', './cmd/splits'], {
     cwd: join(process.cwd(), '..', 'backend'),
     env: {

@@ -7,7 +7,7 @@ import { join } from 'node:path'
 let backend: ChildProcessWithoutNullStreams | null = null
 
 test.beforeAll(async () => {
-  const tmp = mkdtempSync(join(tmpdir(), 'homeergo-e2e-onboarding-'))
+  const tmp = mkdtempSync(join(tmpdir(), 'splits-e2e-onboarding-'))
   backend = spawn('go', ['run', './cmd/splits'], {
     cwd: join(process.cwd(), '..', 'backend'),
     env: {
