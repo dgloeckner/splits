@@ -58,7 +58,7 @@ footprint, cross-compile, and ergonomic fit.
 
 | Concern            | Choice                         | Notes |
 |--------------------|--------------------------------|-------|
-| Module path        | `github.com/<owner>/home-ergo` | TBD at first commit |
+| Module path        | `splits`                       | Local module name; bare path until upstream is published. |
 | Go version         | Latest stable (≥ 1.22)         | Uses the new `http.ServeMux` routing & `slog`. |
 | Router             | `net/http` stdlib (1.22+)       | Avoid chi/gin unless a real need surfaces. |
 | Serial             | `go.bug.st/serial`              | Actively maintained, cross-platform, no CGO on macOS/Linux. |
@@ -127,7 +127,7 @@ Formal schema + migrations live in a future INT-0003.
 ## Repo layout
 
 ```
-home-ergo/
+splits/
 ├── backend/
 │   ├── cmd/splits/          # main package (binary entry point)
 │   ├── internal/

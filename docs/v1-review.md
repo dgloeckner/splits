@@ -11,7 +11,7 @@ Branch: feat/rekorde-tab
 
 - **Active-rower SET unauthenticated** — `backend/internal/api/rowers.go:81-107`. Any device can set any rower active. Verify `device_rowers` row before SET.
 - **Sessions list leaks across rowers** — `backend/internal/api/sessions.go:26-41`. Missing `rower_id` returns all sessions for device. Default to active rower or 400.
-- **No HTTPS enforcement** — backend listens plain HTTP on `:8080` (`config.go:32`). ADR-0005 fragment tokens require TLS. Add startup check: refuse plain HTTP unless `SPLIT_DEV_MODE=1`.
+- **No HTTPS enforcement** — backend listens plain HTTP on `:8080` (`config.go:32`). ADR-0005 fragment tokens require TLS. Add startup check: refuse plain HTTP unless `SPLITS_DEV_MODE=1`.
 - **No CSP / security headers** — no `X-Frame-Options`, `X-Content-Type-Options`, HSTS, CSP. Add middleware.
 - **No rate limiting** — no middleware on any endpoint. Add token-bucket on auth-relevant routes minimum.
 - **Cookie missing `Secure` flag** — `device_cookie.go:33-37`. HttpOnly + SameSite Lax present, but no Secure. Set when not in dev mode.
@@ -23,23 +23,23 @@ Branch: feat/rekorde-tab
 - **Persister silent retry forever** — `storage/persister.go:46-67`. Permanent DB failure stalls pipeline silently. Bounded retry + dead-letter + CRITICAL log.
 - **Inconsistent 404 vs 500** — `sessions.go:48-55`, `pbs.go:128-136`. Use `errors.Is(err, sql.ErrNoRows)` everywhere.
 
-### Brand: `homeergo` → `split`
+### Brand: `homeergo` → `splits`
 
 Backend not renamed. Env-var contract still old.
 
-- Module path `github.com/gloeckner-daniel/home-ergo` → `.../split` (`backend/go.mod:1`)
-- Binary dir `backend/cmd/homeergo/` → `backend/cmd/split/`
+- Module path `github.com/gloeckner-daniel/home-ergo` → `splits` (`backend/go.mod:1`)
+- Binary dir `backend/cmd/homeergo/` → `backend/cmd/splits/`
 - Env vars (`backend/internal/config/config.go:32-47`):
-  - `HOMEERGO_ADDR` → `SPLIT_ADDR`
-  - `HOMEERGO_SERIAL_PORT` → `SPLIT_SERIAL_PORT`
-  - `HOMEERGO_SERIAL_BAUD` → `SPLIT_SERIAL_BAUD`
-  - `HOMEERGO_DB_PATH` → `SPLIT_DB_PATH`
-  - `HOMEERGO_FIXTURE` → `SPLIT_FIXTURE`
-  - `HOMEERGO_FIXTURE_RATE` → `SPLIT_FIXTURE_RATE`
-  - `HOMEERGO_LOG_LEVEL` → `SPLIT_LOG_LEVEL`
-  - `HOMEERGO_IDLE_TIMEOUT` → `SPLIT_IDLE_TIMEOUT`
-- Default DB path `./homeergo.db` → `./split.db`
-- Log prefixes `homeergo.start|exit|resume` (`cmd/homeergo/main.go:32,43`) → `split.*`
+  - `HOMEERGO_ADDR` → `SPLITS_ADDR`
+  - `HOMEERGO_SERIAL_PORT` → `SPLITS_SERIAL_PORT`
+  - `HOMEERGO_SERIAL_BAUD` → `SPLITS_SERIAL_BAUD`
+  - `HOMEERGO_DB_PATH` → `SPLITS_DB_PATH`
+  - `HOMEERGO_FIXTURE` → `SPLITS_FIXTURE`
+  - `HOMEERGO_FIXTURE_RATE` → `SPLITS_FIXTURE_RATE`
+  - `HOMEERGO_LOG_LEVEL` → `SPLITS_LOG_LEVEL`
+  - `HOMEERGO_IDLE_TIMEOUT` → `SPLITS_IDLE_TIMEOUT`
+- Default DB path `./homeergo.db` → `./splits.db`
+- Log prefixes `homeergo.start|exit|resume` (`cmd/homeergo/main.go:32,43`) → `splits.*`
 - Docs to update: `backend/README.md:1-49`, `web/README.md:9`, `specs/arch/0001-backend-pipeline.md:227-440`, `docs/plans/*.md` (5 files), e2e specs (`web/tests/e2e/*.spec.ts` — temp dir prefixes + spawn paths), `.claude/settings.local.json:16,18` (pkill filters).
 - Web localStorage keys keep `home-ergo:*` prefix (decision recorded 2026-04-28). Migrating means writing a one-shot reader of legacy keys; low value vs. cost. Revisit when a user-visible reset becomes acceptable; out of scope for v1.
 
@@ -133,7 +133,7 @@ Backend not renamed. Env-var contract still old.
 ## Suggested ship order
 
 1. **P0 security & data correctness** — auth boundaries, race fixes, persister retry bound, error codes.
-2. **P0 brand rename** — single sweep, `HOMEERGO_*` → `SPLIT_*`, module path, log prefixes, docs. Coordinate with deploy plan to avoid double-config.
+2. **P0 brand rename** — single sweep, `HOMEERGO_*` → `SPLITS_*`, module path, log prefixes, docs. Coordinate with deploy plan to avoid double-config.
 3. **P0 FEAT-0002 QR pairing exchange endpoint + scan UI**.
 4. **P0 FEAT-0003 session-detail charts**.
 5. **P0 stats recompute sync on delete**.
