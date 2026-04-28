@@ -35,8 +35,76 @@ func runCLI(ctx context.Context, db *sql.DB, baseURL string, args []string, stdo
 			return errors.New("usage: splits delete-rower <rower-id>")
 		}
 		return cliDeleteRower(ctx, db, args[1], stdout)
+	case "ls-rowers":
+		return cliLsRowers(ctx, db, stdout)
+	case "ls-pairings":
+		return cliLsPairings(ctx, db, stdout)
+	case "ls-tokens":
+		return cliLsTokens(ctx, db, stdout)
 	}
 	return fmt.Errorf("unknown subcommand: %s", args[0])
+}
+
+func cliLsRowers(ctx context.Context, db *sql.DB, w io.Writer) error {
+	rows, err := db.QueryContext(ctx,
+		`SELECT id, name, created_at, deleted_at FROM rowers ORDER BY created_at`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	fmt.Fprintln(w, "ID\tNAME\tCREATED\tDELETED")
+	for rows.Next() {
+		var id, name, created string
+		var deleted sql.NullString
+		if err := rows.Scan(&id, &name, &created, &deleted); err != nil {
+			return err
+		}
+		d := "-"
+		if deleted.Valid {
+			d = deleted.String
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", id, name, created, d)
+	}
+	return rows.Err()
+}
+
+func cliLsPairings(ctx context.Context, db *sql.DB, w io.Writer) error {
+	rows, err := db.QueryContext(ctx,
+		`SELECT device_id, rower_id, paired_at FROM device_rowers ORDER BY paired_at`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	fmt.Fprintln(w, "DEVICE\tROWER\tPAIRED")
+	for rows.Next() {
+		var d, r, p string
+		if err := rows.Scan(&d, &r, &p); err != nil {
+			return err
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\n", d, r, p)
+	}
+	return rows.Err()
+}
+
+func cliLsTokens(ctx context.Context, db *sql.DB, w io.Writer) error {
+	rows, err := db.QueryContext(ctx,
+		`SELECT token_hash, rower_id, expires_at FROM pairing_tokens ORDER BY expires_at`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	fmt.Fprintln(w, "HASH(prefix)\tROWER\tEXPIRES")
+	for rows.Next() {
+		var h, r, e string
+		if err := rows.Scan(&h, &r, &e); err != nil {
+			return err
+		}
+		if len(h) > 12 {
+			h = h[:12] + "…"
+		}
+		fmt.Fprintf(w, "%s\t%s\t%s\n", h, r, e)
+	}
+	return rows.Err()
 }
 
 func cliRevoke(ctx context.Context, db *sql.DB, rowerID string, stdout io.Writer) error {

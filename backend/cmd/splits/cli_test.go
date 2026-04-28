@@ -124,3 +124,50 @@ func TestCLI_DeleteRower_SoftDeletesAndCascades(t *testing.T) {
 		t.Fatalf("device_rowers not cleaned: %d", n)
 	}
 }
+
+func TestCLI_LsRowers(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	mustCreateRower(t, db, "Alice")
+	mustCreateRower(t, db, "Bob")
+	out := &bytes.Buffer{}
+	if err := runCLI(ctx, db, "", []string{"ls-rowers"}, out); err != nil {
+		t.Fatal(err)
+	}
+	got := out.String()
+	if !strings.Contains(got, "Alice") || !strings.Contains(got, "Bob") {
+		t.Fatalf("want both names, got %q", got)
+	}
+}
+
+func TestCLI_LsPairings(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	r := mustCreateRower(t, db, "Alice")
+	if err := rower.NewDeviceLink(db).Pair(ctx, "dev1", r.ID); err != nil {
+		t.Fatal(err)
+	}
+	out := &bytes.Buffer{}
+	if err := runCLI(ctx, db, "", []string{"ls-pairings"}, out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "dev1") {
+		t.Fatalf("missing device id: %q", out.String())
+	}
+}
+
+func TestCLI_LsTokens(t *testing.T) {
+	db := openTestDB(t)
+	ctx := context.Background()
+	r := mustCreateRower(t, db, "Alice")
+	if _, err := rower.NewPairingStore(db).Mint(ctx, r.ID, time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	out := &bytes.Buffer{}
+	if err := runCLI(ctx, db, "", []string{"ls-tokens"}, out); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), r.ID) {
+		t.Fatalf("missing rower id: %q", out.String())
+	}
+}

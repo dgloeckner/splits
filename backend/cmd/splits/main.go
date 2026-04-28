@@ -43,7 +43,7 @@ func run() error {
 	}
 	if len(os.Args) >= 2 {
 		switch os.Args[1] {
-		case "invite", "revoke", "delete-rower":
+		case "invite", "revoke", "delete-rower", "ls-rowers", "ls-pairings", "ls-tokens":
 			cliDB, err := storage.Open(cfg.DBPath)
 			if err != nil {
 				return err
