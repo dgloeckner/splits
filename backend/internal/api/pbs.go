@@ -5,19 +5,41 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+
+	"github.com/gloeckner-daniel/home-ergo/internal/rower"
 )
 
 // PBsHandler exposes per-rower PB tables and the lifetime-stats
 // snapshot. All payloads are snapshot-rendered: no joins back to
 // strokes are needed, so compacted source sessions are fine.
-func PBsHandler(db *sql.DB) http.Handler {
+func PBsHandler(db *sql.DB, repo *rower.Repo) http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("GET /api/v1/rowers/{id}/pbs", listActivePBs(db))
-	mux.HandleFunc("GET /api/v1/rowers/{id}/pbs/history", listPBHistory(db))
-	mux.HandleFunc("GET /api/v1/rowers/{id}/lifetime", getLifetime(db))
-	mux.HandleFunc("GET /api/v1/rowers/{id}/achievements", listAchievements(db))
+	mux.HandleFunc("GET /api/v1/rowers/{id}/pbs", requireRower(repo, listActivePBs(db)))
+	mux.HandleFunc("GET /api/v1/rowers/{id}/pbs/history", requireRower(repo, listPBHistory(db)))
+	mux.HandleFunc("GET /api/v1/rowers/{id}/lifetime", requireRower(repo, getLifetime(db)))
+	mux.HandleFunc("GET /api/v1/rowers/{id}/achievements", requireRower(repo, listAchievements(db)))
 	mux.HandleFunc("GET /api/v1/sessions/{id}/pb-banners", listPBBanners(db))
 	return mux
+}
+
+// requireRower returns 404 if the path-id rower is unknown. The
+// downstream queries legitimately return zero rows for valid rowers
+// with no PBs/achievements yet, so the rower-existence check has to
+// happen up-front.
+func requireRower(repo *rower.Repo, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		rid := r.PathValue("id")
+		target, err := repo.Get(r.Context(), rid)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if target == nil {
+			http.NotFound(w, r)
+			return
+		}
+		next(w, r)
+	}
 }
 
 type distancePBRow struct {
