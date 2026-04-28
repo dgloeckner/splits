@@ -24,6 +24,9 @@ type Inputs struct {
 	SessionSnapshot stream.Snapshotter
 	Scheduler       *stats.RecomputeScheduler
 	StartedAt       time.Time
+	// DeviceCookieSecure is forwarded to the DeviceCookie middleware as
+	// the Secure flag. Set true in production, false in dev (plain HTTP).
+	DeviceCookieSecure bool
 }
 
 func NewRouter(in Inputs) http.Handler {
@@ -88,7 +91,7 @@ func NewRouter(in Inputs) http.Handler {
 		Broadcaster: in.Broadcaster,
 		StartedAt:   in.StartedAt,
 	}))
-	mws := []Middleware{Recover(), Logging(), DeviceCookie()}
+	mws := []Middleware{Recover(), Logging(), DeviceCookie(DeviceCookieOptions{Secure: in.DeviceCookieSecure})}
 	if in.RowerHolder != nil {
 		mws = append(mws, StatsVersionHeader(in.DB, in.RowerHolder))
 	}

@@ -134,6 +134,7 @@ func run() error {
 			SessionSnapshot: sessionizer,
 			Scheduler:       scheduler,
 			StartedAt:       time.Now(),
+			DeviceCookieSecure: !cfg.DevMode,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}

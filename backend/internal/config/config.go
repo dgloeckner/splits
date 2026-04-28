@@ -17,6 +17,7 @@ type Config struct {
 	FixtureRate string
 	LogLevel    string
 	IdleTimeout time.Duration // consumed by the sessionizer in M2
+	DevMode     bool
 }
 
 // Lookup mirrors os.LookupEnv: it reports whether the key was set and,
@@ -50,6 +51,8 @@ func Load(env Lookup) (*Config, error) {
 		return nil, fmt.Errorf("HOMEERGO_IDLE_TIMEOUT %q: %w", idleStr, err)
 	}
 	c.IdleTimeout = idle
+
+	c.DevMode = get(env, "SPLITS_DEV_MODE", "") == "1"
 
 	switch c.FixtureRate {
 	case "realtime", "fast":

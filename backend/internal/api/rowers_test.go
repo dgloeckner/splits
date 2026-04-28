@@ -29,7 +29,7 @@ func newRowerTestServer(t *testing.T) (http.Handler, *rower.Repo, *rower.Holder)
 	a := ActiveRowerHandler(repo, holder, link)
 	mux.Handle("GET /api/v1/active-rower", a)
 	mux.Handle("PUT /api/v1/active-rower", a)
-	return Chain(mux, DeviceCookie()), repo, holder
+	return Chain(mux, DeviceCookie(DeviceCookieOptions{})), repo, holder
 }
 
 func TestRowers_CreateListPatch(t *testing.T) {
