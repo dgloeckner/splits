@@ -62,6 +62,15 @@ func run() error {
 
 	rowerRepo := rower.NewRepo(db.Handle())
 	rowerHolder := rower.NewHolder()
+	deviceLink := rower.NewDeviceLink(db.Handle())
+	// Backfill device_rowers from existing per-device active selections
+	// so households who already paired before T4 keep working without
+	// re-pairing.
+	if _, err := db.Handle().ExecContext(ctx, `
+		INSERT OR IGNORE INTO device_rowers(device_id, rower_id)
+		SELECT device_id, rower_id FROM device_active_rower`); err != nil {
+		return err
+	}
 	workoutRepo := workout.NewRepo(db.Handle())
 	if n, err := workoutRepo.CleanupOrphans(ctx); err != nil {
 		slog.Error("workout.cleanup", "err", err)
@@ -119,6 +128,7 @@ func run() error {
 			DB:          db.Handle(),
 			RowerRepo:   rowerRepo,
 			RowerHolder: rowerHolder,
+			DeviceLink:  deviceLink,
 			WorkoutRepo: workoutRepo,
 			Sessionizer:     sessionizer,
 			SessionSnapshot: sessionizer,

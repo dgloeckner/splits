@@ -8,7 +8,7 @@ import (
 	"github.com/gloeckner-daniel/home-ergo/internal/rower"
 )
 
-func RowersHandler(repo *rower.Repo) http.Handler {
+func RowersHandler(repo *rower.Repo, link *rower.DeviceLink) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/rowers", func(w http.ResponseWriter, r *http.Request) {
 		list, err := repo.List(r.Context())
@@ -35,6 +35,15 @@ func RowersHandler(repo *rower.Repo) http.Handler {
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+		// Auto-pair the creating device so the new rower is immediately
+		// selectable as active without a separate pairing step.
+		devID := DeviceIDFromContext(r.Context())
+		if devID != "" && link != nil {
+			if err := link.Pair(r.Context(), devID, out.ID); err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 		writeJSON(w, http.StatusCreated, out)
 	})
@@ -63,7 +72,7 @@ func RowersHandler(repo *rower.Repo) http.Handler {
 	return mux
 }
 
-func ActiveRowerHandler(repo *rower.Repo, holder *rower.Holder) http.Handler {
+func ActiveRowerHandler(repo *rower.Repo, holder *rower.Holder, link *rower.DeviceLink) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/active-rower", func(w http.ResponseWriter, r *http.Request) {
 		devID := DeviceIDFromContext(r.Context())
@@ -94,6 +103,15 @@ func ActiveRowerHandler(repo *rower.Repo, holder *rower.Holder) http.Handler {
 		}
 		if target == nil {
 			http.Error(w, "rower not found", http.StatusNotFound)
+			return
+		}
+		paired, err := link.IsPaired(r.Context(), devID, body.RowerID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if !paired {
+			http.Error(w, "rower not paired with this device", http.StatusForbidden)
 			return
 		}
 		if err := repo.SetActiveForDevice(r.Context(), devID, body.RowerID); err != nil {

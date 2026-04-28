@@ -18,6 +18,7 @@ type Inputs struct {
 	DB              *sql.DB
 	RowerRepo       *rower.Repo
 	RowerHolder     *rower.Holder
+	DeviceLink      *rower.DeviceLink
 	WorkoutRepo     *workout.Repo
 	Sessionizer     SessionAttacher
 	SessionSnapshot stream.Snapshotter
@@ -36,12 +37,12 @@ func NewRouter(in Inputs) http.Handler {
 	mux.Handle("GET /api/v1/sessions/{id}/samples", sessions)
 	mux.Handle("DELETE /api/v1/sessions/{id}", sessions)
 
-	rowers := RowersHandler(in.RowerRepo)
+	rowers := RowersHandler(in.RowerRepo, in.DeviceLink)
 	mux.Handle("GET /api/v1/rowers", rowers)
 	mux.Handle("POST /api/v1/rowers", rowers)
 	mux.Handle("PATCH /api/v1/rowers/{id}", rowers)
 
-	active := ActiveRowerHandler(in.RowerRepo, in.RowerHolder)
+	active := ActiveRowerHandler(in.RowerRepo, in.RowerHolder, in.DeviceLink)
 	mux.Handle("GET /api/v1/active-rower", active)
 	mux.Handle("PUT /api/v1/active-rower", active)
 
