@@ -3,10 +3,12 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -37,6 +39,9 @@ func main() {
 func run() error {
 	cfg, err := config.Load(os.LookupEnv)
 	if err != nil {
+		return err
+	}
+	if err := enforceTLSPolicy(cfg.Addr, cfg.DevMode, os.Getenv); err != nil {
 		return err
 	}
 	configureLogger(cfg.LogLevel)
@@ -171,6 +176,33 @@ func pickProducer(cfg *config.Config) ipm.Producer {
 		return &ipm.FixtureProducer{Path: cfg.Fixture, Pacing: pacing}
 	}
 	return &ipm.SerialProducer{Port: cfg.SerialPort, Baud: cfg.SerialBaud}
+}
+
+// enforceTLSPolicy refuses to start in production-like configurations
+// when no TLS termination is in evidence. Plain HTTP on a non-localhost
+// bind without an explicit proxy hint is almost always a misconfiguration
+// that would expose device-pairing cookies and session data in the clear.
+func enforceTLSPolicy(addr string, devMode bool, getenv func(string) string) error {
+	if devMode {
+		return nil
+	}
+	if isLocalhost(addr) {
+		return nil
+	}
+	if strings.EqualFold(getenv("SPLITS_TLS_TERMINATED_BY"), "proxy") {
+		return nil
+	}
+	return fmt.Errorf("refusing to start: cfg.Addr=%q without TLS. Set SPLITS_DEV_MODE=1 for local dev or SPLITS_TLS_TERMINATED_BY=proxy when behind Caddy/nginx", addr)
+}
+
+// isLocalhost reports whether addr binds only the loopback interface.
+// A bare ":8080" binds all interfaces and is intentionally NOT considered
+// localhost-only.
+func isLocalhost(addr string) bool {
+	a := strings.ToLower(addr)
+	return strings.HasPrefix(a, "127.0.0.1") ||
+		strings.HasPrefix(a, "localhost") ||
+		strings.HasPrefix(a, "[::1]")
 }
 
 func configureLogger(level string) {
