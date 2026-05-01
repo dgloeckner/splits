@@ -1,0 +1,37 @@
+[Unit]
+Description=splits — home rowing-ergo backend
+Documentation=https://github.com/gloeckner-daniel/splits
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=splits
+Group=splits
+WorkingDirectory=/var/lib/splits
+ExecStart=/usr/local/bin/splits
+Restart=on-failure
+RestartSec=5
+
+# Environment: production-safe defaults. SPLITS_TLS_TERMINATED_BY=proxy
+# satisfies the T10 startup gate; Caddy holds the real TLS cert.
+EnvironmentFile=/etc/splits/splits.env
+
+# FTDI serial access (IPM console is /dev/ttyUSB0 on Pi). User must be
+# in `dialout` group, OR systemd grants the device explicitly:
+SupplementaryGroups=dialout
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/splits /var/log/splits
+
+# Sane resource caps for a Pi Zero 2 W (512 MB RAM).
+LimitNOFILE=4096
+MemoryHigh=256M
+MemoryMax=384M
+
+[Install]
+WantedBy=multi-user.target

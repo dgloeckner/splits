@@ -1,0 +1,43 @@
+# Production Caddy config for splits.
+# Replace {{HOSTNAME}} and {{DUCKDNS_TOKEN}} via deploy/install.sh.
+# Backend listens on 127.0.0.1:8080; Caddy is the only public-facing
+# process. ADR-0006 picks DNS-01 via DuckDNS to avoid port 80/443
+# inbound on the LAN.
+
+{{HOSTNAME}} {
+    tls {
+        dns duckdns {{DUCKDNS_TOKEN}}
+    }
+
+    # Reverse-proxy the splits API + SSE stream.
+    handle /api/* {
+        reverse_proxy 127.0.0.1:8080 {
+            # SSE needs flushing; default Caddy reverse_proxy already
+            # flushes per-event, so no extra knobs needed.
+            transport http {
+                read_timeout 0s
+                read_buffer 4KB
+            }
+        }
+    }
+
+    # Health probe (uncached).
+    handle /api/health {
+        reverse_proxy 127.0.0.1:8080
+    }
+
+    # PWA shell + assets. Vite-built static under {{WEB_ROOT}}.
+    handle {
+        root * {{WEB_ROOT}}
+        encode zstd gzip
+        try_files {path} /index.html
+        file_server
+    }
+
+    log {
+        output file /var/log/caddy/splits.log {
+            roll_size 10MiB
+            roll_keep 5
+        }
+    }
+}

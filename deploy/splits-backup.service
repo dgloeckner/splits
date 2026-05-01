@@ -1,0 +1,17 @@
+[Unit]
+Description=splits — daily SQLite backup
+After=splits.service
+Requires=splits.service
+
+[Service]
+Type=oneshot
+User=splits
+Group=splits
+EnvironmentFile=/etc/splits/splits.env
+ExecStart=/usr/local/bin/splits-backup.sh
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/splits
