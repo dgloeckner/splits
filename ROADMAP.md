@@ -52,10 +52,10 @@
 
 ## M6 — Deploy to Pi
 
-- [ ] Cross-compile / containerise for the chosen target Pi
-- [ ] Caddy + TLS (ADR-0006)
-- [ ] systemd units and install script
-- [ ] Daily SQLite backup
+- [x] Cross-compile / containerise for the chosen target Pi (`deploy/build.sh`, ARMv7 default)
+- [x] Caddy + TLS (ADR-0006) — `deploy/Caddyfile.template` (DuckDNS DNS-01)
+- [x] systemd units and install script — `deploy/splits.service` + `deploy/install.sh`
+- [x] Daily SQLite backup — `deploy/splits-backup.{sh,service,timer}`
 
 ## M7 — Polish
 
