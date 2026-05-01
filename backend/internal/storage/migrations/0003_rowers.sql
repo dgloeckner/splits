@@ -1,3 +1,5 @@
+-- FEAT-0002 (initial): rower profiles + per-device active-rower
+-- selection. Pairing semantics added later in 0010_device_rowers.sql.
 CREATE TABLE IF NOT EXISTS rowers (
   id         TEXT PRIMARY KEY,
   name       TEXT NOT NULL,

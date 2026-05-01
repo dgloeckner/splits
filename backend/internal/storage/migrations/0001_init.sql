@@ -1,3 +1,5 @@
+-- M2 / ARCH-0001: initial schema. schema_migrations tracks applied
+-- versions; sessions + strokes are the core ingestion tables.
 CREATE TABLE IF NOT EXISTS schema_migrations (
   version INTEGER PRIMARY KEY,
   applied_at TEXT NOT NULL DEFAULT (datetime('now'))
