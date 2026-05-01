@@ -8,6 +8,16 @@ import (
 	"github.com/gloeckner-daniel/splits/internal/rower"
 )
 
+// isRowerInputError reports whether err is a validation error that
+// should map to 400 (bad request). Any other error is treated as 500.
+func isRowerInputError(err error) bool {
+	return errors.Is(err, rower.ErrNameRequired) ||
+		errors.Is(err, rower.ErrNameTooLong) ||
+		errors.Is(err, rower.ErrWeightRange) ||
+		errors.Is(err, rower.ErrHeightRange) ||
+		errors.Is(err, rower.ErrDOBInvalid)
+}
+
 func RowersHandler(repo *rower.Repo, link *rower.DeviceLink) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/rowers", func(w http.ResponseWriter, r *http.Request) {
@@ -28,7 +38,7 @@ func RowersHandler(repo *rower.Repo, link *rower.DeviceLink) http.Handler {
 			return
 		}
 		out, err := repo.Create(r.Context(), in)
-		if errors.Is(err, rower.ErrNameRequired) {
+		if isRowerInputError(err) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
@@ -55,7 +65,7 @@ func RowersHandler(repo *rower.Repo, link *rower.DeviceLink) http.Handler {
 			return
 		}
 		out, err := repo.Update(r.Context(), id, in)
-		if errors.Is(err, rower.ErrNameRequired) {
+		if isRowerInputError(err) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
