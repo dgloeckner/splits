@@ -7,9 +7,10 @@ type LiveSession = LiveState & {
   /**
    * Manually trigger a reconnect. Wired to the "Erneut verbinden"
    * banner button when the channel reaches `permanently_disconnected`.
-   * No-op for channels that don't support reconnect.
+   * Optional so test fixtures can mount the context with a plain
+   * LiveState; ConnectionBanner falls back to a no-op.
    */
-  reconnect: () => void
+  reconnect?: () => void
 }
 
 export const LiveSessionContext = createContext<LiveSession | null>(null)

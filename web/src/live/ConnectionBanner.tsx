@@ -13,7 +13,7 @@ export function ConnectionBanner() {
   return (
     <div className={styles.banner} role="alert">
       <span className={styles.text}>Verbindung verloren.</span>
-      <button type="button" className={styles.btn} onClick={reconnect}>
+      <button type="button" className={styles.btn} onClick={() => reconnect?.()}>
         Erneut verbinden
       </button>
     </div>
