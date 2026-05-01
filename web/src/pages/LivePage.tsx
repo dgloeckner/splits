@@ -12,6 +12,8 @@ import { SegmentStatus } from './live/SegmentStatus'
 import { SessionEndedOverlay } from './live/SessionEndedOverlay'
 import { useSegmentTransitions } from '../live/useSegmentTransitions'
 import { usePBBanners } from './live/usePBBanners'
+import { PBOverlay } from './live/PBOverlay'
+import { useActiveRower } from '../hooks/useActiveRower'
 import styles from './LivePage.module.css'
 
 function LiveBody() {
@@ -124,6 +126,8 @@ export function LivePage() {
   // Last-Event-ID and Snapshot.
 
   const banners = usePBBanners(latched?.sessionId ?? null)
+  const activeRower = useActiveRower()
+  const activeRowerId = activeRower.data?.id ?? null
   const dismiss = () => {
     setLatched(null)
     try {
@@ -131,11 +135,42 @@ export function LivePage() {
     } catch {}
   }
 
+  const [pbDismissed, setPbDismissed] = useState(false)
+  // Reset when latched clears (next session-end can show PBs again).
+  useEffect(() => {
+    if (!latched) setPbDismissed(false)
+  }, [latched])
+
+  const pbCount =
+    banners.kind === 'resolved'
+      ? banners.banners.distance.length + banners.banners.window.length
+      : 0
+  const showPbOverlay =
+    !!latched && banners.kind === 'resolved' && pbCount > 0 && !pbDismissed
+  const showSummary = !!latched && !showPbOverlay
+
   return (
     <>
       <LiveBody />
       <ConnectionBanner />
-      {latched && (
+      {showPbOverlay && banners.kind === 'resolved' && (
+        <PBOverlay
+          banners={banners.banners}
+          onDismiss={() => setPbDismissed(true)}
+          onShowInRekorde={(item) => {
+            const ridParam = activeRowerId
+              ? `?rower=${encodeURIComponent(activeRowerId)}`
+              : ''
+            const anchor =
+              item.kind === 'distance'
+                ? `#pb-distance-${item.pb.distance_m}`
+                : `#pb-window-${item.pb.metric}-${item.pb.window_size}`
+            dismiss()
+            nav(`/historie/rekorde${ridParam}${anchor}`)
+          }}
+        />
+      )}
+      {showSummary && latched && (
         <SessionEndedOverlay
           summary={latched.summary}
           banners={banners}
