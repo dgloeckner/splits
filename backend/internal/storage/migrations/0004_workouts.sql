@@ -1,3 +1,5 @@
+-- FEAT-0005a: workout templates (just_row/distance/time/intervals)
+-- with optional intensity tag. Sessions link via sessions.workout_id.
 CREATE TABLE IF NOT EXISTS workout (
   id           TEXT PRIMARY KEY,
   mode         TEXT NOT NULL CHECK (mode IN ('just_row','distance','time','intervals')),

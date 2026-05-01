@@ -249,3 +249,25 @@ func atoF(t *testing.T, s string) float64 {
 	}
 	return f
 }
+
+// FuzzDecodeA8Line ensures decodeA8Line never panics on arbitrary
+// input. mustAtoi is gated by an explicit digit-only check, so any
+// regression that lets non-digit bytes through would be caught here.
+func FuzzDecodeA8Line(f *testing.F) {
+	for _, seed := range []string{
+		"",
+		"A8",
+		"A8" + "abc",
+		"A8" + "0123456789012345678901234567",       // 28 chars (off-by-one)
+		"A8" + "012345678901234567890123456",         // 27 chars valid
+		"A8" + "0123456789012345!23456789012",        // 27 chars w/ symbol
+		"A8" + "01234567890\u00ff45678901234567",     // non-ASCII
+		"\x00\x01\x02",
+	} {
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, in string) {
+		// Must not panic for any input.
+		_, _ = decodeA8Line(in)
+	})
+}

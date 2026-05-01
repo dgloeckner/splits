@@ -4,7 +4,10 @@ export type IntensityRange = {
   spm: Range
 }
 
-// Static v1 defaults. TODO: replace with per-user defaults once FEAT-0004 (PBs) lands.
+// Static v1 defaults shared across rowers. Per-rower personalisation
+// based on PBs is intentionally deferred — these bands are good enough
+// for casual training intensity targets and avoid the UX complexity of
+// "the band moved because you got faster yesterday".
 export const intensityRanges: Record<string, IntensityRange> = {
   locker:  { splitSec: { lo: 140, hi: 160 }, spm: { lo: 18, hi: 22 } },
   moderat: { splitSec: { lo: 125, hi: 140 }, spm: { lo: 22, hi: 26 } },

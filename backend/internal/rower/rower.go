@@ -33,7 +33,94 @@ type CreateInput struct {
 	Color    string   `json:"color,omitempty"`
 }
 
-var ErrNameRequired = errors.New("rower: name required")
+var (
+	ErrNameRequired = errors.New("rower: name required")
+	ErrNameTooLong  = errors.New("rower: name longer than 80 chars")
+	ErrWeightRange  = errors.New("rower: weight must be 20-300 kg")
+	ErrHeightRange  = errors.New("rower: height must be 80-260 cm")
+	ErrDOBInvalid   = errors.New("rower: dob must be YYYY-MM-DD between 1900-01-01 and today")
+)
+
+const (
+	maxNameLen   = 80
+	minWeightKg  = 20.0
+	maxWeightKg  = 300.0
+	minHeightCm  = 80.0
+	maxHeightCm  = 260.0
+	dobLayout    = "2006-01-02"
+)
+
+// validateUpdate enforces input bounds for partial updates. Each
+// field is checked only when present (non-nil pointer).
+func validateUpdate(in UpdateInput) error {
+	if in.Name != nil {
+		if *in.Name == "" {
+			return ErrNameRequired
+		}
+		if len([]rune(*in.Name)) > maxNameLen {
+			return ErrNameTooLong
+		}
+	}
+	if in.WeightKg != nil {
+		w := *in.WeightKg
+		if w < minWeightKg || w > maxWeightKg {
+			return ErrWeightRange
+		}
+	}
+	if in.HeightCm != nil {
+		h := *in.HeightCm
+		if h < minHeightCm || h > maxHeightCm {
+			return ErrHeightRange
+		}
+	}
+	if in.DOB != nil && *in.DOB != "" {
+		t, err := time.Parse(dobLayout, *in.DOB)
+		if err != nil {
+			return ErrDOBInvalid
+		}
+		earliest := time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)
+		if t.Before(earliest) || t.After(time.Now().UTC()) {
+			return ErrDOBInvalid
+		}
+	}
+	return nil
+}
+
+// validateCreate enforces input bounds at the API/repo boundary.
+// Defense-in-depth (the HTTP body limit caps payload size globally;
+// these checks reject semantically invalid values before they reach
+// SQL).
+func validateCreate(in CreateInput) error {
+	if in.Name == "" {
+		return ErrNameRequired
+	}
+	if len([]rune(in.Name)) > maxNameLen {
+		return ErrNameTooLong
+	}
+	if in.WeightKg != nil {
+		w := *in.WeightKg
+		if w < minWeightKg || w > maxWeightKg {
+			return ErrWeightRange
+		}
+	}
+	if in.HeightCm != nil {
+		h := *in.HeightCm
+		if h < minHeightCm || h > maxHeightCm {
+			return ErrHeightRange
+		}
+	}
+	if in.DOB != nil && *in.DOB != "" {
+		t, err := time.Parse(dobLayout, *in.DOB)
+		if err != nil {
+			return ErrDOBInvalid
+		}
+		earliest := time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)
+		if t.Before(earliest) || t.After(time.Now().UTC()) {
+			return ErrDOBInvalid
+		}
+	}
+	return nil
+}
 
 type Repo struct{ db *sql.DB }
 
@@ -42,8 +129,8 @@ func NewRepo(db *sql.DB) *Repo { return &Repo{db: db} }
 var palette = []string{"#ff6b6b", "#4ecdc4", "#ffe66d", "#a78bfa", "#f97316", "#60a5fa", "#34d399", "#f472b6"}
 
 func (r *Repo) Create(ctx context.Context, in CreateInput) (*Rower, error) {
-	if in.Name == "" {
-		return nil, ErrNameRequired
+	if err := validateCreate(in); err != nil {
+		return nil, err
 	}
 	if in.Color == "" {
 		in.Color = palette[uint64(time.Now().UnixNano())%uint64(len(palette))]
@@ -135,12 +222,12 @@ type UpdateInput struct {
 }
 
 func (r *Repo) Update(ctx context.Context, id string, in UpdateInput) (*Rower, error) {
+	if err := validateUpdate(in); err != nil {
+		return nil, err
+	}
 	sets := []string{}
 	args := []any{}
 	if in.Name != nil {
-		if *in.Name == "" {
-			return nil, ErrNameRequired
-		}
 		sets = append(sets, "name=?")
 		args = append(args, *in.Name)
 	}
