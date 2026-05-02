@@ -99,7 +99,7 @@ Backend not renamed. Env-var contract still old.
 ### Features
 
 - **FEAT-0003 export CSV/FIT/TCX** — 0%. CSV minimum for v1.
-- **FEAT-0003 7-day soft-delete cleanup job** — flag exists, no expiry sweep.
+- ~~**FEAT-0003 7-day soft-delete cleanup job**~~ — superseded by FEAT-0009 (immediate hard delete, no Papierkorb). Dead `SoftDeleteSession` helper + `deleted_at` filters removed 2026-05-02.
 - **FEAT-0003 history date-range filter UI** — missing.
 - **FEAT-0004 New-PB notification overlay** — API present, UI incomplete.
 - **FEAT-0004 theme switcher location** — settings UI unclear.

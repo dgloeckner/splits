@@ -122,12 +122,17 @@ func TestListSessionsExcludesDeleted(t *testing.T) {
 	db, _ := Open(filepath.Join(t.TempDir(), "t.db"))
 	defer db.Close()
 	ids := seedSessions(t, db, 3)
-	if err := SoftDeleteSession(context.Background(), db.Handle(), ids[1], time.Now().UTC()); err != nil {
-		t.Fatalf("soft delete: %v", err)
+	// Post-FEAT-0009: deletion is hard, not soft. Removing the row
+	// from sessions is enough to drop it from list output.
+	if _, err := db.Handle().Exec(`DELETE FROM strokes WHERE session_id = ?`, ids[1]); err != nil {
+		t.Fatalf("delete strokes: %v", err)
+	}
+	if _, err := db.Handle().Exec(`DELETE FROM sessions WHERE id = ?`, ids[1]); err != nil {
+		t.Fatalf("delete session: %v", err)
 	}
 	rows, _ := ListSessions(context.Background(), db.Handle(), 10, 0, "")
 	if len(rows) != 2 {
-		t.Errorf("got %d rows, want 2 (one soft-deleted)", len(rows))
+		t.Errorf("got %d rows, want 2 (one hard-deleted)", len(rows))
 	}
 	for _, r := range rows {
 		if r.ID == ids[1] {
@@ -162,7 +167,13 @@ func TestGetSessionNilForMissingOrDeleted(t *testing.T) {
 	}
 
 	ids := seedSessions(t, db, 1)
-	_ = SoftDeleteSession(context.Background(), db.Handle(), ids[0], time.Now().UTC())
+	// Hard-delete (post-FEAT-0009): drop dependents first, then the row.
+	if _, err := db.Handle().Exec(`DELETE FROM strokes WHERE session_id = ?`, ids[0]); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Handle().Exec(`DELETE FROM sessions WHERE id = ?`, ids[0]); err != nil {
+		t.Fatal(err)
+	}
 	got, err = GetSession(context.Background(), db.Handle(), ids[0])
 	if err != nil || got != nil {
 		t.Errorf("expected nil for deleted session; got %v / %v", got, err)

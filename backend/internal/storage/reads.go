@@ -78,8 +78,7 @@ func ListSessions(ctx context.Context, db *sql.DB, limit, offset int, rowerID st
 	rows, err := db.QueryContext(ctx, `
 		SELECT `+sessionSelectCols+`
 		FROM sessions s
-		WHERE s.deleted_at IS NULL
-		  AND COALESCE(s.total_strokes, 0) > 0`+rowerFilter+`
+		WHERE COALESCE(s.total_strokes, 0) > 0`+rowerFilter+`
 		ORDER BY s.started_at DESC
 		LIMIT ? OFFSET ?`, args...)
 	if err != nil {
@@ -99,12 +98,12 @@ func ListSessions(ctx context.Context, db *sql.DB, limit, offset int, rowerID st
 }
 
 // GetSession returns the session with the given id, or (nil, nil) if
-// not found or soft-deleted.
+// not found. Hard-delete is the only deletion semantics post-FEAT-0009.
 func GetSession(ctx context.Context, db *sql.DB, id string) (*SessionRow, error) {
 	row := db.QueryRowContext(ctx, `
 		SELECT `+sessionSelectCols+`
 		FROM sessions s
-		WHERE s.id = ? AND s.deleted_at IS NULL`, id)
+		WHERE s.id = ?`, id)
 	r, err := scanSession(row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
