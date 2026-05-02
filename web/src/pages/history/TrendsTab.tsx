@@ -37,12 +37,23 @@ export function TrendsTab() {
       <RangeTabs value={range} onChange={setRange} />
       {isPending && <p className={styles.placeholder}>Lädt …</p>}
       {error && <p className={styles.placeholder}>Konnte Trends nicht laden.</p>}
-      {data && data.totals.sessions === 0 && (
-        <p className={styles.placeholder} data-testid="trends-empty">
-          Noch keine Sessions im Zeitraum.
-        </p>
-      )}
-      {data && data.totals.sessions > 0 && <TrendsContent data={data} />}
+      {data && (() => {
+        // Render charts when EITHER the headline period has sessions
+        // OR the wider chart window does. Month/week range tend to
+        // hit the empty branch when the user rowed in earlier weeks
+        // but not the current one — the bars still carry useful
+        // history, so don't hide them.
+        const hasChartData =
+          data.performance.points.length > 0 || data.efficiency.points.length > 0
+        if (data.totals.sessions === 0 && !hasChartData) {
+          return (
+            <p className={styles.placeholder} data-testid="trends-empty">
+              Noch keine Sessions im Zeitraum.
+            </p>
+          )
+        }
+        return <TrendsContent data={data} />
+      })()}
     </div>
   )
 }

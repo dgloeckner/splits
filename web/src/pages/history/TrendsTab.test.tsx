@@ -96,10 +96,28 @@ describe('TrendsTab', () => {
     })
   })
 
-  it('shows the empty placeholder when totals.sessions is zero', async () => {
+  it('keeps showing charts when current period has zero sessions but earlier chart points exist', async () => {
     setupFetch((url) => {
       if (url.includes('/api/v1/rowers/R1/trends')) {
         return new Response(JSON.stringify(trendsBody({ sessions: 0 })), { status: 200 })
+      }
+      return null as unknown as Response
+    })
+    wrap()
+    // Period card stays visible (now shows 0 sessions honestly) and
+    // the chart sections still render off the prior-month points.
+    await waitFor(() => expect(screen.getByText('Diesen Monat')).toBeInTheDocument())
+    expect(screen.queryByTestId('trends-empty')).not.toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Leistung' })).toBeInTheDocument()
+  })
+
+  it('shows the empty placeholder only when totals AND chart points are empty', async () => {
+    setupFetch((url) => {
+      if (url.includes('/api/v1/rowers/R1/trends')) {
+        const body = trendsBody({ sessions: 0 })
+        body.performance.points = []
+        body.efficiency.points = []
+        return new Response(JSON.stringify(body), { status: 200 })
       }
       return null as unknown as Response
     })

@@ -61,3 +61,8 @@ out/
 # --- Rust ---
 target/
 Cargo.lock
+
+# --- splits-specific ---
+.claude/worktrees/
+backend/splits
+dev/caddy_darwin_amd64_custom
