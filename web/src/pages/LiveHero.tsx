@@ -84,6 +84,7 @@ export function LiveHero({ state, target }: Props) {
           <span
             className={`${styles.splitValue} tnum`}
             data-target-status={paused ? undefined : splitStat}
+            data-testid="hero-split"
           >
             {splitText}
           </span>
@@ -103,11 +104,13 @@ export function LiveHero({ state, target }: Props) {
           label="Zeit"
           value={paused ? blank : time.text}
           paused={time.paused}
+          testId="hero-zeit"
         />
         <HeroCell
           label="Distanz"
           value={paused ? blank : distance.text}
           paused={distance.paused}
+          testId="hero-distanz"
         />
         <HeroCell
           label="SPM"
@@ -115,9 +118,9 @@ export function LiveHero({ state, target }: Props) {
           animate={!paused}
           targetText={target?.spm ? formatSpmRange(target.spm) : undefined}
           targetStatus={paused ? undefined : spmStat}
-          testId="spm-cell"
+          testId="hero-spm"
         />
-        <HeroCell label="Watt" value={wattsText} animate={!paused} />
+        <HeroCell label="Watt" value={wattsText} animate={!paused} testId="hero-watt" />
       </div>
     </section>
   )
@@ -150,6 +153,7 @@ function HeroCell({
       <span
         className={`${styles.secondaryValue} tnum`}
         data-target-status={targetStatus}
+        data-testid={testId ? `${testId}-value` : undefined}
       >
         {animate ? <CountUpText value={value} /> : value}
       </span>

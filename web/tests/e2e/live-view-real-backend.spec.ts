@@ -1,69 +1,46 @@
-import { test, expect } from '@playwright/test'
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { mkdtempSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { seedRower } from './helpers/rower'
+import { test } from './fixtures'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { loadFixtureStats } from './helpers/fixtureStats'
 
-let backend: ChildProcessWithoutNullStreams | null = null
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const FIXTURE = '../specs/int/fixtures/ipm/session-short.csv'
+const FIXTURE_ABS = resolve(
+  __dirname,
+  '..',
+  '..',
+  '..',
+  'specs/int/fixtures/ipm/session-short.csv',
+)
 
-test.beforeAll(async () => {
-  const tmp = mkdtempSync(join(tmpdir(), 'splits-e2e-'))
-  backend = spawn('go', ['run', './cmd/splits'], {
-    cwd: join(process.cwd(), '..', 'backend'),
-    env: {
-      ...process.env,
-      SPLITS_ADDR: ':8080',
-      SPLITS_DB_PATH: join(tmp, 'e2e.db'),
-      SPLITS_FIXTURE: '../specs/int/fixtures/ipm/session-short.csv',
-      SPLITS_FIXTURE_RATE: 'fast',
-      SPLITS_IDLE_TIMEOUT: '60s',
-    },
-    stdio: ['ignore', 'pipe', 'pipe'],
-    detached: true,
+test.describe.configure({ mode: 'serial' }) // shares port 8080
+test.setTimeout(60_000)
+
+test('live view: hero metrics match the fixture within EMA tolerances', async ({
+  startBackend,
+  seedActiveRower,
+  home,
+  live,
+}) => {
+  // realtime pacing: frames flow over the fixture's wall-clock span
+  // (≈58 s active). The test asserts mid-stream so dead-reckoning,
+  // smoothing, and pause-blanking aren't all racing the assertions.
+  // 60 s idle keeps the session open through the full read window.
+  await startBackend({
+    fixture: FIXTURE,
+    fixtureRate: 'realtime',
+    idleTimeout: '60s',
+    fixtureDelay: '4s',
   })
-  backend.stderr?.on('data', (d) => process.stderr.write(`[be] ${d}`))
-  // Wait for /api/health. go run needs time to compile on first run.
-  const deadline = Date.now() + 60_000
-  while (Date.now() < deadline) {
-    try {
-      const r = await fetch('http://localhost:8080/api/health')
-      if (r.ok) return
-    } catch {
-      /* not up yet */
-    }
-    await new Promise((r) => setTimeout(r, 100))
-  }
-  throw new Error('backend did not come up')
-})
+  await seedActiveRower()
 
-test.afterAll(async () => {
-  if (backend?.pid) {
-    try {
-      process.kill(-backend.pid, 'SIGTERM')
-    } catch {
-      /* already gone */
-    }
-  }
-  backend = null
-  // Wait for port 8080 to free so the next spec can bind it.
-  for (let i = 0; i < 30; i++) {
-    try {
-      const r = await fetch('http://localhost:8080/api/health', { signal: AbortSignal.timeout(200) })
-      r.body?.cancel()
-    } catch {
-      return
-    }
-    await new Promise((r) => setTimeout(r, 100))
-  }
-})
+  const fx = loadFixtureStats(FIXTURE_ABS)
 
-test('live view shows real split from backend fixture', async ({ page, context }) => {
-  await seedRower(context)
-  await page.goto('/')
-  // Fast-pacing fixture may emit session_end (which clears stroke state)
-  // before we finish reading. Assert on the mid-session signal: the hero's
-  // split pace becomes a real m:ss.d value once the reducer has 2+ strokes.
-  const split = page.locator('.tnum').filter({ hasText: /^\d+:\d{2}\.\d$/ }).first()
-  await expect(split).toBeVisible({ timeout: 10_000 })
+  await home.open()
+  await home.startFreeRow()
+
+  // Need ≥2 strokes to seed pace EMA. With realtime pacing strokes
+  // arrive every 2–3 s; allow up to 20 s for the first valid split.
+  await live.waitForLiveSplit(20_000)
+  await live.expectHeroMatchesFixture(fx)
 })

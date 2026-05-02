@@ -5,6 +5,7 @@ import { OnboardingPage } from './pages/OnboardingPage'
 import { HomePage } from './pages/HomePage'
 import { WorkoutFlow } from './pages/WorkoutFlow'
 import { HistoryPage } from './pages/HistoryPage'
+import { LivePage } from './pages/LivePage'
 
 type SeedRowerOpts = { name?: string }
 
@@ -26,6 +27,7 @@ export type TestFixtures = {
   home: HomePage
   workoutFlow: WorkoutFlow
   history: HistoryPage
+  live: LivePage
 
   /** Poll /sessions until an ended one shows up; throws on timeout. */
   waitForEndedSession: typeof waitForEndedSession
@@ -62,6 +64,7 @@ export const test = base.extend<TestFixtures>({
   home: async ({ page }, use) => use(new HomePage(page)),
   workoutFlow: async ({ page }, use) => use(new WorkoutFlow(page)),
   history: async ({ page }, use) => use(new HistoryPage(page)),
+  live: async ({ page }, use) => use(new LivePage(page)),
 
   waitForEndedSession: async ({}, use) => use(waitForEndedSession),
 })

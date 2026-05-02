@@ -1,77 +1,53 @@
-import { test, expect } from '@playwright/test'
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { mkdtempSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { seedRower } from './helpers/rower'
+import { test, expect } from './fixtures'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { loadFixtureStats } from './helpers/fixtureStats'
 
-let backend: ChildProcessWithoutNullStreams | null = null
+const __dirname = dirname(fileURLToPath(import.meta.url))
+const FIXTURE = '../specs/int/fixtures/ipm/session-short.csv'
+const FIXTURE_ABS = resolve(
+  __dirname,
+  '..',
+  '..',
+  '..',
+  'specs/int/fixtures/ipm/session-short.csv',
+)
 
-test.beforeAll(async () => {
-  const tmp = mkdtempSync(join(tmpdir(), 'splits-e2e-history-'))
-  backend = spawn('go', ['run', './cmd/splits'], {
-    cwd: join(process.cwd(), '..', 'backend'),
-    env: {
-      ...process.env,
-      SPLITS_ADDR: ':8080',
-      SPLITS_DB_PATH: join(tmp, 'e2e.db'),
-      SPLITS_FIXTURE: '../specs/int/fixtures/ipm/session-short.csv',
-      SPLITS_FIXTURE_RATE: 'fast',
-      SPLITS_IDLE_TIMEOUT: '1s',
-    },
-    stdio: ['ignore', 'pipe', 'pipe'],
-    detached: true,
+test.describe.configure({ mode: 'serial' })
+test.setTimeout(90_000)
+
+test('history detail: hero numerics + chart paths match the fixture', async ({
+  startBackend,
+  seedActiveRower,
+  home,
+  history,
+  waitForEndedSession,
+}) => {
+  // Fast pacing flushes the fixture in ms; idle 2 s closes the session
+  // soon after EOF. fixtureDelay defers playback so the UI can start
+  // the session via the "Nur rudern" button before any frames flow.
+  await startBackend({
+    fixture: FIXTURE,
+    fixtureRate: 'fast',
+    idleTimeout: '5s',
+    fixtureDelay: '4s',
   })
-  backend.stderr?.on('data', (d) => process.stderr.write(`[be] ${d}`))
+  const rower = await seedActiveRower()
+  const fx = loadFixtureStats(FIXTURE_ABS)
 
-  const healthDeadline = Date.now() + 60_000
-  while (Date.now() < healthDeadline) {
-    try {
-      const r = await fetch('http://localhost:8080/api/health')
-      if (r.ok) break
-    } catch {
-      /* wait */
-    }
-    await new Promise((r) => setTimeout(r, 100))
-  }
+  await home.open()
+  await home.startFreeRow()
 
-  // Wait for at least one completed (ended_at non-null) session.
-  for (let i = 0; i < 100; i++) {
-    const r = await fetch('http://localhost:8080/api/v1/sessions')
-    const body = (await r.json()) as { sessions: { ended_at?: string }[] }
-    if (body.sessions.some((s) => s.ended_at)) return
-    await new Promise((r) => setTimeout(r, 200))
-  }
-  throw new Error('no completed session appeared')
-})
+  // Wait for backend to close the session (fixture EOF + 2 s idle).
+  const ended = await waitForEndedSession(rower.id, 30_000)
+  // Backend's total_distance_m = distance covered during strokes
+  // (last active frame minus first stroke frame), not the absolute
+  // odometer reading.
+  expect(ended.total_distance_m ?? 0).toBeGreaterThanOrEqual(fx.distanceCoveredM - 15)
+  expect(ended.total_distance_m ?? 0).toBeLessThanOrEqual(fx.distanceCoveredM + 15)
 
-test.afterAll(async () => {
-  if (backend?.pid) {
-    try {
-      process.kill(-backend.pid, 'SIGTERM')
-    } catch {
-      /* already gone */
-    }
-  }
-  backend = null
-  for (let i = 0; i < 30; i++) {
-    try {
-      const r = await fetch('http://localhost:8080/api/health', { signal: AbortSignal.timeout(200) })
-      r.body?.cancel()
-    } catch {
-      return
-    }
-    await new Promise((r) => setTimeout(r, 100))
-  }
-})
-
-test('history list shows a completed session; detail page renders charts', async ({ page, context }) => {
-  await seedRower(context)
-  await page.goto('/historie')
-  const firstRow = page.locator('a[href^="/historie/"]').first()
-  await expect(firstRow).toBeVisible({ timeout: 10_000 })
-  await firstRow.click()
-  await expect(page.getByText(/Split-Verlauf/)).toBeVisible({ timeout: 10_000 })
-  await expect(page.getByText(/Watt-Verlauf/)).toBeVisible()
-  await expect(page.getByText(/SPM-Verlauf/)).toBeVisible()
+  await history.openSessions()
+  await history.expectFirstSessionDistanceNear(fx)
+  await history.openFirstSession()
+  await history.expectDetailMatchesFixture(fx)
 })

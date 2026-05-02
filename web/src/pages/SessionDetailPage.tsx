@@ -110,39 +110,49 @@ export function SessionDetailPage() {
 
       <section className={styles.hero}>
         <div className={styles.heroMain}>
-          <span className={styles.heroValue}>{fmtMeters(s.total_distance_m ?? null)} m</span>
-          <span className={styles.heroValue}>{mmss(s.total_time_sec ?? null)}</span>
+          <span className={styles.heroValue} data-testid="detail-total-distance">
+            {fmtMeters(s.total_distance_m ?? null)} m
+          </span>
+          <span className={styles.heroValue} data-testid="detail-total-time">
+            {mmss(s.total_time_sec ?? null)}
+          </span>
         </div>
         <div className={styles.heroSecondary}>
           <div className={styles.heroSecondaryRow}>
             <span className={`label-sm ${styles.heroSecondaryKey}`}>Ø Split</span>
-            <span className={styles.heroSecondaryValue}>
+            <span className={styles.heroSecondaryValue} data-testid="detail-avg-split">
               {pace500m(s.summary?.avg_pace_sec_per_500m ?? null)}
             </span>
           </div>
           <div className={styles.heroSecondaryRow}>
             <span className={`label-sm ${styles.heroSecondaryKey}`}>Ø SPM</span>
-            <span className={styles.heroSecondaryValue}>
+            <span className={styles.heroSecondaryValue} data-testid="detail-avg-spm">
               {fmtFloat(s.summary?.avg_spm ?? null, 1)}
             </span>
           </div>
           <div className={styles.heroSecondaryRow}>
             <span className={`label-sm ${styles.heroSecondaryKey}`}>Ø Watt</span>
-            <span className={styles.heroSecondaryValue}>{fmtInt(s.summary?.avg_power_w ?? null)}</span>
+            <span className={styles.heroSecondaryValue} data-testid="detail-avg-watt">
+              {fmtInt(s.summary?.avg_power_w ?? null)}
+            </span>
           </div>
           <div className={styles.heroSecondaryRow}>
             <span className={`label-sm ${styles.heroSecondaryKey}`}>Ø DPS</span>
-            <span className={styles.heroSecondaryValue}>
+            <span className={styles.heroSecondaryValue} data-testid="detail-avg-dps">
               {fmtFloat(s.summary?.avg_dps ?? null, 2)}
             </span>
           </div>
           <div className={styles.heroSecondaryRow}>
             <span className={`label-sm ${styles.heroSecondaryKey}`}>Ø SPI</span>
-            <span className={styles.heroSecondaryValue}>{fmtInt(s.summary?.avg_spi ?? null)}</span>
+            <span className={styles.heroSecondaryValue} data-testid="detail-avg-spi">
+              {fmtInt(s.summary?.avg_spi ?? null)}
+            </span>
           </div>
           <div className={styles.heroSecondaryRow}>
             <span className={`label-sm ${styles.heroSecondaryKey}`}>Schläge</span>
-            <span className={styles.heroSecondaryValue}>{fmtInt(s.total_strokes ?? null)}</span>
+            <span className={styles.heroSecondaryValue} data-testid="detail-total-strokes">
+              {fmtInt(s.total_strokes ?? null)}
+            </span>
           </div>
         </div>
       </section>
