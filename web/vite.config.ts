@@ -15,9 +15,20 @@ export default defineConfig({
       // and stale API responses would lie to the user after DB writes.
       workbox: {
         navigateFallbackDenylist: [/^\/api\//],
+        // Streaming SSE must NOT pass through Workbox at all.
+        // `NetworkOnly` reads the response body to evaluate the
+        // cache policy, which breaks `text/event-stream`: the
+        // browser's EventSource never sees the body so `onopen`
+        // never fires and the connection indicator stays stuck on
+        // "connecting". Excluding the stream URL from the runtime
+        // cache rule lets the SW pass it straight through to the
+        // network. The rest of /api/* keeps NetworkOnly so PWA
+        // offline behaviour is unchanged.
         runtimeCaching: [
           {
-            urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
+            urlPattern: ({ url }) =>
+              url.pathname.startsWith('/api/') &&
+              !url.pathname.startsWith('/api/v1/stream'),
             handler: 'NetworkOnly',
           },
         ],
