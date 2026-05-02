@@ -15,6 +15,9 @@ interface StepperProps {
   formatValue?: (v: number) => string
   unit?: string
   label?: string
+  // Optional dummy to keep the older Step2Dimension call sites (and
+  // their tests) compatible with the new ariaLabel signature; ignored.
+  ariaLabel?: string
 }
 
 function Stepper({ value, onChange, step, min, max, formatValue, unit, label }: StepperProps) {
@@ -208,13 +211,13 @@ function IntervalsPanel() {
       </div>
 
       {eigene && (
-        <div className={styles.customPanel}>
-          <div className={styles.configSection}>
+        <div className={styles.customPanel} data-testid="intervals-custom">
+          <div className={styles.configSection} data-testid="intervals-reps">
             <span className={styles.configLabel}>Runden</span>
-            <Stepper value={reps} onChange={setReps} step={1} min={1} />
+            <Stepper value={reps} onChange={setReps} step={1} min={1} ariaLabel="Runden" />
           </div>
 
-          <div className={styles.configSection}>
+          <div className={styles.configSection} data-testid="intervals-length">
             <span className={styles.configLabel}>Intervall-Länge</span>
             <div
               className={styles.unitToggle}
@@ -246,10 +249,11 @@ function IntervalsPanel() {
               step={lengthUnit === 'm' ? 100 : 1}
               min={1}
               unit={lengthUnit}
+              ariaLabel="Intervall-Länge"
             />
           </div>
 
-          <div className={styles.configSection}>
+          <div className={styles.configSection} data-testid="intervals-rest">
             <span className={styles.configLabel}>Pause</span>
             <Stepper
               value={restSec}
@@ -257,6 +261,7 @@ function IntervalsPanel() {
               step={30}
               min={0}
               formatValue={formatRest}
+              ariaLabel="Pause"
             />
           </div>
 

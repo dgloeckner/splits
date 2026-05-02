@@ -128,20 +128,7 @@ func run() error {
 		},
 		StartID: startID,
 		LoadWorkout: func(id string) (*workout.Workout, error) {
-			w, err := workoutRepo.GetWorkout(ctx, id)
-			if err != nil || w == nil {
-				return w, err
-			}
-			if cfg.E2EInstantWorkouts {
-				// E2E tests can't afford the 5-minute warmup default
-				// because the fixture replay is shorter than that.
-				// Zero warmup + cooldown so the work segment starts
-				// at frame 1 and "complete" can fire inside the
-				// fixture window. Production never sets the env.
-				w.WarmupSec = 0
-				w.CooldownSec = 0
-			}
-			return w, nil
+			return workoutRepo.GetWorkout(ctx, id)
 		},
 	})
 	dispatcher := &pipeline.Dispatcher{Ring: ring, Persist: persistCh, Broadcast: broadcastCh}

@@ -109,9 +109,6 @@ test('free row: Nur rudern → fixture replays → session in History + PB exist
 // ────────────────────────────────────────────────────────────────────
 
 test('distance workout: pick 500 m → fixture replays → goal reached → session in History', async ({ page, context }) => {
-  // SPLITS_E2E_INSTANT_WORKOUTS=1 (set by spawnBackend) zeros warmup
-  // + cooldown so the fixture can clear 500 m of work distance and
-  // fire complete=true before EOF.
   await startFreshBackend({ fixture: FIXTURE_M3, idleTimeout: '20s', fixtureDelay: '4s' })
   const r = await seedRowerVia(context)
   await page.goto('/')
@@ -121,6 +118,12 @@ test('distance workout: pick 500 m → fixture replays → goal reached → sess
   await expect(page.getByText(/Distanz wählen/)).toBeVisible()
   await page.getByRole('button', { name: '500 m' }).first().click()
   await page.getByRole('button', { name: /Moderat/i }).click()
+
+  // Disable the default 5-min warmup + cooldown via UI so the fixture
+  // window goes straight to PhaseWork and 500 m of distance can
+  // accumulate before EOF.
+  await page.getByRole('checkbox', { name: 'Warm-up' }).uncheck()
+  await page.getByRole('checkbox', { name: 'Cool-down' }).uncheck()
 
   await expect(page.getByRole('button', { name: /^Start$/ })).toBeVisible()
   await Promise.all([
@@ -148,6 +151,12 @@ test('time workout: pick 10 min → fixture replays → session in History', asy
   await page.getByRole('button', { name: '10 min' }).first().click()
   await page.getByRole('button', { name: /Locker/i }).click()
 
+  // Skip warmup so the fixture goes straight to PhaseWork; the 10 min
+  // goal still won't fit in the 284 s replay, so EOF closes the
+  // session — but with strokes + time accumulated.
+  await page.getByRole('checkbox', { name: 'Warm-up' }).uncheck()
+  await page.getByRole('checkbox', { name: 'Cool-down' }).uncheck()
+
   await expect(page.getByRole('button', { name: /^Start$/ })).toBeVisible()
   await Promise.all([
     page.waitForURL(/\/live/),
@@ -163,18 +172,43 @@ test('time workout: pick 10 min → fixture replays → session in History', asy
 })
 
 // ────────────────────────────────────────────────────────────────────
-// Flow 5: Interval workout — 8×500 m
+// Flow 5: Interval workout — custom 2×200 m that fits inside the
+// 1035 m fixture so we exercise the goal-reached close path.
 // ────────────────────────────────────────────────────────────────────
 
-test('intervals: 8×500 m → fixture replays → session in History', async ({ page, context }) => {
+test('intervals: custom 2×200 m → fixture replays → goal reached → session in History', async ({ page, context }) => {
   await startFreshBackend({ fixture: FIXTURE_M3, idleTimeout: '20s', fixtureDelay: '4s' })
   const r = await seedRowerVia(context)
   await page.goto('/')
   await expect(page.getByTestId('picker-just-row')).toBeVisible()
 
   await page.getByTestId('picker-intervals').click()
-  await page.getByRole('button', { name: /8.*500\s*m/i }).first().click()
+
+  // Drive the "Eigene" custom-interval form: defaults are
+  // reps=4 / length=500 m / rest=120 s. Step the values down to
+  // 2 / 200 / 30 so total work = 400 m fits inside the 1035 m fixture
+  // and the workout completes via goal-reached.
+  await page.getByRole('button', { name: 'Eigene' }).click()
+  await expect(page.getByTestId('intervals-custom')).toBeVisible()
+
+  // Runden: 4 → 2 (step 1, decrement twice).
+  for (let i = 0; i < 2; i++) {
+    await page.getByTestId('intervals-reps').getByRole('button', { name: '−' }).click()
+  }
+  // Intervall-Länge: 500 m → 200 m (step 100, decrement three times).
+  for (let i = 0; i < 3; i++) {
+    await page.getByTestId('intervals-length').getByRole('button', { name: '−' }).click()
+  }
+  // Pause: 120 s → 30 s (step 30, decrement three times).
+  for (let i = 0; i < 3; i++) {
+    await page.getByTestId('intervals-rest').getByRole('button', { name: '−' }).click()
+  }
+  await page.getByRole('button', { name: 'Übernehmen' }).click()
+
   await page.getByRole('button', { name: /Hart/i }).click()
+
+  await page.getByRole('checkbox', { name: 'Warm-up' }).uncheck()
+  await page.getByRole('checkbox', { name: 'Cool-down' }).uncheck()
 
   await expect(page.getByRole('button', { name: /^Start$/ })).toBeVisible()
   await Promise.all([
@@ -182,12 +216,12 @@ test('intervals: 8×500 m → fixture replays → session in History', async ({ 
     page.getByRole('button', { name: /^Start$/ }).click(),
   ])
 
-  // 8×500 = 4000 m work + 7×120 s rest. Fixture totals 1035 m and
-  // ~284 s, so the workout won't complete. Session ends on EOF; we
-  // assert it persisted with stroke + distance > 0.
+  // 2×200 m = 400 m work + 1×30 s rest. Comfortably inside 1035 m and
+  // 284 s of fixture data, so the sessionizer fires complete=true and
+  // closes the session before fixture EOF.
   const ended = await waitForEndedSession(r.id, 30_000)
+  expect(ended.total_distance_m ?? 0).toBeGreaterThanOrEqual(400)
   expect(ended.total_strokes ?? 0).toBeGreaterThan(0)
-  expect(ended.total_distance_m ?? 0).toBeGreaterThan(0)
 })
 
 // ────────────────────────────────────────────────────────────────────
