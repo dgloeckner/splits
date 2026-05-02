@@ -47,6 +47,12 @@
   color: var(--text, #fff);
   border: 1px solid rgba(255,255,255,0.3);
 }
+.workoutLabel {
+  font-size: 14px;
+  color: var(--accent-pb, #ed7b7b);
+  margin: 0;
+  letter-spacing: 0.02em;
+}
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes pop-in {
   from { transform: scale(0.92); opacity: 0; }

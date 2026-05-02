@@ -11,9 +11,10 @@ type Props = {
   banners: SessionPBBanners
   onDismiss: () => void
   onShowInRekorde: (item: Item) => void
+  workoutLabel?: string
 }
 
-export function PBOverlay({ banners, onDismiss, onShowInRekorde }: Props) {
+export function PBOverlay({ banners, onDismiss, onShowInRekorde, workoutLabel }: Props) {
   const items: Item[] = useMemo(
     () => [
       ...banners.distance.map((pb): Item => ({ kind: 'distance', pb })),
@@ -31,6 +32,9 @@ export function PBOverlay({ banners, onDismiss, onShowInRekorde }: Props) {
   return (
     <div className={styles.scrim} role="dialog" aria-modal="true" data-testid="pb-overlay">
       <div className={styles.holder}>
+        {workoutLabel && (
+          <p className={styles.workoutLabel}>Workout abgeschlossen · {workoutLabel}</p>
+        )}
         {items.length > 1 && (
           <div className={styles.dots} data-testid="pb-stack-dots">
             {items.map((_, i) => (

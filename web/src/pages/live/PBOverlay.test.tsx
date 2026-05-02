@@ -72,4 +72,23 @@ describe('PBOverlay', () => {
     fireEvent.click(screen.getByRole('button', { name: /In Rekorden zeigen/i }))
     expect(onShow).toHaveBeenCalledTimes(1)
   })
+
+  it('shows workout-complete subtitle when label is provided', () => {
+    render(
+      <PBOverlay
+        banners={onlyDist}
+        workoutLabel="2× 500m"
+        onDismiss={() => {}}
+        onShowInRekorde={() => {}}
+      />,
+    )
+    expect(screen.getByText(/Workout abgeschlossen · 2× 500m/)).toBeTruthy()
+  })
+
+  it('omits workout-complete subtitle when label not provided', () => {
+    render(
+      <PBOverlay banners={onlyDist} onDismiss={() => {}} onShowInRekorde={() => {}} />,
+    )
+    expect(screen.queryByText(/Workout abgeschlossen/)).toBeNull()
+  })
 })
