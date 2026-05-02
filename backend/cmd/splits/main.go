@@ -193,9 +193,31 @@ func pickProducer(cfg *config.Config) ipm.Producer {
 		if cfg.FixtureRate == "fast" {
 			pacing = ipm.PacingFast
 		}
-		return &ipm.FixtureProducer{Path: cfg.Fixture, Pacing: pacing}
+		var p ipm.Producer = &ipm.FixtureProducer{Path: cfg.Fixture, Pacing: pacing}
+		if cfg.FixtureDelay > 0 {
+			p = &delayedProducer{inner: p, delay: cfg.FixtureDelay}
+		}
+		return p
 	}
 	return &ipm.SerialProducer{Port: cfg.SerialPort, Baud: cfg.SerialBaud}
+}
+
+// delayedProducer wraps another producer and sleeps the configured
+// duration before delegating to it. Used by e2e tests so rower
+// onboarding + "Start" click finish before the fixture begins.
+type delayedProducer struct {
+	inner ipm.Producer
+	delay time.Duration
+}
+
+func (d *delayedProducer) Run(ctx context.Context, out chan<- ipm.Frame) error {
+	select {
+	case <-time.After(d.delay):
+	case <-ctx.Done():
+		close(out)
+		return ctx.Err()
+	}
+	return d.inner.Run(ctx, out)
 }
 
 // enforceTLSPolicy refuses to start in production-like configurations
