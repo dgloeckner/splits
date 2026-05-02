@@ -1,0 +1,48 @@
+.fieldset {
+  border: none;
+  padding: 0;
+  margin: 0 0 var(--space-3) 0;
+}
+
+.legend {
+  font-size: var(--text-label-sm);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-on-surface-variant);
+  padding: 0 0 var(--space-1) 0;
+}
+
+.segments {
+  display: flex;
+  gap: 0;
+  border-radius: var(--radius-button);
+  border: 1px solid var(--color-outline-variant);
+  overflow: hidden;
+  background: var(--color-surface-container);
+}
+
+.seg, .segActive {
+  flex: 1;
+  padding: var(--space-1) var(--space-2);
+  border: none;
+  background: transparent;
+  color: var(--color-on-surface);
+  font: inherit;
+  font-size: var(--text-body-lg);
+  cursor: pointer;
+  transition: background var(--motion-state) var(--motion-ease);
+}
+
+.seg + .seg, .seg + .segActive, .segActive + .seg, .segActive + .segActive {
+  border-left: 1px solid var(--color-outline-variant);
+}
+
+.segActive {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  font-weight: 600;
+}
+
+.seg:hover {
+  background: var(--color-surface-container-high);
+}

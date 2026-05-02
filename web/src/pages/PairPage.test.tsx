@@ -44,7 +44,7 @@ describe('PairPage', () => {
       new Response('gone', { status: 410 })) as unknown as typeof fetch
     render(withProviders('/pair#t=stale'))
     await waitFor(() =>
-      expect(screen.getByText(/Code .* nicht mehr gültig/i)).toBeTruthy(),
+      expect(screen.getAllByText(/Code nicht mehr gültig/i).length).toBeGreaterThan(0),
     )
   })
 

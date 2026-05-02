@@ -1,0 +1,66 @@
+.page {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3);
+  background: var(--color-surface);
+  color: var(--color-on-surface);
+}
+
+.card {
+  width: min(90vw, 420px);
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-card);
+  padding: var(--space-4) var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+  text-align: center;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.25);
+}
+
+.title {
+  font: 600 var(--text-headline-sm) / var(--text-headline-sm-lh) var(--font-display);
+  margin: 0;
+}
+
+.body {
+  margin: 0;
+  color: var(--color-on-surface-variant);
+  font: var(--text-body-lg) / var(--text-body-lg-lh) var(--font-body);
+}
+
+.spinner {
+  display: inline-block;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 3px solid var(--color-outline-variant);
+  border-top-color: var(--color-primary);
+  animation: spin 800ms linear infinite;
+  margin: 0 auto;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.cta {
+  display: inline-block;
+  margin: 0 auto;
+  padding: var(--space-1) var(--space-3);
+  font: inherit;
+  font-size: var(--text-body-lg);
+  font-weight: 600;
+  border-radius: var(--radius-button);
+  border: 1px solid var(--color-outline-variant);
+  background: transparent;
+  color: var(--color-on-surface);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.cta:hover {
+  background: var(--color-surface-container-high);
+}

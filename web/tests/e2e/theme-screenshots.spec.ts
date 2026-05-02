@@ -109,8 +109,19 @@ for (const vp of VIEWPORTS) {
           await page.evaluate((t) => {
             document.documentElement.setAttribute('data-theme', t)
           }, theme)
+          // AppLayout's main content area has overflow-y:auto on a
+          // 100dvh container, so Playwright's fullPage capture
+          // doesn't follow the inner scroll. Lift overflow + height
+          // constraints for the snapshot so the whole document is
+          // captured. Tag is per-page; navigation resets it.
+          await page.addStyleTag({
+            content: `
+              html, body { height: auto !important; overflow: visible !important; }
+              [class*="AppLayout"], main { height: auto !important; overflow: visible !important; }
+            `,
+          })
           // Allow the next paint frame to flush styles.
-          await page.waitForTimeout(150)
+          await page.waitForTimeout(200)
 
           await page.screenshot({
             path: `tests/e2e/theme-screenshots/${route.name}-${theme}-${vp.name}.png`,
