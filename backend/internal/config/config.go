@@ -21,7 +21,14 @@ type Config struct {
 	FixtureRate string
 	LogLevel    string
 	IdleTimeout time.Duration // consumed by the sessionizer in M2
-	DevMode     bool
+	// FixtureDelay defers the FixtureProducer's first frame by this
+	// duration. Zero means "start immediately" (production / dev). E2E
+	// tests set it to a few seconds so the user-flow under test (rower
+	// onboarding + click "Start") finishes BEFORE the fixture begins
+	// streaming, otherwise frames are dropped at the sessionizer
+	// because no session is open yet. Env: SPLITS_FIXTURE_DELAY.
+	FixtureDelay time.Duration
+	DevMode      bool
 	// PublicURL is the externally-reachable base URL of this instance
 	// (e.g. https://splits.example.de). Used to build absolute pairing
 	// URLs encoded into QR codes. Empty means "derive from request Host".
@@ -61,6 +68,13 @@ func Load(env Lookup) (*Config, error) {
 	}
 	c.IdleTimeout = idle
 
+	if v, ok := env("SPLITS_FIXTURE_DELAY"); ok && v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil {
+			return nil, fmt.Errorf("SPLITS_FIXTURE_DELAY %q: %w", v, err)
+		}
+		c.FixtureDelay = d
+	}
 	c.DevMode = get(env, "SPLITS_DEV_MODE", "") == "1"
 	c.PublicURL = get2(env, "SPLITS_PUBLIC_URL", "HOMEERGO_PUBLIC_URL", "")
 
