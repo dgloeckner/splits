@@ -38,7 +38,21 @@ func NewHandler(ring *pipeline.Ring, b *Broadcaster, snap Snapshotter) http.Hand
 		w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
 		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Connection", "keep-alive")
+		// Hint reverse proxies (Caddy, nginx, Vite dev) not to buffer
+		// this stream — without it headers can sit in the proxy
+		// until the first body write, and the browser's EventSource
+		// `onopen` (which is what flips the UI indicator to green)
+		// doesn't fire until headers arrive. With no events queued
+		// that delay is ~20 s (next ping tick). Cf. Vite issue
+		// #11434.
+		w.Header().Set("X-Accel-Buffering", "no")
 		w.WriteHeader(http.StatusOK)
+		// Emit an SSE comment + flush so the client transitions to
+		// `open` immediately. Comments are ignored by the
+		// EventSource parser; they exist exactly for this kind of
+		// keep-alive / header-flush trick.
+		_, _ = fmt.Fprint(w, ": ready\n\n")
+		flusher.Flush()
 
 		afterID := parseAfterID(r)
 		// Guard against stale Last-Event-ID from a previous backend

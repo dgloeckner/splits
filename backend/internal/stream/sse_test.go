@@ -64,7 +64,16 @@ func readOneEvent(t *testing.T, rd *bufio.Reader) string {
 		}
 		if line == "\n" {
 			if b.Len() > 0 {
-				return b.String()
+				out := b.String()
+				// SSE comment lines start with ":". The handler emits
+				// ": ready\n\n" right after WriteHeader so proxies
+				// flush headers and the browser fires `onopen`
+				// immediately. Skip them in tests.
+				if strings.HasPrefix(out, ":") {
+					b.Reset()
+					continue
+				}
+				return out
 			}
 			continue
 		}
