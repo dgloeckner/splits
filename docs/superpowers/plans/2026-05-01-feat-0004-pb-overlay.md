@@ -1,5 +1,8 @@
 # FEAT-0004 PB Notification Overlay Implementation Plan
 
+> **Status:** Shipped — merged to main 2026-05-01.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the small "🏆" pills in `SessionEndedOverlay` with the hero / multi-stack PB notification per the Stitch designs (`PB: 500m Bestzeit (Dark)`, `PB: Mehrere Bestleistungen (Stack)`, `PB: 10 km Bestzeit (Light)`, `PB: Wattbestzeit (Tablet)`, `Workout abgeschlossen: Neue Bestzeit!`, `Bestleistungen werden berechnet…`). Backend wiring already exists; this plan is web-only.

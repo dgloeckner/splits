@@ -1,6 +1,6 @@
 # FEAT-0005: Training Goals
 
-- **Status**: Draft
+- **Status**: Draft — deferred past v1
 - **Depends on**: FEAT-0004
 
 ## Summary

@@ -1,6 +1,6 @@
 # FEAT-0004: Per-User Statistics
 
-- **Status**: Draft
+- **Status**: Partial — PB compute + lifetime + new-PB overlay shipped (FEAT-0010, FEAT-0004 overlay 2026-05-01); Profil page grid + theme switcher deferred
 - **Depends on**: FEAT-0003
 
 ## Reference
@@ -25,25 +25,27 @@ running totals, and trends over time.
 
 ## Acceptance criteria
 
-- [ ] PB per standard distance computed over all sessions for that user.
+- [x] PB per standard distance computed over all sessions for that user.
       Computed from sample series (rolling window) so a PB can exist inside a
       longer session, not just as a complete session of that distance.
-- [ ] Lifetime totals updated after every session.
-- [ ] Weekly summary shows: sessions, total distance, total time, avg split.
-- [ ] Monthly summary same, over calendar months.
-- [ ] New PB triggers a ribbon-badge at the top of the Hero-Summary on
-      the Session-Detail screen (see FEAT-0003a); copy is German
-      (`🏆 Neue Bestzeit über 2000 m`).
+- [x] Lifetime totals updated after every session.
+- [x] Weekly summary shows: sessions, total distance, total time, avg split.
+- [x] Monthly summary same, over calendar months.
+- [x] New PB triggers an overlay (FEAT-0004 PBOverlay, 2026-05-01) at session
+      end with hero card + delta vs previous + deep-link to Rekorde tab. Copy
+      is German (`Neue 500m-Bestzeit!`, etc.).
 - [ ] Profile page renders the PB grid as 2×3 on phone portrait, with
-      monospaced digits for the PB times.
+      monospaced digits for the PB times. — Profil page UI deferred past v1.
 - [ ] "Diese Woche" bar chart shows one bar per weekday (Mo–So), anchored
-      on the user's locale-aware week start.
+      on the user's locale-aware week start. — deferred past v1.
 - [ ] Profile Theme Switcher offers `System / Dunkel / Hell`; the
       choice applies instantly (no reload), writes `data-theme` on
-      `<html>`, and persists across sessions.
-- [ ] Initial page render honours the persisted theme before React
+      `<html>`, and persists across sessions. — switcher logic exists but
+      no Profil-page UI yet; deferred.
+- [x] Initial page render honours the persisted theme before React
       mounts (no flash of the wrong theme).
-- [ ] Stats recompute correctly after a session is deleted.
+- [x] Stats recompute correctly after a session is deleted (sched.Wait +
+      hard-delete).
 
 ## UX notes
 

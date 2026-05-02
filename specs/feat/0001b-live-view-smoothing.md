@@ -1,6 +1,6 @@
 # FEAT-0001b: Live-View Smoothing & Dead-Reckoning
 
-- **Status**: Draft
+- **Status**: Shipped
 - **Depends on**: FEAT-0001 (Realtime Live View), FEAT-0001a (Customizable Live Dashboard)
 
 ## Summary

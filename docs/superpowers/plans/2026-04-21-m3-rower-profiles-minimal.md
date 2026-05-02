@@ -1,5 +1,8 @@
 # M3 Rower Profiles (Minimal) Implementation Plan
 
+> **Status:** Shipped — merged to main.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the hardcoded `'local-rower'` stub with real rower identities, bound to the device, so every persisted session is attributed to the currently active rower and multiple rowers can share one device via an avatar switcher.

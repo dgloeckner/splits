@@ -1,5 +1,8 @@
 # Training Modes — Backend Implementation Plan
 
+> **Status:** Shipped — merged to main.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add backend data model, repositories, and HTTP API for workouts + user-named favorites. Extend sessions with `workout_id`. Leave segment derivation and SSE-progress for the second backend plan once the frontend flow exists — this plan ends at "FE can create a workout, attach it to a session, and list favorites."

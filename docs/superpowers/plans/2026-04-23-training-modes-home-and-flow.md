@@ -1,5 +1,8 @@
 # Training Modes — Home Screen + Selection Flow (Frontend)
 
+> **Status:** Shipped — merged to main.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans. Steps use checkbox (`- [ ]`) syntax.
 
 **Goal:** New `/` Home screen (tiles, last-training card, favorites) and `/workout/new` guided selection flow (3 steps + confirm). Flow creates a workout via backend, attaches it to the next session, then navigates to Live View. Live View is reachable at `/live` and is session-only.

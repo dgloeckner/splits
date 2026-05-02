@@ -1,6 +1,6 @@
 # ADR-0008: Cleanup, Retention, and Derived-Stats Architecture
 
-- **Status**: Proposed
+- **Status**: Accepted (2026-05-02)
 - **Date**: 2026-04-25
 
 ## Context

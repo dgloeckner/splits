@@ -1,5 +1,8 @@
 # Training Modes — Live-View Overlay (frontend-driven segments)
 
+> **Status:** Shipped — merged to main.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans. Steps use checkbox (`- [ ]`) syntax.
 
 **Goal:** While a workout-tagged session is active, Live View shows a progress strip, segment label + countdown, and green/yellow target-range indicators on split + SPM tiles. Abort button falls back to Just Row without stopping the session. Segments are derived **client-side** from the workout record; the backend stays simple.

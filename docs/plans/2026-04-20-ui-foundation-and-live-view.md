@@ -1,5 +1,8 @@
 # UI Foundation + Live View Implementation Plan
 
+> **Historical:** Plan written before brand rename. Code paths and env vars referenced (`cmd/homeergo`, `HOMEERGO_*`) shifted to `cmd/splits` and `SPLITS_*` on 2026-04-28. See `backend/README.md` for current config; the legacy fallback shim is documented there.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Take the frontend from "empty scaffold with a HealthIndicator" to a working Live View — design-system tokens + primitives, routed app shell, SSE-driven state, the fixed hero block, and the customisable 2×3 tile grid with picker. This is the primary interaction surface of the app; everything else (history, profile, goals, workout builder, PWA offline cache) gets its own follow-up plan once this lands.

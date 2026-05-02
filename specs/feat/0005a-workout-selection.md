@@ -1,6 +1,6 @@
 # FEAT-0005a: Workout-Auswahl (kombinierter Builder/Library)
 
-- **Status**: Draft
+- **Status**: Shipped
 - **Depends on**: FEAT-0001 (Live View), FEAT-0007 (Metrics), FEAT-0008 (Design System)
 
 ## Reference

@@ -1,6 +1,6 @@
 # FEAT-0001: Realtime Live View
 
-- **Status**: Draft
+- **Status**: Shipped (M2)
 - **Depends on**: INT-0001 (IPM serial protocol), INT-0002 (live-stream
   SSE API), FEAT-0002 (rower onboarding), FEAT-0007 (metrics
   catalogue), FEAT-0008 (visual design system)

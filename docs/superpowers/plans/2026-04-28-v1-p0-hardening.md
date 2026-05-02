@@ -1,5 +1,8 @@
 # v1 P0 Hardening Implementation Plan
 
+> **Status:** Shipped — merged to main 2026-04-28.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Close every P0 item from `docs/v1-review.md` that does not require a full feature build — security boundaries, data correctness, brand rename to **`splits`** (rowing-jargon plural), deploy-readiness gates.

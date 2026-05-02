@@ -1,6 +1,6 @@
 # FEAT-0003: Session History
 
-- **Status**: Draft
+- **Status**: Partial — list/detail shipped; soft-delete superseded by FEAT-0009 (hard-delete); export + date-range filter UI + charts deferred
 - **Depends on**: FEAT-0001, FEAT-0002
 
 ## Summary
@@ -27,13 +27,15 @@ filtered, and inspected in detail.
       default 60 s.
 - [ ] Session stores: start/end timestamps, user_id, totals (distance, time,
       avg split, avg SPM, avg watts, avg HR), plus a per-tick sample series.
-- [ ] Sample series retains enough resolution to reconstruct charts (target:
-      1 Hz).
-- [ ] List view paginates, supports user + date filters.
-- [ ] Detail view shows line charts per metric over the session duration.
+- [x] Sample series retains enough resolution to reconstruct charts (target:
+      1 Hz). — downsampled `summary.samples` shipped (FEAT-0009 Mode 0).
+- [x] List view paginates (limit/offset), filters by user (`rower_id`).
+- [ ] Date-range filter UI — deferred.
+- [ ] Detail view shows line charts per metric over the session duration. —
+      chart library not picked yet; deferred.
 - [ ] Export produces a file that at minimum opens cleanly in a spreadsheet
-      (CSV) for v1. FIT/TCX export is stretch.
-- [ ] Deleting a session is reversible for 7 days (soft delete).
+      (CSV) for v1. FIT/TCX export is stretch. — deferred.
+- [x] ~~Deleting a session is reversible for 7 days (soft delete).~~ **Superseded by FEAT-0009 (2026-05-02)**: deletion is immediate hard-delete with confirmation. No Papierkorb, no `deleted_at` column.
 
 ## UX notes
 
