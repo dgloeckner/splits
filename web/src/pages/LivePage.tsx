@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { getWorkout } from '../api/workouts'
+import { workoutChipLabel } from '../util/workoutLabel'
 import { useLiveSession } from '../live/LiveSessionContext'
 import { ConnectionBanner } from '../live/ConnectionBanner'
 import { useWorkoutProgress } from '../live/useWorkoutProgress'
@@ -12,6 +14,8 @@ import { SegmentStatus } from './live/SegmentStatus'
 import { SessionEndedOverlay } from './live/SessionEndedOverlay'
 import { useSegmentTransitions } from '../live/useSegmentTransitions'
 import { usePBBanners } from './live/usePBBanners'
+import { PBOverlay } from './live/PBOverlay'
+import { useActiveRower } from '../hooks/useActiveRower'
 import styles from './LivePage.module.css'
 
 function LiveBody() {
@@ -89,6 +93,7 @@ export function LivePage() {
   type Latched = {
     summary: NonNullable<typeof state.summary>
     sessionId: string | null
+    workoutId: string | null
   }
   const STORAGE_KEY = 'ruderergo:latched-summary'
   const [latched, setLatched] = useState<Latched | null>(() => {
@@ -104,10 +109,15 @@ export function LivePage() {
 
   const incomingSummary = state.summary
   const incomingSessionId = state.session?.session_id ?? null
+  const incomingWorkoutId = state.session?.workout_id ?? null
   useEffect(() => {
     const prev = prevSummaryRef.current
     if (!prev && incomingSummary) {
-      const next: Latched = { summary: incomingSummary, sessionId: incomingSessionId }
+      const next: Latched = {
+        summary: incomingSummary,
+        sessionId: incomingSessionId,
+        workoutId: incomingWorkoutId,
+      }
       setLatched(next)
       try {
         window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next))
@@ -115,7 +125,7 @@ export function LivePage() {
       qc.invalidateQueries({ queryKey: ['sessions'] })
     }
     prevSummaryRef.current = incomingSummary
-  }, [incomingSummary, incomingSessionId, qc])
+  }, [incomingSummary, incomingSessionId, incomingWorkoutId, qc])
 
   // FEAT-0009 acceptance: closing the tab does NOT end the session.
   // The backend's idle / inactivity timeouts, the workout-complete
@@ -124,6 +134,8 @@ export function LivePage() {
   // Last-Event-ID and Snapshot.
 
   const banners = usePBBanners(latched?.sessionId ?? null)
+  const activeRower = useActiveRower()
+  const activeRowerId = activeRower.data?.id ?? null
   const dismiss = () => {
     setLatched(null)
     try {
@@ -131,11 +143,52 @@ export function LivePage() {
     } catch {}
   }
 
+  const latchedWorkoutId = latched?.workoutId ?? null
+  const workoutQ = useQuery({
+    queryKey: ['workout', latchedWorkoutId],
+    queryFn: () => (latchedWorkoutId ? getWorkout(latchedWorkoutId) : Promise.resolve(null)),
+    enabled: !!latchedWorkoutId,
+    staleTime: 60_000,
+  })
+  const workoutLabel = workoutQ.data ? workoutChipLabel(workoutQ.data) : undefined
+
+  const [pbDismissed, setPbDismissed] = useState(false)
+  // Reset when latched clears (next session-end can show PBs again).
+  useEffect(() => {
+    if (!latched) setPbDismissed(false)
+  }, [latched])
+
+  const pbCount =
+    banners.kind === 'resolved'
+      ? banners.banners.distance.length + banners.banners.window.length
+      : 0
+  const showPbOverlay =
+    !!latched && banners.kind === 'resolved' && pbCount > 0 && !pbDismissed
+  const showSummary = !!latched && !showPbOverlay
+
   return (
     <>
       <LiveBody />
       <ConnectionBanner />
-      {latched && (
+      {showPbOverlay && banners.kind === 'resolved' && (
+        <PBOverlay
+          banners={banners.banners}
+          workoutLabel={workoutLabel}
+          onDismiss={() => setPbDismissed(true)}
+          onShowInRekorde={(item) => {
+            const ridParam = activeRowerId
+              ? `?rower=${encodeURIComponent(activeRowerId)}`
+              : ''
+            const anchor =
+              item.kind === 'distance'
+                ? `#pb-distance-${item.pb.distance_m}`
+                : `#pb-window-${item.pb.metric}-${item.pb.window_size}`
+            dismiss()
+            nav(`/historie/rekorde${ridParam}${anchor}`)
+          }}
+        />
+      )}
+      {showSummary && latched && (
         <SessionEndedOverlay
           summary={latched.summary}
           banners={banners}

@@ -295,3 +295,16 @@
   gap: 2px;
   min-width: 0;
 }
+
+.flash {
+  animation: pb-flash 2s ease-out;
+}
+
+@keyframes pb-flash {
+  0% {
+    background: rgba(237, 123, 123, 0.55);
+  }
+  100% {
+    background: transparent;
+  }
+}
