@@ -20,10 +20,10 @@
 ## M1 — Walking skeleton
 
 - [x] ADR-0003 accepted: **Go backend + React (Vite, TS) frontend**, SQLite via modernc, single embedded binary
-- [ ] Repo layout scaffolded (`backend/`, `web/`, shared `Makefile`)
-- [ ] Go port of the IPM parser from `traces/ipm_parser.py` under `backend/internal/ipm/`, with table-driven tests against the CSV fixtures
-- [ ] Backend reads serial, prints parsed strokes to stdout
-- [ ] Minimal HTTP `/api/health` endpoint
+- [x] Repo layout scaffolded (`backend/`, `web/`, `scripts/backend.sh`)
+- [x] Go port of the IPM parser from `traces/ipm_parser.py` under `backend/internal/ipm/`, with table-driven tests against the CSV fixtures
+- [x] Backend reads serial, prints parsed strokes to stdout
+- [x] Minimal HTTP `/api/health` endpoint
 - [x] Vite+React skeleton boots as a PWA, shows placeholder, dev-proxies `/api/*` to the Go backend
 
 ## M2 — Live view
@@ -37,14 +37,16 @@
 
 - [x] FEAT-0002 (minimal slice): rower profiles, device-cookie active-rower, top-bar switcher (plan `docs/superpowers/plans/2026-04-21-m3-rower-profiles-minimal.md`). Full QR pairing + admin deferred.
 - [x] FEAT-0003: sessions written to SQLite, idle-timeout boundary detection (plan `docs/plans/2026-04-21-m3-backend-sse-persistence.md`) — write path only; history read UI deferred
-- [x] History read API + list/detail UI shipped (plan `docs/plans/2026-04-21-history-read-ui.md`) — soft-delete column live; filter chips, trends sub-tab, exports deferred
+- [x] History read API + list/detail UI shipped (plan `docs/plans/2026-04-21-history-read-ui.md`) — hard-delete canonical (FEAT-0009 superseded soft-delete 2026-05-02); filter chips, trends sub-tab, exports deferred
 - [x] Session assigned to the currently "active" user in UI
 
 ## M4 — History & statistics
 
-- [ ] FEAT-0003: session list, detail view with charts
-- [ ] FEAT-0004: per-user PBs (500 / 1000 / 2000 / 5000 / 6000 / 10000 m),
-      totals, weekly trends
+- [x] FEAT-0003: session list + detail view shipped (charts deferred — chart library not picked)
+- [x] FEAT-0004: per-user PBs computed via `on_session_change`; lifetime totals; trends API + Trends tab; new-PB overlay (FEAT-0004 PBOverlay shipped 2026-05-01). Profil page UI (PB grid, weekly bar chart, theme switcher) deferred past v1.
+- [ ] FEAT-0003 charts: pick chart library + integrate session-detail line charts
+- [ ] FEAT-0003 export: CSV minimum (FIT/TCX stretch)
+- [ ] FEAT-0004 Profil page: 2×3 PB grid, "Diese Woche" bar chart, theme switcher
 
 ## M5 — Goals
 

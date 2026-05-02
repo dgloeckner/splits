@@ -1,5 +1,8 @@
 # M3 Backend — SSE Live Stream + Session Persistence Implementation Plan
 
+> **Historical:** Plan written before brand rename. Code paths and env vars referenced (`cmd/homeergo`, `HOMEERGO_*`) shifted to `cmd/splits` and `SPLITS_*` on 2026-04-28. See `backend/README.md` for current config; the legacy fallback shim is documented there.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Take the backend from "serial reader that prints frames to stdout" to a working live stream the PWA can consume: sessionizer + dispatcher + ring + persister + SSE broadcaster, backed by SQLite. The frontend's `EventSourceChannel` must see real data flowing; completed sessions must land in SQLite.

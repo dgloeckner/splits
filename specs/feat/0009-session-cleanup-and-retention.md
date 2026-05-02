@@ -1,6 +1,6 @@
 # FEAT-0009: Session Cleanup & Data Retention
 
-- **Status**: Draft
+- **Status**: Shipped (2026-05-02)
 - **Depends on**: ADR-0004 (local-first SQLite), ADR-0007 (event
   ingestion), FEAT-0003 (session history), FEAT-0004 (statistics),
   FEAT-0010 (achievements & PBs)
@@ -239,43 +239,43 @@ delete already lives on the session card.)
 
 ## Acceptance criteria
 
-- [ ] At `session_end`, `summary_json.samples` is populated with a
+- [x] At `session_end`, `summary_json.samples` is populated with a
       downsampled chart series (≤ 360 points), achievements are
       computed via `on_session_change(created)`, and all rows in
       `strokes` for that `session_id` are deleted — all in the
       same transaction.
-- [ ] After session_end, `SELECT COUNT(*) FROM strokes WHERE
+- [x] After session_end, `SELECT COUNT(*) FROM strokes WHERE
       session_id = ?` returns 0 for every session in the database.
       The boot-time janitor flags any violation.
-- [ ] Session-Detail charts (FEAT-0003a) render from
+- [x] Session-Detail charts (FEAT-0003a) render from
       `summary_json.samples` for every past session — including
       sessions just ended seconds ago, not only "old" ones.
-- [ ] `DELETE /api/v1/sessions/{id}` (after user confirmation in
+- [x] `DELETE /api/v1/sessions/{id}` (after user confirmation in
       the UI dialog) hard-deletes the session row + its
       achievement rows, then fires `on_session_change(hard_deleted)`,
       all in the same transaction.
-- [ ] Confirmation dialog names the session (date / distance /
+- [x] Confirmation dialog names the session (date / distance /
       duration) and offers exactly two actions (`Löschen`,
       `Abbrechen`).
-- [ ] Deleted session disappears from all queries — Historie,
+- [x] Deleted session disappears from all queries — Historie,
       lifetime totals, PB grid — immediately.
-- [ ] `GET /api/v1/session/active` returns the open session id +
+- [x] `GET /api/v1/session/active` returns the open session id +
       `Last-Event-ID` if a session is open; `204` otherwise. The
       Live page uses it on mount to re-attach.
-- [ ] Closing the browser tab does **not** end the session.
-- [ ] Live page shows a primary "Beenden" CTA whenever a session
+- [x] Closing the browser tab does **not** end the session.
+- [x] Live page shows a primary "Beenden" CTA whenever a session
       is open; tapping it (after confirmation) calls
       `POST /api/v1/session/end`.
-- [ ] Sessionizer's `IdleTimeout` (no frames) and
+- [x] Sessionizer's `IdleTimeout` (no frames) and
       `InactivityTimeout` (no progress) both still close the
       session as fallbacks.
-- [ ] `on_session_change` is idempotent: calling it twice with the
+- [x] `on_session_change` is idempotent: calling it twice with the
       same `(rower_id, session_id, change_type)` yields the same
       final state.
-- [ ] Daily recompute sweep logs (does not auto-correct) any drift
+- [x] Daily recompute sweep logs (does not auto-correct) any drift
       between lifetime stats and the sum over active sessions.
-- [ ] `strokes.session_id` has `ON DELETE CASCADE`.
-- [ ] Boot-time janitor finalises any session with `ended_at NULL`
+- [x] `strokes.session_id` has `ON DELETE CASCADE`.
+- [x] Boot-time janitor finalises any session with `ended_at NULL`
       older than the inactivity threshold, marking
       `summary_json.flags ⊃ ["recovered"]`.
 

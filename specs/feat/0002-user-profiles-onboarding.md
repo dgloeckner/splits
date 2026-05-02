@@ -1,6 +1,6 @@
 # FEAT-0002: User Profiles & Onboarding
 
-- **Status**: Draft
+- **Status**: Partial — pairing flow shipped (FEAT-0002 implementation plan, 2026-04-28); admin tier removed per ADR-0005 Subsequent decisions; admin household screen deferred
 - **Depends on**: ADR-0005 (per-rower QR pairing), ADR-0006 (TLS)
 
 ## Summary

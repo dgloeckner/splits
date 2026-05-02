@@ -1,5 +1,8 @@
 # Phase-Aware Session Implementation Plan
 
+> **Status:** Shipped — merged to main.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make warmup/rest/cooldown strokes invisible to PB candidates and summary totals, hard-reset live display at warmup→work, end the session authoritatively from the backend when cooldown elapses.

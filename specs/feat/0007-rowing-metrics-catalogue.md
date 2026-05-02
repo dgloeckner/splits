@@ -1,6 +1,6 @@
 # FEAT-0007: Rowing Metrics Catalogue
 
-- **Status**: Draft
+- **Status**: Shipped
 - **Depends on**: INT-0001 (IPM live-data stream)
 - **Referenced by**: FEAT-0001 (live view), FEAT-0003 (session history),
   FEAT-0004 (user statistics), FEAT-0005 (training goals)

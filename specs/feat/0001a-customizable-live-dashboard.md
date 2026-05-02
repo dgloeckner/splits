@@ -1,6 +1,6 @@
 # FEAT-0001a: Customizable Live Dashboard
 
-- **Status**: Draft
+- **Status**: Shipped
 - **Depends on**: FEAT-0001 (Live View hero), FEAT-0002 (user profiles),
   FEAT-0007 (metrics catalogue), FEAT-0008 (design system)
 

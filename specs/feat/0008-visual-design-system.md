@@ -1,6 +1,6 @@
 # FEAT-0008: Visual Design System & Responsive UX
 
-- **Status**: Draft
+- **Status**: Shipped
 - **Depends on**: ADR-0003 (Go + React, vanilla CSS + CSS custom
   properties, self-hosted fonts)
 - **Referenced by**: FEAT-0001 (live view), FEAT-0001a (customisable

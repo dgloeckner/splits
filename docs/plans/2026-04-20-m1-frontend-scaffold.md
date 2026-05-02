@@ -1,5 +1,8 @@
 # M1 Frontend Scaffold Implementation Plan
 
+> **Historical:** Plan written before brand rename. Code paths and env vars referenced (`cmd/homeergo`, `HOMEERGO_*`) shifted to `cmd/splits` and `SPLITS_*` on 2026-04-28. See `backend/README.md` for current config; the legacy fallback shim is documented there.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Scaffold a Vite + React + TypeScript PWA under `web/` that boots on `npm run dev`, dev-proxies `/api/*` to the Go backend on `:8080`, ships a manifest + service worker via `vite-plugin-pwa`, and renders a placeholder page that pings `/api/health` to prove the proxy works end-to-end.

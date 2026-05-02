@@ -1,6 +1,6 @@
 # FEAT-0010: Achievements & Personal Bests
 
-- **Status**: Draft
+- **Status**: Shipped
 - **Depends on**: FEAT-0003 (session history), FEAT-0004 (statistics —
   supersedes its PB section), FEAT-0007 (metrics catalogue),
   FEAT-0009 (cleanup — consumes `on_session_change`), ADR-0004

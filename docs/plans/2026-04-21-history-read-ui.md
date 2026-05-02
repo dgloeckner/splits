@@ -1,5 +1,8 @@
 # History Read Path + List/Detail UI Implementation Plan
 
+> **Historical:** Plan written before brand rename. Code paths and env vars referenced (`cmd/homeergo`, `HOMEERGO_*`) shifted to `cmd/splits` and `SPLITS_*` on 2026-04-28. See `backend/README.md` for current config; the legacy fallback shim is documented there.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Turn persisted sessions into a browsable history. Backend gains read endpoints (`GET /api/v1/sessions`, `…/{id}`, `…/{id}/samples`, `DELETE …/{id}`). Frontend gets a working Historie tab: list of past sessions + detail page with stacked metric charts.

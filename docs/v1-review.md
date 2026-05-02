@@ -1,7 +1,37 @@
 # v1 Review — Findings & Priority List
 
-Date: 2026-04-27
-Branch: feat/rekorde-tab
+Date: 2026-04-27 (initial audit) · Last updated 2026-05-02
+Branch: main
+
+> **Status as of 2026-05-02:** Most P0/P1 items below have shipped. The
+> file is kept as a historical record of the pre-hardening state plus
+> an active tracker for whatever is still outstanding. Authoritative
+> source for what is in main is `git log` and the FEAT spec Status
+> headers.
+>
+> **Shipped since the initial audit:**
+> - ✅ P0 hardening (auth boundaries, sessionizer race fix, persister
+>   bounded retry, cookie Secure, TLS startup gate, CSP/security
+>   headers, body-size limit, rate limit, brand rename
+>   `homeergo`→`splits`).
+> - ✅ FEAT-0002 pairing (mint/exchange/CLI; admin tier removed per
+>   ADR-0005 Subsequent decisions; admin household screen deferred).
+> - ✅ PWA SSE reconnect backoff + permanent-failure banner.
+> - ✅ P1 cleanup: TS strict, CORS guard, PII slog lint, dropped
+>   pre-M3 e2e suite.
+> - ✅ M6 deploy artifacts (`deploy/build.sh`, Caddyfile, systemd,
+>   daily backup, install.sh).
+> - ✅ FEAT-0004 PB notification overlay (PBOverlay + Rekorde anchor +
+>   workout subtitle).
+> - ✅ FEAT-0009 hard-delete (soft-delete code dropped 2026-05-02).
+>
+> **Still outstanding (P2, optional for v1 ship):**
+> - FEAT-0003 session-detail charts (chart library not picked).
+> - FEAT-0003 export CSV.
+> - FEAT-0003 history date-range filter UI.
+> - FEAT-0004 Profil page UI (PB grid 2×3, weekly bar chart, theme
+>   switcher).
+> - FEAT-0010 achievements row in session detail.
 
 ---
 

@@ -1,5 +1,8 @@
 # M1 Backend Skeleton Implementation Plan
 
+> **Historical:** Plan written before brand rename. Code paths and env vars referenced (`cmd/homeergo`, `HOMEERGO_*`) shifted to `cmd/splits` and `SPLITS_*` on 2026-04-28. See `backend/README.md` for current config; the legacy fallback shim is documented there.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Stand up the Go backend skeleton for the home-ergo project — a module layout, config loader, IPM A8 parser with golden tests against the captured CSV fixtures, a pluggable event producer (serial or fixture), and a minimal HTTP server with `/api/health` — such that running `go run ./cmd/homeergo` either reads the ergo over USB-serial or replays a captured session and prints one decoded stroke per line to stdout.

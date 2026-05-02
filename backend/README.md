@@ -1,4 +1,4 @@
-# backend — Home Ergo backend
+# backend — splits backend
 
 Go service that reads the FDF IPM serial console, derives per-stroke metrics, broadcasts a Server-Sent-Events stream, and persists sessions to SQLite.
 

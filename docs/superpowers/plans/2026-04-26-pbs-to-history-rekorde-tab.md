@@ -1,5 +1,8 @@
 # PBs → History Rekorde Tab Implementation Plan
 
+> **Status:** Shipped — merged to main.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Move all PB / achievement / consistency UI from `ProfilePage` to a new `Rekorde` tab under `/historie`. Profile keeps only identity + Wartung (housekeeping).

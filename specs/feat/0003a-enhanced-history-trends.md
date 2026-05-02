@@ -1,6 +1,6 @@
 # FEAT-0003a: Enhanced History & Trends
 
-- **Status**: Draft
+- **Status**: Partial — trends API + range tabs shipped; further chart variants deferred
 - **Depends on**: FEAT-0003 (Session History), FEAT-0004 (Per-User Statistics),
   FEAT-0005 (Training Goals), FEAT-0007 (Metrics Catalogue),
   FEAT-0008 (Design System)

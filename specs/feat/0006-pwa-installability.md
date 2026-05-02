@@ -1,6 +1,6 @@
 # FEAT-0006: PWA Installability & Offline Behaviour
 
-- **Status**: Draft
+- **Status**: Shipped
 - **Depends on**: FEAT-0008 (visual design system), FEAT-0003 (session
   history), ADR-0003 (tech stack)
 
