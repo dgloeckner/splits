@@ -28,7 +28,13 @@ type Config struct {
 	// streaming, otherwise frames are dropped at the sessionizer
 	// because no session is open yet. Env: SPLITS_FIXTURE_DELAY.
 	FixtureDelay time.Duration
-	DevMode      bool
+	// E2EInstantWorkouts zeros warmup/cooldown durations on every
+	// workout loaded by the sessionizer. Tests need it so a goal-
+	// reached close fires inside a fixture's runtime window without
+	// a 5-minute warmup eating the whole replay first. Production
+	// never sets it. Env: SPLITS_E2E_INSTANT_WORKOUTS=1.
+	E2EInstantWorkouts bool
+	DevMode            bool
 	// PublicURL is the externally-reachable base URL of this instance
 	// (e.g. https://splits.example.de). Used to build absolute pairing
 	// URLs encoded into QR codes. Empty means "derive from request Host".
@@ -75,6 +81,7 @@ func Load(env Lookup) (*Config, error) {
 		}
 		c.FixtureDelay = d
 	}
+	c.E2EInstantWorkouts = get(env, "SPLITS_E2E_INSTANT_WORKOUTS", "") == "1"
 	c.DevMode = get(env, "SPLITS_DEV_MODE", "") == "1"
 	c.PublicURL = get2(env, "SPLITS_PUBLIC_URL", "HOMEERGO_PUBLIC_URL", "")
 

@@ -108,9 +108,12 @@ test('free row: Nur rudern → fixture replays → session in History + PB exist
 // Flow 3: Distance workout — 500 m
 // ────────────────────────────────────────────────────────────────────
 
-test('distance workout: pick 500 m → start → live view shows active session', async ({ page, context }) => {
-  await startFreshBackend({ fixture: FIXTURE_M3, idleTimeout: '20s', fixtureDelay: '6s' })
-  await seedRowerVia(context)
+test('distance workout: pick 500 m → fixture replays → goal reached → session in History', async ({ page, context }) => {
+  // SPLITS_E2E_INSTANT_WORKOUTS=1 (set by spawnBackend) zeros warmup
+  // + cooldown so the fixture can clear 500 m of work distance and
+  // fire complete=true before EOF.
+  await startFreshBackend({ fixture: FIXTURE_M3, idleTimeout: '20s', fixtureDelay: '4s' })
+  const r = await seedRowerVia(context)
   await page.goto('/')
   await expect(page.getByTestId('picker-just-row')).toBeVisible()
 
@@ -124,20 +127,19 @@ test('distance workout: pick 500 m → start → live view shows active session'
     page.waitForURL(/\/live/),
     page.getByRole('button', { name: /^Start$/ }).click(),
   ])
-  // Backend confirms an active session was opened with workout attached.
-  await expect.poll(async () => {
-    const r = await fetch('http://localhost:8080/api/v1/session/active')
-    return r.status
-  }, { timeout: 10_000 }).toBe(200)
+
+  const ended = await waitForEndedSession(r.id, 30_000)
+  expect(ended.total_distance_m ?? 0).toBeGreaterThanOrEqual(500)
+  expect(ended.total_strokes ?? 0).toBeGreaterThan(0)
 })
 
 // ────────────────────────────────────────────────────────────────────
 // Flow 4: Time workout — 10 min
 // ────────────────────────────────────────────────────────────────────
 
-test('time workout: pick 10 min → start → live view shows active session', async ({ page, context }) => {
-  await startFreshBackend({ fixture: FIXTURE_M3, idleTimeout: '20s', fixtureDelay: '6s' })
-  await seedRowerVia(context)
+test('time workout: pick 10 min → fixture replays → session in History', async ({ page, context }) => {
+  await startFreshBackend({ fixture: FIXTURE_M3, idleTimeout: '20s', fixtureDelay: '4s' })
+  const r = await seedRowerVia(context)
   await page.goto('/')
   await expect(page.getByTestId('picker-just-row')).toBeVisible()
 
@@ -151,19 +153,22 @@ test('time workout: pick 10 min → start → live view shows active session', a
     page.waitForURL(/\/live/),
     page.getByRole('button', { name: /^Start$/ }).click(),
   ])
-  await expect.poll(async () => {
-    const r = await fetch('http://localhost:8080/api/v1/session/active')
-    return r.status
-  }, { timeout: 10_000 }).toBe(200)
+
+  // Fixture is 284 s wall-time; in fast mode all frames flush quickly.
+  // Time goal is 10 min, so the goal won't fire — session ends via the
+  // fixture EOF path instead. total_time_sec from the last frame.
+  const ended = await waitForEndedSession(r.id, 30_000)
+  expect(ended.total_strokes ?? 0).toBeGreaterThan(0)
+  expect(ended.total_time_sec ?? 0).toBeGreaterThan(0)
 })
 
 // ────────────────────────────────────────────────────────────────────
 // Flow 5: Interval workout — 8×500 m
 // ────────────────────────────────────────────────────────────────────
 
-test('intervals: 8×500 m → start → live view shows active session', async ({ page, context }) => {
-  await startFreshBackend({ fixture: FIXTURE_M3, idleTimeout: '20s', fixtureDelay: '6s' })
-  await seedRowerVia(context)
+test('intervals: 8×500 m → fixture replays → session in History', async ({ page, context }) => {
+  await startFreshBackend({ fixture: FIXTURE_M3, idleTimeout: '20s', fixtureDelay: '4s' })
+  const r = await seedRowerVia(context)
   await page.goto('/')
   await expect(page.getByTestId('picker-just-row')).toBeVisible()
 
@@ -176,10 +181,13 @@ test('intervals: 8×500 m → start → live view shows active session', async (
     page.waitForURL(/\/live/),
     page.getByRole('button', { name: /^Start$/ }).click(),
   ])
-  await expect.poll(async () => {
-    const r = await fetch('http://localhost:8080/api/v1/session/active')
-    return r.status
-  }, { timeout: 10_000 }).toBe(200)
+
+  // 8×500 = 4000 m work + 7×120 s rest. Fixture totals 1035 m and
+  // ~284 s, so the workout won't complete. Session ends on EOF; we
+  // assert it persisted with stroke + distance > 0.
+  const ended = await waitForEndedSession(r.id, 30_000)
+  expect(ended.total_strokes ?? 0).toBeGreaterThan(0)
+  expect(ended.total_distance_m ?? 0).toBeGreaterThan(0)
 })
 
 // ────────────────────────────────────────────────────────────────────

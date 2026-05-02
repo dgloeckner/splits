@@ -64,6 +64,10 @@ export async function spawnBackend(opts: BackendOptions = {}): Promise<BackendHa
     SPLITS_DB_PATH: dbPath,
     SPLITS_IDLE_TIMEOUT: opts.idleTimeout ?? '2s',
     SPLITS_DEV_MODE: '1',
+    // Zero warmup/cooldown on every workout the sessionizer loads so
+    // a goal-reached close fires inside the fixture's runtime window.
+    // Production never sets this.
+    SPLITS_E2E_INSTANT_WORKOUTS: '1',
   }
   if (opts.fixture) {
     env.SPLITS_FIXTURE = opts.fixture
