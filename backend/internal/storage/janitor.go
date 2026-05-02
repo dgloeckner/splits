@@ -56,7 +56,7 @@ func (j *BootJanitor) Run(ctx context.Context) {
 func (j *BootJanitor) finaliseOrphans(ctx context.Context) error {
 	rows, err := j.DB.QueryContext(ctx, `
 		SELECT id, rower_id FROM sessions
-		WHERE ended_at IS NULL AND deleted_at IS NULL`)
+		WHERE ended_at IS NULL`)
 	if err != nil {
 		return err
 	}
