@@ -116,6 +116,41 @@ describe('RekordeTab', () => {
     expect(screen.getByText(/-3s vs\. vorher/)).toBeInTheDocument()
   })
 
+  it('scrolls and flashes the row matching the URL hash', async () => {
+    window.history.replaceState(null, '', '/historie/rekorde#pb-distance-500')
+    const scrollSpy = vi.fn()
+    Element.prototype.scrollIntoView = scrollSpy as unknown as Element['scrollIntoView']
+
+    mockBackend({
+      pbs: {
+        distance: [
+          {
+            distance_m: 500,
+            time_sec: 134,
+            achieved_at: '2026-04-01T10:00:00Z',
+            source_session_started_at: '2026-04-01T10:00:00Z',
+            source_session_id: 'S1',
+          },
+        ],
+        window: [],
+        workout: [],
+      },
+    })
+    renderTab()
+    await waitFor(() =>
+      expect(screen.getByText(/Persönliche Bestzeiten · Distanzen/)).toBeInTheDocument(),
+    )
+
+    await waitFor(() => {
+      const row = document.getElementById('pb-distance-500')
+      expect(row).toBeTruthy()
+      expect(row?.className).toContain('flash')
+    })
+    expect(scrollSpy).toHaveBeenCalled()
+
+    window.history.replaceState(null, '', '/')
+  })
+
   it('renders achievement timeline with PB events sorted newest first', async () => {
     const old = new Date(Date.now() - 5 * 86_400_000).toISOString()
     const recent = new Date(Date.now() - 1 * 86_400_000).toISOString()

@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   getRowerAchievements,
@@ -23,6 +24,28 @@ export function RekordeTab() {
     queryFn: () => getRowerAchievements(rowerID!),
     enabled: !!rowerID,
   })
+
+  // Deep-link from PBOverlay: scroll the matching PB row into view and flash it.
+  // Re-runs when PB data resolves, so the lookup happens after rows are mounted.
+  // The DOM lookup is idempotent (no-op when no match), so multiple runs are safe.
+  const pbsReady = pbsQ.data ? pbsQ.data.distance.length + pbsQ.data.window.length : 0
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const hash = window.location.hash
+    if (!hash) return
+    const id = hash.slice(1)
+    const raf =
+      typeof window.requestAnimationFrame === 'function'
+        ? window.requestAnimationFrame(() => flashRow(id))
+        : (window.setTimeout(() => flashRow(id), 0) as unknown as number)
+    return () => {
+      if (typeof window.cancelAnimationFrame === 'function') {
+        window.cancelAnimationFrame(raf)
+      } else {
+        window.clearTimeout(raf)
+      }
+    }
+  }, [pbsReady])
 
   if (!rowerID || pbsQ.isPending) {
     return <p className={styles.empty}>Bestleistungen werden geladen …</p>
@@ -63,6 +86,16 @@ export function RekordeTab() {
       {timeline.length > 0 && <Timeline items={timeline} />}
     </>
   )
+}
+
+function flashRow(id: string): void {
+  const el = document.getElementById(id)
+  if (!el) return
+  if (typeof el.scrollIntoView === 'function') {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+  el.classList.add(styles.flash)
+  window.setTimeout(() => el.classList.remove(styles.flash), 2000)
 }
 
 type TimelineItem = {
@@ -271,7 +304,7 @@ function DistanceGrid({ byM }: { byM: Map<number, RowerPBs['distance'][number]> 
         {STANDARD_DISTANCES.map((m) => {
           const pb = byM.get(m)
           return (
-            <div key={m} className={styles.distanceCard}>
+            <div key={m} id={`pb-distance-${m}`} className={styles.distanceCard}>
               <span className={styles.distanceLabel}>{distanceLabel(m)}</span>
               <span className={styles.distanceValue}>
                 {pb ? mmssWhole(pb.time_sec) : '—'}
@@ -295,7 +328,11 @@ function WindowSection({ items }: { items: RowerPBs['window'] }) {
       <h2 className={styles.sectionLabel}>Bestleistungen · Fenster</h2>
       <div className={styles.windowList}>
         {items.map((w) => (
-          <div key={`${w.metric}-${w.window_size}`} className={styles.windowCard}>
+          <div
+            key={`${w.metric}-${w.window_size}`}
+            id={`pb-window-${w.metric}-${w.window_size}`}
+            className={styles.windowCard}
+          >
             <span className={styles.windowLabel}>{windowLabel(w)}</span>
             <span className={styles.windowValue}>{windowValue(w)}</span>
           </div>
