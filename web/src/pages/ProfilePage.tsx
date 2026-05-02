@@ -6,6 +6,7 @@ import { updateRower, type Rower } from '../api/rowers'
 import { computeBMI } from '../util/bmi'
 import { RowerStrip } from '../app/RowerStrip'
 import { PairingModal } from '../app/PairingModal'
+import { ThemeSwitcher } from './profile/ThemeSwitcher'
 import { Wartung } from './profile/Wartung'
 import styles from './ProfilePage.module.css'
 
@@ -200,6 +201,11 @@ export function ProfilePage() {
           ))}
         </section>
       )}
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionLabel}>Erscheinungsbild</h2>
+        <ThemeSwitcher />
+      </section>
 
       <section className={styles.section}>
         <h2 className={styles.sectionLabel}>Konto</h2>
