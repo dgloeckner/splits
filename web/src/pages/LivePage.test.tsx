@@ -149,6 +149,58 @@ describe('LivePage session-end overlay', () => {
     expect(screen.getByTestId('session-ended-overlay')).toBeInTheDocument()
   })
 
+  it('invalidates rower-pbs / lifetime / achievements / trends on session-end so Rekorde grid reflects the new PB', () => {
+    // Regression: a household member finished a 1 km row that set a
+    // new PB, the live page modal showed "Neue Bestzeit · 1 km", but
+    // the Rekorde tab still rendered "—" for the 1 km card. Cause:
+    // the rower-pbs query was warmed earlier in the same tab (e.g.
+    // from a previous Rekorde visit) and never invalidated when the
+    // session ended, so the cached pre-session PB list kept winning
+    // until something else triggered a refetch. Test asserts the
+    // invalidation contract on the null → summary transition.
+    const summary: SessionEndSummary = {
+      total_distance_m: 1035, total_time_sec: 284, total_strokes: 124,
+      avg_power_w: 259, peak_power_w: 322, avg_spm: 26, avg_dps: 8.35,
+      avg_pace_sec_per_500m: 137, session_calories: 112,
+    }
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const invalidate = vi.spyOn(qc, 'invalidateQueries')
+    const { rerender } = render(
+      <QueryClientProvider client={qc}>
+        <LiveSessionContext.Provider value={{ ...initialLiveState, summary: null }}>
+          <MemoryRouter initialEntries={['/live']}>
+            <Routes>
+              <Route path="/live" element={<LivePage />} />
+              <Route path="/" element={<div>HOME</div>} />
+            </Routes>
+          </MemoryRouter>
+        </LiveSessionContext.Provider>
+      </QueryClientProvider>,
+    )
+    invalidate.mockClear()
+    act(() => {
+      rerender(
+        <QueryClientProvider client={qc}>
+          <LiveSessionContext.Provider value={{ ...initialLiveState, summary }}>
+            <MemoryRouter initialEntries={['/live']}>
+              <Routes>
+                <Route path="/live" element={<LivePage />} />
+                <Route path="/" element={<div>HOME</div>} />
+              </Routes>
+            </MemoryRouter>
+          </LiveSessionContext.Provider>
+        </QueryClientProvider>,
+      )
+    })
+    const invalidatedKeys = invalidate.mock.calls
+      .map((c) => (c[0] as { queryKey?: readonly unknown[] } | undefined)?.queryKey?.[0])
+      .filter((k): k is string => typeof k === 'string')
+    expect(invalidatedKeys).toContain('rower-pbs')
+    expect(invalidatedKeys).toContain('rower-lifetime')
+    expect(invalidatedKeys).toContain('rower-achievements')
+    expect(invalidatedKeys).toContain('rower-trends')
+  })
+
   it('skips PBOverlay and shows summary directly when no PBs are present', () => {
     mockBannerState.current = {
       kind: 'resolved',

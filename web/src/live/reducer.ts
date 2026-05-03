@@ -125,6 +125,22 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
           return { ...state, stroke: null }
 
         case 'session_start':
+          // Snapshot replay after a reload re-emits the active
+          // session's session_start with the same session_id. Treat
+          // that as idempotent: refresh the session shell but keep
+          // sparklines, smoothing, and phase anchors so the live
+          // charts survive the reload. A genuinely new session
+          // (different id) still wipes everything.
+          // Implicit-stroke-created sessions leave rower_id empty;
+          // we still want a real session_start to re-anchor them
+          // (resets smoothed/sessionStartedAtMs). Only treat as
+          // idempotent when the hydrated session has full payload.
+          if (
+            state.session?.session_id === ev.data.session_id &&
+            state.session.rower_id
+          ) {
+            return { ...state, session: ev.data }
+          }
           return {
             ...state,
             session: ev.data,

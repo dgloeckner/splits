@@ -122,7 +122,16 @@ export function LivePage() {
       try {
         window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next))
       } catch {}
-      qc.invalidateQueries({ queryKey: ['sessions'] })
+      // Session-end writes new PBs / lifetime totals / achievements
+       // / trends rows server-side. Without invalidation here the
+       // Rekorde tab keeps showing the cached pre-session PB list and
+       // the just-celebrated "Neue Bestzeit" banner has no
+       // counterpart in the grid until something else refetches.
+       qc.invalidateQueries({ queryKey: ['sessions'] })
+       qc.invalidateQueries({ queryKey: ['rower-pbs'] })
+       qc.invalidateQueries({ queryKey: ['rower-lifetime'] })
+       qc.invalidateQueries({ queryKey: ['rower-achievements'] })
+       qc.invalidateQueries({ queryKey: ['rower-trends'] })
     }
     prevSummaryRef.current = incomingSummary
   }, [incomingSummary, incomingSessionId, incomingWorkoutId, qc])

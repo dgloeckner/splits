@@ -18,7 +18,6 @@ type Props = { state: LiveState }
 export function TileGrid({ state }: Props) {
   const [layout, setLayout] = useState<TileLayout>(() => loadLayout())
   const [pickerFor, setPickerFor] = useState<number | null>(null)
-  const [lockedHintFor, setLockedHintFor] = useState<number | null>(null)
   const timersRef = useRef<number[]>([])
 
   const sessionActive = state.session !== null && state.summary === null
@@ -29,14 +28,13 @@ export function TileGrid({ state }: Props) {
 
   const armPress = useCallback(
     (slotIndex: number) => {
+      // Editing the board during an active session is a silent no-op.
+      // The earlier "Nur zwischen Sessions editierbar" overlay was
+      // confusing — it left users tapping the screen mid-row trying
+      // to dismiss it. Now we just don't open the picker.
+      if (sessionActive) return
       const t = window.setTimeout(() => {
-        if (sessionActive) {
-          setLockedHintFor(slotIndex)
-          const hide = window.setTimeout(() => setLockedHintFor(null), 1500)
-          timersRef.current.push(hide)
-        } else {
-          setPickerFor(slotIndex)
-        }
+        setPickerFor(slotIndex)
       }, LONG_PRESS_MS)
       timersRef.current.push(t)
     },
@@ -61,15 +59,12 @@ export function TileGrid({ state }: Props) {
           <div
             key={i}
             className={styles.slot}
-            data-locked={sessionActive}
-            data-show-lock={lockedHintFor === i}
             onPointerDown={() => armPress(i)}
             onPointerUp={cancelPress}
             onPointerLeave={cancelPress}
             onPointerCancel={cancelPress}
           >
             <Tile tileId={tileId} state={state} />
-            <span className={styles.lockHint}>Nur zwischen Sessions editierbar</span>
           </div>
         ))}
       </div>

@@ -113,6 +113,15 @@ export class EventSourceChannel implements Channel {
   }
 
   subscribe(sub: Subscriber): void {
+    // React StrictMode mounts effects twice in dev: subscribe → close
+    // → subscribe on the SAME channel instance. close() sets
+    // `destroyed = true`, which would make connect() a no-op and
+    // leave the channel permanently dead. Resetting the flag here
+    // turns close() into a soft tear-down that a re-subscribe can
+    // revive — the channel only stays destroyed if no one
+    // re-subscribes.
+    this.destroyed = false
+    this.failureCount = 0
     this.sub = sub
     this.connect()
   }

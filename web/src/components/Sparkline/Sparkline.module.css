@@ -4,27 +4,37 @@
   display: block;
 }
 
+/* The SVG uses preserveAspectRatio="none", which stretches the
+   coordinate system non-uniformly to fill the tile. Without
+   non-scaling-stroke the stroke thickness scales with the tile's
+   aspect ratio: live-view tiles are wider/shorter than history
+   sparklines, so the same stroke-width renders visibly thicker
+   there. non-scaling-stroke pins the stroke to device pixels so
+   tiles of any shape get the same line weight. */
 .line {
   fill: none;
   stroke: var(--color-primary);
-  stroke-width: 3;
+  stroke-width: 2.1px;
   stroke-linejoin: round;
   stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
 }
 
 .ghost {
   fill: none;
   stroke: var(--color-on-surface-variant);
-  stroke-width: 1;
+  stroke-width: 1px;
   stroke-dasharray: 2 3;
+  vector-effect: non-scaling-stroke;
 }
 
 .ref {
   fill: none;
   stroke: var(--color-on-surface-variant);
-  stroke-width: 1;
+  stroke-width: 1px;
   stroke-dasharray: 4 4;
   opacity: 0.3;
+  vector-effect: non-scaling-stroke;
 }
 
 .dot {

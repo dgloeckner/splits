@@ -10,31 +10,6 @@
   cursor: pointer;
 }
 
-.slot[data-locked='true'] {
-  cursor: not-allowed;
-}
-
-.lockHint {
-  position: absolute;
-  inset: 0;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  background: rgba(19, 19, 19, 0.85);
-  color: var(--color-on-surface-variant);
-  border-radius: var(--radius-card);
-  font-family: var(--font-body);
-  font-size: var(--text-label-sm);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: var(--space-2);
-  text-align: center;
-}
-
-.slot[data-show-lock='true'] .lockHint {
-  display: flex;
-}
-
 @media (min-width: 1024px) {
   .grid {
     grid-template-columns: repeat(2, 1fr);

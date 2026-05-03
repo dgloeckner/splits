@@ -164,6 +164,19 @@ describe('EventSourceChannel — reconnect', () => {
     expect(states[states.length - 1]).toBe('reconnecting')
   })
 
+  it('subscribe() after close() revives the channel (StrictMode)', () => {
+    // React StrictMode dev-only double-invokes effects: subscribe →
+    // close → subscribe on the same channel. The second subscribe
+    // must produce a working EventSource, not a permanently dead one.
+    const ch = newChannel(0)
+    ch.subscribe({ onEvent: vi.fn(), onStatus: vi.fn() })
+    ch.close()
+    const states: ChannelStatus[] = []
+    ch.subscribe({ onEvent: vi.fn(), onStatus: (s) => states.push(s) })
+    FakeEventSource.last().open()
+    expect(states[states.length - 1]).toBe('open')
+  })
+
   it('close() prevents further reconnect attempts', () => {
     const ch = newChannel(0)
     ch.subscribe({ onEvent: vi.fn(), onStatus: vi.fn() })
