@@ -60,8 +60,17 @@ REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 id splits >/dev/null 2>&1 || useradd --system --home /var/lib/splits --shell /usr/sbin/nologin splits
 usermod -a -G dialout splits
 install -d -o splits -g splits -m 0750 /var/lib/splits /var/lib/splits/backups /var/log/splits
-install -d -o root    -g root    -m 0755 /etc/splits /var/log/caddy
+install -d -o root    -g root    -m 0755 /etc/splits
 install -d -o root    -g root    -m 0755 /var/www/splits
+
+# /var/log/caddy must be writable by the caddy daemon. Fall back to
+# root:root if the caddy user/group hasn't been created yet — install
+# rechowns once Caddy is installed.
+if id caddy >/dev/null 2>&1; then
+  install -d -o caddy -g caddy -m 0755 /var/log/caddy
+else
+  install -d -o root  -g root  -m 0755 /var/log/caddy
+fi
 
 # 2. Binary + helper scripts.
 install -o root -g root -m 0755 "$BIN" /usr/local/bin/splits
