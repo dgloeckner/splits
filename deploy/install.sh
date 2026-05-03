@@ -25,6 +25,35 @@ if [ "$(id -u)" -ne 0 ]; then
   echo "must run as root" >&2; exit 1
 fi
 
+# Caddy must already be installed (with the duckdns DNS plugin — see
+# deploy/README.md). The installer writes /etc/caddy/Caddyfile and
+# reloads the service; both fail without a Caddy binary on PATH.
+if ! command -v caddy >/dev/null 2>&1; then
+  cat >&2 <<'ERR'
+caddy not found on PATH.
+
+Install Caddy with the DuckDNS DNS plugin first, e.g.
+
+  # one-time host prep (Debian/Raspberry Pi OS)
+  sudo apt-get install -y debian-keyring debian-archive-keyring apt-transport-https curl
+  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
+    | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+  curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
+    | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+  sudo apt-get update && sudo apt-get install -y caddy
+
+  # then build a custom caddy with the duckdns plugin
+  sudo apt-get install -y golang
+  go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest
+  ~/go/bin/xcaddy build --with github.com/caddy-dns/duckdns
+  sudo install -m 0755 ./caddy /usr/bin/caddy
+
+Then re-run this installer.
+ERR
+  exit 1
+fi
+install -d -o root -g root -m 0755 /etc/caddy
+
 REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 # 1. User + dirs.
