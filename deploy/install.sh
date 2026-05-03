@@ -54,6 +54,18 @@ install -o root -g root -m 0644 "$REPO_DIR/deploy/splits.service"        /etc/sy
 install -o root -g root -m 0644 "$REPO_DIR/deploy/splits-backup.service" /etc/systemd/system/splits-backup.service
 install -o root -g root -m 0644 "$REPO_DIR/deploy/splits-backup.timer"   /etc/systemd/system/splits-backup.timer
 
+# 5b. Optional hardware profile drop-in (e.g. PROFILE=pi-zero).
+if [ -n "${PROFILE:-}" ]; then
+  override="$REPO_DIR/deploy/profiles/$PROFILE/override.conf"
+  if [ ! -f "$override" ]; then
+    echo "PROFILE=$PROFILE: no $override" >&2; exit 1
+  fi
+  install -d -o root -g root -m 0755 /etc/systemd/system/splits.service.d
+  install -o root -g root -m 0644 "$override" \
+    "/etc/systemd/system/splits.service.d/$PROFILE.conf"
+  echo "applied profile: $PROFILE"
+fi
+
 # 6. Caddyfile.
 sed -e "s|{{HOSTNAME}}|$HOSTNAME|g" \
     -e "s|{{DUCKDNS_TOKEN}}|$DUCKDNS_TOKEN|g" \

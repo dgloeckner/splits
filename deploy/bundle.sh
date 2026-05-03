@@ -74,7 +74,7 @@ for f in deploy/*; do
   case "$base" in
     bundle.sh|build.sh) continue ;;
   esac
-  cp "$f" "$root/deploy/$base"
+  cp -R "$f" "$root/deploy/$base"
 done
 chmod 0755 "$root/deploy/install.sh" "$root/deploy/splits-backup.sh"
 
