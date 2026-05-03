@@ -8,6 +8,7 @@ export type LiveEventKind =
   | 'level_change'
   | 'workout_attached'
   | 'phase_change'
+  | 'device'
   | 'ping'
   | 'eof'
   | 'error'
@@ -64,6 +65,13 @@ export type LevelChangePayload = {
 
 export type EofPayload = { session_id: string }
 
+export type DevicePayload = {
+  connected: boolean
+  port?: string
+  last_error?: string
+  last_seen_at?: string
+}
+
 export type WorkoutAttachedPayload = {
   session_id: string
   workout_id: string
@@ -85,6 +93,7 @@ export type LiveEvent =
   | { kind: 'level_change'; id: number; data: LevelChangePayload }
   | { kind: 'workout_attached'; id: number; data: WorkoutAttachedPayload }
   | { kind: 'phase_change'; id: number; data: PhaseChangePayload }
+  | { kind: 'device'; id: number | null; data: DevicePayload }
   | { kind: 'ping'; id: number | null; data: Record<string, never> }
   | { kind: 'eof'; id: number | null; data: EofPayload }
   | { kind: 'error'; id: number | null; data: { message: string } }

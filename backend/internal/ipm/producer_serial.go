@@ -54,7 +54,7 @@ func (p *SerialProducer) Run(ctx context.Context, out chan<- Frame) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		err := p.runOnce(ctx, out)
+		connected, err := p.runOnce(ctx, out)
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) || ctx.Err() != nil {
 			return ctx.Err()
 		}
@@ -67,8 +67,12 @@ func (p *SerialProducer) Run(ctx context.Context, out chan<- Frame) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		}
-		// Exponential backoff capped at maxBackoff.
-		if backoff < maxBackoff {
+		// Reset backoff after a successful connect (port opened, frames
+		// flowed, then we lost it). Fresh disconnects shouldn't suffer
+		// the prior cycle's accumulated 30 s wait.
+		if connected {
+			backoff = initial
+		} else if backoff < maxBackoff {
 			backoff *= 2
 			if backoff > maxBackoff {
 				backoff = maxBackoff
@@ -77,15 +81,16 @@ func (p *SerialProducer) Run(ctx context.Context, out chan<- Frame) error {
 	}
 }
 
-// runOnce attempts to open the port and parse one stream. Returns the
-// reason it stopped (autodetect failed, open failed, read error, EOF).
-// Never closes out — the caller's defer owns that.
-func (p *SerialProducer) runOnce(ctx context.Context, out chan<- Frame) error {
+// runOnce attempts to open the port and parse one stream. Returns
+// (connected, err) — connected is true once the port was successfully
+// opened, regardless of whether the read loop later failed. Never
+// closes out — the caller's defer owns that.
+func (p *SerialProducer) runOnce(ctx context.Context, out chan<- Frame) (bool, error) {
 	port := p.Port
 	if port == "" {
 		found, err := autodetectFTDI()
 		if err != nil {
-			return err
+			return false, err
 		}
 		port = found
 	}
@@ -93,7 +98,7 @@ func (p *SerialProducer) runOnce(ctx context.Context, out chan<- Frame) error {
 	slog.Info("ipm.serial.open", "port", port, "baud", p.Baud)
 	sp, err := serial.Open(port, &serial.Mode{BaudRate: p.Baud})
 	if err != nil {
-		return fmt.Errorf("serial open %s: %w", port, err)
+		return false, fmt.Errorf("serial open %s: %w", port, err)
 	}
 	defer sp.Close()
 
@@ -136,7 +141,7 @@ func (p *SerialProducer) runOnce(ctx context.Context, out chan<- Frame) error {
 	if err == nil {
 		err = errors.New("serial reader returned EOF")
 	}
-	return err
+	return true, err
 }
 
 func autodetectFTDI() (string, error) {

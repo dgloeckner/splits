@@ -24,7 +24,7 @@ func TestSSEReplayThenLive(t *testing.T) {
 	defer cancel()
 	go func() { _ = b.Run(ctx) }()
 
-	h := NewHandler(ring, b, nil)
+	h := NewHandler(ring, b, nil, nil)
 	srv := httptest.NewServer(h)
 	defer srv.Close()
 

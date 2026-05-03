@@ -41,7 +41,7 @@ type Inputs struct {
 func NewRouter(in Inputs) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", healthHandler)
-	mux.Handle("GET /api/v1/stream", stream.NewHandler(in.Ring, in.Broadcaster, in.SessionSnapshot))
+	mux.Handle("GET /api/v1/stream", stream.NewHandler(in.Ring, in.Broadcaster, in.SessionSnapshot, in.DeviceMonitor))
 	if in.DeviceMonitor != nil {
 		mux.Handle("GET /api/v1/device", DeviceStatusHandler(in.DeviceMonitor))
 	}

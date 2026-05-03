@@ -1,12 +1,14 @@
 package stream
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
 	"time"
 
 	"github.com/gloeckner-daniel/splits/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/ipm"
 	"github.com/gloeckner-daniel/splits/internal/pipeline"
 )
 
@@ -26,8 +28,9 @@ type maxEventIDer interface {
 
 // NewHandler returns the /api/v1/stream handler. Auth is the caller's
 // responsibility (middleware); this handler assumes the request has
-// been authenticated.
-func NewHandler(ring *pipeline.Ring, b *Broadcaster, snap Snapshotter) http.Handler {
+// been authenticated. monitor may be nil — the handler falls back to
+// emitting no `device` events in that case.
+func NewHandler(ring *pipeline.Ring, b *Broadcaster, snap Snapshotter, monitor *ipm.DeviceMonitor) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		flusher, ok := w.(http.Flusher)
 		if !ok {
@@ -96,6 +99,19 @@ func NewHandler(ring *pipeline.Ring, b *Broadcaster, snap Snapshotter) http.Hand
 		ticker := time.NewTicker(20 * time.Second)
 		defer ticker.Stop()
 
+		// Initial device-state push + change subscription. Sending the
+		// current state on connect lets the client render the banner
+		// immediately without a separate /api/v1/device fetch.
+		var deviceCh <-chan ipm.DeviceState
+		var deviceCleanup func()
+		if monitor != nil {
+			if err := writeDeviceSSE(w, flusher, monitor.State()); err != nil {
+				return
+			}
+			deviceCh, deviceCleanup = monitor.Subscribe()
+			defer deviceCleanup()
+		}
+
 		for {
 			select {
 			case <-r.Context().Done():
@@ -111,6 +127,14 @@ func NewHandler(ring *pipeline.Ring, b *Broadcaster, snap Snapshotter) http.Hand
 					return
 				}
 				afterID = e.ID
+			case ds, ok := <-deviceCh:
+				if !ok {
+					deviceCh = nil
+					continue
+				}
+				if err := writeDeviceSSE(w, flusher, ds); err != nil {
+					return
+				}
 			case <-ticker.C:
 				if _, err := fmt.Fprintf(w, "event: ping\ndata: {}\n\n"); err != nil {
 					return
@@ -119,6 +143,18 @@ func NewHandler(ring *pipeline.Ring, b *Broadcaster, snap Snapshotter) http.Hand
 			}
 		}
 	})
+}
+
+func writeDeviceSSE(w http.ResponseWriter, f http.Flusher, ds ipm.DeviceState) error {
+	data, err := json.Marshal(ds)
+	if err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintf(w, "event: device\ndata: %s\n\n", data); err != nil {
+		return err
+	}
+	f.Flush()
+	return nil
 }
 
 func parseAfterID(r *http.Request) uint64 {

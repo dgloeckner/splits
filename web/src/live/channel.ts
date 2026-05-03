@@ -191,6 +191,21 @@ export class EventSourceChannel implements Channel {
     handle('level_change')
     handle('workout_attached')
 
+    es.addEventListener('device', (raw) => {
+      this.armWatchdog()
+      const ev = raw as MessageEvent
+      try {
+        const data = JSON.parse(ev.data) as import('./events').DevicePayload
+        sub.onEvent({ kind: 'device', id: null, data })
+      } catch {
+        sub.onEvent({
+          kind: 'error',
+          id: null,
+          data: { message: 'malformed device payload' },
+        })
+      }
+    })
+
     es.addEventListener('ping', () => {
       this.armWatchdog()
       sub.onEvent({ kind: 'ping', id: null, data: {} as Record<string, never> })

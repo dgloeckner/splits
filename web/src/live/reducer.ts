@@ -40,6 +40,12 @@ export type LiveState = {
   sessionStartedAtMs: number | null
   phase: 'warmup' | 'work' | 'rest' | 'cooldown' | null
   phaseAnchor: { distanceM: number; timeSec: number } | null
+  /**
+   * IPM serial connectivity, pushed via the `device` SSE event. `null`
+   * = unknown (no event yet — assume connected so the UI doesn't flash
+   * a yellow banner during initial load).
+   */
+  deviceConnected: boolean | null
 }
 
 export const initialLiveState: LiveState = {
@@ -53,6 +59,7 @@ export const initialLiveState: LiveState = {
   sessionStartedAtMs: null,
   phase: null,
   phaseAnchor: null,
+  deviceConnected: null,
 }
 
 export type LiveAction =
@@ -120,6 +127,10 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
         case 'ping':
         case 'error':
           return state
+
+        case 'device':
+          if (state.deviceConnected === ev.data.connected) return state
+          return { ...state, deviceConnected: ev.data.connected }
 
         case 'eof':
           return { ...state, stroke: null }
