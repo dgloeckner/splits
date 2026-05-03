@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/gloeckner-daniel/splits/internal/ipm"
 	"github.com/gloeckner-daniel/splits/internal/pipeline"
 	"github.com/gloeckner-daniel/splits/internal/rower"
 	"github.com/gloeckner-daniel/splits/internal/stats"
@@ -31,12 +32,19 @@ type Inputs struct {
 	// absolute pairing URLs encoded into QR codes. Empty falls back to
 	// "https://" + request Host.
 	PublicURL string
+	// DeviceMonitor exposes IPM serial connectivity state to the
+	// frontend via /api/v1/device. Optional — nil → endpoint omitted
+	// (e.g. fixture-only test runs).
+	DeviceMonitor *ipm.DeviceMonitor
 }
 
 func NewRouter(in Inputs) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/health", healthHandler)
 	mux.Handle("GET /api/v1/stream", stream.NewHandler(in.Ring, in.Broadcaster, in.SessionSnapshot))
+	if in.DeviceMonitor != nil {
+		mux.Handle("GET /api/v1/device", DeviceStatusHandler(in.DeviceMonitor))
+	}
 
 	var activeIDer ActiveSessionIDer
 	if in.SessionSnapshot != nil {

@@ -110,7 +110,8 @@ func run() error {
 	persistCh := make(chan event.Event, 1024)
 	broadcastCh := make(chan event.Event, 256)
 
-	producer := pickProducer(cfg)
+	deviceMonitor := ipm.NewDeviceMonitor()
+	producer := pickProducer(cfg, deviceMonitor)
 	ring := pipeline.NewRing(10000)
 	bcast := stream.NewBroadcaster(broadcastCh)
 	sessionizer := session.New(session.Options{
@@ -160,6 +161,7 @@ func run() error {
 			StartedAt:       time.Now(),
 			DeviceCookieSecure: !cfg.DevMode,
 			PublicURL:          cfg.PublicURL,
+			DeviceMonitor:      deviceMonitor,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
@@ -187,7 +189,7 @@ func run() error {
 	return nil
 }
 
-func pickProducer(cfg *config.Config) ipm.Producer {
+func pickProducer(cfg *config.Config, monitor *ipm.DeviceMonitor) ipm.Producer {
 	if cfg.Fixture != "" {
 		pacing := ipm.PacingRealtime
 		if cfg.FixtureRate == "fast" {
@@ -197,9 +199,18 @@ func pickProducer(cfg *config.Config) ipm.Producer {
 		if cfg.FixtureDelay > 0 {
 			p = &delayedProducer{inner: p, delay: cfg.FixtureDelay}
 		}
+		// Fixture is always "connected" for the UI banner — it's the
+		// dev/demo source replacing the IPM, not a real device.
+		if monitor != nil {
+			monitor.MarkConnected("fixture:" + cfg.Fixture)
+		}
 		return p
 	}
-	return &ipm.SerialProducer{Port: cfg.SerialPort, Baud: cfg.SerialBaud}
+	return &ipm.SerialProducer{
+		Port:    cfg.SerialPort,
+		Baud:    cfg.SerialBaud,
+		Monitor: monitor,
+	}
 }
 
 // delayedProducer wraps another producer and sleeps the configured

@@ -1,18 +1,41 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { LiveSessionProvider } from './LiveSessionContext'
 import { ConnectionBanner } from './ConnectionBanner'
 import { MockChannel } from './channel'
 
 function renderWithChannel(channel: MockChannel) {
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false, refetchInterval: false } },
+  })
   return render(
-    <LiveSessionProvider channel={channel}>
-      <ConnectionBanner />
-    </LiveSessionProvider>,
+    <QueryClientProvider client={qc}>
+      <LiveSessionProvider channel={channel}>
+        <ConnectionBanner />
+      </LiveSessionProvider>
+    </QueryClientProvider>,
   )
 }
 
 describe('ConnectionBanner', () => {
+  beforeEach(() => {
+    // Default: device endpoint reports connected — no banner from
+    // device path interferes with these SSE-status tests.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({ connected: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }),
+      ),
+    )
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   it('hidden in normal states', () => {
     const ch = new MockChannel()
     renderWithChannel(ch)

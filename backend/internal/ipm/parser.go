@@ -18,7 +18,14 @@ import (
 // boot per INT-0001).
 func Parse(ctx context.Context, r io.Reader, out chan<- Frame) error {
 	defer close(out)
+	return parseLoop(ctx, r, out)
+}
 
+// parseLoop is Parse without the close(out). The reconnecting serial
+// producer drives this directly so the outer Frame channel survives
+// across reader rebinds (re-opens after the IPM USB cable is
+// re-plugged).
+func parseLoop(ctx context.Context, r io.Reader, out chan<- Frame) error {
 	// The IPM is line-oriented with CRLF. bufio.Scanner with the default
 	// ScanLines split function strips both \r and \n, which is what we
 	// want. The default 64 KiB buffer is ample for 30-byte frames.
