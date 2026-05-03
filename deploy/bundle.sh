@@ -28,11 +28,12 @@ TARGET="${TARGET:-arm}"
 VERSION="${VERSION:-$(git describe --tags --always --dirty 2>/dev/null || echo dev)}"
 
 case "$TARGET" in
-  arm)   suffix="linux-armv7" ;;
-  arm64) suffix="linux-arm64" ;;
+  armv6) suffix="linux-armv6" ;;  # Pi Zero / Zero W (BCM2835, ARM11)
+  arm)   suffix="linux-armv7" ;;  # Pi Zero 2 W, Pi 3 32-bit
+  arm64) suffix="linux-arm64" ;;  # Pi 3/4/5 64-bit
   amd64) suffix="linux-amd64" ;;
   *)
-    echo "unknown TARGET: $TARGET (expected arm|arm64|amd64)" >&2
+    echo "unknown TARGET: $TARGET (expected armv6|arm|arm64|amd64)" >&2
     exit 1
     ;;
 esac

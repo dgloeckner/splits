@@ -12,6 +12,11 @@ cd "$(dirname "$0")/.."
 TARGET="${TARGET:-arm}"
 
 case "$TARGET" in
+  armv6)
+    # Pi Zero / Zero W (original, BCM2835, ARM11 / ARMv6).
+    GOOS=linux GOARCH=arm GOARM=6
+    suffix="linux-armv6"
+    ;;
   arm)
     GOOS=linux GOARCH=arm GOARM=7
     suffix="linux-armv7"
@@ -25,7 +30,7 @@ case "$TARGET" in
     suffix="linux-amd64"
     ;;
   *)
-    echo "unknown TARGET: $TARGET (expected arm|arm64|amd64)" >&2
+    echo "unknown TARGET: $TARGET (expected armv6|arm|arm64|amd64)" >&2
     exit 1
     ;;
 esac
