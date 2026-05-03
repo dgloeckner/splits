@@ -64,14 +64,21 @@ export class MockChannel implements Channel {
   }
 }
 
-// Reconnect schedule (ms). After step N each subsequent failure adds
-// MAX_BACKOFF_MS. Jitter is ±25%.
-const BACKOFF_STEPS_MS = [1_000, 2_000, 4_000, 8_000, 15_000, 30_000, 60_000]
+// Reconnect schedule (ms). The first two steps are sub-second so a
+// PWA cold start that races the service-worker install — a known iOS
+// issue where the very first EventSource connect fails generically —
+// recovers before the user notices. Past step N each subsequent
+// failure caps at MAX_BACKOFF_MS. Jitter is ±25%.
+const BACKOFF_STEPS_MS = [
+  250, 500, 1_000, 2_000, 4_000, 8_000, 15_000, 30_000, 60_000,
+]
 const MAX_BACKOFF_MS = 60_000
 // After this many consecutive failed connects (without ever reaching
 // `open`), the channel surfaces `permanently_disconnected` and stops
-// auto-retrying until `reconnect()` is called explicitly.
-const PERMANENT_FAILURE_AFTER = 5
+// auto-retrying until `reconnect()` is called explicitly. Bumped from
+// 5 → 8 so the front-loaded fast retries don't burn the budget before
+// a slow Pi finishes booting Caddy/cert provisioning.
+const PERMANENT_FAILURE_AFTER = 8
 // If no message (event or ping) arrives for this long, the channel
 // assumes the connection is dead and forces a reconnect. Backend pings
 // every 20s; this gives one missed ping plus a slack window.

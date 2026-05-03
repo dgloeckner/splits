@@ -71,8 +71,10 @@ describe('EventSourceChannel — reconnect', () => {
     expect(states).toEqual(['connecting', 'open'])
   })
 
-  it('schedules retry with exponential backoff on error', () => {
-    // seed 0.5 → jitter = 0, scheduleDelay(1) = 1000ms exactly.
+  it('schedules retry with sub-second first backoff on error', () => {
+    // seed 0.5 → jitter = 0, scheduleDelay(1) = 250ms exactly. The
+    // front-loaded first step recovers a PWA cold-start race with
+    // the service worker before the user notices.
     const ch = newChannel(0.5)
     const states: ChannelStatus[] = []
     ch.subscribe({ onEvent: vi.fn(), onStatus: (s) => states.push(s) })
@@ -81,20 +83,20 @@ describe('EventSourceChannel — reconnect', () => {
     expect(FakeEventSource.instances.length).toBe(1)
 
     // Before timer expiry, no new EventSource yet.
-    vi.advanceTimersByTime(999)
+    vi.advanceTimersByTime(249)
     expect(FakeEventSource.instances.length).toBe(1)
 
-    // At backoff (1000ms), the second EventSource is created.
+    // At backoff (250ms), the second EventSource is created.
     vi.advanceTimersByTime(1)
     expect(FakeEventSource.instances.length).toBe(2)
   })
 
-  it('surfaces permanently_disconnected after 5 failures and stops auto-retrying', () => {
+  it('surfaces permanently_disconnected after 8 failures and stops auto-retrying', () => {
     const ch = newChannel(0)
     const states: ChannelStatus[] = []
     ch.subscribe({ onEvent: vi.fn(), onStatus: (s) => states.push(s) })
 
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 8; i++) {
       FakeEventSource.last().fail()
       vi.runAllTimers()
     }
@@ -110,7 +112,7 @@ describe('EventSourceChannel — reconnect', () => {
     const states: ChannelStatus[] = []
     ch.subscribe({ onEvent: vi.fn(), onStatus: (s) => states.push(s) })
 
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 8; i++) {
       FakeEventSource.last().fail()
       vi.runAllTimers()
     }
