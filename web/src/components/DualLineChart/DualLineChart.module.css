@@ -1,5 +1,6 @@
 .wrap {
   width: 100%;
+  position: relative;
 }
 
 .svg {
@@ -25,10 +26,12 @@
 
 .primary {
   stroke: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .neutral {
   stroke: var(--color-on-surface);
+  color: var(--color-on-surface);
   opacity: 0.7;
 }
 
@@ -44,4 +47,40 @@
   color: var(--color-on-surface-variant);
   font-family: var(--font-body);
   font-size: var(--text-label-sm);
+}
+
+.bounds {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  font-family: var(--font-body);
+  font-size: var(--text-label-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.boundsCol {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.boundsLeft {
+  left: 0;
+  align-items: flex-start;
+}
+
+.boundsRight {
+  right: 0;
+  align-items: flex-end;
+}
+
+.boundMax,
+.boundMin {
+  background: color-mix(in srgb, var(--color-surface-container) 80%, transparent);
+  padding: 0 4px;
+  border-radius: 4px;
+  line-height: 1.3;
 }

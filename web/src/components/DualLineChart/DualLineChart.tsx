@@ -19,8 +19,8 @@ type Props = {
 }
 
 // DualLineChart is a hand-rolled SVG with shared x-domain and two
-// independent y-scales. v1 has no axes/grid/tooltips — see
-// 2026-04-26-history-trends-design spec.
+// independent y-scales. v1 had no axes/grid/tooltips; we now overlay
+// per-series min/max labels so the line shape is interpretable.
 export function DualLineChart({ primary, secondary, height = HEIGHT }: Props) {
   const allXs: number[] = []
   if (primary.points.length > 0) allXs.push(...primary.points.map((p) => p.x))
@@ -69,6 +69,18 @@ export function DualLineChart({ primary, secondary, height = HEIGHT }: Props) {
     return <path key={key} data-testid={testId} className={cls} d={d} />
   }
 
+  function bounds(s: Series) {
+    if (s.points.length === 0) return null
+    const ys = s.points.map((p) => p.y)
+    const min = Math.min(...ys)
+    const max = Math.max(...ys)
+    const fmt = s.fmt ?? defaultFmt
+    return { min: fmt(min), max: fmt(max) }
+  }
+
+  const pBounds = bounds(primary)
+  const sBounds = secondary ? bounds(secondary) : null
+
   return (
     <div className={styles.wrap}>
       <svg
@@ -84,6 +96,35 @@ export function DualLineChart({ primary, secondary, height = HEIGHT }: Props) {
         {renderSeries(primary, 'p', 'dlc-primary')}
         {secondary && renderSeries(secondary, 's', 'dlc-secondary')}
       </svg>
+      {(pBounds || sBounds) && (
+        <div className={styles.bounds} aria-hidden="true">
+          {pBounds && (
+            <div className={`${styles.boundsCol} ${styles.boundsLeft}`}>
+              <span className={`${styles.boundMax} ${styles.primary}`} data-testid="dlc-primary-max">
+                {pBounds.max}
+              </span>
+              <span className={`${styles.boundMin} ${styles.primary}`} data-testid="dlc-primary-min">
+                {pBounds.min}
+              </span>
+            </div>
+          )}
+          {sBounds && (
+            <div className={`${styles.boundsCol} ${styles.boundsRight}`}>
+              <span className={`${styles.boundMax} ${styles.neutral}`} data-testid="dlc-secondary-max">
+                {sBounds.max}
+              </span>
+              <span className={`${styles.boundMin} ${styles.neutral}`} data-testid="dlc-secondary-min">
+                {sBounds.min}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
+}
+
+function defaultFmt(v: number): string {
+  if (Math.abs(v) >= 100) return Math.round(v).toString()
+  return v.toFixed(1)
 }

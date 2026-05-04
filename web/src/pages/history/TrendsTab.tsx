@@ -63,24 +63,28 @@ function TrendsContent({ data }: { data: TrendsResponse }) {
     label: 'Ø Watt',
     variant: 'solid',
     tone: 'primary',
+    fmt: (v) => `${fmtInt(Math.round(v))} W`,
     points: data.performance.points.map((p) => ({ x: tToX(p.t), y: p.avg_power_w })),
   }
   const perfPace: Series = {
     label: 'Ø Split',
     variant: 'dashed',
     tone: 'neutral',
+    fmt: (v) => pace500m(v) ?? '—',
     points: data.performance.points.map((p) => ({ x: tToX(p.t), y: p.avg_pace_sec_per_500m })),
   }
   const effDPS: Series = {
     label: 'Ø DPS',
     variant: 'solid',
     tone: 'primary',
+    fmt: (v) => fmtFloat(v, 1),
     points: data.efficiency.points.map((p) => ({ x: tToX(p.t), y: p.avg_dps })),
   }
   const effSPI: Series = {
     label: 'Ø SPI',
-    variant: 'solid',
+    variant: 'dashed',
     tone: 'neutral',
+    fmt: (v) => fmtFloat(v, 1),
     points: data.efficiency.points.map((p) => ({ x: tToX(p.t), y: p.avg_spi })),
   }
 
@@ -107,22 +111,16 @@ function TrendsContent({ data }: { data: TrendsResponse }) {
       <section className={styles.card} aria-label="Effizienz">
         <header className={styles.cardHead}>
           <span className={styles.cardTitle}>Effizienz</span>
-          <span className={styles.tag}>14-Tage Trend</span>
         </header>
-        <div className={styles.statRow}>
-          <div className={styles.statCell}>
-            <span className={styles.statLabel}>Ø DPS</span>
-            <span className={styles.statValue}>
-              {fmtFloat(data.efficiency.avg_dps, 1)}{' '}
-              <small data-testid="dps-delta">{signedNum(data.efficiency.delta_dps, 1)}</small>
-            </span>
+        <div className={styles.legend}>
+          <div className={styles.legendRow}>
+            <span className={styles.dot} /> Ø DPS: {fmtFloat(data.efficiency.avg_dps, 1)}{' '}
+            <small data-testid="dps-delta">{signedNum(data.efficiency.delta_dps, 1)}</small>
           </div>
-          <div className={styles.statCell}>
-            <span className={styles.statLabel}>Ø SPI</span>
-            <span className={styles.statValue}>
-              {fmtFloat(data.efficiency.avg_spi, 1)}{' '}
-              <small data-testid="spi-delta">{signedNum(data.efficiency.delta_spi, 1)}</small>
-            </span>
+          <div className={styles.legendRow}>
+            <span className={`${styles.dot} ${styles.dotNeutral}`} /> Ø SPI:{' '}
+            {fmtFloat(data.efficiency.avg_spi, 1)}{' '}
+            <small data-testid="spi-delta">{signedNum(data.efficiency.delta_spi, 1)}</small>
           </div>
         </div>
         <DualLineChart primary={effDPS} secondary={effSPI} />
