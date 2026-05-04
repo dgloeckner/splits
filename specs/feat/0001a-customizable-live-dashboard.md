@@ -111,9 +111,12 @@ Row 2:  [Watt-Sparkline]    [SPI]        [HF-Zone]
 - [ ] Tile-Picker shows a live preview per entry driven by the current
       SSE stream (or canned example data when no session is active).
 - [ ] Tile choices persist per user profile and survive reload / reinstall.
-- [ ] **Edit-lock during sessions**: once a session is active, long-press
-      on a tile shows a disabled state with a hint ("Nur zwischen Sessions
-      editierbar"), not the picker.
+- [ ] Long-press opens the picker at any time, including during an
+      active session. The 450 ms press is intentional enough that
+      accidental swaps mid-row are unlikely; an earlier edit-lock
+      ("Nur zwischen Sessions editierbar") was removed because the
+      sessionizer auto-opens a session as soon as the ergo connects,
+      which made tile editing impossible on iPad.
 - [ ] Sparkline rolling window is 60 s, accent-coloured live line plus a
       dashed muted session-average ghost line in the same tile.
 - [ ] Zone Badge colour is applied to the label/border only, not the full
