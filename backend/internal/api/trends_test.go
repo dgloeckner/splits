@@ -222,9 +222,19 @@ func TestTrendsWeekRangeIncludesPrior(t *testing.T) {
 
 	loc, _ := time.LoadLocation("Europe/Berlin")
 	now := time.Now().In(loc)
-	// Session in current week + one in prior week.
+	// Session in current week + one in prior week. Compute the prior-
+	// week Wednesday explicitly: a fixed -8d offset breaks on Mondays
+	// because it falls on Sunday, which is the *previous* prior week
+	// under ISO weeks (Mon–Sun).
+	wd := int(now.Weekday())
+	if wd == 0 { // Sunday in Go = 0 → ISO 7
+		wd = 7
+	}
+	daysSinceMon := wd - 1
+	priorWeekMon := now.AddDate(0, 0, -daysSinceMon-7)
 	cur := now.Add(-1 * time.Hour)
-	prior := now.AddDate(0, 0, -8)
+	prior := time.Date(priorWeekMon.Year(), priorWeekMon.Month(), priorWeekMon.Day(),
+		12, 0, 0, 0, loc).AddDate(0, 0, 2) // prior-week Wednesday noon
 	seedSessions(t, db, "R1", []seedSession{
 		{id: "S1", startedAt: cur, endedAt: cur.Add(20 * time.Minute),
 			distM: 4000, timeSec: 1200, avgPower: 200, avgPace: 130, avgDPS: 9, avgSPI: 7},
