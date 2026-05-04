@@ -1,9 +1,38 @@
 /// <reference types="vitest" />
+import { execSync } from 'node:child_process'
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 
+function gitShortSha(): string {
+  try {
+    return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim()
+  } catch {
+    return 'unknown'
+  }
+}
+
+function gitDirty(): boolean {
+  try {
+    const out = execSync('git status --porcelain', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim()
+    return out.length > 0
+  } catch {
+    return false
+  }
+}
+
+const buildSha = gitShortSha() + (gitDirty() ? '-dirty' : '')
+const buildTime = new Date().toISOString()
+
 export default defineConfig({
+  define: {
+    __BUILD_SHA__: JSON.stringify(buildSha),
+    __BUILD_TIME__: JSON.stringify(buildTime),
+  },
   plugins: [
     react(),
     VitePWA({

@@ -228,6 +228,9 @@ export function ProfilePage() {
 
       <footer className={styles.footer}>
         <p className={styles.footerLine}>splits</p>
+        <p className={styles.footerLine} data-testid="build-version">
+          Build {__BUILD_SHA__} · {new Date(__BUILD_TIME__).toLocaleString('de-DE')}
+        </p>
       </footer>
     </main>
   )
