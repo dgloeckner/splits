@@ -274,10 +274,20 @@ function achievementLabel(a: Achievement): string {
 
 function achievementValueText(a: Achievement): string {
   if (a.type === 'consistency_intra' && typeof a.value === 'number') {
-    return `CV ${(a.value * 100).toFixed(1)} %`
+    return consistencyBand(a.value).label
   }
   if (a.type === 'volume') return milestoneLabel(a.key)
   return ''
+}
+
+// Maps coefficient-of-variation (stddev/mean) to a qualitative band.
+// CV is a statistician's metric; rowers want "wie gleichmäßig war
+// ich?". Bands chosen empirically for steady-state ergo work.
+function consistencyBand(cv: number): { label: string; tone: 'good' | 'ok' | 'warn' } {
+  if (cv < 0.03) return { label: 'Sehr gleichmäßig', tone: 'good' }
+  if (cv < 0.06) return { label: 'Gleichmäßig', tone: 'good' }
+  if (cv < 0.1) return { label: 'Schwankend', tone: 'ok' }
+  return { label: 'Sehr schwankend', tone: 'warn' }
 }
 
 function formatRelative(iso: string): string {
@@ -375,14 +385,21 @@ function ConsistencyCards({ items }: { items: Achievement[] }) {
       <div className={styles.consistencyGrid}>
         {cards.map((c) => {
           const a = byKey.get(c.key)
+          const band = a && typeof a.value === 'number' ? consistencyBand(a.value) : null
           return (
             <div key={c.key} className={styles.consistencyCard}>
               <span className={styles.consistencyLabel}>{c.label}</span>
-              <span className={styles.consistencyValue}>
-                {a && typeof a.value === 'number'
-                  ? `CV ${(a.value * 100).toFixed(1)} %`
-                  : '—'}
+              <span
+                className={styles.consistencyValue}
+                data-tone={band?.tone}
+              >
+                {band ? band.label : '—'}
               </span>
+              {band && a && typeof a.value === 'number' && (
+                <span className={styles.consistencySub}>
+                  CV {(a.value * 100).toFixed(1)} %
+                </span>
+              )}
             </div>
           )
         })}
@@ -415,13 +432,15 @@ function windowLabel(w: { metric: string; window_kind: string; window_size: numb
   const win = w.window_kind === 'seconds' ? `${w.window_size} s` : `${w.window_size} Schläge`
   switch (w.metric) {
     case 'power':
-      return `Beste ${win} Power`
+      return `Beste ${win} Ø Power`
     case 'pace':
-      return `Bester ${win} Split`
+      // Split is per-500m by definition; the windowed PB is the
+      // average split achieved during the user's best window.
+      return `Schnellster ${win} Ø Split`
     case 'dps':
-      return `Beste ${win} DPS`
+      return `Beste ${win} Ø DPS`
     case 'spi':
-      return `Beste ${win} SPI`
+      return `Beste ${win} Ø SPI`
   }
   return `${w.metric} ${win}`
 }
@@ -431,7 +450,7 @@ function windowValue(w: { metric: string; value: number }): string {
     case 'power':
       return `${Math.round(w.value)} W`
     case 'pace':
-      return pace500m(Math.round(w.value))
+      return `${pace500m(Math.round(w.value))} /500m`
     case 'dps':
       return `${w.value.toFixed(2)} m`
     case 'spi':

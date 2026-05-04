@@ -158,8 +158,21 @@
   font-family: var(--font-display, 'Space Grotesk'), sans-serif;
   font-size: 17px;
   font-weight: 600;
-  font-variant-numeric: tabular-nums;
   color: var(--color-on-surface);
+}
+
+.consistencyValue[data-tone='good'] {
+  color: var(--color-primary);
+}
+.consistencyValue[data-tone='warn'] {
+  color: var(--color-tertiary, #ffb4ab);
+}
+
+.consistencySub {
+  font-family: var(--font-body, 'Inter'), sans-serif;
+  font-size: 11px;
+  color: var(--color-on-surface-variant);
+  font-variant-numeric: tabular-nums;
 }
 
 .milestones {
