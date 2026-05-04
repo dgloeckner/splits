@@ -157,8 +157,8 @@ describe('liveReducer', () => {
         type: 'event',
         event: stroke(2, { power_w: 300, spm: 30, dps: 8, pace_sec_per_500m: 130 }),
       })
-      // With alpha 0.3: 0.3*300 + 0.7*200 = 230
-      expect(s.smoothed!.power).toBeCloseTo(230)
+      // With alpha 0.5: 0.5*300 + 0.5*200 = 250
+      expect(s.smoothed!.power).toBeCloseTo(250)
     })
 
     it('retains previous smoothed SPI when stroke is below threshold', () => {

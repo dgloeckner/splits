@@ -3,9 +3,9 @@ import { smoothingConfig } from './smoothing'
 
 describe('smoothingConfig', () => {
   it('exposes EMA alpha/hysteresis for each tracked metric', () => {
-    expect(smoothingConfig.ema.watts.alpha).toBe(0.3)
+    expect(smoothingConfig.ema.watts.alpha).toBe(0.5)
     expect(smoothingConfig.ema.watts.hysteresis).toBe(3)
-    expect(smoothingConfig.ema.split.alpha).toBe(0.3)
+    expect(smoothingConfig.ema.split.alpha).toBe(0.4)
     expect(smoothingConfig.ema.split.hysteresis).toBeCloseTo(0.1)
     expect(smoothingConfig.ema.spm.alpha).toBe(0.4)
     expect(smoothingConfig.ema.spm.hysteresis).toBe(0.5)
@@ -24,6 +24,6 @@ describe('smoothingConfig', () => {
 
   it('defines cold-start and count-up durations', () => {
     expect(smoothingConfig.coldStartSeconds).toBe(5)
-    expect(smoothingConfig.countUpMs).toBe(250)
+    expect(smoothingConfig.countUpMs).toBe(0)
   })
 })

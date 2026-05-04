@@ -3,7 +3,6 @@ package pipeline
 import (
 	"context"
 	"log/slog"
-	"sync"
 
 	"github.com/gloeckner-daniel/splits/internal/event"
 )
@@ -34,11 +33,13 @@ func (d *Dispatcher) Run(ctx context.Context, in <-chan event.Event) error {
 				return nil
 			}
 			d.Ring.Write(e)
-			var wg sync.WaitGroup
-			wg.Add(2)
-			go func() { defer wg.Done(); d.sendOrBlock(ctx, d.Persist, e, "persister") }()
-			go func() { defer wg.Done(); d.sendOrBlock(ctx, d.Broadcast, e, "broadcaster") }()
-			wg.Wait()
+			// Broadcast first — live SSE is the latency-critical leg.
+			// Persist next; if SQLite stalls (checkpoint, lock), the
+			// broadcast has already been delivered. Both sends are
+			// non-blocking via sendOrBlock; loop continues without
+			// waiting for either to complete.
+			d.sendOrBlock(ctx, d.Broadcast, e, "broadcaster")
+			d.sendOrBlock(ctx, d.Persist, e, "persister")
 		}
 	}
 }

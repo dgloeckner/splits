@@ -9,11 +9,24 @@
         dns duckdns {{DUCKDNS_TOKEN}}
     }
 
-    # Reverse-proxy the splits API + SSE stream.
+    # SSE stream — explicit per-event flush, no compression. Caddy
+    # auto-flushes on text/event-stream but flush_interval -1 makes
+    # it explicit and prevents future regressions.
+    @sse path /api/v1/stream*
+    handle @sse {
+        reverse_proxy 127.0.0.1:8080 {
+            flush_interval -1
+            transport http {
+                read_timeout 0s
+                read_buffer 4KB
+                compression off
+            }
+        }
+    }
+
+    # Reverse-proxy the splits API.
     handle /api/* {
         reverse_proxy 127.0.0.1:8080 {
-            # SSE needs flushing; default Caddy reverse_proxy already
-            # flushes per-event, so no extra knobs needed.
             transport http {
                 read_timeout 0s
                 read_buffer 4KB

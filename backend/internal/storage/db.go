@@ -27,7 +27,24 @@ func (d *DB) Close() error    { return d.db.Close() }
 // applies any pending migrations. Safe to call at every process
 // start.
 func Open(path string) (*DB, error) {
-	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=foreign_keys(on)", path)
+	// Pi Zero ARM6 latency tuning:
+	//   synchronous=NORMAL — fsync at checkpoint only (one fsync per
+	//     ~1000-page WAL chunk instead of one per commit). Crash-safe
+	//     under WAL; only loses last txn on power loss.
+	//   temp_store=MEMORY — temp tables in RAM (no SD-card writes).
+	//   mmap_size=64 MB — read-only mmap for page cache.
+	//   cache_size=-8000 — 8 MB page cache.
+	//   wal_autocheckpoint=1000 — explicit (matches default).
+	dsn := fmt.Sprintf(
+		"file:%s?_pragma=busy_timeout(5000)"+
+			"&_pragma=foreign_keys(on)"+
+			"&_pragma=synchronous(NORMAL)"+
+			"&_pragma=temp_store(MEMORY)"+
+			"&_pragma=mmap_size(67108864)"+
+			"&_pragma=cache_size(-8000)"+
+			"&_pragma=wal_autocheckpoint(1000)",
+		path,
+	)
 	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("sql.Open: %w", err)

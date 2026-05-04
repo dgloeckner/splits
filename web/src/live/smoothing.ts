@@ -6,8 +6,8 @@
  */
 export const smoothingConfig = {
   ema: {
-    watts: { alpha: 0.3, hysteresis: 3 }, // W
-    split: { alpha: 0.3, hysteresis: 0.1 }, // seconds on pace_sec_per_500m
+    watts: { alpha: 0.5, hysteresis: 3 }, // W
+    split: { alpha: 0.4, hysteresis: 0.1 }, // seconds on pace_sec_per_500m
     spm: { alpha: 0.4, hysteresis: 0.5 },
     dps: { alpha: 0.3, hysteresis: 0.05 }, // m
     spi: { alpha: 0.3, hysteresis: 0.05 }, // W/stroke
@@ -20,8 +20,8 @@ export const smoothingConfig = {
   },
   /** Seconds after session_start during which raw values flow through unsmoothed. */
   coldStartSeconds: 5,
-  /** Duration (ms) for hero number count-up tween. */
-  countUpMs: 250,
+  /** Duration (ms) for hero number count-up tween. 0 = instant snap. */
+  countUpMs: 0,
 } as const
 
 export type SmoothingConfig = typeof smoothingConfig

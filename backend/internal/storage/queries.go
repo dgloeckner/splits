@@ -207,3 +207,48 @@ func InsertStroke(ctx context.Context, db *sql.DB, globalID uint64, sessionID st
 		at.UTC().Format(time.RFC3339Nano), phase)
 	return err
 }
+
+// StrokeRow bundles the parameters needed to insert one stroke row.
+type StrokeRow struct {
+	GlobalID  uint64
+	SessionID string
+	At        time.Time
+	Payload   event.StrokePayload
+}
+
+// InsertStrokesBatch inserts multiple strokes in a single transaction.
+// Used by the persister's batch flusher to amortize fsync cost on
+// resource-constrained hosts (Pi Zero / SD card).
+func InsertStrokesBatch(ctx context.Context, db *sql.DB, rows []StrokeRow) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	stmt, err := tx.PrepareContext(ctx,
+		`INSERT INTO strokes(
+			global_id, session_id, stroke_no, time_sec, distance_m, spm, power_w, cal_per_hr, level,
+			dps, stroke_cycle_sec, pace_sec_per_500m, energy_joules, at, phase
+		) VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+	if err != nil {
+		return err
+	}
+	defer stmt.Close()
+	for _, r := range rows {
+		phase := r.Payload.Phase
+		if phase == "" {
+			phase = "work"
+		}
+		if _, err := stmt.ExecContext(ctx,
+			r.GlobalID, r.SessionID, r.Payload.StrokeNo, r.Payload.TimeSec, r.Payload.DistanceM,
+			r.Payload.SPM, r.Payload.PowerW, r.Payload.CalPerHr, r.Payload.Level,
+			r.Payload.DPS, r.Payload.StrokeCycleSec, r.Payload.PaceSecPer500m, r.Payload.EnergyJoules,
+			r.At.UTC().Format(time.RFC3339Nano), phase); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
+}
