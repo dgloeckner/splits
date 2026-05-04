@@ -19,21 +19,21 @@ export type CreateRowerInput = {
 export type UpdateRowerInput = Partial<CreateRowerInput>
 
 export { ApiError } from './error'
-import { ApiError } from './error'
+import { apiFetch, readApiError } from './error'
 
 async function json<T>(r: Response): Promise<T> {
-  if (!r.ok) throw new ApiError(r.status, `${r.status} ${r.statusText}`)
+  if (!r.ok) throw await readApiError(r)
   return (await r.json()) as T
 }
 
 export async function listRowers(): Promise<Rower[]> {
-  const r = await fetch('/api/v1/rowers')
+  const r = await apiFetch('/api/v1/rowers')
   const body = await json<{ rowers: Rower[] }>(r)
   return body.rowers
 }
 
 export async function createRower(input: CreateRowerInput): Promise<Rower> {
-  const r = await fetch('/api/v1/rowers', {
+  const r = await apiFetch('/api/v1/rowers', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -42,7 +42,7 @@ export async function createRower(input: CreateRowerInput): Promise<Rower> {
 }
 
 export async function updateRower(id: string, input: UpdateRowerInput): Promise<Rower> {
-  const r = await fetch(`/api/v1/rowers/${encodeURIComponent(id)}`, {
+  const r = await apiFetch(`/api/v1/rowers/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(input),
@@ -51,13 +51,13 @@ export async function updateRower(id: string, input: UpdateRowerInput): Promise<
 }
 
 export async function getActiveRower(): Promise<Rower | null> {
-  const r = await fetch('/api/v1/active-rower')
+  const r = await apiFetch('/api/v1/active-rower')
   if (r.status === 404) return null
   return json<Rower>(r)
 }
 
 export async function setActiveRower(rowerId: string): Promise<Rower> {
-  const r = await fetch('/api/v1/active-rower', {
+  const r = await apiFetch('/api/v1/active-rower', {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ rower_id: rowerId }),

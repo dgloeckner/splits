@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { createRower, setActiveRower } from '../api/rowers'
+import { ApiError, NetworkError } from '../api/error'
 import styles from './OnboardingPage.module.css'
 
 const palette = [
@@ -13,6 +14,17 @@ const palette = [
   '#e4e2e1',
   '#3d494a',
 ]
+
+function formatErr(e: unknown): string {
+  if (e instanceof NetworkError) {
+    const c = e.cause instanceof Error ? `${e.cause.name}: ${e.cause.message}` : String(e.cause)
+    return `Backend nicht erreichbar — ${c} (${e.url})`
+  }
+  if (e instanceof ApiError) {
+    return `${e.status} ${e.message}${e.url ? ` [${e.url}]` : ''}`
+  }
+  return String(e)
+}
 
 function clampInt(v: string | number, min: number, max: number): number {
   const n = typeof v === 'string' ? Number(v) : v
@@ -55,7 +67,7 @@ export function OnboardingPage() {
       await qc.invalidateQueries({ queryKey: ['active-rower'] })
       nav('/', { replace: true })
     } catch (e2) {
-      setErr(String(e2))
+      setErr(formatErr(e2))
     } finally {
       setBusy(false)
     }

@@ -6,5 +6,7 @@ export function useRowers() {
     queryKey: ['rowers'],
     queryFn: listRowers,
     staleTime: 30_000,
+    retry: true,
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
   })
 }
