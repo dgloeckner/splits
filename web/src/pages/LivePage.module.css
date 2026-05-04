@@ -27,16 +27,28 @@
 }
 
 @media (min-width: 1024px) {
+  /* iPad / desktop "Option A" — hero-dominant 12-col grid:
+     row 1: workout strip, full width
+     row 2-3: hero (cols 1–7) + rail of 4 compact tiles (cols 8–12, 2×2)
+     row 4: 2 wide tiles spanning full width (charts)
+  */
   .page {
-    grid-template-columns: 55fr 45fr;
-    grid-template-rows: auto 1fr;
+    grid-template-columns: repeat(12, 1fr);
+    grid-template-rows: auto auto auto auto;
     align-items: stretch;
   }
   .topStrip {
     grid-column: 1 / -1;
+    grid-row: 1;
   }
-  .columns {
+  .leftCol {
+    display: contents;
+  }
+  .leftCol > * {
+    grid-column: 1 / 8;
+    grid-row: 2 / 4;
+  }
+  .rightCol {
     display: contents;
   }
 }
-

@@ -175,7 +175,6 @@ function HeroCell({
           {targetText}
         </span>
       )}
-      {paused && <span className={styles.pausedChip}>Pause</span>}
     </div>
   )
 }
