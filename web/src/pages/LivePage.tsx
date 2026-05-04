@@ -12,6 +12,7 @@ import { useWorkoutOverlay } from './live/WorkoutOverlayContext'
 import { WorkoutProgressStrip } from './live/WorkoutProgressStrip'
 import { SegmentStatus } from './live/SegmentStatus'
 import { SessionEndedOverlay } from './live/SessionEndedOverlay'
+import { PauseDialog } from './live/PauseDialog'
 import { useSegmentTransitions } from '../live/useSegmentTransitions'
 import { usePBBanners } from './live/usePBBanners'
 import { PBOverlay } from './live/PBOverlay'
@@ -179,6 +180,7 @@ export function LivePage() {
     <>
       <LiveBody />
       <ConnectionBanner />
+      <PauseDialog />
       {showPbOverlay && banners.kind === 'resolved' && (
         <PBOverlay
           banners={banners.banners}

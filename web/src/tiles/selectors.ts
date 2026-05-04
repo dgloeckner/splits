@@ -41,6 +41,8 @@ export function selectNumeric(state: LiveState, tileId: string): NumericValue {
       const v = sm?.spm ?? s?.spm ?? null
       return { value: fmtInt(v) }
     }
+    case 'schlaege':
+      return { value: fmtInt(s?.stroke ?? null) }
     case 'watt': {
       const v = sm?.power ?? s?.power_w ?? null
       return { value: fmtInt(v), unit: 'W' }

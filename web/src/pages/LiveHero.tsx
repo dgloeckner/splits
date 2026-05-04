@@ -71,10 +71,12 @@ export function LiveHero({ state, target }: Props) {
   const splitStat = splitStatus(state.smoothed?.paceSecPer500m ?? null, target?.split)
   const spmStat = spmStatus(state.smoothed?.spm ?? null, target?.spm)
 
-  const blank = '—'
-  const splitText = paused ? blank : smoothed.split
-  const spmText = paused ? blank : smoothed.spm
-  const wattsText = paused ? blank : smoothed.watts
+  // When paused, freeze hero values at last computed reading instead of
+  // blanking. The reducer keeps state.smoothed and state.stroke after the
+  // last stroke, so these formatters return the previous values.
+  const splitText = smoothed.split
+  const spmText = smoothed.spm
+  const wattsText = smoothed.watts
 
   return (
     <section className={styles.hero} aria-label="Live-Daten">
@@ -84,6 +86,7 @@ export function LiveHero({ state, target }: Props) {
           <span
             className={`${styles.splitValue} tnum`}
             data-target-status={paused ? undefined : splitStat}
+            data-paused={paused ? 'true' : undefined}
             data-testid="hero-split"
           >
             {splitText}
@@ -102,25 +105,32 @@ export function LiveHero({ state, target }: Props) {
       <div className={styles.secondary}>
         <HeroCell
           label="Zeit"
-          value={paused ? blank : time.text}
+          value={time.text}
           paused={time.paused}
           testId="hero-zeit"
         />
         <HeroCell
           label="Distanz"
-          value={paused ? blank : distance.text}
+          value={distance.text}
           paused={distance.paused}
           testId="hero-distanz"
         />
         <HeroCell
           label="SPM"
           value={spmText}
+          paused={paused}
           animate={!paused}
           targetText={target?.spm ? formatSpmRange(target.spm) : undefined}
           targetStatus={paused ? undefined : spmStat}
           testId="hero-spm"
         />
-        <HeroCell label="Watt" value={wattsText} animate={!paused} testId="hero-watt" />
+        <HeroCell
+          label="Watt"
+          value={wattsText}
+          paused={paused}
+          animate={!paused}
+          testId="hero-watt"
+        />
       </div>
     </section>
   )

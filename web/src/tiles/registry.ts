@@ -33,6 +33,13 @@ export const TILES: TileDef[] = [
   },
   { id: 'spi', label: 'SPI', type: 'numeric', category: 'zahlen' },
   { id: 'spm', label: 'SPM', type: 'numeric', category: 'zahlen' },
+  {
+    id: 'schlaege',
+    label: 'Schläge',
+    subtitle: 'Aktuelle Session',
+    type: 'numeric',
+    category: 'zahlen',
+  },
   { id: 'watt', label: 'Watt', type: 'numeric', unit: 'W', category: 'zahlen' },
   {
     id: 'oe-split',
