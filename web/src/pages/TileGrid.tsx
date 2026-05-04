@@ -20,26 +20,16 @@ export function TileGrid({ state }: Props) {
   const [pickerFor, setPickerFor] = useState<number | null>(null)
   const timersRef = useRef<number[]>([])
 
-  const sessionActive = state.session !== null && state.summary === null
-
   useEffect(() => {
     saveLayout(layout)
   }, [layout])
 
-  const armPress = useCallback(
-    (slotIndex: number) => {
-      // Editing the board during an active session is a silent no-op.
-      // The earlier "Nur zwischen Sessions editierbar" overlay was
-      // confusing — it left users tapping the screen mid-row trying
-      // to dismiss it. Now we just don't open the picker.
-      if (sessionActive) return
-      const t = window.setTimeout(() => {
-        setPickerFor(slotIndex)
-      }, LONG_PRESS_MS)
-      timersRef.current.push(t)
-    },
-    [sessionActive],
-  )
+  const armPress = useCallback((slotIndex: number) => {
+    const t = window.setTimeout(() => {
+      setPickerFor(slotIndex)
+    }, LONG_PRESS_MS)
+    timersRef.current.push(t)
+  }, [])
 
   const cancelPress = useCallback(() => {
     for (const t of timersRef.current) window.clearTimeout(t)
