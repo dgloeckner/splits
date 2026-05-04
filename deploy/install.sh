@@ -3,7 +3,7 @@
 #
 # Usage (from a workstation with the binary built and the repo cloned
 # on the target host):
-#   sudo HOSTNAME=splits.duckdns.org \
+#   sudo HOSTNAME=homeergo.duckdns.org \
 #        DUCKDNS_TOKEN=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \
 #        BIN=./dist/splits-linux-armv7 \
 #        WEB_DIST=./web/dist \

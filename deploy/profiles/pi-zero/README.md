@@ -6,7 +6,7 @@ running `deploy/install.sh`:
 
 ```bash
 sudo PROFILE=pi-zero \
-     HOSTNAME=splits.duckdns.org \
+     HOSTNAME=homeergo.duckdns.org \
      DUCKDNS_TOKEN=xxx \
      BIN=./dist/splits-linux-armv6 \
      WEB_DIST=./web/dist \

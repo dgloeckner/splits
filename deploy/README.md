@@ -57,7 +57,7 @@ Copy the repo (or just the deploy/, dist/, web/dist/ subtrees) to the
 Pi, then run as root on the Pi:
 
 ```bash
-sudo HOSTNAME=splits.duckdns.org \
+sudo HOSTNAME=homeergo.duckdns.org \
      DUCKDNS_TOKEN=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \
      BIN=./dist/splits-linux-armv7 \
      WEB_DIST=./web/dist \
@@ -75,7 +75,7 @@ are preserved across upgrades.
 systemctl status splits.service
 systemctl status splits-backup.timer
 journalctl -u splits.service -n 50
-curl -sI https://splits.duckdns.org/api/health
+curl -sI https://homeergo.duckdns.org/api/health
 ```
 
 First load may take a minute or two while Caddy provisions the cert via
