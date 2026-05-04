@@ -175,14 +175,16 @@ func mergeWindow(acc *[]WindowCandidate, in []WindowCandidate) {
 }
 
 // distanceCandidates finds, for each target distance, the shortest
-// time window whose distance delta is at least D. Strokes carry
-// cumulative DistanceM and TimeSec; the algorithm is two-pointer.
+// time over a window of *exactly* d metres. Strokes carry cumulative
+// DistanceM and TimeSec; treat the trace as a piecewise-linear curve
+// of time-vs-distance and slide a d-metre-wide window over it.
 //
-// Windows are inter-stroke only (no implicit (0,0) origin), so the
-// first achievable window runs from strokes[0] to some strokes[j].
-// This loses at most one stroke's worth of distance (~5–10 m) at run
-// start, which is far preferable to stripping the first stroke's full
-// distance contribution as the old normalizeRun approach did.
+// Window endpoints are linearly interpolated between adjacent strokes,
+// so a "500 m PB" really represents 500 m of work, not the next-whole-
+// stroke overshoot (which over-stated the split by up to ~one stroke
+// distance / ~1–2 s on a fast 500 m). Two scans cover both
+// optimum-anchor classes (end snapped to a stroke vs. start snapped to
+// a stroke); their min is the true best.
 func distanceCandidates(strokes []event.StrokePayload, distances []int) []DistanceCandidate {
 	if len(strokes) < 2 {
 		return nil
@@ -191,19 +193,62 @@ func distanceCandidates(strokes []event.StrokePayload, distances []int) []Distan
 	for _, d := range distances {
 		bestDur := math.Inf(1)
 		bestStart, bestEnd := 0, 0
+
+		// Scan A: anchor end at each stroke j; interpolate start at
+		// distance D[j]-d within segment [i, i+1].
 		i := 0
-		for j := 1; j < len(strokes); j++ {
-			for i < j-1 && strokes[j].DistanceM-strokes[i+1].DistanceM > d {
+		for j := 0; j < len(strokes); j++ {
+			target := float64(strokes[j].DistanceM - d)
+			if target < float64(strokes[0].DistanceM) {
+				continue
+			}
+			for i+1 < j && float64(strokes[i+1].DistanceM) <= target {
 				i++
 			}
-			if strokes[j].DistanceM-strokes[i].DistanceM >= d {
-				dur := strokes[j].TimeSec - strokes[i].TimeSec
-				if dur > 0 && dur < bestDur {
-					bestDur = dur
-					bestStart, bestEnd = strokes[i].StrokeNo, strokes[j].StrokeNo
-				}
+			if i+1 >= len(strokes) || strokes[i+1].DistanceM < strokes[j].DistanceM-d {
+				continue
+			}
+			startT := interpTime(
+				float64(strokes[i].DistanceM), strokes[i].TimeSec,
+				float64(strokes[i+1].DistanceM), strokes[i+1].TimeSec,
+				target,
+			)
+			dur := strokes[j].TimeSec - startT
+			if dur > 0 && dur < bestDur {
+				bestDur = dur
+				bestStart, bestEnd = strokes[i].StrokeNo, strokes[j].StrokeNo
 			}
 		}
+
+		// Scan B: anchor start at each stroke i; interpolate end at
+		// distance D[i]+d within segment [j, j+1].
+		j := 0
+		for k := 0; k < len(strokes); k++ {
+			target := float64(strokes[k].DistanceM + d)
+			if target > float64(strokes[len(strokes)-1].DistanceM) {
+				break
+			}
+			if j < k {
+				j = k
+			}
+			for j+1 < len(strokes) && float64(strokes[j+1].DistanceM) <= target {
+				j++
+			}
+			if j+1 >= len(strokes) {
+				continue
+			}
+			endT := interpTime(
+				float64(strokes[j].DistanceM), strokes[j].TimeSec,
+				float64(strokes[j+1].DistanceM), strokes[j+1].TimeSec,
+				target,
+			)
+			dur := endT - strokes[k].TimeSec
+			if dur > 0 && dur < bestDur {
+				bestDur = dur
+				bestStart, bestEnd = strokes[k].StrokeNo, strokes[j+1].StrokeNo
+			}
+		}
+
 		if !math.IsInf(bestDur, 1) {
 			out = append(out, DistanceCandidate{
 				DistanceM:         d,
@@ -214,6 +259,16 @@ func distanceCandidates(strokes []event.StrokePayload, distances []int) []Distan
 		}
 	}
 	return out
+}
+
+// interpTime linearly interpolates time at distance dx within a
+// segment whose endpoints are (d0, t0) and (d1, t1). When the segment
+// has zero distance (degenerate), returns t0.
+func interpTime(d0, t0, d1, t1, dx float64) float64 {
+	if d1 == d0 {
+		return t0
+	}
+	return t0 + (t1-t0)*(dx-d0)/(d1-d0)
 }
 
 // windowCandidates computes one best per WindowDef. Stroke-based
