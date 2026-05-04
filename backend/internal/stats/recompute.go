@@ -161,14 +161,16 @@ func recomputeWindow(ctx context.Context, tx *sql.Tx, rowerID, now string) error
 		value                              float64
 	}
 	var bests []best
-	// Pace is lower-is-better; everything else is higher-is-better.
-	// Run two passes so the SQL stays simple.
+	// Pace window-PBs were retired (split is sec/500m by definition;
+	// distance-PBs cover the split story). Remaining metrics are all
+	// higher-is-better. Recompute always invalidates the full pb_window
+	// table first and re-inserts from the filtered candidate set, so
+	// any stale pace rows from the old WindowDefs naturally drop out.
 	for _, p := range []struct {
 		filter string
 		order  string
 	}{
-		{filter: "metric = 'pace'", order: "ASC"},
-		{filter: "metric <> 'pace'", order: "DESC"},
+		{filter: "metric IN ('power','dps','spi')", order: "DESC"},
 	} {
 		q := fmt.Sprintf(`
 			SELECT metric, window_kind, window_size, value, session_id, started_at

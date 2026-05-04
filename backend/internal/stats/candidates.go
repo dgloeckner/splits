@@ -66,9 +66,15 @@ var StandardDistances = []int{500, 1000, 2000, 5000, 6000, 10000}
 // WindowDefs lists the fixed window-PB definitions. Locked at
 // deployment per FEAT-0010 — adding a definition later cannot
 // back-fill historical sessions whose strokes are gone.
+//
+// Pace is intentionally absent: split = sec/500m by definition, so
+// a "best 60 s avg pace" is not a metric rowers track. Continuous
+// 500 m and longer distance PBs cover the split story; window-PBs
+// here are reserved for intensity metrics with no natural
+// distance equivalent (power) or stroke-quality metrics
+// (DPS, SPI).
 var WindowDefs = []WindowDef{
 	{Metric: "power", Kind: "seconds", Size: 60},
-	{Metric: "pace", Kind: "seconds", Size: 60},
 	{Metric: "dps", Kind: "strokes", Size: 30},
 	{Metric: "spi", Kind: "strokes", Size: 30},
 }

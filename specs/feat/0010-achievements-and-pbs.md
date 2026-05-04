@@ -112,14 +112,23 @@ must not change the schema — see below):
 | Metric      | Window              |
 |-------------|---------------------|
 | Power (W)   | 60 s                |
-| Pace (/500) | 60 s                |
 | DPS         | 30 strokes          |
 | SPI         | 30 strokes          |
 
 A window-PB row is keyed by `(rower_id, metric, window_kind,
 window_size)` where `window_kind ∈ {seconds, strokes}`. The value is
-the rolling-mean best (highest for power / DPS / SPI, lowest for
-pace). `window_size` is stored as an integer.
+the rolling-mean best (higher-is-better for all current metrics).
+`window_size` is stored as an integer.
+
+> Pace was originally a window-PB metric (best 60 s avg /500m split)
+> but was retired: split is sec/500m by definition, so a "best 60 s
+> avg pace" is not a metric rowers track in standard tools (Concept2,
+> Painsled, rowsandall). Continuous distance-PBs (500 m, 1 k, 2 k…)
+> cover the split story; window-PBs are reserved for intensity
+> metrics with no natural distance equivalent (power) or stroke-
+> quality metrics (DPS, SPI). The 'pace' branch in the recompute SQL
+> and the `pace` case in `strokeMetric` / `better` are kept as dead
+> code so historical rows invalidate cleanly during recompute.
 
 Window list is **locked at deployment**: adding a window later
 cannot back-fill historical sessions because their strokes are
@@ -438,8 +447,9 @@ and the API.
 - [ ] A PB can be set by an inner window of a longer session — e.g.
       a 6 k session sets a new 2 k PB equal to the fastest 2 k
       window inside it.
-- [ ] Window-PBs for power 10/30/60 s, pace 10/60 s, DPS 30-strokes,
-      SPI 30-strokes are computed and stored in `pb_window`.
+- [ ] Window-PBs for power 60 s, DPS 30-strokes, SPI 30-strokes are
+      computed and stored in `pb_window`. (Pace 60 s was retired —
+      see the note above the table in section (b).)
 - [ ] Adding a new window value to the Go constant list is a code-
       only change — no migration, no schema change — and the next
       recompute populates it.
@@ -517,8 +527,8 @@ spec; no separate PB computation code should remain.
 - **Hash canonicalisation**: SHA-256 over JSON-sorted-keys-no-whitespace
   of `{mode, params, warmup_sec, cooldown_sec}`. `intensity`
   excluded. `warmup_sec`/`cooldown_sec` coerced to int seconds.
-- **Window list**: locked at deployment — power 60 s, pace 60 s,
-  DPS 30-strokes, SPI 30-strokes. No additions post-deploy.
+- **Window list**: power 60 s, DPS 30-strokes, SPI 30-strokes.
+  Pace 60 s was retired (see section (b)).
 - **Consistency PBs**: three within-session CVs (power, pace-split,
   spm). 80-stroke minimum.
 - **Multi-session corridor**: relative ±3 % around 30-session
