@@ -111,6 +111,8 @@ func NewRouter(in Inputs) http.Handler {
 	mux.Handle("GET /api/v1/rowers/{id}/achievements", gate(pbs))
 	mux.Handle("GET /api/v1/sessions/{id}/pb-banners", gate(pbs))
 
+	mux.Handle("GET /api/v1/race/opponents", gate(RaceOpponentsHandler(in.DB)))
+
 	if in.Sessionizer != nil {
 		mux.Handle("POST /api/v1/workouts/{id}/attach",
 			gate(WorkoutAttachHandler(in.WorkoutRepo, in.Sessionizer)))

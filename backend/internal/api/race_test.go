@@ -3,12 +3,15 @@ package api_test
 import (
 	"database/sql"
 	"encoding/json"
+	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gloeckner-daniel/splits/internal/api"
+	"github.com/gloeckner-daniel/splits/internal/rower"
 	"github.com/gloeckner-daniel/splits/internal/storage"
 )
 
@@ -646,6 +649,108 @@ func TestRaceOpponents_FreeRowExcluded(t *testing.T) {
 	}
 	if resp.PB != nil {
 		t.Errorf("pb = %+v, want nil (just_row must always suppress opponents)", resp.PB)
+	}
+}
+
+// TestRaceOpponents_RouteRegistered proves that GET /api/v1/race/opponents
+// is mounted on NewRouter and reaches RaceOpponentsHandler end-to-end
+// (via the RequireRower gate, exercised through the bootstrap-pair flow).
+func TestRaceOpponents_RouteRegistered(t *testing.T) {
+	t.Parallel()
+	db, err := storage.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	repo := rower.NewRepo(db.Handle())
+	holder := rower.NewHolder()
+	link := rower.NewDeviceLink(db.Handle())
+	h := api.NewRouter(api.Inputs{
+		DB:          db.Handle(),
+		RowerRepo:   repo,
+		RowerHolder: holder,
+		DeviceLink:  link,
+	})
+
+	// Bootstrap: POST /api/v1/rowers on an empty DB pairs the calling
+	// device. Capture the device cookie so subsequent gated requests pass.
+	bootReq := httptest.NewRequest("POST", "/api/v1/rowers",
+		strings.NewReader(`{"name":"Test","color":"#ff6b6b"}`))
+	bootReq.Header.Set("Content-Type", "application/json")
+	bootRec := httptest.NewRecorder()
+	h.ServeHTTP(bootRec, bootReq)
+	if bootRec.Code != http.StatusCreated {
+		t.Fatalf("bootstrap POST /rowers: status=%d body=%s", bootRec.Code, bootRec.Body.String())
+	}
+	devCookie := strings.SplitN(bootRec.Header().Get("Set-Cookie"), ";", 2)[0]
+
+	// Find the bootstrapped rower id.
+	var rowerID string
+	if err := db.Handle().QueryRow(`SELECT id FROM rowers LIMIT 1`).Scan(&rowerID); err != nil {
+		t.Fatalf("lookup rower id: %v", err)
+	}
+
+	// Seed a workout to satisfy the handler's existence checks.
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	mustExec(t, db.Handle(),
+		`INSERT INTO workout(id, mode, params_json, intensity, warmup_sec, cooldown_sec, created_at, shape_hash)
+		 VALUES('W1','distance','{"meters":2000}','allout',0,0,?, 'shapeA')`, now)
+
+	// Hit the route through the full router (gate included).
+	req := httptest.NewRequest("GET", "/api/v1/race/opponents?workout_id=W1&rower_id="+rowerID, nil)
+	req.Header.Set("Cookie", devCookie)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Ghost json.RawMessage `json:"ghost"`
+		PB    json.RawMessage `json:"pb"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v body=%s", err, rec.Body.String())
+	}
+	if string(resp.Ghost) != "null" {
+		t.Errorf("ghost = %s, want null", resp.Ghost)
+	}
+	if string(resp.PB) != "null" {
+		t.Errorf("pb = %s, want null", resp.PB)
+	}
+}
+
+// TestRaceOpponents_RouteRequiresAuth confirms the route is wrapped by
+// the RequireRower gate (unpaired device → 401).
+func TestRaceOpponents_RouteRequiresAuth(t *testing.T) {
+	t.Parallel()
+	db, err := storage.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	// Seed at least one rower so bootstrap-when-empty does not engage.
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	mustExec(t, db.Handle(),
+		`INSERT INTO rowers(id, name, color, created_at) VALUES('R1','D','#0f0',?)`, now)
+
+	repo := rower.NewRepo(db.Handle())
+	holder := rower.NewHolder()
+	link := rower.NewDeviceLink(db.Handle())
+	h := api.NewRouter(api.Inputs{
+		DB:          db.Handle(),
+		RowerRepo:   repo,
+		RowerHolder: holder,
+		DeviceLink:  link,
+	})
+
+	req := httptest.NewRequest("GET", "/api/v1/race/opponents?workout_id=W1&rower_id=R1", nil)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("unpaired device: status=%d, want 401", rec.Code)
 	}
 }
 
