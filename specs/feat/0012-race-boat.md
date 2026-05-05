@@ -165,3 +165,7 @@ variant strips torso, head, oar shaft, oar blade.
   tile hidden below 20 px.
 - **Off-screen chip unit**: meters by default, switch to
   split-equivalent seconds when absolute gap < 5 m.
+
+## Deferred
+
+- Full end-to-end Playwright spec for race-boat tile + finish toast (T18 plan) is deferred. Backend handler, opponent-selection logic, and the finish-toast pipeline are covered by Go and Vitest tests. The remaining gap is a single browser-driven test that seeds a prior matching session, drives strokes through completion, and asserts the toast appears. To be picked up once the E2E fixture set grows a "seeded prior session with samples" helper.
