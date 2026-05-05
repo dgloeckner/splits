@@ -175,6 +175,79 @@ func TestIntegrationFixtureIntervalsSkipped(t *testing.T) {
 	}
 }
 
+// TestInsightsLongSessionWithCappedBuckets exercises the long-session
+// path where stats.BucketStrokesFor grows the bucket size beyond
+// DefaultBucketStrokes to keep the samples series capped at
+// MaxSampleBuckets. Generates ~2200 synthetic strokes (well over the
+// 360*5=1800 threshold) and verifies the detector pipeline still runs
+// to completion against the coarser sample series.
+func TestInsightsLongSessionWithCappedBuckets(t *testing.T) {
+	const nStrokes = 2200
+	strokes := make([]event.StrokePayload, 0, nStrokes)
+	// Constant pace ~120 s/500m, SPM ~24, power ~200W.
+	// At 120 s/500m → 4.166 m/s. SPM 24 → one stroke every 2.5 s →
+	// distance per stroke ≈ 10.4 m.
+	const dt = 2.5 // seconds per stroke
+	const dm = 10  // meters per stroke (rounded)
+	for i := 0; i < nStrokes; i++ {
+		ts := dt * float64(i+1)
+		d := dm * (i + 1)
+		strokes = append(strokes, event.StrokePayload{
+			StrokeNo:       i + 1,
+			TimeSec:        ts,
+			DistanceM:      d,
+			SPM:            24,
+			PowerW:         200,
+			PaceSecPer500m: 120,
+			DPS:            float64(dm) / 1.0, // 10 m/stroke
+			Phase:          "work",
+		})
+	}
+
+	bucket := stats.BucketStrokesFor(len(strokes))
+	if bucket <= stats.DefaultBucketStrokes {
+		t.Fatalf("expected bucket > %d for %d strokes, got %d",
+			stats.DefaultBucketStrokes, len(strokes), bucket)
+	}
+	t.Logf("synthetic n=%d strokes → bucket=%d (default=%d)",
+		len(strokes), bucket, stats.DefaultBucketStrokes)
+
+	samples := stats.ComputeSamples(strokes, bucket)
+	if samples == nil {
+		t.Fatalf("ComputeSamples returned nil")
+	}
+	if got := len(samples.Split); got > stats.MaxSampleBuckets {
+		t.Fatalf("samples series len=%d exceeds cap %d", got, stats.MaxSampleBuckets)
+	}
+
+	last := strokes[len(strokes)-1]
+	res := insights.Run(insights.SessionMeta{
+		WorkoutMode: "distance",
+		DurationSec: last.TimeSec,
+		DistanceM:   last.DistanceM,
+	}, samples)
+
+	// Smoke: the pipeline must not panic and (since this is a long,
+	// otherwise-eligible session) must be eligible. Findings content
+	// is implementation-defined for a flat synthetic series — assert
+	// only structural validity, not which detectors fire.
+	if !res.Eligible {
+		t.Fatalf("expected eligible long session, got reason=%q", res.Reason)
+	}
+	for _, f := range res.Findings {
+		if f.Code == "" {
+			t.Errorf("detector %q produced empty Code", f.DetectorID)
+		}
+		if f.Severity == "" {
+			t.Errorf("detector %q produced empty Severity", f.DetectorID)
+		}
+		if f.Category == "" {
+			t.Errorf("detector %q produced empty Category", f.DetectorID)
+		}
+	}
+	t.Logf("long-session run produced %d finding(s)", len(res.Findings))
+}
+
 func keys(m map[string]insights.Finding) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
