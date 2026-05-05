@@ -1,0 +1,26 @@
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 0;
+}
+.heading {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+.synthesis {
+  font-size: 1.05rem;
+  line-height: 1.45;
+  margin: 0;
+}
+.cards {
+  display: grid;
+  gap: 8px;
+}
+.placeholder {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
