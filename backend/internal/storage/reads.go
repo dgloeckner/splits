@@ -17,6 +17,7 @@ type SessionRow struct {
 	ID             string                `json:"id"`
 	RowerID        string                `json:"rower_id"`
 	WorkoutID      *string               `json:"workout_id,omitempty"`
+	WorkoutMode    string                `json:"workout_mode,omitempty"`
 	StartedAt      time.Time             `json:"started_at"`
 	EndedAt        *time.Time            `json:"ended_at,omitempty"`
 	InitialLevel   int                   `json:"initial_level"`
@@ -46,6 +47,9 @@ type SampleRow struct {
 // sessionSelectCols is the column list shared by ListSessions and
 // GetSession. summary_json now carries only the samples envelope; all
 // aggregate metrics live in their own typed columns.
+// Queries using this constant must alias the sessions table as "s" and
+// LEFT JOIN workout as "w" (ON w.id = s.workout_id) so that the
+// COALESCE(w.mode, '') column resolves correctly.
 const sessionSelectCols = `s.id, s.rower_id, s.workout_id, s.started_at, s.ended_at, s.initial_level,
 		       s.total_distance_m, s.total_time_sec, s.total_strokes,
 		       s.avg_power_w, s.peak_power_w, s.avg_spm, s.avg_dps, s.avg_spi,
@@ -56,7 +60,8 @@ const sessionSelectCols = `s.id, s.rower_id, s.workout_id, s.started_at, s.ended
 		        OR EXISTS(SELECT 1 FROM pb_window pw
 		                  WHERE pw.source_session_id = s.id AND pw.invalidated_at IS NULL)
 		        OR EXISTS(SELECT 1 FROM pb_workout pwo
-		                  WHERE pwo.source_session_id = s.id AND pwo.invalidated_at IS NULL)) AS has_pb`
+		                  WHERE pwo.source_session_id = s.id AND pwo.invalidated_at IS NULL)) AS has_pb,
+		       COALESCE(w.mode, '')`
 
 // ListSessions returns non-deleted sessions newest first. When
 // rowerID is non-empty, only sessions belonging to that rower are
@@ -78,6 +83,7 @@ func ListSessions(ctx context.Context, db *sql.DB, limit, offset int, rowerID st
 	rows, err := db.QueryContext(ctx, `
 		SELECT `+sessionSelectCols+`
 		FROM sessions s
+		LEFT JOIN workout w ON w.id = s.workout_id
 		WHERE COALESCE(s.total_strokes, 0) > 0`+rowerFilter+`
 		ORDER BY s.started_at DESC
 		LIMIT ? OFFSET ?`, args...)
@@ -103,6 +109,7 @@ func GetSession(ctx context.Context, db *sql.DB, id string) (*SessionRow, error)
 	row := db.QueryRowContext(ctx, `
 		SELECT `+sessionSelectCols+`
 		FROM sessions s
+		LEFT JOIN workout w ON w.id = s.workout_id
 		WHERE s.id = ?`, id)
 	r, err := scanSession(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -198,7 +205,7 @@ func scanSession(r rowScanner) (SessionRow, error) {
 	if err := r.Scan(&out.ID, &out.RowerID, &workoutStr, &startedStr, &endedStr, &out.InitialLevel,
 		&totalDist, &totalTime, &totalStroke,
 		&avgPower, &peakPower, &avgSPM, &avgDPS, &avgSPI, &avgPace, &sessionCal,
-		&summaryStr, &out.HasPB); err != nil {
+		&summaryStr, &out.HasPB, &out.WorkoutMode); err != nil {
 		return out, err
 	}
 	if workoutStr.Valid && workoutStr.String != "" {

@@ -30,6 +30,7 @@ func SessionsHandler(db *sql.DB, sched *stats.RecomputeScheduler, active ActiveS
 	mux.HandleFunc("GET /api/v1/sessions", listSessions(db))
 	mux.HandleFunc("GET /api/v1/sessions/{id}", getSession(db))
 	mux.HandleFunc("GET /api/v1/sessions/{id}/samples", getSamples(db))
+	mux.HandleFunc("GET /api/v1/sessions/{id}/insights", getSessionInsights(db))
 	mux.HandleFunc("DELETE /api/v1/sessions/{id}", deleteSession(db, sched, active))
 	return mux
 }
