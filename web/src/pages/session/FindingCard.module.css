@@ -1,0 +1,15 @@
+.card {
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--color-surface);
+  border-left: 4px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.card[data-severity="ATTENTION"] { border-left-color: var(--color-warning, #d98700); }
+.card[data-severity="NOTABLE"]   { border-left-color: var(--color-accent,  #2b6cb0); }
+.card[data-severity="INFO"]      { border-left-color: var(--color-muted,   #888); }
+
+.message { font-size: 0.95rem; line-height: 1.35; }
+.label   { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted); }
