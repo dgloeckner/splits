@@ -3,7 +3,7 @@
 
 CREATE TABLE IF NOT EXISTS session_insights (
   id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  rower_id      TEXT NOT NULL,
+  rower_id      TEXT NOT NULL REFERENCES rowers(id),
   session_id    TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
   detector_id   TEXT NOT NULL,
   code          TEXT NOT NULL,
