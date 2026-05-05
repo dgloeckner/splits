@@ -38,6 +38,24 @@ func RaceOpponentsHandler(db *sql.DB) http.Handler {
 			return
 		}
 
+		// Free-row sessions never get an opponent tile (spec hard rule).
+		// Resolve the workout's mode up front: 404 if the workout is
+		// missing, short-circuit with empty response if it's just_row.
+		mode, _, _, err := workoutShapeForRace(r.Context(), db, workoutID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if mode == "" {
+			http.NotFound(w, r)
+			return
+		}
+		if mode == "just_row" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(RaceOpponentsResponse{})
+			return
+		}
+
 		var resp RaceOpponentsResponse
 		ghost, err := loadGhost(r.Context(), db, rowerID, workoutID)
 		if err != nil {

@@ -605,6 +605,50 @@ func TestRaceOpponents_DedupeWhenGhostIsPB(t *testing.T) {
 	}
 }
 
+func TestRaceOpponents_FreeRowExcluded(t *testing.T) {
+	t.Parallel()
+	db, err := storage.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	mustExec(t, db.Handle(),
+		`INSERT INTO rowers(id, name, color, created_at) VALUES('R1','D','#0f0',?)`, now)
+	// Free-row workout. just_row params_json is conventionally an empty object.
+	mustExec(t, db.Handle(),
+		`INSERT INTO workout(id, mode, params_json, intensity, warmup_sec, cooldown_sec, created_at, shape_hash)
+		 VALUES('W1','just_row','{}','moderat',0,0,?, 'shapeFree')`, now)
+
+	tS := time.Date(2026, 4, 1, 10, 0, 0, 0, time.UTC)
+	mustExec(t, db.Handle(),
+		`INSERT INTO sessions(id, rower_id, started_at, ended_at, workout_id, summary_json, initial_level)
+		 VALUES('S_FREE','R1',?,?,'W1',?,3)`,
+		tS.Format(time.RFC3339Nano), tS.Add(time.Minute*15).Format(time.RFC3339Nano),
+		`{"samples":{"t_sec":[0,5,10],"split":[120,118,116]}}`)
+
+	h := api.RaceOpponentsHandler(db.Handle())
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/race/opponents?workout_id=W1&rower_id=R1", nil))
+	if rec.Code != 200 {
+		t.Fatalf("status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Ghost *api.RaceOpponent `json:"ghost"`
+		PB    *api.RaceOpponent `json:"pb"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v body=%s", err, rec.Body.String())
+	}
+	if resp.Ghost != nil {
+		t.Errorf("ghost = %+v, want nil (just_row must always suppress opponents)", resp.Ghost)
+	}
+	if resp.PB != nil {
+		t.Errorf("pb = %+v, want nil (just_row must always suppress opponents)", resp.PB)
+	}
+}
+
 func TestRaceOpponents_MissingParamsReturns400(t *testing.T) {
 	t.Parallel()
 	db, err := storage.Open(filepath.Join(t.TempDir(), "test.db"))
