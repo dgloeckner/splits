@@ -22,7 +22,7 @@ function formatGap(sec: number): string {
   return `${rounded.toFixed(1)}s`
 }
 
-export function RaceResultToast({ result }: Props): JSX.Element | null {
+export function RaceResultToast({ result }: Props) {
   const [shown, setShown] = useState<RaceResult | null>(result)
 
   useEffect(() => {
