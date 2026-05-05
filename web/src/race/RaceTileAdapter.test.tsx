@@ -83,6 +83,42 @@ describe('RaceTileAdapter', () => {
     expect(container.firstChild).not.toBeNull()
   })
 
+  it('freezes ghost position when stroke.time_sec stops advancing (pause sync)', () => {
+    vi.spyOn(oppHook, 'useRaceOpponents').mockReturnValue({
+      ghost: {
+        sourceSessionId: 's',
+        label: 'ghost',
+        tSec: [0, 5, 10, 15, 20],
+        split: [120, 120, 120, 120, 120],
+      },
+      pb: null,
+    })
+    const before = makeLiveState({
+      stroke: {
+        session_id: 'sess-1',
+        stroke: 1,
+        time_sec: 10,
+        distance_m: 30,
+        power_w: 200,
+        pace_sec_per_500m: 120,
+        spm: 24,
+        cal_per_hr: 0,
+        dps: 10,
+        stroke_cycle_sec: 2.5,
+        energy_joules: 0,
+        level: 5,
+        phase: 'work',
+      },
+    })
+    const { rerender, container } = render(<RaceTileAdapter liveState={before} />)
+    const ghostBefore = container.querySelector('[data-lane="ghost"]')?.innerHTML
+    // Re-render with the SAME stroke values (simulates a pause: backend stops emitting strokes,
+    // adapter inputs are unchanged).
+    rerender(<RaceTileAdapter liveState={before} />)
+    const ghostAfter = container.querySelector('[data-lane="ghost"]')?.innerHTML
+    expect(ghostAfter).toBe(ghostBefore)
+  })
+
   it('forwards rower/workout ids to the hook', () => {
     const spy = vi
       .spyOn(oppHook, 'useRaceOpponents')

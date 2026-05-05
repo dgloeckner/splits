@@ -19,6 +19,8 @@ export function RaceTileAdapter({ liveState, disabled }: Props) {
     return () => ro.disconnect()
   }, [])
 
+  // Pause-sync: the backend halts stroke emission while paused, so
+  // stroke.time_sec freezes; ghost + PB position halt with it.
   const opps = useRaceOpponents({
     workoutId: liveState.session?.workout_id ?? null,
     rowerId: liveState.session?.rower_id ?? null,
