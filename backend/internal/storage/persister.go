@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gloeckner-daniel/splits/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/insights"
 	"github.com/gloeckner-daniel/splits/internal/stats"
 )
 
@@ -218,6 +219,20 @@ func (p *Persister) applySessionEnd(ctx context.Context, e event.Event) error {
 	summary.Samples = stats.ComputeSamples(workStrokes, stats.DefaultBucketStrokes)
 	summary.PBCandidates = stats.ComputeCandidates(workStrokes)
 
+	// Pre-load workout mode + rower_id for insights eligibility.
+	var rowerID, workoutMode string
+	_ = p.DB.QueryRowContext(ctx, `
+		SELECT s.rower_id, COALESCE(w.mode, '')
+		FROM sessions s
+		LEFT JOIN workouts w ON w.id = s.workout_id
+		WHERE s.id = ?`, e.SessionID).Scan(&rowerID, &workoutMode)
+
+	insightsRes := computeInsightsSafely(insights.SessionMeta{
+		WorkoutMode: workoutMode,
+		DurationSec: summary.TotalTimeSec,
+		DistanceM:   summary.TotalDistanceM,
+	}, summary.Samples)
+
 	tx, err := p.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -229,17 +244,31 @@ func (p *Persister) applySessionEnd(ctx context.Context, e event.Event) error {
 	if err := DeleteSessionStrokes(ctx, tx, e.SessionID); err != nil {
 		return err
 	}
+	if rowerID != "" {
+		if err := insights.ReplaceForSessionTx(ctx, tx, rowerID, e.SessionID, insightsRes.Findings); err != nil {
+			return err
+		}
+	}
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-	if p.Scheduler != nil {
-		var rowerID string
-		if err := p.DB.QueryRowContext(ctx,
-			`SELECT rower_id FROM sessions WHERE id = ?`, e.SessionID).Scan(&rowerID); err == nil && rowerID != "" {
-			stats.OnSessionChange(p.Scheduler, rowerID, stats.SessionCreated)
-		}
+	if p.Scheduler != nil && rowerID != "" {
+		stats.OnSessionChange(p.Scheduler, rowerID, stats.SessionCreated)
 	}
 	return nil
+}
+
+// computeInsightsSafely runs the insights pipeline with panic
+// recovery. A panic in a detector logs and returns an empty result;
+// the session_end commit still succeeds without insights.
+func computeInsightsSafely(meta insights.SessionMeta, samples *event.SessionSamples) (res insights.Result) {
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("insights.compute panic", "err", r)
+			res = insights.Result{Eligible: false, Findings: []insights.Finding{}}
+		}
+	}()
+	return insights.Run(meta, samples)
 }
 
 func filterWorkStrokes(in []event.StrokePayload) []event.StrokePayload {

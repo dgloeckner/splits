@@ -1,4 +1,4 @@
-package insights
+package insights_test
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gloeckner-daniel/splits/internal/insights"
 	"github.com/gloeckner-daniel/splits/internal/storage"
 )
 
@@ -45,11 +46,11 @@ func TestStoreInsertAndList(t *testing.T) {
 	rowerID, sessionID := "r1", "s1"
 	seedSession(t, db, rowerID, sessionID)
 
-	store := NewStore(db.Handle())
-	findings := []Finding{
+	store := insights.NewStore(db.Handle())
+	findings := []insights.Finding{
 		{
-			DetectorID: "pacing", Code: CodePositiveSplit,
-			Severity: SeverityNotable, Category: CategoryPacing,
+			DetectorID: "pacing", Code: insights.CodePositiveSplit,
+			Severity: insights.SeverityNotable, Category: insights.CategoryPacing,
 			MessageDE: "msg", Evidence: map[string]float64{"delta": 3.6},
 		},
 	}
@@ -60,7 +61,7 @@ func TestStoreInsertAndList(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0].Code != CodePositiveSplit {
+	if len(got) != 1 || got[0].Code != insights.CodePositiveSplit {
 		t.Fatalf("got %+v", got)
 	}
 	if got[0].Evidence["delta"] != 3.6 {
@@ -73,10 +74,10 @@ func TestStoreReplaceIsIdempotent(t *testing.T) {
 	rowerID, sessionID := "r1", "s1"
 	seedSession(t, db, rowerID, sessionID)
 
-	store := NewStore(db.Handle())
-	f := []Finding{{
-		DetectorID: "pacing", Code: CodeEvenSplit,
-		Severity: SeverityInfo, Category: CategoryPacing,
+	store := insights.NewStore(db.Handle())
+	f := []insights.Finding{{
+		DetectorID: "pacing", Code: insights.CodeEvenSplit,
+		Severity: insights.SeverityInfo, Category: insights.CategoryPacing,
 		MessageDE: "x", Evidence: map[string]float64{},
 	}}
 	for i := 0; i < 2; i++ {
@@ -95,11 +96,11 @@ func TestStoreListOrdersBySeverity(t *testing.T) {
 	rowerID, sessionID := "r1", "s1"
 	seedSession(t, db, rowerID, sessionID)
 
-	store := NewStore(db.Handle())
-	findings := []Finding{
-		{DetectorID: "consistency", Code: CodeConsistentHigh, Severity: SeverityInfo, Category: CategoryConsistency, MessageDE: "info", Evidence: map[string]float64{}},
-		{DetectorID: "fade", Code: CodeFade, Severity: SeverityAttention, Category: CategoryEfficiency, MessageDE: "attention", Evidence: map[string]float64{}},
-		{DetectorID: "pacing", Code: CodePositiveSplit, Severity: SeverityNotable, Category: CategoryPacing, MessageDE: "notable", Evidence: map[string]float64{}},
+	store := insights.NewStore(db.Handle())
+	findings := []insights.Finding{
+		{DetectorID: "consistency", Code: insights.CodeConsistentHigh, Severity: insights.SeverityInfo, Category: insights.CategoryConsistency, MessageDE: "info", Evidence: map[string]float64{}},
+		{DetectorID: "fade", Code: insights.CodeFade, Severity: insights.SeverityAttention, Category: insights.CategoryEfficiency, MessageDE: "attention", Evidence: map[string]float64{}},
+		{DetectorID: "pacing", Code: insights.CodePositiveSplit, Severity: insights.SeverityNotable, Category: insights.CategoryPacing, MessageDE: "notable", Evidence: map[string]float64{}},
 	}
 	if err := store.ReplaceForSession(context.Background(), rowerID, sessionID, findings); err != nil {
 		t.Fatal(err)
@@ -111,13 +112,13 @@ func TestStoreListOrdersBySeverity(t *testing.T) {
 	if len(got) != 3 {
 		t.Fatalf("expected 3 findings, got %d", len(got))
 	}
-	if got[0].Severity != SeverityAttention {
+	if got[0].Severity != insights.SeverityAttention {
 		t.Errorf("first finding should be ATTENTION, got %q", got[0].Severity)
 	}
-	if got[1].Severity != SeverityNotable {
+	if got[1].Severity != insights.SeverityNotable {
 		t.Errorf("second finding should be NOTABLE, got %q", got[1].Severity)
 	}
-	if got[2].Severity != SeverityInfo {
+	if got[2].Severity != insights.SeverityInfo {
 		t.Errorf("third finding should be INFO, got %q", got[2].Severity)
 	}
 }
