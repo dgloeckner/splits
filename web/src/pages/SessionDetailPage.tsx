@@ -16,6 +16,7 @@ import { LineChart } from '../components/LineChart/LineChart'
 import { fmtFloat, fmtInt, fmtMeters, mmss, mmssWhole, pace500m } from '../util/format'
 import { formatSessionStart } from '../util/dates'
 import { DeleteSessionDialog } from './history/DeleteSessionDialog'
+import { InsightsSection } from './session/InsightsSection'
 import styles from './SessionDetailPage.module.css'
 
 export function SessionDetailPage() {
@@ -156,6 +157,8 @@ export function SessionDetailPage() {
           </div>
         </div>
       </section>
+
+      <InsightsSection sessionId={sessionId} />
 
       <div className={styles.charts}>
         <LineChart title="Split-Verlauf (s / 500 m)" points={splitPts} fmt={(v) => mmss(v)} />

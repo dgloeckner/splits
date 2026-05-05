@@ -4,6 +4,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { SessionDetailPage } from './SessionDetailPage'
+import * as insightsApi from '../api/insights'
 
 function wrap(initial = '/historie/S1') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -71,6 +72,35 @@ describe('SessionDetailPage', () => {
     expect(screen.getByText(/Split-Verlauf/)).toBeInTheDocument()
     expect(screen.getByText(/Watt-Verlauf/)).toBeInTheDocument()
     expect(screen.getByText(/SPM-Verlauf/)).toBeInTheDocument()
+  })
+
+  it('renders Auswertung section when insights are available', async () => {
+    vi.spyOn(insightsApi, 'getSessionInsights').mockResolvedValue({
+      findings: [
+        {
+          detector_id: 'pacing',
+          code: 'POSITIVE_SPLIT',
+          severity: 'NOTABLE',
+          category: 'PACING',
+          message_de: 'Positiver Split erkannt.',
+          evidence: { first_half_pace: 130, second_half_pace: 144 },
+        },
+      ],
+      synthesisDe: 'Gute Leistung insgesamt.',
+    })
+    vi.stubGlobal(
+      'fetch',
+      mockFetch({
+        '/api/v1/sessions/S1/samples': () => new Response(JSON.stringify({ samples: SAMPLES }), { status: 200 }),
+        '/api/v1/sessions/S1/pb-banners': () =>
+          new Response(JSON.stringify({ distance: [], window: [] }), { status: 200 }),
+        '/api/v1/sessions/S1': () => new Response(JSON.stringify(SESSION), { status: 200 }),
+      }),
+    )
+    render(wrap())
+    await waitFor(() => expect(screen.getByText('1035 m')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Auswertung')).toBeInTheDocument())
+    expect(screen.getByText('Gute Leistung insgesamt.')).toBeInTheDocument()
   })
 
   it('delete button opens confirm dialog; confirm navigates back', async () => {
