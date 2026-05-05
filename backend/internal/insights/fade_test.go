@@ -1,7 +1,6 @@
 package insights
 
 import (
-	"math"
 	"testing"
 
 	"github.com/gloeckner-daniel/splits/internal/event"
@@ -34,9 +33,6 @@ func TestFadeFlagged(t *testing.T) {
 	}
 	if f.Evidence["pct"] < 5.0 {
 		t.Errorf("pct = %v, want ≥5", f.Evidence["pct"])
-	}
-	if !math.Signbit(0) { // sanity
-		t.Skip()
 	}
 }
 
