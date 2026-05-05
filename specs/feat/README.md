@@ -15,5 +15,6 @@
 | FEAT-0006| PWA Installability & Offline Behaviour | Draft |
 | FEAT-0007| Rowing Metrics Catalogue           | Draft  |
 | FEAT-0008| Visual Design System & Responsive UX | Draft |
+| FEAT-0012| Race Boat (Ghost + PB Leader)      | Proposed |
 
 See [`template.md`](template.md) to add a new feature spec.
