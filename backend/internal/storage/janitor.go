@@ -101,7 +101,7 @@ func (j *BootJanitor) finaliseOne(ctx context.Context, id string) error {
 		endedAt = time.Now().UTC()
 	}
 	summary := buildSummary(strokes)
-	summary.Samples = stats.ComputeSamples(strokes, stats.DefaultBucketStrokes)
+	summary.Samples = stats.ComputeSamples(strokes, stats.BucketStrokesFor(len(strokes)))
 	summary.PBCandidates = stats.ComputeCandidates(strokes)
 	// Mark as recovered so the UI / history can flag it.
 	summary.Flags = []string{"recovered"}

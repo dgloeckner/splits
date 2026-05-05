@@ -130,3 +130,40 @@ func TestComputeSamplesSPIZeroWhenNoValidStrokes(t *testing.T) {
 		t.Errorf("SPI[0] = %d, want 0 when spm=0", s.SPI[0])
 	}
 }
+
+func TestBucketStrokesForShortSession(t *testing.T) {
+	// ≤ 360 * DefaultBucketStrokes strokes → DefaultBucketStrokes.
+	if got := BucketStrokesFor(0); got != DefaultBucketStrokes {
+		t.Errorf("zero: got %d", got)
+	}
+	if got := BucketStrokesFor(100); got != DefaultBucketStrokes {
+		t.Errorf("100 strokes: got %d, want %d", got, DefaultBucketStrokes)
+	}
+	if got := BucketStrokesFor(MaxSampleBuckets * DefaultBucketStrokes); got != DefaultBucketStrokes {
+		t.Errorf("at threshold: got %d, want %d", got, DefaultBucketStrokes)
+	}
+}
+
+func TestBucketStrokesForLongSession(t *testing.T) {
+	// > 360 * default → bucket grows; series length stays ≤ 360.
+	n := MaxSampleBuckets*DefaultBucketStrokes + 1
+	bucket := BucketStrokesFor(n)
+	if bucket <= DefaultBucketStrokes {
+		t.Fatalf("bucket = %d, want > %d", bucket, DefaultBucketStrokes)
+	}
+	series := (n + bucket - 1) / bucket
+	if series > MaxSampleBuckets {
+		t.Errorf("series length %d exceeds cap %d", series, MaxSampleBuckets)
+	}
+
+	// 30-min session at 24 spm → ~720 strokes → bucket = 5 (still under cap).
+	if got := BucketStrokesFor(720); got != DefaultBucketStrokes {
+		t.Errorf("30-min row: got %d, want default", got)
+	}
+
+	// 4-hour ultra at 22 spm → ~5280 strokes → series ≤ 360.
+	bucket = BucketStrokesFor(5280)
+	if (5280+bucket-1)/bucket > MaxSampleBuckets {
+		t.Errorf("4h ultra: series exceeds cap")
+	}
+}

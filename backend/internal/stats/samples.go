@@ -11,6 +11,25 @@ import "github.com/gloeckner-daniel/splits/internal/event"
 // sample array short for long sessions.
 const DefaultBucketStrokes = 5
 
+// MaxSampleBuckets caps the length of the per-session samples series
+// stored in summary_json. Long sessions grow the bucket size instead
+// of the array (see BucketStrokesFor).
+const MaxSampleBuckets = 360
+
+// BucketStrokesFor returns a bucket size that keeps ComputeSamples'
+// output series at or under MaxSampleBuckets. Uses DefaultBucketStrokes
+// for short sessions and grows the bucket proportionally for long ones.
+func BucketStrokesFor(totalStrokes int) int {
+	if totalStrokes <= 0 {
+		return DefaultBucketStrokes
+	}
+	n := (totalStrokes + MaxSampleBuckets - 1) / MaxSampleBuckets
+	if n < DefaultBucketStrokes {
+		return DefaultBucketStrokes
+	}
+	return n
+}
+
 // ComputeSamples averages stroke-level metrics into N-stroke buckets
 // for storage in summary_json.samples. Strokes must be ordered by
 // stroke_no ascending. A trailing partial bucket is included when it
