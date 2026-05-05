@@ -1,7 +1,7 @@
 // Tile registry — canonical source for what the user can put on the
 // live dashboard. See specs/feat/0001a-tile-catalogue.md.
 
-export type TileType = 'numeric' | 'sparkline' | 'zone'
+export type TileType = 'numeric' | 'sparkline' | 'zone' | 'race-boat'
 
 export type TileDef = {
   id: string
@@ -89,6 +89,13 @@ export const TILES: TileDef[] = [
     label: 'HF-Zone',
     type: 'zone',
     gated: 'hr',
+    category: 'bewertung',
+  },
+  {
+    id: 'race-boat',
+    label: 'Rennen',
+    subtitle: 'Geist + PB',
+    type: 'race-boat',
     category: 'bewertung',
   },
 ]

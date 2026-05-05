@@ -24,4 +24,11 @@ describe('tile registry', () => {
       expect(getTile(id)).toBeDefined()
     }
   })
+
+  it('exposes race-boat tile type', () => {
+    const def = getTile('race-boat')
+    expect(def).toBeDefined()
+    expect(def!.type).toBe('race-boat')
+    expect(def!.category).toBe('bewertung')
+  })
 })
