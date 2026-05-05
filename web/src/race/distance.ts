@@ -113,7 +113,3 @@ export function distanceAt(series: DistanceSeries, t: number): number {
   const slopes = monotoneSlopes(tSec, distM)
   return hermite(t, tSec[i], tSec[i + 1], distM[i], distM[i + 1], slopes[i], slopes[i + 1])
 }
-
-// Internal helpers exported for potential reuse in adjacent modules; kept
-// non-public to the package surface by convention (not re-exported from index).
-export const _internal = { monotoneSlopes, lowerBracket, hermite }
