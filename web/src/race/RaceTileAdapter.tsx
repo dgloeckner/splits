@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useContext, useEffect, useRef, useState } from 'react'
 import type { LiveState } from '../live/reducer'
 import { RaceTile } from './RaceTile'
+import { RaceOpponentsContext } from './RaceOpponentsContext'
 import { useRaceOpponents } from './useRaceOpponents'
 
 type Props = { liveState: LiveState; disabled?: boolean }
@@ -19,12 +20,20 @@ export function RaceTileAdapter({ liveState, disabled }: Props) {
     return () => ro.disconnect()
   }, [])
 
+  // Dedupe: when LivePage hoists `useRaceOpponents` and provides the
+  // result via `RaceOpponentsContext`, we read it from there and pass
+  // null ids into our own hook so it short-circuits and never fetches.
+  // Outside a provider (e.g. standalone tests), context is the empty
+  // default and we fall back to fetching here.
+  const ctx = useContext(RaceOpponentsContext)
+  const ctxHasData = !!(ctx.ghost || ctx.pb)
   // Pause-sync: the backend halts stroke emission while paused, so
   // stroke.time_sec freezes; ghost + PB position halt with it.
-  const opps = useRaceOpponents({
-    workoutId: liveState.session?.workout_id ?? null,
-    rowerId: liveState.session?.rower_id ?? null,
+  const fetched = useRaceOpponents({
+    workoutId: ctxHasData ? null : (liveState.session?.workout_id ?? null),
+    rowerId: ctxHasData ? null : (liveState.session?.rower_id ?? null),
   })
+  const opps = ctxHasData ? ctx : fetched
 
   if (disabled) return <div ref={ref} style={{ width: '100%', height: '100%' }} />
 

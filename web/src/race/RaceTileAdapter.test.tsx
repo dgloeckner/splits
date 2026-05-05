@@ -2,7 +2,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render } from '@testing-library/react'
 import type { LiveState } from '../live/reducer'
 import type { RaceOpponent } from '../api/race'
+import * as raceApi from '../api/race'
 import * as oppHook from './useRaceOpponents'
+import { RaceOpponentsContext } from './RaceOpponentsContext'
 import { RaceTileAdapter } from './RaceTileAdapter'
 
 class ResizeObserverStub {
@@ -117,6 +119,19 @@ describe('RaceTileAdapter', () => {
     rerender(<RaceTileAdapter liveState={before} />)
     const ghostAfter = container.querySelector('[data-lane="ghost"]')?.innerHTML
     expect(ghostAfter).toBe(ghostBefore)
+  })
+
+  it('reads opponents from context and skips fetching when provided', () => {
+    const fetchSpy = vi
+      .spyOn(raceApi, 'fetchRaceOpponents')
+      .mockResolvedValue({ ghost: null, pb: null })
+    const { container } = render(
+      <RaceOpponentsContext.Provider value={{ ghost, pb: null }}>
+        <RaceTileAdapter liveState={makeLiveState()} />
+      </RaceOpponentsContext.Provider>,
+    )
+    expect(container.querySelector('[data-lane="ghost"]')).not.toBeNull()
+    expect(fetchSpy).not.toHaveBeenCalled()
   })
 
   it('forwards rower/workout ids to the hook', () => {

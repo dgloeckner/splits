@@ -18,6 +18,7 @@ import { usePBBanners } from './live/usePBBanners'
 import { PBOverlay } from './live/PBOverlay'
 import { useActiveRower } from '../hooks/useActiveRower'
 import { RaceResultToast } from '../race/RaceResultToast'
+import { RaceOpponentsContext } from '../race/RaceOpponentsContext'
 import { useRaceOpponents } from '../race/useRaceOpponents'
 import { useRaceFinish } from '../race/useRaceFinish'
 import styles from './LivePage.module.css'
@@ -39,6 +40,7 @@ function LiveBody() {
     : null
   const debug = new URLSearchParams(window.location.search).get('debug') === '1'
   return (
+    <RaceOpponentsContext.Provider value={opps}>
     <div className={styles.page}>
       {debug && (
         <pre
@@ -85,6 +87,7 @@ function LiveBody() {
       </div>
       <RaceResultToast result={raceResult} />
     </div>
+    </RaceOpponentsContext.Provider>
   )
 }
 
