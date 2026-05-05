@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http/httptest"
 	"path/filepath"
@@ -206,6 +207,288 @@ func TestRaceOpponents_GhostExcludesDeletedAndIncomplete(t *testing.T) {
 	}
 	if resp.Ghost.SourceSessionID != "S_OK" {
 		t.Errorf("ghost.SourceSessionID = %s, want S_OK", resp.Ghost.SourceSessionID)
+	}
+}
+
+// --- T3: PB resolution -------------------------------------------------
+
+// mustExec executes a SQL statement and fails the test on error. Cuts
+// the boilerplate out of the dense seeding blocks below.
+func mustExec(t *testing.T, db interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}, q string, args ...any) {
+	t.Helper()
+	if _, err := db.Exec(q, args...); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestRaceOpponents_PBFromWorkoutShape(t *testing.T) {
+	t.Parallel()
+	db, err := storage.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	mustExec(t, db.Handle(),
+		`INSERT INTO rowers(id, name, color, created_at) VALUES('R1','D','#0f0',?)`, now)
+	mustExec(t, db.Handle(),
+		`INSERT INTO workout(id, mode, params_json, intensity, warmup_sec, cooldown_sec, created_at, shape_hash)
+		 VALUES('W1','distance','{"meters":2000}','allout',0,0,?, 'shapeA')`, now)
+
+	tPB := time.Date(2026, 3, 1, 10, 0, 0, 0, time.UTC)
+	mustExec(t, db.Handle(),
+		`INSERT INTO sessions(id, rower_id, started_at, ended_at, workout_id, summary_json, initial_level)
+		 VALUES('S_PB','R1',?,?,'W1',?,3)`,
+		tPB.Format(time.RFC3339Nano), tPB.Add(time.Minute*7).Format(time.RFC3339Nano),
+		`{"samples":{"t_sec":[0,5,10],"split":[110,108,106]}}`)
+
+	mustExec(t, db.Handle(),
+		`INSERT INTO pb_workout(rower_id, shape_hash, mode, params_json, value_kind, value,
+		    source_session_id, source_session_started_at, achieved_at)
+		 VALUES('R1','shapeA','distance','{"meters":2000}','time_sec',400,'S_PB',?,?)`,
+		tPB.Format(time.RFC3339Nano), tPB.Format(time.RFC3339Nano))
+
+	h := api.RaceOpponentsHandler(db.Handle())
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/race/opponents?workout_id=W1&rower_id=R1", nil))
+	if rec.Code != 200 {
+		t.Fatalf("status: %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		Ghost *api.RaceOpponent `json:"ghost"`
+		PB    *api.RaceOpponent `json:"pb"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v body=%s", err, rec.Body.String())
+	}
+	if resp.PB == nil {
+		t.Fatalf("pb = nil, want S_PB")
+	}
+	if resp.PB.SourceSessionID != "S_PB" {
+		t.Errorf("pb.SourceSessionID = %s, want S_PB", resp.PB.SourceSessionID)
+	}
+	if resp.PB.Label != "pb" {
+		t.Errorf("pb.Label = %q, want %q", resp.PB.Label, "pb")
+	}
+	if len(resp.PB.TSec) != 3 || resp.PB.TSec[2] != 10 {
+		t.Errorf("pb.TSec = %v", resp.PB.TSec)
+	}
+	if len(resp.PB.Split) != 3 || resp.PB.Split[0] != 110 {
+		t.Errorf("pb.Split = %v", resp.PB.Split)
+	}
+}
+
+func TestRaceOpponents_PBFallsBackToDistancePBWhenFaster(t *testing.T) {
+	t.Parallel()
+	db, err := storage.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	mustExec(t, db.Handle(),
+		`INSERT INTO rowers(id, name, color, created_at) VALUES('R1','D','#0f0',?)`, now)
+	mustExec(t, db.Handle(),
+		`INSERT INTO workout(id, mode, params_json, intensity, warmup_sec, cooldown_sec, created_at, shape_hash)
+		 VALUES('W1','distance','{"meters":2000}','allout',0,0,?, 'shapeA')`, now)
+
+	tSlow := time.Date(2026, 3, 1, 10, 0, 0, 0, time.UTC)
+	mustExec(t, db.Handle(),
+		`INSERT INTO sessions(id, rower_id, started_at, ended_at, workout_id, summary_json, initial_level)
+		 VALUES('S_SLOW','R1',?,?,'W1',?,3)`,
+		tSlow.Format(time.RFC3339Nano), tSlow.Add(time.Minute*8).Format(time.RFC3339Nano),
+		`{"samples":{"t_sec":[0,5,10],"split":[120,118,116]}}`)
+	tFast := time.Date(2026, 4, 1, 10, 0, 0, 0, time.UTC)
+	mustExec(t, db.Handle(),
+		`INSERT INTO sessions(id, rower_id, started_at, ended_at, workout_id, summary_json, initial_level)
+		 VALUES('S_FAST','R1',?,?,'W1',?,3)`,
+		tFast.Format(time.RFC3339Nano), tFast.Add(time.Minute*7).Format(time.RFC3339Nano),
+		`{"samples":{"t_sec":[0,4,8],"split":[100,99,98]}}`)
+
+	mustExec(t, db.Handle(),
+		`INSERT INTO pb_workout(rower_id, shape_hash, mode, params_json, value_kind, value,
+		    source_session_id, source_session_started_at, achieved_at)
+		 VALUES('R1','shapeA','distance','{"meters":2000}','time_sec',472,'S_SLOW',?,?)`,
+		tSlow.Format(time.RFC3339Nano), tSlow.Format(time.RFC3339Nano))
+	mustExec(t, db.Handle(),
+		`INSERT INTO pb_distance(rower_id, distance_m, time_sec, source_session_id,
+		    source_session_started_at, achieved_at, window_start_stroke, window_end_stroke)
+		 VALUES('R1',2000,410,'S_FAST',?,?,0,200)`,
+		tFast.Format(time.RFC3339Nano), tFast.Format(time.RFC3339Nano))
+
+	h := api.RaceOpponentsHandler(db.Handle())
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/race/opponents?workout_id=W1&rower_id=R1", nil))
+	if rec.Code != 200 {
+		t.Fatalf("status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		PB *api.RaceOpponent `json:"pb"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.PB == nil {
+		t.Fatalf("pb = nil, want S_FAST")
+	}
+	if resp.PB.SourceSessionID != "S_FAST" {
+		t.Errorf("pb.SourceSessionID = %s, want S_FAST", resp.PB.SourceSessionID)
+	}
+}
+
+func TestRaceOpponents_PBPicksWorkoutPBWhenFaster(t *testing.T) {
+	t.Parallel()
+	db, err := storage.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	mustExec(t, db.Handle(),
+		`INSERT INTO rowers(id, name, color, created_at) VALUES('R1','D','#0f0',?)`, now)
+	mustExec(t, db.Handle(),
+		`INSERT INTO workout(id, mode, params_json, intensity, warmup_sec, cooldown_sec, created_at, shape_hash)
+		 VALUES('W1','distance','{"meters":2000}','allout',0,0,?, 'shapeA')`, now)
+
+	tA := time.Date(2026, 3, 1, 10, 0, 0, 0, time.UTC)
+	mustExec(t, db.Handle(),
+		`INSERT INTO sessions(id, rower_id, started_at, ended_at, workout_id, summary_json, initial_level)
+		 VALUES('S_WPB','R1',?,?,'W1',?,3)`,
+		tA.Format(time.RFC3339Nano), tA.Add(time.Minute*7).Format(time.RFC3339Nano),
+		`{"samples":{"t_sec":[0,4,8],"split":[100,99,98]}}`)
+	tB := time.Date(2026, 4, 1, 10, 0, 0, 0, time.UTC)
+	mustExec(t, db.Handle(),
+		`INSERT INTO sessions(id, rower_id, started_at, ended_at, workout_id, summary_json, initial_level)
+		 VALUES('S_DPB','R1',?,?,'W1',?,3)`,
+		tB.Format(time.RFC3339Nano), tB.Add(time.Minute*7).Format(time.RFC3339Nano),
+		`{"samples":{"t_sec":[0,4,8],"split":[105,104,103]}}`)
+
+	mustExec(t, db.Handle(),
+		`INSERT INTO pb_workout(rower_id, shape_hash, mode, params_json, value_kind, value,
+		    source_session_id, source_session_started_at, achieved_at)
+		 VALUES('R1','shapeA','distance','{"meters":2000}','time_sec',400,'S_WPB',?,?)`,
+		tA.Format(time.RFC3339Nano), tA.Format(time.RFC3339Nano))
+	mustExec(t, db.Handle(),
+		`INSERT INTO pb_distance(rower_id, distance_m, time_sec, source_session_id,
+		    source_session_started_at, achieved_at, window_start_stroke, window_end_stroke)
+		 VALUES('R1',2000,420,'S_DPB',?,?,0,200)`,
+		tB.Format(time.RFC3339Nano), tB.Format(time.RFC3339Nano))
+
+	h := api.RaceOpponentsHandler(db.Handle())
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/race/opponents?workout_id=W1&rower_id=R1", nil))
+	if rec.Code != 200 {
+		t.Fatalf("status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		PB *api.RaceOpponent `json:"pb"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.PB == nil {
+		t.Fatalf("pb = nil, want S_WPB")
+	}
+	if resp.PB.SourceSessionID != "S_WPB" {
+		t.Errorf("pb.SourceSessionID = %s, want S_WPB", resp.PB.SourceSessionID)
+	}
+}
+
+func TestRaceOpponents_PBNoneWhenSourceSessionDeleted(t *testing.T) {
+	t.Parallel()
+	db, err := storage.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	mustExec(t, db.Handle(),
+		`INSERT INTO rowers(id, name, color, created_at) VALUES('R1','D','#0f0',?)`, now)
+	mustExec(t, db.Handle(),
+		`INSERT INTO workout(id, mode, params_json, intensity, warmup_sec, cooldown_sec, created_at, shape_hash)
+		 VALUES('W1','distance','{"meters":2000}','allout',0,0,?, 'shapeA')`, now)
+
+	tDel := time.Date(2026, 3, 1, 10, 0, 0, 0, time.UTC)
+	mustExec(t, db.Handle(),
+		`INSERT INTO sessions(id, rower_id, started_at, ended_at, workout_id, summary_json, initial_level, deleted_at)
+		 VALUES('S_DEL','R1',?,?,'W1',?,3,?)`,
+		tDel.Format(time.RFC3339Nano), tDel.Add(time.Minute*7).Format(time.RFC3339Nano),
+		`{"samples":{"t_sec":[0,5],"split":[110,108]}}`,
+		tDel.Add(time.Hour).Format(time.RFC3339Nano))
+
+	mustExec(t, db.Handle(),
+		`INSERT INTO pb_workout(rower_id, shape_hash, mode, params_json, value_kind, value,
+		    source_session_id, source_session_started_at, achieved_at)
+		 VALUES('R1','shapeA','distance','{"meters":2000}','time_sec',400,'S_DEL',?,?)`,
+		tDel.Format(time.RFC3339Nano), tDel.Format(time.RFC3339Nano))
+
+	h := api.RaceOpponentsHandler(db.Handle())
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/race/opponents?workout_id=W1&rower_id=R1", nil))
+	if rec.Code != 200 {
+		t.Fatalf("status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		PB *api.RaceOpponent `json:"pb"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.PB != nil {
+		t.Errorf("pb = %+v, want nil (source session deleted)", resp.PB)
+	}
+}
+
+func TestRaceOpponents_DistancePBIgnoredForNonStandardDistance(t *testing.T) {
+	t.Parallel()
+	db, err := storage.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	mustExec(t, db.Handle(),
+		`INSERT INTO rowers(id, name, color, created_at) VALUES('R1','D','#0f0',?)`, now)
+	mustExec(t, db.Handle(),
+		`INSERT INTO workout(id, mode, params_json, intensity, warmup_sec, cooldown_sec, created_at, shape_hash)
+		 VALUES('W1','distance','{"meters":1234}','allout',0,0,?, 'shapeOdd')`, now)
+
+	tFast := time.Date(2026, 3, 1, 10, 0, 0, 0, time.UTC)
+	mustExec(t, db.Handle(),
+		`INSERT INTO sessions(id, rower_id, started_at, ended_at, workout_id, summary_json, initial_level)
+		 VALUES('S_FAST','R1',?,?,'W1',?,3)`,
+		tFast.Format(time.RFC3339Nano), tFast.Add(time.Minute*5).Format(time.RFC3339Nano),
+		`{"samples":{"t_sec":[0,4,8],"split":[100,99,98]}}`)
+
+	// Defensively insert a pb_distance for 1234 — should be ignored.
+	mustExec(t, db.Handle(),
+		`INSERT INTO pb_distance(rower_id, distance_m, time_sec, source_session_id,
+		    source_session_started_at, achieved_at, window_start_stroke, window_end_stroke)
+		 VALUES('R1',1234,300,'S_FAST',?,?,0,100)`,
+		tFast.Format(time.RFC3339Nano), tFast.Format(time.RFC3339Nano))
+
+	h := api.RaceOpponentsHandler(db.Handle())
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/race/opponents?workout_id=W1&rower_id=R1", nil))
+	if rec.Code != 200 {
+		t.Fatalf("status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		PB *api.RaceOpponent `json:"pb"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if resp.PB != nil {
+		t.Errorf("pb = %+v, want nil (1234m is not a standard PB distance)", resp.PB)
 	}
 }
 
