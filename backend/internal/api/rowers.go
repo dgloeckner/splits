@@ -21,10 +21,31 @@ func isRowerInputError(err error) bool {
 func RowersHandler(repo *rower.Repo, link *rower.DeviceLink) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/rowers", func(w http.ResponseWriter, r *http.Request) {
-		list, err := repo.List(r.Context())
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+		// RowerGate (frontend) hits this on first load to decide
+		// onboarding vs home. We bypass RequireRower for this route
+		// but withhold the rower list from unpaired devices so we
+		// don't leak household member info. Empty list also
+		// re-routes the gate to /onboarding, which the bootstrap
+		// rule then handles correctly (empty DB → allow create,
+		// non-empty DB → POST /rowers 401 → user must scan QR).
+		devID := DeviceIDFromContext(r.Context())
+		paired := false
+		if devID != "" && link != nil {
+			ok, err := link.HasAnyPairing(r.Context(), devID)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			paired = ok
+		}
+		var list []rower.Rower
+		if paired {
+			var err error
+			list, err = repo.List(r.Context())
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 		if list == nil {
 			list = []rower.Rower{}
@@ -32,6 +53,33 @@ func RowersHandler(repo *rower.Repo, link *rower.DeviceLink) http.Handler {
 		writeJSON(w, http.StatusOK, map[string]any{"rowers": list})
 	})
 	mux.HandleFunc("POST /api/v1/rowers", func(w http.ResponseWriter, r *http.Request) {
+		// Auth gate: allowed only when (a) the calling device is
+		// already paired with at least one rower (household member
+		// adds another rower) or (b) the database has zero rowers
+		// (first-run bootstrap). Any other case must go through the
+		// QR-pair flow, not free-form POST. See ADR-0005.
+		devID := DeviceIDFromContext(r.Context())
+		paired := false
+		if devID != "" && link != nil {
+			ok, err := link.HasAnyPairing(r.Context(), devID)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			paired = ok
+		}
+		if !paired {
+			n, err := repo.Count(r.Context())
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if n > 0 {
+				http.Error(w, "device not paired; use QR pairing to join", http.StatusUnauthorized)
+				return
+			}
+		}
+
 		var in rower.CreateInput
 		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
 			http.Error(w, "invalid json", http.StatusBadRequest)
@@ -48,7 +96,6 @@ func RowersHandler(repo *rower.Repo, link *rower.DeviceLink) http.Handler {
 		}
 		// Auto-pair the creating device so the new rower is immediately
 		// selectable as active without a separate pairing step.
-		devID := DeviceIDFromContext(r.Context())
 		if devID != "" && link != nil {
 			if err := link.Pair(r.Context(), devID, out.ID); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)

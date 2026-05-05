@@ -169,8 +169,13 @@ async function killBackend(proc: ChildProcess): Promise<void> {
 /**
  * Poll the backend until at least one ended session exists for the
  * given rower. Returns the first such session's id. Throws on timeout.
+ *
+ * `request` is the Playwright APIRequestContext that shares cookies
+ * with the browser context — required after the RequireRower
+ * middleware (ADR-0005) gates /api/v1/sessions by paired device.
  */
 export async function waitForEndedSession(
+  request: { get(url: string): Promise<{ ok(): boolean; json(): Promise<unknown> }> },
   rowerID: string,
   timeoutMs = 20_000,
 ): Promise<{ id: string; total_distance_m?: number; total_time_sec?: number; total_strokes?: number }> {
@@ -179,10 +184,10 @@ export async function waitForEndedSession(
   let lastLocal: unknown = null
   while (Date.now() < deadline) {
     try {
-      const r = await fetch(
-        `http://localhost:8080/api/v1/sessions?rower_id=${encodeURIComponent(rowerID)}&limit=10`,
+      const r = await request.get(
+        `/api/v1/sessions?rower_id=${encodeURIComponent(rowerID)}&limit=10`,
       )
-      if (r.ok) {
+      if (r.ok()) {
         const body = (await r.json()) as { sessions?: Array<{ id: string; ended_at?: string; total_distance_m?: number; total_time_sec?: number; total_strokes?: number }> }
         lastSeen = body
         const ended = (body.sessions ?? []).filter((s) => !!s.ended_at)
@@ -191,10 +196,9 @@ export async function waitForEndedSession(
       // Also peek at the fallback "local-rower" attribution — if the
       // session opened before the holder was set, the row would land
       // there. Helps diagnose the race in test failure messages.
-      const r2 = await fetch(`http://localhost:8080/api/v1/sessions?rower_id=local-rower&limit=10`)
-      if (r2.ok) {
-        const b2 = await r2.json()
-        lastLocal = b2
+      const r2 = await request.get(`/api/v1/sessions?rower_id=local-rower&limit=10`)
+      if (r2.ok()) {
+        lastLocal = await r2.json()
       }
     } catch {
       /* retry */

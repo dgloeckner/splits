@@ -29,8 +29,13 @@ export type TestFixtures = {
   history: HistoryPage
   live: LivePage
 
-  /** Poll /sessions until an ended one shows up; throws on timeout. */
-  waitForEndedSession: typeof waitForEndedSession
+  /** Poll /sessions until an ended one shows up; throws on timeout.
+   *  Uses the BrowserContext.request so the polling shares the
+   *  paired device_id cookie set during seedActiveRower. */
+  waitForEndedSession: (
+    rowerID: string,
+    timeoutMs?: number,
+  ) => ReturnType<typeof waitForEndedSession>
 }
 
 export const test = base.extend<TestFixtures>({
@@ -66,7 +71,10 @@ export const test = base.extend<TestFixtures>({
   history: async ({ page }, use) => use(new HistoryPage(page)),
   live: async ({ page }, use) => use(new LivePage(page)),
 
-  waitForEndedSession: async ({}, use) => use(waitForEndedSession),
+  waitForEndedSession: async ({ context }, use) =>
+    use((rowerID, timeoutMs) =>
+      waitForEndedSession(context.request, rowerID, timeoutMs),
+    ),
 })
 
 export { expect } from '@playwright/test'

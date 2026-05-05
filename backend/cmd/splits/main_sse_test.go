@@ -31,6 +31,7 @@ func startServer(t *testing.T, fixture string) string {
 	// been delivered.
 	os.Setenv("HOMEERGO_FIXTURE_RATE", "realtime")
 	os.Setenv("HOMEERGO_IDLE_TIMEOUT", "60s")
+	os.Setenv("SPLITS_DEV_MODE", "1")
 
 	done := make(chan error, 1)
 	go func() { done <- run() }()
@@ -69,17 +70,22 @@ func TestEndToEndShortSession(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// RequireRower middleware (ADR-0005) gates /session/start and
+	// /stream — bootstrap a rower first via the empty-DB exception.
+	client := newClientWithJar(t)
+	bootstrapRower(t, client, base)
+
 	// Sessions no longer auto-open from incoming frames; the user
 	// must explicitly start one (FEAT-0009 / new-workout flow).
 	startReq, _ := http.NewRequestWithContext(ctx, "POST", base+"/api/v1/session/start", strings.NewReader("{}"))
-	startResp, err := http.DefaultClient.Do(startReq)
+	startResp, err := client.Do(startReq)
 	if err != nil {
 		t.Fatal(err)
 	}
 	startResp.Body.Close()
 
 	req, _ := http.NewRequestWithContext(ctx, "GET", base+"/api/v1/stream", nil)
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		t.Fatal(err)
 	}

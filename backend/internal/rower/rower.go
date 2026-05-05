@@ -151,6 +151,15 @@ func (r *Repo) Create(ctx context.Context, in CreateInput) (*Rower, error) {
 	}, nil
 }
 
+// Count returns the number of non-deleted rowers. Used by the
+// first-run bootstrap gate on POST /api/v1/rowers.
+func (r *Repo) Count(ctx context.Context) (int, error) {
+	var n int
+	err := r.db.QueryRowContext(ctx,
+		`SELECT COUNT(1) FROM rowers WHERE deleted_at IS NULL`).Scan(&n)
+	return n, err
+}
+
 func (r *Repo) List(ctx context.Context) ([]Rower, error) {
 	rows, err := r.db.QueryContext(ctx,
 		`SELECT id, name, weight_kg, height_cm, dob, color, created_at

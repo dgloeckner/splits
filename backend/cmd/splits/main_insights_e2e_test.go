@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/cookiejar"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,6 +17,39 @@ import (
 
 	_ "modernc.org/sqlite"
 )
+
+// newClientWithJar returns an HTTP client backed by a cookie jar so
+// the device_id cookie set by the server's DeviceCookie middleware is
+// reused across calls — required after RequireRower middleware gates
+// most routes by device pairing (ADR-0005).
+func newClientWithJar(t *testing.T) *http.Client {
+	t.Helper()
+	j, err := cookiejar.New(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &http.Client{Jar: j}
+}
+
+// bootstrapRower creates a rower over HTTP, exercising the
+// first-run bootstrap path (no auth required when DB is empty).
+// The same client (with cookie jar) automatically becomes paired
+// thanks to the auto-pair step inside POST /rowers.
+func bootstrapRower(t *testing.T, client *http.Client, base string) {
+	t.Helper()
+	body := strings.NewReader(`{"name":"E2E Tester","color":"#ff6b6b"}`)
+	req, _ := http.NewRequest("POST", base+"/api/v1/rowers", body)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("bootstrap rower status=%d body=%s", resp.StatusCode, b)
+	}
+}
 
 // startServerWithOpts mirrors startServer but lets the test choose
 // pacing and a fixture-replay delay so it can POST /session/start
@@ -36,6 +70,10 @@ func startServerWithOpts(t *testing.T, fixture, rate, delay string) (string, str
 	os.Setenv("HOMEERGO_FIXTURE_RATE", rate)
 	os.Setenv("SPLITS_FIXTURE_DELAY", delay)
 	os.Setenv("HOMEERGO_IDLE_TIMEOUT", "60s")
+	// Dev mode disables the Secure flag on device cookies so that
+	// our HTTP-only test client (no TLS) actually persists them
+	// across requests — required by RequireRower (ADR-0005).
+	os.Setenv("SPLITS_DEV_MODE", "1")
 
 	done := make(chan error, 1)
 	go func() { done <- run() }()
@@ -72,10 +110,13 @@ func TestInsightsE2EFixtureReplay(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
+	client := newClientWithJar(t)
+	bootstrapRower(t, client, base)
+
 	startReq, _ := http.NewRequestWithContext(ctx,
 		"POST", base+"/api/v1/session/start",
 		strings.NewReader("{}"))
-	startResp, err := http.DefaultClient.Do(startReq)
+	startResp, err := client.Do(startReq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,7 +130,7 @@ func TestInsightsE2EFixtureReplay(t *testing.T) {
 	endReq, _ := http.NewRequestWithContext(ctx,
 		"POST", base+"/api/v1/session/end",
 		strings.NewReader(""))
-	endResp, err := http.DefaultClient.Do(endReq)
+	endResp, err := client.Do(endReq)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -133,7 +174,7 @@ func TestInsightsE2EFixtureReplay(t *testing.T) {
 
 	insightsReq, _ := http.NewRequestWithContext(ctx,
 		"GET", base+"/api/v1/sessions/"+sessionID+"/insights", nil)
-	insightsResp, err := http.DefaultClient.Do(insightsReq)
+	insightsResp, err := client.Do(insightsReq)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -40,10 +40,18 @@ type Inputs struct {
 
 func NewRouter(in Inputs) http.Handler {
 	mux := http.NewServeMux()
+
+	// gate wraps a handler with RequireRower — 401 when the calling
+	// device has no paired rower. Bypass routes (health, pair
+	// exchange, active-rower probe, POST /rowers under bootstrap)
+	// are registered without it. See ADR-0005.
+	gate := RequireRower(in.DeviceLink)
+
 	mux.HandleFunc("GET /api/health", healthHandler)
-	mux.Handle("GET /api/v1/stream", stream.NewHandler(in.Ring, in.Broadcaster, in.SessionSnapshot, in.DeviceMonitor))
+	mux.Handle("GET /api/v1/stream",
+		gate(stream.NewHandler(in.Ring, in.Broadcaster, in.SessionSnapshot, in.DeviceMonitor)))
 	if in.DeviceMonitor != nil {
-		mux.Handle("GET /api/v1/device", DeviceStatusHandler(in.DeviceMonitor))
+		mux.Handle("GET /api/v1/device", gate(DeviceStatusHandler(in.DeviceMonitor)))
 	}
 
 	var activeIDer ActiveSessionIDer
@@ -53,63 +61,73 @@ func NewRouter(in Inputs) http.Handler {
 		}
 	}
 	sessions := SessionsHandler(in.DB, in.Scheduler, activeIDer)
-	mux.Handle("GET /api/v1/sessions", sessions)
-	mux.Handle("GET /api/v1/sessions/{id}", sessions)
-	mux.Handle("GET /api/v1/sessions/{id}/samples", sessions)
-	mux.Handle("GET /api/v1/sessions/{id}/insights", sessions)
-	mux.Handle("DELETE /api/v1/sessions/{id}", sessions)
+	mux.Handle("GET /api/v1/sessions", gate(sessions))
+	mux.Handle("GET /api/v1/sessions/{id}", gate(sessions))
+	mux.Handle("GET /api/v1/sessions/{id}/samples", gate(sessions))
+	mux.Handle("GET /api/v1/sessions/{id}/insights", gate(sessions))
+	mux.Handle("DELETE /api/v1/sessions/{id}", gate(sessions))
 
 	rowers := RowersHandler(in.RowerRepo, in.DeviceLink)
+	// GET /rowers is hit by RowerGate before any pairing exists.
+	// The handler itself returns an empty list for unpaired devices
+	// so we don't leak household membership; paired devices get the
+	// full list.
 	mux.Handle("GET /api/v1/rowers", rowers)
+	// POST /api/v1/rowers gates itself: bootstrap-when-empty, paired-otherwise.
 	mux.Handle("POST /api/v1/rowers", rowers)
-	mux.Handle("PATCH /api/v1/rowers/{id}", rowers)
+	mux.Handle("PATCH /api/v1/rowers/{id}", gate(rowers))
 
 	pairingStore := rower.NewPairingStore(in.DB)
 	mux.Handle("POST /api/v1/rowers/{id}/pairing-tokens",
-		MintTokenHandler(in.RowerRepo, in.DeviceLink, pairingStore, in.PublicURL))
+		gate(MintTokenHandler(in.RowerRepo, in.DeviceLink, pairingStore, in.PublicURL)))
+	// /pair is the entry-point for unpaired devices joining via QR;
+	// the handler enforces token validity itself.
 	mux.Handle("POST /api/v1/pair",
 		PairExchangeHandler(in.RowerRepo, in.RowerHolder, in.DeviceLink, pairingStore))
 
 	active := ActiveRowerHandler(in.RowerRepo, in.RowerHolder, in.DeviceLink)
+	// GET active-rower is the onboarding probe — must respond
+	// (404/null) for unpaired devices so RowerGate can route.
 	mux.Handle("GET /api/v1/active-rower", active)
-	mux.Handle("PUT /api/v1/active-rower", active)
+	mux.Handle("PUT /api/v1/active-rower", gate(active))
 
 	workouts := WorkoutsHandler(in.WorkoutRepo)
-	mux.Handle("POST /api/v1/workouts", workouts)
-	mux.Handle("GET /api/v1/workouts/{id}", workouts)
-	mux.Handle("GET /api/v1/workouts/last", workouts)
+	mux.Handle("POST /api/v1/workouts", gate(workouts))
+	mux.Handle("GET /api/v1/workouts/{id}", gate(workouts))
+	mux.Handle("GET /api/v1/workouts/last", gate(workouts))
 
 	favs := FavoritesHandler(in.WorkoutRepo)
-	mux.Handle("POST /api/v1/favorites", favs)
-	mux.Handle("GET /api/v1/favorites", favs)
-	mux.Handle("DELETE /api/v1/favorites/{id}", favs)
+	mux.Handle("POST /api/v1/favorites", gate(favs))
+	mux.Handle("GET /api/v1/favorites", gate(favs))
+	mux.Handle("DELETE /api/v1/favorites/{id}", gate(favs))
 
 	trends := TrendsHandler(in.DB, in.RowerRepo)
-	mux.Handle("GET /api/v1/rowers/{id}/trends", trends)
+	mux.Handle("GET /api/v1/rowers/{id}/trends", gate(trends))
 
 	pbs := PBsHandler(in.DB, in.RowerRepo)
-	mux.Handle("GET /api/v1/rowers/{id}/pbs", pbs)
-	mux.Handle("GET /api/v1/rowers/{id}/pbs/history", pbs)
-	mux.Handle("GET /api/v1/rowers/{id}/lifetime", pbs)
-	mux.Handle("GET /api/v1/rowers/{id}/achievements", pbs)
-	mux.Handle("GET /api/v1/sessions/{id}/pb-banners", pbs)
+	mux.Handle("GET /api/v1/rowers/{id}/pbs", gate(pbs))
+	mux.Handle("GET /api/v1/rowers/{id}/pbs/history", gate(pbs))
+	mux.Handle("GET /api/v1/rowers/{id}/lifetime", gate(pbs))
+	mux.Handle("GET /api/v1/rowers/{id}/achievements", gate(pbs))
+	mux.Handle("GET /api/v1/sessions/{id}/pb-banners", gate(pbs))
 
 	if in.Sessionizer != nil {
-		mux.Handle("POST /api/v1/workouts/{id}/attach", WorkoutAttachHandler(in.WorkoutRepo, in.Sessionizer))
-		mux.Handle("POST /api/v1/session/start", SessionStartHandler(in.Sessionizer))
-		mux.Handle("POST /api/v1/session/end", SessionEndHandler(in.Sessionizer))
+		mux.Handle("POST /api/v1/workouts/{id}/attach",
+			gate(WorkoutAttachHandler(in.WorkoutRepo, in.Sessionizer)))
+		mux.Handle("POST /api/v1/session/start", gate(SessionStartHandler(in.Sessionizer)))
+		mux.Handle("POST /api/v1/session/end", gate(SessionEndHandler(in.Sessionizer)))
 	}
 	if in.SessionSnapshot != nil {
 		if p, ok := in.SessionSnapshot.(SessionActiveProvider); ok {
-			mux.Handle("GET /api/v1/session/active", SessionActiveHandler(p))
+			mux.Handle("GET /api/v1/session/active", gate(SessionActiveHandler(p)))
 		}
 	}
 
-	mux.Handle("GET /debug/ingest", DebugIngestHandler(DebugIngestInputs{
+	mux.Handle("GET /debug/ingest", gate(DebugIngestHandler(DebugIngestInputs{
 		Ring:        in.Ring,
 		Broadcaster: in.Broadcaster,
 		StartedAt:   in.StartedAt,
-	}))
+	})))
 	mws := []Middleware{
 		Recover(),
 		Logging(),

@@ -30,3 +30,20 @@ func (d *DeviceLink) IsPaired(ctx context.Context, deviceID, rowerID string) (bo
 	}
 	return n > 0, nil
 }
+
+// HasAnyPairing reports whether the given device has at least one
+// rower pairing. Used by the RequireRower middleware to gate API
+// access to authenticated devices.
+func (d *DeviceLink) HasAnyPairing(ctx context.Context, deviceID string) (bool, error) {
+	if deviceID == "" {
+		return false, nil
+	}
+	var n int
+	err := d.DB.QueryRowContext(ctx,
+		`SELECT COUNT(1) FROM device_rowers WHERE device_id = ?`,
+		deviceID).Scan(&n)
+	if err != nil {
+		return false, err
+	}
+	return n > 0, nil
+}

@@ -52,8 +52,14 @@ func TestRowers_CreateListPatch(t *testing.T) {
 		t.Fatalf("no id returned")
 	}
 
-	// list
+	// list — reuse POST's device_id cookie so the handler treats us
+	// as the paired device that just created the rower (otherwise
+	// the list filter returns empty for unpaired callers).
+	devCookie := rec.Header().Get("Set-Cookie")
 	req2 := httptest.NewRequest("GET", "/api/v1/rowers", nil)
+	if devCookie != "" {
+		req2.Header.Set("Cookie", devCookie)
+	}
 	rec2 := httptest.NewRecorder()
 	h.ServeHTTP(rec2, req2)
 	if rec2.Code != 200 {
