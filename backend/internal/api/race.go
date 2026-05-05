@@ -143,6 +143,7 @@ func loadPB(ctx context.Context, db *sql.DB, rowerID, workoutID string) (*RaceOp
 	var sourceID string
 	switch {
 	case wpbOK && dpbOK:
+		// Tie-break: workout-PB wins on equal times because it's a more specific shape match.
 		if wpbTime <= dpbTime {
 			sourceID = wpbSession
 		} else {
