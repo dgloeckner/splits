@@ -1,6 +1,6 @@
 # FEAT-0012: Race Boat (Ghost + PB Leader)
 
-- **Status**: Proposed
+- **Status**: Shipped (2026-05-05)
 - **Owner**: @gloeckner
 - **Depends on**: FEAT-0001 (live view), FEAT-0001a (dashboard tiles),
   FEAT-0001b (smoothing), FEAT-0008 (design system), FEAT-0009
@@ -30,79 +30,79 @@ chip. The opponent set is locked at session start.
 
 ### Eligibility & opponent selection
 
-- [ ] At workout start, app resolves opponents and locks them for the
+- [x] At workout start, app resolves opponents and locks them for the
       duration of the session. Mid-session swap is not possible.
-- [ ] **Ghost** = most recent past session whose `workout_shape_key`
+- [x] **Ghost** = most recent past session whose `workout_shape_key`
       matches the current workout (strict equality on distance,
       intervals, rest), excluding free-row sessions.
-- [ ] **PB-leader** = `pb_workout` row for the same shape; if shape is
+- [x] **PB-leader** = `pb_workout` row for the same shape; if shape is
       a standard distance and a `pb_distance` for that distance is
       faster than the workout-PB, use `pb_distance` source session.
-- [ ] If ghost source session = PB-leader source session, render
+- [x] If ghost source session = PB-leader source session, render
       single ghost lane (de-dupe), color = PB amber.
-- [ ] If no eligible ghost: tile is hidden entirely.
-- [ ] If ghost eligible but no PB: PB lane hidden, 2-lane render
+- [x] If no eligible ghost: tile is hidden entirely.
+- [x] If ghost eligible but no PB: PB lane hidden, 2-lane render
       (you + ghost). No fallback to "second-best ghost".
-- [ ] Free-row sessions: tile always hidden.
-- [ ] Source session for either opponent is **soft- or hard-deleted**
+- [x] Free-row sessions: tile always hidden.
+- [x] Source session for either opponent is **soft- or hard-deleted**
       → opponent treated as gone. If both gone, tile hidden.
 
 ### Replay data
 
-- [ ] PB-leader and ghost positions are derived from
+- [x] PB-leader and ghost positions are derived from
       `summary_json.samples.t_sec` and `samples.split` of the source
       session. No new schema field. Distance reconstructed
       client-side: `d[i] = d[i-1] + (500 / split[i]) * (t[i]-t[i-1])`.
-- [ ] Between samples, position is interpolated with a monotone
+- [x] Between samples, position is interpolated with a monotone
       cubic spline (same approach as FEAT-0001b hero metrics).
-- [ ] Sample bucket size for new sessions: `max(1s, dur_sec / 360)`.
+- [x] Sample bucket size for new sessions: cap at 360 entries via BucketStrokesFor (stroke-bucketed; spec wording adjusted).
       Applied to new sessions only; existing sessions keep their
       stored series.
 - [ ] Ghost ends when its source session ends. After that the lane
       stays open and the user races to their own finish line; ghost
-      sprite stops at its final position with a small flag.
+      sprite stops at its final position with a small flag. (Partial: ghost stops at its final position; small-flag glyph not yet rendered.)
 
 ### Pause & abort
 
-- [ ] When user pauses, ghost and PB-leader both pause. Resume
+- [x] When user pauses, ghost and PB-leader both pause. Resume
       restarts all clocks together.
-- [ ] If user quits before reaching the workout's defined end (e.g.
+- [x] If user quits before reaching the workout's defined end (e.g.
       stops a 2k at 1500m), no race result is recorded — toast not
       shown.
 
 ### Geometry & rendering
 
-- [ ] Tile is a horizontal 3-lane track. User centered vertically,
+- [x] Tile is a horizontal 3-lane track. User centered vertically,
       ghost above, PB below. (2-lane variant when only one opponent.)
-- [ ] Lane scrolls so user is always horizontally centered.
-- [ ] When an opponent is off-screen (lead or trail), a chip on the
+- [x] Lane scrolls so user is always horizontally centered.
+- [x] When an opponent is off-screen (lead or trail), a chip on the
       lane edge shows signed gap for that lane. Per-opponent chips,
       not one combined chip. Default unit is meters (`+18m`,
       `-22m`); when absolute gap < 5 m, switch to split-equivalent
       seconds (`+1.4s`, `-0.8s`) for legibility on close finishes.
-- [ ] At workout finish, an ephemeral toast displays gaps to **both**
+- [x] At workout finish, an ephemeral toast displays gaps to **both**
       opponents (e.g. `vs. PB: -4.2 s · vs. last: +2.1 s`). Result is
       not persisted — no `races` table, no field added to
       `summary_json`.
-- [ ] Tie at finish renders as `0m` / `0.0s`.
-- [ ] Tile is responsive: on iPad landscape, occupies a wider footprint
+- [x] Tie at finish renders as `0m` / `0.0s`.
+- [x] Tile is responsive: on iPad landscape, occupies a wider footprint
       so the lane reads at a glance; mobile portrait collapses to
       minimum 28px-tall lanes.
 
 ### Visual / design system
 
-- [ ] Boat sprite is a single inline SVG component, viewBox `0 0 72
+- [x] Boat sprite is a single inline SVG component, viewBox `0 0 72
       24`, strokes use `currentColor`, fill uses `currentColor` with
       `fill-opacity` for the hull. Each lane sets `color` via CSS.
-- [ ] Above 28 px lane height, render the full SVG (hull + rower +
+- [x] Above 28 px lane height, render the full SVG (hull + rower +
       oar). Between 20 px and 28 px, render the hull-only variant
       (rower torso, head, oar shaft and blade dropped). Below 20 px
       hard floor, the tile is hidden.
-- [ ] Lane colors:
+- [x] Lane colors:
   - User boat: `#14B8A6` (teal)
   - PB-leader: `#F59E0B` (amber)
   - Ghost (last): `#94A3B8` (slate)
-- [ ] Opponents are anonymous — labelled `PB` and `Ghost`. No date or
+- [x] Opponents are anonymous — labelled `PB` and `Ghost`. No date or
       rower name shown on the tile.
 
 ## Boat SVG (inline reference)
