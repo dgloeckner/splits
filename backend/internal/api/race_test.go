@@ -551,6 +551,60 @@ func TestRaceOpponents_DistancePBIgnoredForNonStandardDistance(t *testing.T) {
 	}
 }
 
+func TestRaceOpponents_DedupeWhenGhostIsPB(t *testing.T) {
+	t.Parallel()
+	db, err := storage.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	mustExec(t, db.Handle(),
+		`INSERT INTO rowers(id, name, color, created_at) VALUES('R1','D','#0f0',?)`, now)
+	mustExec(t, db.Handle(),
+		`INSERT INTO workout(id, mode, params_json, intensity, warmup_sec, cooldown_sec, created_at, shape_hash)
+		 VALUES('W1','distance','{"meters":2000}','allout',0,0,?, 'shapeA')`, now)
+
+	// Single completed session that is BOTH the most recent matching session
+	// (so ghost-resolver picks it) AND the source of the active pb_workout
+	// row (so PB-resolver picks it).
+	tS := time.Date(2026, 4, 1, 10, 0, 0, 0, time.UTC)
+	mustExec(t, db.Handle(),
+		`INSERT INTO sessions(id, rower_id, started_at, ended_at, workout_id, summary_json, initial_level)
+		 VALUES('S_ONE','R1',?,?,'W1',?,3)`,
+		tS.Format(time.RFC3339Nano), tS.Add(time.Minute*7).Format(time.RFC3339Nano),
+		`{"samples":{"t_sec":[0,5,10],"split":[110,108,106]}}`)
+	mustExec(t, db.Handle(),
+		`INSERT INTO pb_workout(rower_id, shape_hash, mode, params_json, value_kind, value,
+		    source_session_id, source_session_started_at, achieved_at)
+		 VALUES('R1','shapeA','distance','{"meters":2000}','time_sec',420,'S_ONE',?,?)`,
+		tS.Format(time.RFC3339Nano), tS.Format(time.RFC3339Nano))
+
+	h := api.RaceOpponentsHandler(db.Handle())
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/v1/race/opponents?workout_id=W1&rower_id=R1", nil))
+	if rec.Code != 200 {
+		t.Fatalf("status: %d body=%s", rec.Code, rec.Body.String())
+	}
+	var resp struct {
+		Ghost *api.RaceOpponent `json:"ghost"`
+		PB    *api.RaceOpponent `json:"pb"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("unmarshal: %v body=%s", err, rec.Body.String())
+	}
+	if resp.Ghost != nil {
+		t.Errorf("ghost = %+v, want nil (de-duped because source equals PB)", resp.Ghost)
+	}
+	if resp.PB == nil {
+		t.Fatalf("pb = nil, want S_ONE")
+	}
+	if resp.PB.SourceSessionID != "S_ONE" {
+		t.Errorf("pb.SourceSessionID = %s, want S_ONE", resp.PB.SourceSessionID)
+	}
+}
+
 func TestRaceOpponents_MissingParamsReturns400(t *testing.T) {
 	t.Parallel()
 	db, err := storage.Open(filepath.Join(t.TempDir(), "test.db"))

@@ -53,6 +53,14 @@ func RaceOpponentsHandler(db *sql.DB) http.Handler {
 		}
 		resp.PB = pb
 
+		// De-dupe: if the ghost (most-recent matching session) is the same
+		// session that backs the PB lane, suppress the ghost. The PB lane
+		// stays and is rendered with PB styling on the client.
+		if resp.Ghost != nil && resp.PB != nil &&
+			resp.Ghost.SourceSessionID == resp.PB.SourceSessionID {
+			resp.Ghost = nil
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(resp)
 	})
