@@ -58,3 +58,27 @@ func TestShapeHashHandlesEmptyParams(t *testing.T) {
 		t.Errorf("empty vs {} should hash the same: %s vs %s", a, b)
 	}
 }
+
+func TestShapeHashRaceEqualsDistance(t *testing.T) {
+	params := json.RawMessage(`{"meters":2000}`)
+	h1, err := ShapeHash(ModeRace, params, 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h2, err := ShapeHash(ModeDistance, params, 0, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if h1 != h2 {
+		t.Fatalf("race shape (%s) must equal distance shape (%s)", h1, h2)
+	}
+}
+
+func TestShapeHashRaceEqualsDistanceAcrossWarmup(t *testing.T) {
+	params := json.RawMessage(`{"meters":5000}`)
+	h1, _ := ShapeHash(ModeRace, params, 60, 30)
+	h2, _ := ShapeHash(ModeDistance, params, 60, 30)
+	if h1 != h2 {
+		t.Fatalf("warmup/cooldown must not break race==distance equivalence")
+	}
+}

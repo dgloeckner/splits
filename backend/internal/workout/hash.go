@@ -14,6 +14,9 @@ import (
 // Intensity is excluded — it is a UX tag, not part of the workout
 // shape, so two workouts that differ only in intensity share a PB.
 func ShapeHash(mode Mode, params json.RawMessage, warmupSec, cooldownSec int) (string, error) {
+	if mode == ModeRace {
+		mode = ModeDistance
+	}
 	canonParams, err := canonicalJSON(params)
 	if err != nil {
 		return "", err
