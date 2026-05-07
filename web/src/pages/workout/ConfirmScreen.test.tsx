@@ -145,6 +145,34 @@ describe('ConfirmScreen', () => {
     expect(JSON.parse(stored!)).toEqual({ ghost: true, pb: false })
   })
 
+  it('does not create a favorite for race mode even if checkbox is on', async () => {
+    let favCalled = false
+    mockRoutes({
+      '/api/v1/workouts': () => ({ body: JSON.stringify({ id: 'W1', mode: 'race', params: { meters: 2000 }, warmup_sec: 0, cooldown_sec: 0, created_at: '2026-04-23T00:00:00Z' }), status: 201 }),
+      '/api/v1/workouts/W1/opponents': () => ({
+        body: JSON.stringify({
+          ghost: { kind: 'session', source_session_id: 'S1', label: 'ghost', t_sec: [0, 60], split: [120, 121] },
+          pb: null,
+        }),
+        status: 200,
+      }),
+      '/api/v1/session/start': () => ({ body: null, status: 204 }),
+      '/api/v1/favorites': (init) => {
+        if (init?.method === 'POST') favCalled = true
+        return { body: JSON.stringify({}), status: 201 }
+      },
+    })
+    sessionStorage.removeItem('race-opp-selection')
+    wrap(<Harness setup="race" />)
+    await userEvent.click(await screen.findByRole('checkbox', { name: /als favorit speichern/i }))
+    await userEvent.type(await screen.findByRole('textbox', { name: /favoritenname/i }), 'My Race')
+    await userEvent.click(screen.getByRole('button', { name: /^start$/i }))
+    const confirmBtn = await screen.findByRole('button', { name: /Rennen starten/i })
+    await userEvent.click(confirmBtn)
+    await waitFor(() => expect(screen.getByText('LIVE')).toBeInTheDocument())
+    expect(favCalled).toBe(false)
+  })
+
   it('Zurück dispatches GO_BACK (returns to step 3)', async () => {
     mockRoutes({})
     wrap(<Harness setup="distance" />)

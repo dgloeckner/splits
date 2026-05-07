@@ -30,6 +30,7 @@ export function OpponentPickerSheet({
             type="checkbox"
             data-testid="opt-ghost"
             checked={sel.ghost}
+            disabled={!hasGhost}
             onChange={(e) => setSel({ ...sel, ghost: e.target.checked })}
           />
           <span className={styles.label}>

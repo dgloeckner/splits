@@ -129,6 +129,7 @@ export function ConfirmScreen() {
   if (!state.mode || !params) return null
 
   async function maybeCreateFavorite(input: CreateWorkoutInput, warmup: number, cooldown: number) {
+    if (state.mode === 'race') return
     if (state.saveAsFavorite && state.favoriteName.trim() !== '' && rowerID) {
       try {
         await createFavorite({

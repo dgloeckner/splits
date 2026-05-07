@@ -33,6 +33,20 @@ describe('OpponentPickerSheet', () => {
     expect(screen.queryByTestId('opt-pb')).toBeNull()
   })
 
+  it('disables ghost checkbox when no real ghost (synth path)', () => {
+    render(
+      <OpponentPickerSheet
+        open
+        meters={2000}
+        hasGhost={false}
+        hasPB={false}
+        onConfirm={() => {}}
+        onClose={() => {}}
+      />,
+    )
+    expect(screen.getByTestId('opt-ghost')).toBeDisabled()
+  })
+
   it('shows synthesised ghost copy when no real ghost', () => {
     render(
       <OpponentPickerSheet
