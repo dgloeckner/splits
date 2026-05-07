@@ -106,6 +106,22 @@ type SessionSummary struct {
 	// orphaned session). Cheap surface for "soft" annotations
 	// without per-flag schema columns.
 	Flags []string `json:"flags,omitempty"`
+
+	// Race is the post-race result snapshot for race-mode sessions.
+	// Nil for non-race or when neither opponent is resolvable. See
+	// FEAT-0013.
+	Race *RaceResult `json:"race,omitempty"`
+}
+
+// RaceResult is the persisted race outcome (FEAT-0013). Gap fields
+// are user_total_sec - opponent_time_at_user_distance: positive ⇒
+// user took longer than opponent. Nil gaps indicate the opponent was
+// not present in the race.
+type RaceResult struct {
+	VsPbSec     *float64 `json:"vs_pb_sec"`
+	VsGhostSec  *float64 `json:"vs_ghost_sec"`
+	GhostKind   string   `json:"ghost_kind"` // "session" | "synth"
+	OpponentIDs []string `json:"opponent_session_ids,omitempty"`
 }
 
 // SessionSamples is N-stroke-bucket-averaged time series. Length is

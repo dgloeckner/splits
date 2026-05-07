@@ -227,6 +227,16 @@ func (p *Persister) applySessionEnd(ctx context.Context, e event.Event) error {
 		LEFT JOIN workouts w ON w.id = s.workout_id
 		WHERE s.id = ?`, e.SessionID).Scan(&rowerID, &workoutMode)
 
+	// FEAT-0013: race result snapshot. Pulls workout details directly
+	// (the existing rowerID query above uses a LEFT JOIN to a non-existent
+	// `workouts` plural — keeping that as-is to avoid scope creep).
+	var raceWorkoutID string
+	_ = p.DB.QueryRowContext(ctx, `SELECT COALESCE(workout_id,'') FROM sessions WHERE id = ?`, e.SessionID).Scan(&raceWorkoutID)
+	if raceRes, raceErr := ComputeRaceResult(ctx, p.DB, raceWorkoutID, rowerID,
+		summary.TotalDistanceM, summary.TotalTimeSec); raceErr == nil {
+		summary.Race = raceRes
+	}
+
 	insightsRes := computeInsightsSafely(insights.SessionMeta{
 		WorkoutMode: workoutMode,
 		DurationSec: summary.TotalTimeSec,
