@@ -90,6 +90,7 @@ function buildParams(state: FlowState): WorkoutParams | null {
   if (state.mode === 'distance' && state.distanceMeters) return { meters: state.distanceMeters }
   if (state.mode === 'time' && state.timeSeconds) return { seconds: state.timeSeconds }
   if (state.mode === 'intervals' && state.intervals) return state.intervals
+  if (state.mode === 'race' && state.distanceMeters) return { meters: state.distanceMeters }
   return null
 }
 
@@ -104,6 +105,9 @@ function titleFor(state: FlowState, params: WorkoutParams): string {
   } else if (state.mode === 'intervals') {
     const iv = params as { reps: number; length: { unit: string; value: number } }
     base = `${iv.reps}×${iv.length.value} ${iv.length.unit}`
+  } else if (state.mode === 'race') {
+    const m = (params as { meters: number }).meters
+    base = `${m >= 1000 && m % 1000 === 0 ? `${m / 1000} km` : `${m} m`} Rennen`
   }
   const label = state.intensity ? intensityLabelFor(state.intensity) : ''
   return label ? `${base} · ${label}` : base

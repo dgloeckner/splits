@@ -24,6 +24,10 @@ export function workoutChipLabel(workout: Workout | null | undefined): string {
       const unit = p.length.unit === 'm' ? 'm' : 'Min'
       return `${p.reps} × ${p.length.value} ${unit}`
     }
+    case 'race': {
+      const p = workout.params as { meters: number }
+      return `${fmtMeters(p.meters)} m Rennen`
+    }
   }
 }
 

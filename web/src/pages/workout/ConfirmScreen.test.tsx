@@ -24,7 +24,7 @@ function mockRoutes(routes: Record<string, R | ((init?: RequestInit) => R)>) {
 }
 afterEach(() => { global.fetch = origFetch })
 
-function Harness({ setup }: { setup: 'distance' | 'intervals' }) {
+function Harness({ setup }: { setup: 'distance' | 'intervals' | 'race' }) {
   const { state, dispatch } = useWorkoutFlow()
   const initialized = useRef(false)
   useEffect(() => {
@@ -33,6 +33,9 @@ function Harness({ setup }: { setup: 'distance' | 'intervals' }) {
       if (setup === 'distance') {
         dispatch({ type: 'SELECT_MODE', mode: 'distance' })
         dispatch({ type: 'SET_DISTANCE', meters: 5000 })
+      } else if (setup === 'race') {
+        dispatch({ type: 'SELECT_MODE', mode: 'race' })
+        dispatch({ type: 'SET_DISTANCE', meters: 2000 })
       } else {
         dispatch({ type: 'SELECT_MODE', mode: 'intervals' })
         dispatch({ type: 'SET_INTERVALS', intervals: { reps: 4, length: { unit: 'm', value: 500 }, rest_sec: 60 } })
@@ -64,6 +67,12 @@ describe('ConfirmScreen', () => {
     mockRoutes({})
     wrap(<Harness setup="distance" />)
     expect(await screen.findByRole('heading', { name: /5 km · moderat/i })).toBeInTheDocument()
+  })
+
+  it('renders title for race with km label', async () => {
+    mockRoutes({})
+    wrap(<Harness setup="race" />)
+    expect(await screen.findByRole('heading', { name: /2 km Rennen/i })).toBeInTheDocument()
   })
 
   it('timeline shows intervals as alternating work/rest', async () => {

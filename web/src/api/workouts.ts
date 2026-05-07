@@ -1,6 +1,6 @@
 import { ApiError } from './error'
 
-export type WorkoutMode = 'just_row' | 'distance' | 'time' | 'intervals'
+export type WorkoutMode = 'just_row' | 'distance' | 'time' | 'intervals' | 'race'
 export type Intensity = 'locker' | 'moderat' | 'hart' | 'allout'
 
 export type JustRowParams = Record<string, never>
