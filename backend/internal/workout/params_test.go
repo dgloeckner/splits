@@ -2,6 +2,8 @@ package workout
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"testing"
 )
 
@@ -58,5 +60,45 @@ func TestParamsValidation(t *testing.T) {
 				t.Fatalf("err=%v wantErr=%v", err, tc.wantErr)
 			}
 		})
+	}
+}
+
+func TestModeRaceValid(t *testing.T) {
+	if !ModeRace.Valid() {
+		t.Fatal("ModeRace should be valid")
+	}
+}
+
+func TestDecodeRaceParamsAcceptsStandardDistances(t *testing.T) {
+	for _, m := range []int{500, 1000, 2000, 5000, 6000, 10000, 21097, 42195} {
+		raw := json.RawMessage(fmt.Sprintf(`{"meters":%d}`, m))
+		p, err := DecodeParams(ModeRace, raw)
+		if err != nil {
+			t.Fatalf("meters=%d: %v", m, err)
+		}
+		if p.Race == nil || p.Race.Meters != m {
+			t.Fatalf("meters=%d: got %+v", m, p.Race)
+		}
+	}
+}
+
+func TestDecodeRaceParamsRejectsNonStandard(t *testing.T) {
+	cases := []int{0, -1, 100, 750, 1500, 3000}
+	for _, m := range cases {
+		raw := json.RawMessage(fmt.Sprintf(`{"meters":%d}`, m))
+		if _, err := DecodeParams(ModeRace, raw); !errors.Is(err, ErrInvalidParams) {
+			t.Fatalf("meters=%d: expected ErrInvalidParams, got %v", m, err)
+		}
+	}
+}
+
+func TestEncodeRaceParamsRoundTrip(t *testing.T) {
+	p := &Params{Mode: ModeRace, Race: &RaceParams{Meters: 2000}}
+	raw, err := p.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != `{"meters":2000}` {
+		t.Fatalf("encode = %s", string(raw))
 	}
 }

@@ -16,12 +16,27 @@ const (
 	ModeDistance  Mode = "distance"
 	ModeTime      Mode = "time"
 	ModeIntervals Mode = "intervals"
+	ModeRace      Mode = "race"
 )
 
 func (m Mode) Valid() bool {
 	switch m {
-	case ModeJustRow, ModeDistance, ModeTime, ModeIntervals:
+	case ModeJustRow, ModeDistance, ModeTime, ModeIntervals, ModeRace:
 		return true
+	}
+	return false
+}
+
+// StandardRaceDistances enumerates the meters values accepted by ModeRace.
+// Mirrors the PB-distance bucket list (FEAT-0010).
+var StandardRaceDistances = []int{500, 1000, 2000, 5000, 6000, 10000, 21097, 42195}
+
+// IsStandardRaceDistance reports whether m is one of the standard race distances.
+func IsStandardRaceDistance(m int) bool {
+	for _, s := range StandardRaceDistances {
+		if s == m {
+			return true
+		}
 	}
 	return false
 }
@@ -54,6 +69,7 @@ type Params struct {
 	Distance  *DistanceParams  `json:"-"`
 	Time      *TimeParams      `json:"-"`
 	Intervals *IntervalsParams `json:"-"`
+	Race      *RaceParams      `json:"-"`
 }
 
 type JustRowParams struct{}
@@ -66,6 +82,9 @@ type TimeParams struct {
 type IntervalLength struct {
 	Unit  string `json:"unit"`
 	Value int    `json:"value"`
+}
+type RaceParams struct {
+	Meters int `json:"meters"`
 }
 type IntervalsParams struct {
 	Reps    int            `json:"reps"`
@@ -119,6 +138,15 @@ func DecodeParams(mode Mode, raw json.RawMessage) (*Params, error) {
 			return nil, fmt.Errorf("%w: rest_sec must be >= 0", ErrInvalidParams)
 		}
 		p.Intervals = &i
+	case ModeRace:
+		var r RaceParams
+		if err := json.Unmarshal(raw, &r); err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrInvalidParams, err)
+		}
+		if !IsStandardRaceDistance(r.Meters) {
+			return nil, fmt.Errorf("%w: meters %d is not a standard race distance", ErrInvalidParams, r.Meters)
+		}
+		p.Race = &r
 	}
 	return p, nil
 }
@@ -133,6 +161,8 @@ func (p *Params) Encode() (json.RawMessage, error) {
 		return json.Marshal(p.Time)
 	case ModeIntervals:
 		return json.Marshal(p.Intervals)
+	case ModeRace:
+		return json.Marshal(p.Race)
 	}
 	return nil, fmt.Errorf("%w: cannot encode mode %q", ErrInvalidParams, p.Mode)
 }
