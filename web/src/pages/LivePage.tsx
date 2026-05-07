@@ -8,6 +8,7 @@ import { ConnectionBanner } from '../live/ConnectionBanner'
 import { useWorkoutProgress } from '../live/useWorkoutProgress'
 import { LiveHero } from './LiveHero'
 import { TileGrid } from './TileGrid'
+import { RaceLiveView } from '../race/RaceLiveView'
 import { useWorkoutOverlay } from './live/WorkoutOverlayContext'
 import { WorkoutProgressStrip } from './live/WorkoutProgressStrip'
 import { SegmentStatus } from './live/SegmentStatus'
@@ -30,6 +31,15 @@ function LiveBody() {
     ? { split: workSeg.targetSplit, spm: workSeg.targetSPM }
     : null
   const debug = new URLSearchParams(window.location.search).get('debug') === '1'
+  const isRace = workout?.mode === 'race'
+  if (isRace) {
+    const meters = (workout.params as { meters: number }).meters
+    return (
+      <div className={styles.page}>
+        <RaceLiveView liveState={state} totalMeters={meters} />
+      </div>
+    )
+  }
   return (
     <div className={styles.page}>
       {debug && (

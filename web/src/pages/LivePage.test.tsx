@@ -9,13 +9,46 @@ import type { SessionEndSummary } from '../live/events'
 import type { BannerState } from './live/usePBBanners'
 import { LivePage } from './LivePage'
 
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+;(globalThis as unknown as { ResizeObserver: typeof ResizeObserverStub }).ResizeObserver =
+  ResizeObserverStub
+
 const mockBannerState = vi.hoisted(() => ({ current: { kind: 'idle' } as BannerState }))
 vi.mock('./live/usePBBanners', () => ({
   usePBBanners: () => mockBannerState.current,
 }))
 
+const mockWorkoutProgress = vi.hoisted(
+  () => ({ current: null as null | Record<string, unknown> }),
+)
+vi.mock('../live/useWorkoutProgress', async (orig) => {
+  const real = (await orig()) as Record<string, unknown>
+  return {
+    ...real,
+    useWorkoutProgress: () =>
+      mockWorkoutProgress.current ?? {
+        segments: [],
+        active: null,
+        workoutId: null,
+        isLoading: false,
+        workout: null,
+      },
+  }
+})
+
+const mockRaceData = vi.hoisted(() => ({ current: { ghost: null, pb: null } as { ghost: unknown; pb: unknown } }))
+vi.mock('../race/useRaceData', () => ({
+  useRaceData: () => mockRaceData.current,
+}))
+
 beforeEach(() => {
   mockBannerState.current = { kind: 'idle' }
+  mockWorkoutProgress.current = null
+  mockRaceData.current = { ghost: null, pb: null }
 })
 
 function wrapRender(state: LiveState) {
@@ -199,6 +232,34 @@ describe('LivePage session-end overlay', () => {
     expect(invalidatedKeys).toContain('rower-lifetime')
     expect(invalidatedKeys).toContain('rower-achievements')
     expect(invalidatedKeys).toContain('rower-trends')
+  })
+
+  it('renders RaceLiveView when active workout mode is race', () => {
+    mockWorkoutProgress.current = {
+      segments: [],
+      active: null,
+      workoutId: 'W-RACE',
+      isLoading: false,
+      workout: {
+        id: 'W-RACE',
+        mode: 'race',
+        params: { meters: 2000 },
+        intensity: null,
+      },
+    }
+    wrapRender({
+      ...initialLiveState,
+      session: {
+        session_id: 'S1',
+        started_at: '2026-04-27T12:00:00Z',
+        rower_id: 'R1',
+        rower_name: 'Daniel',
+        initial_level: 5,
+        workout_id: 'W-RACE',
+      },
+    })
+    expect(document.querySelector('[data-component="race-canvas"]')).not.toBeNull()
+    expect(document.querySelector('[data-component="tile-grid"]')).toBeNull()
   })
 
   it('skips PBOverlay and shows summary directly when no PBs are present', () => {
