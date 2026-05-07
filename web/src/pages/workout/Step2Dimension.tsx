@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useWorkoutFlow } from './WorkoutFlowProvider'
-import { distancePresets, timePresets, intervalPresets } from './presets'
+import { distancePresets, timePresets, intervalPresets, racePresets } from './presets'
 import styles from './Step2Dimension.module.css'
 
 // ── Shared stepper ────────────────────────────────────────────────────────────
@@ -91,6 +91,30 @@ function DistancePanel() {
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── Race panel ────────────────────────────────────────────────────────────────
+
+function RacePanel() {
+  const { dispatch } = useWorkoutFlow()
+
+  function pick(meters: number) {
+    dispatch({ type: 'SET_DISTANCE', meters })
+    dispatch({ type: 'GO_TO_STEP3' })
+  }
+
+  return (
+    <div className={styles.panel}>
+      <h2 className={styles.panelTitle}>Renndistanz wählen</h2>
+      <div className={styles.chips}>
+        {racePresets.map((p) => (
+          <button key={p.label} type="button" className={styles.chip} onClick={() => pick(p.meters)}>
+            {p.label}
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
@@ -298,6 +322,7 @@ export function Step2Dimension() {
       {state.mode === 'distance' && <DistancePanel />}
       {state.mode === 'time' && <TimePanel />}
       {state.mode === 'intervals' && <IntervalsPanel />}
+      {state.mode === 'race' && <RacePanel />}
     </div>
   )
 }

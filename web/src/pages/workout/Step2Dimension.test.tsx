@@ -169,6 +169,23 @@ describe('Step2Dimension – intervals', () => {
   })
 })
 
+describe('Step2Dimension – race', () => {
+  it('renders standard race distance presets', async () => {
+    renderHarness('race')
+    await screen.findByText('2 000 m')
+    screen.getByText('Halbmarathon')
+    screen.getByText('Marathon')
+    expect(screen.queryByText(/Eigene Distanz/)).toBeNull()
+  })
+
+  it('preset tap sets meters and advances to step 3', async () => {
+    const out = renderHarness('race')
+    await userEvent.click(await screen.findByRole('button', { name: '2 000 m' }))
+    expect(out.state.distanceMeters).toBe(2000)
+    expect(out.step).toBe(3)
+  })
+})
+
 describe('Step2Dimension – back navigation', () => {
   it('back button navigates home', async () => {
     renderHarness('distance')
