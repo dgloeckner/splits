@@ -17,10 +17,6 @@ import { useSegmentTransitions } from '../live/useSegmentTransitions'
 import { usePBBanners } from './live/usePBBanners'
 import { PBOverlay } from './live/PBOverlay'
 import { useActiveRower } from '../hooks/useActiveRower'
-import { RaceResultToast } from '../race/RaceResultToast'
-import { RaceOpponentsContext } from '../race/RaceOpponentsContext'
-import { useRaceOpponents } from '../race/useRaceOpponents'
-import { useRaceFinish } from '../race/useRaceFinish'
 import styles from './LivePage.module.css'
 
 function LiveBody() {
@@ -28,11 +24,6 @@ function LiveBody() {
   const state = useLiveSession()
   const { active, segments, workout, isLoading } = useWorkoutProgress()
   const { aborted } = useWorkoutOverlay()
-  const opps = useRaceOpponents({
-    workoutId: state.session?.workout_id ?? null,
-    rowerId: state.session?.rower_id ?? null,
-  })
-  const raceResult = useRaceFinish({ liveState: state, opponents: opps, aborted })
   const seg = active?.segment
   const workSeg = seg && seg.kind === 'work' ? seg : null
   const target = workSeg
@@ -40,7 +31,6 @@ function LiveBody() {
     : null
   const debug = new URLSearchParams(window.location.search).get('debug') === '1'
   return (
-    <RaceOpponentsContext.Provider value={opps}>
     <div className={styles.page}>
       {debug && (
         <pre
@@ -85,9 +75,7 @@ function LiveBody() {
       <div className={styles.rightCol}>
         <TileGrid state={state} />
       </div>
-      <RaceResultToast result={raceResult} />
     </div>
-    </RaceOpponentsContext.Provider>
   )
 }
 

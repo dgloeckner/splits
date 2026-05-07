@@ -38,26 +38,6 @@ describe('TilePicker', () => {
     expect(onSelect).toHaveBeenCalledWith(2, 'dps')
   })
 
-  it('exposes the race-boat tile (Rennen) as a selectable entry', async () => {
-    const user = userEvent.setup()
-    const onSelect = vi.fn()
-    render(
-      <TilePicker
-        open
-        slotIndex={1}
-        currentTileId="split"
-        onSelect={onSelect}
-        onClose={vi.fn()}
-      />,
-    )
-    // The race-boat tile uses label "Rennen" and type chip "Rennen".
-    const raceBoat = screen.getByRole('button', { name: /^Rennen/ })
-    expect(raceBoat).toBeInTheDocument()
-    expect(raceBoat).not.toBeDisabled()
-    await user.click(raceBoat)
-    expect(onSelect).toHaveBeenCalledWith(1, 'race-boat')
-  })
-
   it('HR-gated tiles are disabled buttons', () => {
     render(
       <TilePicker

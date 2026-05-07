@@ -14,12 +14,11 @@ const TYPE_LABEL: Record<string, string> = {
   numeric: 'Zahl',
   sparkline: 'Verlauf',
   zone: 'Bewertung',
-  'race-boat': 'Rennen',
 }
 
 export function TilePicker({ open, slotIndex, currentTileId, onSelect, onClose }: Props) {
   const current = getTile(currentTileId)
-  const typeOrder = ['numeric', 'sparkline', 'zone', 'race-boat'] as const
+  const typeOrder = ['numeric', 'sparkline', 'zone'] as const
   const ordered = typeOrder.flatMap((t) => TILES.filter((tile) => tile.type === t))
 
   return (

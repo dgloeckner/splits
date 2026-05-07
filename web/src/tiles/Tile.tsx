@@ -1,5 +1,4 @@
 import type { LiveState } from '../live/reducer'
-import { RaceTileAdapter } from '../race/RaceTileAdapter'
 import { NumericTile } from './NumericTile'
 import { SparklineTile } from './SparklineTile'
 import { ZoneBadgeTile } from './ZoneBadgeTile'
@@ -24,7 +23,5 @@ export function Tile({ tileId, state, disabled }: Props) {
       return <SparklineTile def={def} state={state} disabled={isDisabled} />
     case 'zone':
       return <ZoneBadgeTile def={def} state={state} disabled={isDisabled} />
-    case 'race-boat':
-      return <RaceTileAdapter liveState={state} disabled={isDisabled} />
   }
 }
