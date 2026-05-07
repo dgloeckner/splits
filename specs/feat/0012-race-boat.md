@@ -1,7 +1,11 @@
 # FEAT-0012: Race Boat (Ghost + PB Leader)
 
-- **Status**: Shipped (2026-05-05)
+- **Status**: Superseded by FEAT-0013 (2026-05-07)
 - **Owner**: @gloeckner
+- **Note**: Shipped 2026-05-05; superseded two days later when the
+  feature was redesigned as a first-class workout mode (FEAT-0013).
+  Tile, hook, and `/race/opponents` route to be removed as part of
+  FEAT-0013 implementation.
 - **Depends on**: FEAT-0001 (live view), FEAT-0001a (dashboard tiles),
   FEAT-0001b (smoothing), FEAT-0008 (design system), FEAT-0009
   (cleanup — `summary_json.samples`), FEAT-0010 (PBs — `pb_workout`,
