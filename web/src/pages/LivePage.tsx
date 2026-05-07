@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getWorkout } from '../api/workouts'
+import { fetchRaceOpponents } from '../api/raceOpponents'
 import { workoutChipLabel } from '../util/workoutLabel'
 import { useLiveSession } from '../live/LiveSessionContext'
 import { ConnectionBanner } from '../live/ConnectionBanner'
@@ -173,6 +174,21 @@ export function LivePage() {
   })
   const workoutLabel = workoutQ.data ? workoutChipLabel(workoutQ.data) : undefined
 
+  const raceOpponentsQ = useQuery({
+    queryKey: ['race-opponents', latched?.workoutId, activeRowerId],
+    queryFn: () =>
+      fetchRaceOpponents({
+        workoutId: latched!.workoutId!,
+        rowerId: activeRowerId!,
+      }),
+    enabled:
+      !!latched &&
+      !!latched.summary?.race &&
+      !!latched.workoutId &&
+      !!activeRowerId,
+    staleTime: 60_000,
+  })
+
   const [pbDismissed, setPbDismissed] = useState(false)
   // Reset when latched clears (next session-end can show PBs again).
   useEffect(() => {
@@ -219,8 +235,8 @@ export function LivePage() {
           userTotalSec={latched.summary.total_time_sec}
           userTSec={latched.summary.samples?.t_sec ?? []}
           userSplit={(latched.summary.samples?.split ?? []).map((s) => Number(s))}
-          ghost={null}
-          pb={null}
+          ghost={raceOpponentsQ.data?.ghost ?? null}
+          pb={raceOpponentsQ.data?.pb ?? null}
           vsGhostSec={latched.summary.race.vs_ghost_sec ?? null}
           vsPbSec={latched.summary.race.vs_pb_sec ?? null}
           onRetry={() => {

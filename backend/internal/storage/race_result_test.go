@@ -59,6 +59,27 @@ func TestComputeRaceResult_RaceWorkoutSynthGhost(t *testing.T) {
 	}
 }
 
+func TestComputeRaceResult_AbortBeforeGoalReturnsNil(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	db.Handle().Exec(`INSERT INTO rowers(id,name,color,created_at) VALUES('R1','D','#0f0',?)`, now)
+	db.Handle().Exec(`
+        INSERT INTO workout(id,mode,params_json,intensity,warmup_sec,cooldown_sec,created_at,shape_hash)
+        VALUES('W1','race','{"meters":2000}','moderat',0,0,?,'shape')`, now)
+	// User quit at 1500m of a 2000m race.
+	res, err := ComputeRaceResult(context.Background(), db.Handle(), "W1", "R1", 1500, 360.0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res != nil {
+		t.Fatalf("expected nil for early-quit race, got %+v", res)
+	}
+}
+
 func TestComputeRaceResult_NoWorkoutIDReturnsNil(t *testing.T) {
 	db, err := Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {

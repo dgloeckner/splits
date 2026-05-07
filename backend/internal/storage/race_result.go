@@ -88,6 +88,10 @@ func ComputeRaceResult(ctx context.Context, db *sql.DB, workoutID, rowerID strin
 	if err := json.Unmarshal([]byte(params), &rp); err != nil {
 		return nil, err
 	}
+	// FEAT-0013: aborts before workout distance goal write no race result.
+	if userDistanceM < rp.Meters {
+		return nil, nil
+	}
 
 	res := &event.RaceResult{}
 
