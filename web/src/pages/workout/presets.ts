@@ -30,3 +30,14 @@ export const intervalPresets: IntervalPreset[] = [
   { label: '6×1 min', reps: 6, length: { unit: 'min', value: 1 }, rest_sec: 60 },
   { label: '4×4 min', reps: 4, length: { unit: 'min', value: 4 }, rest_sec: 120 },
 ]
+
+export const racePresets: { label: string; meters: number }[] = [
+  { label: '500 m',    meters: 500 },
+  { label: '1 000 m',  meters: 1000 },
+  { label: '2 000 m',  meters: 2000 },
+  { label: '5 000 m',  meters: 5000 },
+  { label: '6 000 m',  meters: 6000 },
+  { label: '10 000 m', meters: 10000 },
+  { label: 'Halbmarathon', meters: 21097 },
+  { label: 'Marathon',    meters: 42195 },
+]

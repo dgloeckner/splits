@@ -71,6 +71,11 @@ describe('WorkoutFlowPage', () => {
     expect(screen.getByRole('heading', { name: 'Distanz wählen' })).toBeInTheDocument()
   })
 
+  it('accepts race mode in URL', () => {
+    renderAt('/workout/new/race')
+    expect(screen.getByTestId('state-mode').textContent).toBe('race')
+  })
+
   it('redirects home for invalid mode', () => {
     renderAt('/workout/new/bogus')
     expect(screen.getByText('HOME')).toBeInTheDocument()

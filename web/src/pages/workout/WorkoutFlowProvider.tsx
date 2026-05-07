@@ -1,6 +1,6 @@
 import { createContext, useContext, useMemo, useReducer, type Dispatch, type ReactNode } from 'react'
 
-export type FlowMode = 'distance' | 'time' | 'intervals'
+export type FlowMode = 'distance' | 'time' | 'intervals' | 'race'
 export type FlowIntensity = 'locker' | 'moderat' | 'hart' | 'allout'
 export type IntervalLength = { unit: 'm' | 'min'; value: number }
 export type IntervalsParams = { reps: number; length: IntervalLength; rest_sec: number }
