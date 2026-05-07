@@ -1,0 +1,47 @@
+.canvas { position: relative; overflow: hidden; }
+.banner {
+  position: absolute; top: 4px; left: 50%; transform: translateX(-50%);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-body-lg);
+  color: var(--color-on-surface-variant);
+  z-index: 2;
+}
+.water {
+  position: absolute; inset: 0;
+  background: linear-gradient(180deg, rgba(20, 184, 166, 0.05), rgba(0, 0, 0, 0));
+  background-size: 200% 100%;
+}
+.water[data-water-animated="true"] {
+  animation: water-scroll 12s linear infinite;
+}
+@keyframes water-scroll {
+  from { background-position: 0 0; }
+  to { background-position: -200% 0; }
+}
+.lane { position: relative; width: 100%; }
+.sprite { position: absolute; top: 50%; transform: translateY(-50%); }
+.chip {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  padding: 2px 6px;
+  background: rgba(255, 255, 255, 0.12);
+  color: currentColor;
+  border-radius: 4px;
+}
+.marker {
+  position: absolute; bottom: 4px;
+  font-size: 10px; opacity: 0.6; transform: translateX(-50%);
+  color: var(--color-on-surface-variant);
+}
+.finishLine {
+  position: absolute; top: 0; bottom: 0;
+  width: 2px; background: var(--color-primary);
+  z-index: 1;
+}
+.finishFlag {
+  position: absolute; top: 4px;
+  transform: translateX(-50%);
+  font-size: 20px;
+  z-index: 2;
+}
