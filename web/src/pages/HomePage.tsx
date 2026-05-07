@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useActiveRower } from '../hooks/useActiveRower'
 import { startSession } from '../api/client'
 import { FavoritesList } from './home/FavoritesList'
-import { IconJustRow, IconDistance, IconTime, IconInterval } from '../icons/workout'
+import { IconJustRow, IconDistance, IconTime, IconInterval, IconRace } from '../icons/workout'
 import styles from './HomePage.module.css'
 
 export function HomePage() {
@@ -14,7 +14,7 @@ export function HomePage() {
     nav('/live')
   }
 
-  function pickMode(mode: 'distance' | 'time' | 'intervals') {
+  function pickMode(mode: 'distance' | 'time' | 'intervals' | 'race') {
     nav(`/workout/new/${mode}`)
   }
 
@@ -65,6 +65,18 @@ export function HomePage() {
           >
             <span className={styles.modeIcon}><IconInterval size={24} /></span>
             <span className={styles.modeLabel}>Intervalle</span>
+          </button>
+        </div>
+
+        <div className={styles.modes}>
+          <button
+            type="button"
+            className={styles.mode}
+            onClick={() => pickMode('race')}
+            data-testid="picker-race"
+          >
+            <span className={styles.modeIcon}><IconRace size={24} /></span>
+            <span className={styles.modeLabel}>Rennen</span>
           </button>
         </div>
       </section>

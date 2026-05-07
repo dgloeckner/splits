@@ -62,4 +62,10 @@ describe('HomePage', () => {
     await userEvent.click(screen.getByRole('button', { name: new RegExp(label, 'i') }))
     expect(await screen.findByText(`FLOW:${mode}`)).toBeInTheDocument()
   })
+
+  it('renders Rennen chip and navigates to /workout/new/race', async () => {
+    renderHome()
+    await userEvent.click(screen.getByTestId('picker-race'))
+    expect(await screen.findByText('FLOW:race')).toBeInTheDocument()
+  })
 })
