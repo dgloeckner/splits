@@ -13,6 +13,7 @@ import { useWorkoutOverlay } from './live/WorkoutOverlayContext'
 import { WorkoutProgressStrip } from './live/WorkoutProgressStrip'
 import { SegmentStatus } from './live/SegmentStatus'
 import { SessionEndedOverlay } from './live/SessionEndedOverlay'
+import { RacePostScreen } from '../race/RacePostScreen'
 import { PauseDialog } from './live/PauseDialog'
 import { useSegmentTransitions } from '../live/useSegmentTransitions'
 import { usePBBanners } from './live/usePBBanners'
@@ -209,7 +210,32 @@ export function LivePage() {
           }}
         />
       )}
-      {showSummary && latched && (
+      {showSummary && latched && latched.summary.race != null && (
+        <RacePostScreen
+          totalMeters={
+            (workoutQ.data?.params as { meters?: number } | undefined)?.meters ??
+            latched.summary.total_distance_m
+          }
+          userTotalSec={latched.summary.total_time_sec}
+          userTSec={latched.summary.samples?.t_sec ?? []}
+          userSplit={(latched.summary.samples?.split ?? []).map((s) => Number(s))}
+          ghost={null}
+          pb={null}
+          vsGhostSec={latched.summary.race.vs_ghost_sec ?? null}
+          vsPbSec={latched.summary.race.vs_pb_sec ?? null}
+          onRetry={() => {
+            dismiss()
+            nav('/workout/new/race')
+          }}
+          onShowDetail={() => {
+            const id = latched.sessionId
+            dismiss()
+            if (id) nav(`/historie/${id}`)
+            else nav('/')
+          }}
+        />
+      )}
+      {showSummary && latched && latched.summary.race == null && (
         <SessionEndedOverlay
           summary={latched.summary}
           banners={banners}

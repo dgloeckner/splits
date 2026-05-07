@@ -38,6 +38,23 @@ export type SessionStartPayload = {
   workout_id?: string
 }
 
+export type SessionSamples = {
+  bucket_strokes: number
+  t_sec: number[]
+  split: number[]
+  watt: number[]
+  spm: number[]
+  dps: number[]
+  spi: number[]
+}
+
+export type RaceResultBlock = {
+  vs_pb_sec: number | null
+  vs_ghost_sec: number | null
+  ghost_kind: 'session' | 'synth'
+  opponent_session_ids?: string[]
+}
+
 export type SessionEndSummary = {
   total_distance_m: number
   total_time_sec: number
@@ -48,6 +65,8 @@ export type SessionEndSummary = {
   avg_dps: number
   avg_pace_sec_per_500m: number
   session_calories: number
+  samples?: SessionSamples
+  race?: RaceResultBlock
 }
 
 export type SessionEndPayload = {

@@ -1,0 +1,48 @@
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+.title {
+  font-size: var(--text-headline-sm);
+  margin: 0;
+}
+.summary {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.cell {
+  display: flex;
+  flex-direction: column;
+}
+.label {
+  font-size: var(--text-label-sm);
+  color: var(--color-on-surface-variant);
+}
+.value {
+  font-size: var(--text-title-md);
+  font-variant-numeric: tabular-nums;
+}
+.chart {
+  width: 100%;
+}
+.actions {
+  display: flex;
+  gap: var(--space-2);
+}
+.actions button {
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+  border: none;
+  border-radius: var(--radius-button);
+  font-weight: 600;
+  cursor: pointer;
+}
+.actions button + button {
+  background: transparent;
+  color: var(--color-primary);
+  border: 1px solid var(--color-primary);
+}
