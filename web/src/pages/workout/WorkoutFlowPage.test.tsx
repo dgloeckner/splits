@@ -73,7 +73,7 @@ describe('WorkoutFlowPage', () => {
 
   it('accepts race mode in URL', () => {
     renderAt('/workout/new/race')
-    expect(screen.getByTestId('state-mode').textContent).toBe('race')
+    expect(screen.getByTestId('flow-page').getAttribute('data-mode')).toBe('race')
   })
 
   it('redirects home for invalid mode', () => {

@@ -11,8 +11,7 @@ function FlowBody() {
   const { state } = useWorkoutFlow()
   const indicator = state.step === 'confirm' ? 'Bereit' : `${(state.step as number) - 1} / 2`
   return (
-    <main className={styles.page} data-testid="flow-page" data-step={String(state.step)}>
-      <div data-testid="state-mode" hidden>{state.mode ?? ''}</div>
+    <main className={styles.page} data-testid="flow-page" data-step={String(state.step)} data-mode={state.mode ?? ''}>
       <div className={styles.stepIndicator}>{indicator}</div>
       {state.step === 2 && <Step2Dimension />}
       {state.step === 3 && <Step3Intensity />}
