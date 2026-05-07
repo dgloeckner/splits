@@ -118,6 +118,33 @@ describe('ConfirmScreen', () => {
     await waitFor(() => expect(favBody?.name).toBe('My 5k'))
   })
 
+  it('opens opponent picker for race mode after confirming', async () => {
+    let started = false
+    mockRoutes({
+      '/api/v1/workouts': () => ({ body: JSON.stringify({ id: 'W1', mode: 'race', params: { meters: 2000 }, warmup_sec: 0, cooldown_sec: 0, created_at: '2026-04-23T00:00:00Z' }), status: 201 }),
+      '/api/v1/workouts/W1/opponents': () => ({
+        body: JSON.stringify({
+          ghost: { kind: 'session', source_session_id: 'S1', label: 'ghost', t_sec: [0, 60], split: [120, 121] },
+          pb: null,
+        }),
+        status: 200,
+      }),
+      '/api/v1/session/start': () => { started = true; return { body: null, status: 204 } },
+    })
+    sessionStorage.removeItem('race-opp-selection')
+    wrap(<Harness setup="race" />)
+    await userEvent.click(await screen.findByRole('button', { name: /^start$/i }))
+    // picker opens
+    const confirmBtn = await screen.findByRole('button', { name: /Rennen starten/i })
+    expect(started).toBe(false)
+    await userEvent.click(confirmBtn)
+    await waitFor(() => expect(screen.getByText('LIVE')).toBeInTheDocument())
+    expect(started).toBe(true)
+    const stored = sessionStorage.getItem('race-opp-selection')
+    expect(stored).not.toBeNull()
+    expect(JSON.parse(stored!)).toEqual({ ghost: true, pb: false })
+  })
+
   it('Zurück dispatches GO_BACK (returns to step 3)', async () => {
     mockRoutes({})
     wrap(<Harness setup="distance" />)

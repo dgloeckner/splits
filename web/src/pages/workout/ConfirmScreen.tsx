@@ -9,6 +9,8 @@ import {
   type WorkoutParams,
 } from '../../api/workouts'
 import { createFavorite } from '../../api/favorites'
+import { fetchRaceOpponents } from '../../api/raceOpponents'
+import { OpponentPickerSheet } from '../home/OpponentPickerSheet'
 import { useWorkoutFlow, type FlowState } from './WorkoutFlowProvider'
 import styles from './ConfirmScreen.module.css'
 
@@ -121,9 +123,28 @@ export function ConfirmScreen() {
   const active = useActiveRower()
   const rowerID = active.data?.id
   const [starting, setStarting] = useState(false)
+  const [picker, setPicker] = useState<{ open: boolean; workoutId: string; hasGhost: boolean; hasPB: boolean } | null>(null)
 
   const params: WorkoutParams | null = buildParams(state)
   if (!state.mode || !params) return null
+
+  async function maybeCreateFavorite(input: CreateWorkoutInput, warmup: number, cooldown: number) {
+    if (state.saveAsFavorite && state.favoriteName.trim() !== '' && rowerID) {
+      try {
+        await createFavorite({
+          rower_id: rowerID,
+          name: state.favoriteName.trim(),
+          mode: input.mode,
+          params: input.params,
+          intensity: input.intensity,
+          warmup_sec: warmup,
+          cooldown_sec: cooldown,
+        })
+      } catch (e) {
+        console.error('createFavorite failed (non-fatal)', e)
+      }
+    }
+  }
 
   async function start() {
     if (starting) return
@@ -139,27 +160,52 @@ export function ConfirmScreen() {
         cooldown_sec: cooldown,
       }
       const created = await createWorkout(input)
-      await startSession(created.id)
-      if (state.saveAsFavorite && state.favoriteName.trim() !== '' && rowerID) {
-        try {
-          await createFavorite({
-            rower_id: rowerID,
-            name: state.favoriteName.trim(),
-            mode: input.mode,
-            params: input.params,
-            intensity: input.intensity,
-            warmup_sec: warmup,
-            cooldown_sec: cooldown,
-          })
-        } catch (e) {
-          console.error('createFavorite failed (non-fatal)', e)
-        }
+      if (state.mode === 'race' && rowerID) {
+        const opps = await fetchRaceOpponents({ workoutId: created.id, rowerId: rowerID })
+        setPicker({
+          open: true,
+          workoutId: created.id,
+          hasGhost: !!opps.ghost && opps.ghost.kind === 'session',
+          hasPB: !!opps.pb,
+        })
+        return
       }
+      await startSession(created.id)
+      await maybeCreateFavorite(input, warmup, cooldown)
       nav('/live')
     } catch (e) {
       console.error('start workout failed', e)
       setStarting(false)
     }
+  }
+
+  async function onPickerConfirm(sel: { ghost: boolean; pb: boolean }) {
+    if (!picker) return
+    sessionStorage.setItem('race-opp-selection', JSON.stringify(sel))
+    try {
+      await startSession(picker.workoutId)
+      const warmup = state.warmupEnabled ? state.warmupSec : 0
+      const cooldown = state.cooldownEnabled ? state.cooldownSec : 0
+      const input: CreateWorkoutInput = {
+        mode: 'race' as WorkoutMode,
+        params: params!,
+        intensity: state.intensity,
+        warmup_sec: warmup,
+        cooldown_sec: cooldown,
+      }
+      await maybeCreateFavorite(input, warmup, cooldown)
+      setPicker(null)
+      nav('/live')
+    } catch (e) {
+      console.error('start race failed', e)
+      setStarting(false)
+      setPicker(null)
+    }
+  }
+
+  function onPickerClose() {
+    setPicker(null)
+    setStarting(false)
   }
 
   return (
@@ -244,6 +290,17 @@ export function ConfirmScreen() {
       <button type="button" className={styles.start} onClick={start} disabled={starting}>
         {starting ? 'Wird gestartet…' : 'Start'}
       </button>
+
+      {picker && (
+        <OpponentPickerSheet
+          open={picker.open}
+          meters={(params as { meters: number }).meters}
+          hasGhost={picker.hasGhost}
+          hasPB={picker.hasPB}
+          onConfirm={onPickerConfirm}
+          onClose={onPickerClose}
+        />
+      )}
     </div>
   )
 }
