@@ -1,6 +1,6 @@
 # FEAT-0013: Race Mode (Workout Type + Dedicated Live View)
 
-- **Status**: Proposed
+- **Status**: Shipped (2026-05-07)
 - **Owner**: @gloeckner
 - **Supersedes**: FEAT-0012 (Race Boat tile) — the tile is removed; race
   becomes a first-class workout mode with its own live-view canvas.
@@ -40,31 +40,31 @@ runs against both `pb_workout` and `pb_distance`).
 
 ### Workout mode
 
-- [ ] New mode value `race` accepted by the `workout` table (migration
+- [x] New mode value `race` accepted by the `workout` table (migration
       extends the CHECK constraint to `just_row | distance | time |
       intervals | race`).
-- [ ] `race` params reuse the `distance` mode shape: `{"meters": N}`
+- [x] `race` params reuse the `distance` mode shape: `{"meters": N}`
       with N restricted to standard PB distances (500, 1000, 2000,
       5000, 6000, 10000, 21097, 42195) for v1. Non-standard distances
       are not selectable.
-- [ ] `race` workouts carry an `intensity` (`locker | moderat | hart |
+- [x] `race` workouts carry an `intensity` (`locker | moderat | hart |
       allout`) which is interpreted as **target hardness for the
       synthesised ghost** when no prior session exists for the shape.
-- [ ] `shape_hash` for a `race` workout is computed identically to a
+- [x] `shape_hash` for a `race` workout is computed identically to a
       `distance` workout of the same meters/warmup/cooldown — i.e. a
       race and a distance row of the same shape **share** the same
       `pb_workout` row.
-- [ ] Completing a `race` workout sets/refreshes BOTH `pb_workout`
+- [x] Completing a `race` workout sets/refreshes BOTH `pb_workout`
       (race shape) AND `pb_distance` (the meters achieved). FEAT-0010
       recompute is unchanged; the race mode does not bypass it.
 
 ### Home / selection
 
-- [ ] Home page exposes a third row of workout chips below the
+- [x] Home page exposes a third row of workout chips below the
       existing rows. Chip label `Rennen`, icon = boat silhouette.
-- [ ] Tapping the chip opens an inline distance picker (same UX as
+- [x] Tapping the chip opens an inline distance picker (same UX as
       distance-mode picker) restricted to the standard distances.
-- [ ] After distance is chosen, an **opponent picker** sheet appears
+- [x] After distance is chosen, an **opponent picker** sheet appears
       with up to two toggleable rows:
   - `Geist (letzte Session)` — enabled iff a matching prior session
     exists; otherwise disabled with copy `Synthetischer Geist nach
@@ -72,78 +72,78 @@ runs against both `pb_workout` and `pb_distance`).
   - `Bestzeit` — enabled iff a matching `pb_workout` or matching
     `pb_distance` exists; otherwise the row is **hidden** entirely
     (not shown disabled).
-- [ ] User confirms with `Rennen starten`. Selection is locked for
+- [x] User confirms with `Rennen starten`. Selection is locked for
       the session.
-- [ ] When neither real ghost nor PB exists, picker still proceeds:
+- [x] When neither real ghost nor PB exists, picker still proceeds:
       synthesised ghost is the only opponent. Race mode never blocks
       "row once first".
 
 ### Synthesised ghost (no prior session)
 
-- [ ] Ghost pace curve is derived from chosen `intensity` mapped to a
+- [x] Ghost pace curve is derived from chosen `intensity` mapped to a
       target split:
   - `locker` → 2:15/500m
   - `moderat` → 2:00/500m
   - `hart` → 1:50/500m
   - `allout` → 1:42/500m
-- [ ] Synthesised ghost has a constant split for the entire distance
+- [x] Synthesised ghost has a constant split for the entire distance
       (no fade, no surge). v2 may add curve shapes.
-- [ ] Synthesised ghost is **not** a real session — the post-race PB
+- [x] Synthesised ghost is **not** a real session — the post-race PB
       hooks operate against the user's session only; opponent does not
       become a PB candidate.
 
 ### Live view (full takeover)
 
-- [ ] Race-mode sessions render a dedicated `RaceLiveView` that
+- [x] Race-mode sessions render a dedicated `RaceLiveView` that
       replaces hero band AND tile grid AND workout progress strip AND
       segment status. Pause/abort overlays remain unchanged.
-- [ ] Tile grid configuration is **ignored** for race-mode sessions
+- [x] Tile grid configuration is **ignored** for race-mode sessions
       (race view is not a tile and not configurable).
-- [ ] **Stat bar** (top, ~16% of viewport height):
+- [x] **Stat bar** (top, ~16% of viewport height):
   - Phone portrait: 4 cells — `split | distance remaining | watts |
     leader gap` (single signed chip showing the gap to whichever
     opponent is ahead of the user; ties → gap to PB).
   - Tablet landscape: 6 cells — `split | distance remaining | watts |
     SPM | gap to PB | gap to ghost`.
-- [ ] **Race canvas** (remaining viewport): three lanes
+- [x] **Race canvas** (remaining viewport): three lanes
       (`pb / user / ghost`) when both opponents present; two lanes
       when only one. User boat is always horizontally centered.
-- [ ] **Pace trail**: each opponent renders a translucent trail showing
+- [x] **Pace trail**: each opponent renders a translucent trail showing
       its position 5 / 10 / 15 s ago (three trail segments,
       decreasing opacity). User's own boat does not render a trail.
-- [ ] **Animated water**: subtle horizontal-scrolling water texture
+- [x] **Animated water**: subtle horizontal-scrolling water texture
       under all lanes, scroll speed scales with median user velocity.
       Reduced-motion media query disables animation.
-- [ ] **Distance markers**: every 100 m on tablet (≥ 768 px wide
+- [x] **Distance markers**: every 100 m on tablet (≥ 768 px wide
       viewport), every 250 m on phone with markers visible only when
       lane width affords ≥ 6 markers on screen. Below that threshold,
       markers are omitted.
-- [ ] **Finish line**: vertical line + flag glyph at the final-meter
+- [x] **Finish line**: vertical line + flag glyph at the final-meter
       mark. Banner text overhead (`2000 m Rennen`) shown only on
       viewports ≥ 768 px wide.
-- [ ] **Off-screen chips**: per-opponent edge chip identical to the
+- [x] **Off-screen chips**: per-opponent edge chip identical to the
       old FEAT-0012 spec — meters by default, split-equivalent
       seconds when `|gap| < 5 m`.
-- [ ] **Camera**: always centers on user. Zoom-out at finish is **not**
+- [x] **Camera**: always centers on user. Zoom-out at finish is **not**
       in scope for v1.
-- [ ] **Sounds**: rowing-start "set ready, attention, beep" sequence
+- [x] **Sounds**: rowing-start "set ready, attention, beep" sequence
       at session start; finish horn at user finish. Reduced-motion or
-      muted-page user setting disables sounds.
+      muted-page user setting disables sounds. (module shipped; assets pending)
 
 ### Pause & abort
 
-- [ ] Pause halts user, ghost, and PB (existing pause-sync mechanism:
+- [x] Pause halts user, ghost, and PB (existing pause-sync mechanism:
       backend stops emitting strokes → all opponent positions freeze).
-- [ ] Aborting before reaching the workout's distance goal records the
+- [x] Aborting before reaching the workout's distance goal records the
       session normally (no race result is persisted).
 
 ### Post-race screen
 
-- [ ] At session_end (when goal is reached), the live view transitions
+- [x] At session_end (when goal is reached), the live view transitions
       directly into a dedicated `RacePostScreen` (replaces the
       existing `SessionEndedOverlay` for race mode only — non-race
       sessions still see the standard overlay).
-- [ ] Post-race screen shows:
+- [x] Post-race screen shows:
   - User's final time + final split.
   - For each opponent present: signed gap (e.g. `vs. PB: -4.2 s`),
     opponent's final time, opponent's final split.
@@ -153,7 +153,7 @@ runs against both `pb_workout` and `pb_distance`).
   - Two CTAs: `Erneut rennen` (re-enters race-mode start with same
     distance + opponents pre-selected), `Detail` (opens
     `SessionDetailPage` for the new session).
-- [ ] Race result is **persisted** as new fields on `summary_json`:
+- [x] Race result is **persisted** as new fields on `summary_json`:
   ```jsonc
   "race": {
     "vs_pb_sec": -4.2,           // null when no PB opponent
@@ -166,8 +166,8 @@ runs against both `pb_workout` and `pb_distance`).
 
 ### Backend API changes
 
-- [ ] Old route `GET /api/v1/race/opponents` is **removed**.
-- [ ] New route `GET /api/v1/workouts/{id}/opponents` resolves
+- [x] Old route `GET /api/v1/race/opponents` is **removed**.
+- [x] New route `GET /api/v1/workouts/{id}/opponents` resolves
       opponents for a given (race-mode) workout id. Response shape:
   ```jsonc
   {
@@ -185,14 +185,14 @@ runs against both `pb_workout` and `pb_distance`).
     } | null
   }
   ```
-- [ ] Synth-ghost is generated server-side: total seconds = `meters /
+- [x] Synth-ghost is generated server-side: total seconds = `meters /
       (500 / target_split)`; emit one sample every 5 s with constant
       split.
-- [ ] Endpoint returns 400 when workout is not race-mode (caller bug).
+- [x] Endpoint returns 400 when workout is not race-mode (caller bug).
 
 ### Workout-mode list
 
-- [ ] FEAT-0005a workout selection UI surfaces `race` only via the
+- [x] FEAT-0005a workout selection UI surfaces `race` only via the
       home-screen chip; the existing builder/library does not list it.
 
 ## UX notes
@@ -249,16 +249,16 @@ TABLET LANDSCAPE (1024×768)
 
 ## Migration / removal of FEAT-0012
 
-- [ ] Remove the `race-boat` tile from `web/src/tiles/registry.ts`.
-- [ ] Remove `RaceTile`, `RaceTileAdapter`, `RaceOpponentsContext`,
+- [x] Remove the `race-boat` tile from `web/src/tiles/registry.ts`.
+- [x] Remove `RaceTile`, `RaceTileAdapter`, `RaceOpponentsContext`,
       `RaceResultToast`, `useRaceFinish`, `raceFinish.ts`,
       `useRaceOpponents.ts`, and the corresponding tests. Keep
       `BoatSprite.tsx` (reused by RaceLiveView) and `distance.ts`
       (reused).
-- [ ] Remove the backend `/api/v1/race/opponents` route and the
+- [x] Remove the backend `/api/v1/race/opponents` route and the
       `RaceOpponentsHandler` that backed it (the workout-id-driven
       replacement supersedes it).
-- [ ] Mark FEAT-0012 spec **Superseded by FEAT-0013** in its header
+- [x] Mark FEAT-0012 spec **Superseded by FEAT-0013** in its header
       and `specs/feat/README.md`.
 
 ## Resolved decisions (locked)
