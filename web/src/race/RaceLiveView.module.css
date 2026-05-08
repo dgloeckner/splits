@@ -1,1 +1,1 @@
-.view { display: grid; grid-template-rows: 56px 1fr; height: 100%; width: 100%; }
+.view { position: relative; display: grid; grid-template-rows: 56px 1fr; height: 100%; width: 100%; }

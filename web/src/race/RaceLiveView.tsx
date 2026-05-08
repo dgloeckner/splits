@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { LiveState } from '../live/reducer'
 import { StatBar } from './StatBar'
 import { RaceCanvas } from './RaceCanvas'
+import { RaceStartSequence } from './RaceStartSequence'
 import { useRaceData } from './useRaceData'
 import { useReducedMotion } from './reducedMotion'
 import styles from './RaceLiveView.module.css'
@@ -59,6 +60,7 @@ export function RaceLiveView({ liveState, totalMeters }: Props) {
         viewportHeight={canvasH}
         reducedMotion={reducedMotion}
       /></div>
+      <RaceStartSequence enabled={!reducedMotion} />
     </div>
   )
 }

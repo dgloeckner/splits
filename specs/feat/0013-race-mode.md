@@ -126,9 +126,11 @@ runs against both `pb_workout` and `pb_distance`).
       seconds when `|gap| < 5 m`.
 - [x] **Camera**: always centers on user. Zoom-out at finish is **not**
       in scope for v1.
-- [x] **Sounds**: rowing-start "set ready, attention, beep" sequence
-      at session start; finish horn at user finish. Reduced-motion or
-      muted-page user setting disables sounds. (module shipped; assets pending)
+- [x] **Visual start sequence** (FISA-style traffic light): big
+      centered overlay with red/amber/green dots and text
+      `ATTENTION` (0ms) → `SET` (1500ms) → `GO!` (3000ms, teal,
+      ~2× size); auto-dismisses at 4500ms. Reduced-motion skips
+      the sequence entirely.
 
 ### Pause & abort
 
@@ -244,8 +246,7 @@ TABLET LANDSCAPE (1024×768)
 - **Synth-ghost curve shapes** (fade, surge). Constant split only.
 - **Race mode in workout builder.** Home-chip only.
 - **Custom race distances.** Standard distances only.
-- **Audio mixing / volume sliders.** Hard-coded subtle defaults; UA
-  mute respected.
+- **Audio cues.** Replaced by visual start sequence; no sounds.
 
 ## Migration / removal of FEAT-0012
 
@@ -268,16 +269,9 @@ TABLET LANDSCAPE (1024×768)
 - **Phone-portrait stat bar**: 4 cells — `split | dist-remaining |
   watts | leader-gap` (single signed chip showing the gap to whichever
   opponent leads; ties → PB gap).
-- **Reduced-motion**: disables water animation + sounds only. Pace
-  trails are static position offsets and remain rendered.
+- **Reduced-motion**: disables water animation and skips the visual
+  start sequence. Pace trails are static position offsets and remain
+  rendered.
 - **Race-result cleanup**: nested in `summary_json.race`; FEAT-0009
   hard/soft delete already covers `summary_json`. No separate cleanup.
 
-## Audio assets
-
-Start sequence (`set ready` / `attention` / `beep`) and finish horn
-must be commissioned. Until assets land, the live view ships with
-sounds **disabled by default**; an internal toggle (env or feature
-flag) enables playback once files are in `web/public/audio/race/`.
-Track this in the implementation plan as a separate sub-task with no
-code dependency on the asset arrival.
