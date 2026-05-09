@@ -17,5 +17,6 @@
 | FEAT-0008| Visual Design System & Responsive UX | Draft |
 | FEAT-0012| Race Boat (Ghost + PB Leader)      | Superseded by FEAT-0013 |
 | FEAT-0013| Race Mode (Workout Type + Live View) | Shipped |
+| FEAT-0014| Race Mode Cleanup (Bereit, Finish Horn, Pause Removal) | Draft |
 
 See [`template.md`](template.md) to add a new feature spec.

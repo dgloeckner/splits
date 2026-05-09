@@ -130,3 +130,17 @@ splits/
 - Domain glossary: `docs/domain-glossary.md`
 - Protocol notes: `docs/protocol-notes.md`
 - Roadmap: `ROADMAP.md`
+
+## Agent skills
+
+### Issue tracker
+
+Local markdown under `.scratch/<feature-slug>/` — no remote tracker. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`); recorded as a `Status:` line in each issue file. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Multi-context monorepo (`backend/` + `web/`). Shared root vocabulary in `docs/domain-glossary.md`; system-wide ADRs in `specs/adr/`; per-context `CONTEXT.md` and `docs/adr/` created lazily under each top-level dir. See `docs/agents/domain.md`.

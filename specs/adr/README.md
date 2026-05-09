@@ -9,6 +9,7 @@
 | ADR-0005 | Per-Rower QR-Code Pairing               | Proposed  |
 | ADR-0006 | TLS Strategy                            | Proposed  |
 | ADR-0007 | Lossless Event Ingestion Pipeline       | Accepted  |
+| ADR-0009 | Race Mode Excludes Warmup and Cooldown  | Proposed  |
 
 Future candidates:
 - **ADR-0008** — Serial protocol vs BLE FTMS (depends on firmware check)

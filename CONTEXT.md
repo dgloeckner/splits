@@ -1,0 +1,83 @@
+# Splits — domain context
+
+This file is the canonical glossary for terms that are meaningful to
+domain experts (rowers, race directors). It is not coupled to
+implementation details. When a term in code disagrees with a term here,
+this file is the authoritative one.
+
+## Race
+
+A workout mode that pits the rower against virtual opponents (a ghost
+and/or a PB-leader) over a fixed standard distance (500, 1000, 2000,
+5000, 6000, 10000, 21097, 42195 m). See `specs/feat/0013-race-mode.md`.
+
+A race is a self-contained competition unit: it has a start ceremony,
+a fixed course, and a finish horn. It does not include warmup or
+cooldown — those are separate sessions before/after.
+
+### Race t=0
+
+The moment the green light fires in the start ceremony. The user's
+race time is measured from t=0; their distance accumulates from t=0.
+Strokes taken before t=0 do not count toward the race.
+
+In implementation, t=0 corresponds to the first stroke of the
+underlying erg session — the ceremony plays before the session opens,
+so session_start ≈ t=0.
+
+### Bereit (am Catch)
+
+Pre-race ready state. After the user has confirmed distance and
+opponents, they tap **Bereit** to indicate they are at the catch.
+Tapping Bereit triggers the start ceremony (ATTENTION → SET → GO!).
+Only on GO! does the user take their first stroke, opening the
+session.
+
+### Start ceremony
+
+A FISA-style traffic-light sequence: red (ATTENTION, 0 ms), amber
+(SET, 1500 ms), green (GO!, 3000 ms), then dismiss. Decorative when
+reduced-motion is on, but the timing is real — the user is expected
+to wait at the catch through ATTENTION/SET and stroke on GO!.
+
+### Finish horn
+
+The instant `userDistanceM >= totalMeters`. The race result is
+deterministic at this moment: the user's time and gaps are latched.
+The user typically continues rowing for a paddle-down; the result
+overlay appears immediately and does not wait for the rower to stop.
+
+### Ghost
+
+A virtual opponent boat whose pace curve is either (a) the user's
+last matching session for the same distance — the *session-ghost* —
+or (b) a synthetic constant-split curve derived from the chosen
+hardness level — the *synth-ghost*. Picking is per-race; not
+persistent.
+
+### PB-leader
+
+A virtual opponent boat whose pace curve is the user's fastest prior
+session at this exact race shape (`pb_workout`) or, if that is empty,
+their fastest prior session at this distance (`pb_distance`),
+whichever is faster.
+
+### Opponent
+
+Any virtual boat in a race — either the ghost or the PB-leader.
+Opponents are pace-curves, not live rowers.
+
+### Race shape
+
+The combination of (mode=`race`, distance, warmup_sec=0,
+cooldown_sec=0). All race shapes share `shape_hash` with the
+corresponding bare-distance workout, so race PBs and distance PBs
+are unified.
+
+## Pause / Abort
+
+- **Pause** is disallowed during a race. The pause control is
+  hidden in race mode.
+- **Abort** ends the session before the finish horn. Abort produces
+  a normal session record but no race result (`summary_json.race`
+  is null).
