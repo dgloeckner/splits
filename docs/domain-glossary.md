@@ -11,7 +11,7 @@ English.
 | Session            | Trainingseinheit      | A single workout on the ergo.                                       |
 | Stroke             | Schlag                | One full catch → drive → finish → recovery cycle.                   |
 | Stroke rate (SPM)  | Schlagfrequenz        | Strokes per minute. Abbreviation `SPM` is standard in both.         |
-| Split              | Split / 500-m-Zeit    | Time to cover 500 m at current pace, formatted `m:ss.t`.            |
+| Split              | Split / 500-m-Zeit    | Time to cover 500 m at current pace, formatted `m:ss.t`. *Live* split is computed over a sliding window of distance covered (provisional 5 s in v1, value TBD pending replay-harness validation); per-stroke extrapolation `500/dps·cycleSec` is retired (ADR-0011). Holds previous value when the window has fewer than two strokes. |
 | Pace               | Pace                  | Synonymous with split in casual use.                                |
 | Power              | Leistung              | Displayed in watts (`W`).                                           |
 | Heart rate (HR)    | Herzfrequenz          | In bpm. Requires a paired HR belt.                                  |

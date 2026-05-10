@@ -74,6 +74,65 @@ cooldown_sec=0). All race shapes share `shape_hash` with the
 corresponding bare-distance workout, so race PBs and distance PBs
 are unified.
 
+## Workout phases
+
+A structured workout is a sequence of three phase kinds: an optional
+**Warmup**, one or more **Work** segments (the meaningful part for
+PBs, splits, achievements), and an optional **Cooldown**. The phase
+classifier is `backend/internal/session/phaseplan.go`.
+
+Two invariants follow from this:
+
+- **Hardware distance does not reset between phases.** The IPM console
+  shows cumulative session distance. When the user's workout calls for
+  "5000 m of work after a 2-min warmup", the hardware will read
+  ~5000 m + warmup-distance at the finish — *not* 5000 m. The app is
+  responsible for showing "work distance toward target" separately.
+- **Only Work-phase strokes count toward PBs.** `filterWorkStrokes`
+  in `storage/persister.go` strips warmup/cooldown strokes before
+  `ComputeCandidates` runs. A "5000 m PB" is 5000 m of *work*.
+
+### Session end
+
+For a structured workout, the session ends automatically when
+cooldown elapses (`PhasePlan.Classify` returns `PhaseDone`). The
+client surfaces this via the results overlay; no "save?" prompt.
+
+For a FreeRow / Just Row session (no phases), the session ends only
+when the rower goes idle long enough to trigger the pause dialog and
+they confirm Save / Discard.
+
+### Stale-open session
+
+A session whose backend row remains `ended_at IS NULL` for > 5 minutes
+with no new strokes. Caused most often by an iPhone screen-lock that
+killed the live connection mid-cooldown. The home page surfaces these
+on rower reconnect with a "Frühere Session abschließen?" card —
+finalize from last stroke, discard, or rejoin live. See ADR-0010.
+
+### Live split (windowed)
+
+The "current split" tile reads the average pace over a sliding
+window of recent motion (distance covered ÷ window time → 500 m). It
+is *not* a per-stroke extrapolation. The window is **provisionally
+5 seconds** in v1; the value is to be validated against an IPM
+hardware-display capture using the replay harness, and may change.
+When the window contains fewer than two completed strokes the tile
+**holds the previous value** rather than dropping to nonsense. See
+ADR-0011.
+
+### Pause-prompt suppression
+
+The auto-popping pause dialog (idleness ≥ threshold → "Speichern /
+Weiter / Verwerfen") only fires during the **Work** phase, where
+idleness is a genuine "did the rower stop?" signal. During Warmup
+and Cooldown the dialog is suppressed — those phases have known
+durations and idleness inside them is expected.
+
+A small "✕" icon in the corner opens the same Speichern / Weiter /
+Verwerfen sheet on demand, in any phase. Tap-to-open, never
+auto-popped during Warmup/Cooldown.
+
 ## Pause / Abort
 
 - **Pause** is disallowed during a race. The pause control is

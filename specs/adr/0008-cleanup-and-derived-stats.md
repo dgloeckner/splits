@@ -1,6 +1,6 @@
 # ADR-0008: Cleanup, Retention, and Derived-Stats Architecture
 
-- **Status**: Accepted (2026-05-02)
+- **Status**: Accepted (2026-05-02); partially superseded by ADR-0011 (stroke compaction at session-end is dropped)
 - **Date**: 2026-04-25
 
 ## Context
