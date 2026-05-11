@@ -18,5 +18,6 @@
 | FEAT-0012| Race Boat (Ghost + PB Leader)      | Superseded by FEAT-0013 |
 | FEAT-0013| Race Mode (Workout Type + Live View) | Shipped |
 | FEAT-0014| Race Mode Cleanup (Bereit, Finish Horn, Pause Removal) | Draft |
+| FEAT-0015| Rowing-Session Lifecycle, Phase-Aware UX, and Windowed Live Split | Ready-for-agent |
 
 See [`template.md`](template.md) to add a new feature spec.
