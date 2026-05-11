@@ -12,9 +12,10 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// At session_end, strokes are deleted in the same transaction that
-// writes summary_json (FEAT-0009 Mode 0). The downsampled samples
-// land inside summary_json so past-session charts can still render.
+// At session_end, strokes now PERSIST (FEAT-0015 Slice 4, ADR-0011) so
+// the replay harness can re-feed them through the live reducer. The
+// downsampled samples inside summary_json still get written as a
+// pre-computed cache for charting.
 func TestPersisterCompactsStrokesAtSessionEnd(t *testing.T) {
 	db, err := Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
@@ -57,8 +58,8 @@ func TestPersisterCompactsStrokesAtSessionEnd(t *testing.T) {
 	if err := db.Handle().QueryRow(`SELECT COUNT(*) FROM strokes WHERE session_id=?`, "S1").Scan(&strokes); err != nil {
 		t.Fatal(err)
 	}
-	if strokes != 0 {
-		t.Errorf("strokes after session_end = %d, want 0 (compacted)", strokes)
+	if strokes != 7 {
+		t.Errorf("strokes after session_end = %d, want 7 (replay-grade persistence per ADR-0011)", strokes)
 	}
 
 	var endedAt, summaryStr string

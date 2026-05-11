@@ -45,9 +45,9 @@ func (j *BootJanitor) Run(ctx context.Context) {
 	if err := j.finaliseOrphans(ctx); err != nil {
 		slog.Error("janitor.finalise", "err", err)
 	}
-	if err := j.repairLeftoverStrokes(ctx); err != nil {
-		slog.Error("janitor.leftover_strokes", "err", err)
-	}
+	// repairLeftoverStrokes was retired by FEAT-0015 Slice 4 / ADR-0011:
+	// ended sessions are *expected* to retain their strokes (replay-grade
+	// persistence). Wiping them at boot would defeat the invariant.
 	if err := purgeExpiredPairingTokens(ctx, j.DB); err != nil {
 		slog.Error("janitor.purge_pairing_tokens", "err", err)
 	}
@@ -109,39 +109,10 @@ func (j *BootJanitor) finaliseOne(ctx context.Context, id string) error {
 	if err := UpdateSessionEnd(ctx, tx, id, endedAt, summary); err != nil {
 		return err
 	}
-	if err := DeleteSessionStrokes(ctx, tx, id); err != nil {
-		return err
-	}
+	// Strokes are intentionally NOT deleted here (FEAT-0015 Slice 4 /
+	// ADR-0011): ended sessions retain their strokes for replay; only
+	// the FEAT-0009 hard-delete endpoint removes them.
 	return tx.Commit()
-}
-
-// repairLeftoverStrokes fixes the (bug-only) state where a session
-// has ended_at IS NOT NULL but still has rows in strokes. Drops them.
-func (j *BootJanitor) repairLeftoverStrokes(ctx context.Context) error {
-	rows, err := j.DB.QueryContext(ctx, `
-		SELECT DISTINCT s.session_id FROM strokes s
-		JOIN sessions ss ON ss.id = s.session_id
-		WHERE ss.ended_at IS NOT NULL`)
-	if err != nil {
-		return err
-	}
-	var ids []string
-	for rows.Next() {
-		var id string
-		if err := rows.Scan(&id); err != nil {
-			rows.Close()
-			return err
-		}
-		ids = append(ids, id)
-	}
-	rows.Close()
-	for _, id := range ids {
-		slog.Warn("janitor.leftover_strokes", "session_id", id)
-		if _, err := j.DB.ExecContext(ctx, `DELETE FROM strokes WHERE session_id = ?`, id); err != nil {
-			slog.Error("janitor.leftover_strokes.delete", "session_id", id, "err", err)
-		}
-	}
-	return nil
 }
 
 // buildSummary computes session totals + averages from strokes. Used

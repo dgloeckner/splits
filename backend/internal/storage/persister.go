@@ -203,12 +203,13 @@ func (p *Persister) apply(ctx context.Context, e event.Event) error {
 	return nil
 }
 
-// applySessionEnd compacts the just-ended session: read strokes,
-// compute samples + PB candidates outside any txn, then in a short
-// transaction write the enriched summary and delete the strokes. The
-// compute step (which can run hundreds of ms on a long session) no
-// longer holds the write lock — reduces tail latency for any
-// concurrent live INSERTs.
+// applySessionEnd writes the enriched session summary at session_end:
+// read strokes, compute samples + PB candidates outside any txn, then
+// in a short transaction write the summary. Per FEAT-0015 Slice 4 /
+// ADR-0011 the strokes are retained (they are the canonical input for
+// the replay harness and any future stat-formula re-derivation); only
+// the FEAT-0009 hard-delete path (`DELETE /api/v1/sessions/{id}`)
+// removes them.
 func (p *Persister) applySessionEnd(ctx context.Context, e event.Event) error {
 	strokes, err := LoadSessionStrokes(ctx, p.DB, e.SessionID)
 	if err != nil {
@@ -251,9 +252,9 @@ func (p *Persister) applySessionEnd(ctx context.Context, e event.Event) error {
 	if err := UpdateSessionEndWithEventID(ctx, tx, e.SessionID, e.SessionEnd.EndedAt, summary, e.ID); err != nil {
 		return err
 	}
-	if err := DeleteSessionStrokes(ctx, tx, e.SessionID); err != nil {
-		return err
-	}
+	// Strokes are intentionally NOT deleted here (FEAT-0015 Slice 4 /
+	// ADR-0011). They remain the canonical replay input; only the
+	// FEAT-0009 hard-delete endpoint removes them.
 	if rowerID != "" {
 		if err := insights.ReplaceForSessionTx(ctx, tx, rowerID, e.SessionID, insightsRes.Findings); err != nil {
 			return err
