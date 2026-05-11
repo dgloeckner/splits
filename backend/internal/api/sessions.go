@@ -28,11 +28,72 @@ type ActiveSessionIDer interface {
 func SessionsHandler(db *sql.DB, sched *stats.RecomputeScheduler, active ActiveSessionIDer) http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /api/v1/sessions", listSessions(db))
+	mux.HandleFunc("GET /api/v1/sessions/stale-open", listStaleOpen(db))
 	mux.HandleFunc("GET /api/v1/sessions/{id}", getSession(db))
 	mux.HandleFunc("GET /api/v1/sessions/{id}/samples", getSamples(db))
 	mux.HandleFunc("GET /api/v1/sessions/{id}/insights", getSessionInsights(db))
+	mux.HandleFunc("POST /api/v1/sessions/{id}/finalize", finalizeSession(db, sched))
 	mux.HandleFunc("DELETE /api/v1/sessions/{id}", deleteSession(db, sched, active))
 	return mux
+}
+
+// listStaleOpen serves the resume API. FEAT-0015 Slice 3.
+func listStaleOpen(db *sql.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		rowerID := r.URL.Query().Get("rower_id")
+		if rowerID == "" {
+			http.Error(w, "rower_id required", http.StatusBadRequest)
+			return
+		}
+		rows, err := storage.ListStaleOpenSessions(r.Context(), db, rowerID)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if rows == nil {
+			rows = []storage.StaleOpenSessionRow{}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"sessions": rows})
+	}
+}
+
+// finalizeSession synthesises a session_end for a stale-open session
+// using the most recent stroke's `at` as `ended_at`, runs the
+// persister's applySessionEnd path (samples, candidates, insights),
+// and triggers a recompute. Idempotent: a session that is already
+// ended (or doesn't exist) returns 204 with no work done.
+func finalizeSession(db *sql.DB, sched *stats.RecomputeScheduler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		ctx := r.Context()
+
+		var rowerID string
+		var endedAt sql.NullString
+		err := db.QueryRowContext(ctx,
+			`SELECT rower_id, ended_at FROM sessions WHERE id = ?`, id).Scan(&rowerID, &endedAt)
+		if errors.Is(err, sql.ErrNoRows) {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if endedAt.Valid {
+			// Already finalised.
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		if err := storage.FinalizeStaleSession(ctx, db, id); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if sched != nil && rowerID != "" {
+			stats.OnSessionChange(sched, rowerID, stats.SessionCreated)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}
 }
 
 func listSessions(db *sql.DB) http.HandlerFunc {

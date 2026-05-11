@@ -1,0 +1,57 @@
+.card {
+  margin-top: var(--space-4);
+  background: var(--color-surface-container-high);
+  border-radius: var(--radius-card);
+  border: 1px solid var(--color-outline-variant, rgb(0 0 0 / 0.12));
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.10);
+  padding: var(--space-3);
+}
+
+.heading {
+  font-family: var(--font-body);
+  font-size: var(--text-label-sm);
+  color: var(--color-on-surface-variant);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 var(--space-2) 0;
+}
+
+.summary {
+  font-size: var(--text-body-md);
+  margin: 0 0 var(--space-3) 0;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.primary,
+.secondary,
+.danger {
+  appearance: none;
+  border: none;
+  border-radius: var(--radius-button, 12px);
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-body);
+  font-size: var(--text-body-md);
+  cursor: pointer;
+}
+
+.primary {
+  background: var(--color-primary);
+  color: var(--color-on-primary);
+}
+
+.secondary {
+  background: var(--color-surface-container);
+  color: var(--color-on-surface);
+  border: 1px solid var(--color-outline-variant, rgb(0 0 0 / 0.12));
+}
+
+.danger {
+  background: transparent;
+  color: var(--color-error, #b3261e);
+  border: 1px solid var(--color-error, #b3261e);
+}

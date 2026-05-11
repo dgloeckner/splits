@@ -62,9 +62,11 @@ func NewRouter(in Inputs) http.Handler {
 	}
 	sessions := SessionsHandler(in.DB, in.Scheduler, activeIDer)
 	mux.Handle("GET /api/v1/sessions", gate(sessions))
+	mux.Handle("GET /api/v1/sessions/stale-open", gate(sessions))
 	mux.Handle("GET /api/v1/sessions/{id}", gate(sessions))
 	mux.Handle("GET /api/v1/sessions/{id}/samples", gate(sessions))
 	mux.Handle("GET /api/v1/sessions/{id}/insights", gate(sessions))
+	mux.Handle("POST /api/v1/sessions/{id}/finalize", gate(sessions))
 	mux.Handle("DELETE /api/v1/sessions/{id}", gate(sessions))
 
 	rowers := RowersHandler(in.RowerRepo, in.DeviceLink)

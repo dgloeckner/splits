@@ -137,6 +137,8 @@ func run() error {
 	persister := &storage.Persister{DB: db.Handle(), Scheduler: scheduler}
 
 	(&storage.BootJanitor{DB: db.Handle(), Scheduler: scheduler}).Run(ctx)
+	// FEAT-0015 Slice 3: stale-open janitor sweeps every minute.
+	storage.StartStaleJanitor(ctx, db.Handle())
 
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error { return producer.Run(gctx, frames) })

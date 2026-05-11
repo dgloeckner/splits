@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useActiveRower } from '../hooks/useActiveRower'
 import { startSession } from '../api/client'
 import { FavoritesList } from './home/FavoritesList'
+import { StaleSessionCard } from './home/StaleSessionCard'
 import { IconJustRow, IconDistance, IconTime, IconInterval, IconRace } from '../icons/workout'
 import styles from './HomePage.module.css'
 
@@ -81,6 +82,7 @@ export function HomePage() {
         </div>
       </section>
 
+      <StaleSessionCard rowerID={active.data?.id} />
       <FavoritesList rowerID={active.data?.id} />
     </main>
   )

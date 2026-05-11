@@ -78,6 +78,30 @@ export async function deleteSession(id: string): Promise<void> {
   if (!r.ok) throw new ApiError(r.status, `${r.status} ${r.statusText}`)
 }
 
+// StaleOpenSession is one row in the resume-card list.
+// FEAT-0015 Slice 3.
+export type StaleOpenSession = {
+  id: string
+  started_at: string
+  last_stroke_at: string
+  total_distance_m: number
+  workout_id?: string
+}
+
+export async function listStaleOpenSessions(rowerID: string): Promise<StaleOpenSession[]> {
+  const qs = new URLSearchParams({ rower_id: rowerID })
+  const r = await fetch(`/api/v1/sessions/stale-open?${qs.toString()}`)
+  const body = await json<{ sessions: StaleOpenSession[] }>(r)
+  return body.sessions
+}
+
+// finalizeSession synthesises session_end on a stale-open session using
+// the last stroke as ended_at. 204 on success; idempotent server-side.
+export async function finalizeSession(id: string): Promise<void> {
+  const r = await fetch(`/api/v1/sessions/${encodeURIComponent(id)}/finalize`, { method: 'POST' })
+  if (!r.ok) throw new ApiError(r.status, `${r.status} ${r.statusText}`)
+}
+
 export async function endSession(): Promise<void> {
   const r = await fetch('/api/v1/session/end', { method: 'POST' })
   if (!r.ok) throw new ApiError(r.status, `${r.status} ${r.statusText}`)
