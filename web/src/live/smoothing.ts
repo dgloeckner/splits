@@ -7,7 +7,11 @@
 export const smoothingConfig = {
   ema: {
     watts: { alpha: 0.5, hysteresis: 3 }, // W
-    split: { alpha: 0.4, hysteresis: 0.1 }, // seconds on pace_sec_per_500m
+    // Split EMA relaxed to 1.0 (pass-through) per ADR-0011 / FEAT-0015
+    // Slice 5: the backend now ships a 5-second windowed split, which
+    // is the smoother. Stacking an EMA on top adds lag without removing
+    // any meaningful noise. Sparkline buffer for split is unchanged.
+    split: { alpha: 1.0, hysteresis: 0.1 }, // seconds on pace_sec_per_500m
     spm: { alpha: 0.4, hysteresis: 0.5 },
     dps: { alpha: 0.3, hysteresis: 0.05 }, // m
     spi: { alpha: 0.3, hysteresis: 0.05 }, // W/stroke

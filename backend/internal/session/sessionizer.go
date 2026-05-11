@@ -105,6 +105,17 @@ type sessionState struct {
 	phaseAnchorSet        bool
 	phaseAnchorDistance   int
 	phaseAnchorTimeSec    float64
+	// recentStrokes is a small ring buffer of the most recent strokes
+	// used by LivePace for the windowed split. Trimmed to entries whose
+	// TimeSec is within the active window of the latest stroke (plus
+	// one bracketing stroke before the window so the leading edge can
+	// be interpolated). See ADR-0011.
+	recentStrokes []event.StrokePayload
+	// lastLivePace is the last computed windowed pace value (Kind ==
+	// LivePaceValue). When LivePace returns LivePaceHeld, the
+	// sessionizer re-emits this value on the wire so the frontend tile
+	// holds steady through a slow recovery.
+	lastLivePace int
 }
 
 func New(o Options) *Sessionizer {
@@ -417,10 +428,50 @@ func (s *Sessionizer) enrich(f ipm.Frame) event.StrokePayload {
 	} else {
 		p.DPS = DPS(s.session.lastStroke.DistanceM, f.DistanceM, 0)
 		p.StrokeCycleSec = StrokeCycleSec(s.session.lastStroke.TimeSec, f.TimeSec)
-		p.PaceSecPer500m = PaceSecPer500m(p.DPS, p.StrokeCycleSec)
 		p.EnergyJoules = EnergyJoules(f.PowerW, p.StrokeCycleSec)
 	}
+
+	// Windowed live split (ADR-0011 / FEAT-0015 Slice 5). The wire field
+	// pace_sec_per_500m carries the windowed result, not the per-stroke
+	// extrapolation. Append the current stroke to the recent-stroke ring
+	// buffer (trimmed to the active window plus one bracketing stroke),
+	// then evaluate.
+	s.session.recentStrokes = appendAndTrimWindow(s.session.recentStrokes, p, LivePaceWindowSec)
+	pace, kind := LivePace(s.session.recentStrokes, LivePaceWindowSec, p.TimeSec)
+	switch kind {
+	case LivePaceValue:
+		s.session.lastLivePace = pace
+		p.PaceSecPer500m = pace
+	case LivePaceHeld:
+		p.PaceSecPer500m = s.session.lastLivePace
+	case LivePaceEmpty:
+		p.PaceSecPer500m = 0
+	}
 	return p
+}
+
+// appendAndTrimWindow appends p to buf and drops leading entries that
+// fall outside the current window (plus one bracketing stroke before
+// the window edge — needed so LivePace can interpolate the leading
+// edge). Keeps the buffer small (O(strokes-per-window), typically <10).
+func appendAndTrimWindow(buf []event.StrokePayload, p event.StrokePayload, windowSec float64) []event.StrokePayload {
+	buf = append(buf, p)
+	cutoff := p.TimeSec - windowSec
+	// Find the largest index i such that buf[i].TimeSec < cutoff — that
+	// stroke is the one bracketing stroke we keep so distAt() can
+	// interpolate the leading edge. Drop everything before it.
+	bracket := -1
+	for i, s := range buf {
+		if s.TimeSec < cutoff {
+			bracket = i
+		} else {
+			break
+		}
+	}
+	if bracket > 0 {
+		buf = append(buf[:0], buf[bracket:]...)
+	}
+	return buf
 }
 
 func (s *Sessionizer) accumulate(p *event.StrokePayload) {
