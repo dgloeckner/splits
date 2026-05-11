@@ -303,3 +303,94 @@ describe('LivePage session-end overlay', () => {
     expect(screen.getByTestId('session-ended-overlay')).toBeInTheDocument()
   })
 })
+
+describe('LivePage phase-aware countdown (FEAT-0015 Slice 1)', () => {
+  function stateInPhase(phase: LiveState['phase']): LiveState {
+    return {
+      ...initialLiveState,
+      phase,
+      session: {
+        session_id: 'S1',
+        started_at: '2026-04-27T12:00:00Z',
+        rower_id: 'R1',
+        rower_name: 'Daniel',
+        initial_level: 5,
+        workout_id: 'W1',
+      },
+      stroke: {
+        session_id: 'S1', stroke: 1, time_sec: 30, distance_m: 0,
+        spm: 22, power_w: 120, cal_per_hr: 500, level: 3,
+        dps: 9, stroke_cycle_sec: 3, pace_sec_per_500m: 135, energy_joules: 300,
+      },
+    }
+  }
+
+  it('renders PhaseCountdownView (not TileGrid) during warmup', () => {
+    mockWorkoutProgress.current = {
+      segments: [
+        { kind: 'warmup', index: 0, durationSec: 120, startTimeSec: 0, endTimeSec: 120, startDistanceM: 0, endDistanceM: 0 },
+        { kind: 'work', index: 1, distanceM: 5000, startTimeSec: 120, endTimeSec: 120, startDistanceM: 0, endDistanceM: 5000 },
+      ],
+      active: {
+        segment: { kind: 'warmup', index: 0, durationSec: 120, startTimeSec: 0, endTimeSec: 120, startDistanceM: 0, endDistanceM: 0 },
+        remainingSec: 90,
+        progressRatio: 0.25,
+        totalSegments: 2,
+        activeIndexOneBased: 1,
+      },
+      workoutId: 'W1',
+      isLoading: false,
+      workout: { id: 'W1', mode: 'distance', params: { meters: 5000 }, intensity: null, warmup_sec: 120, cooldown_sec: 0, created_at: '' },
+    }
+    wrapRender(stateInPhase('warmup'))
+    expect(screen.getByTestId('phase-countdown')).toBeInTheDocument()
+    expect(screen.getByTestId('phase-countdown-time')).toHaveTextContent('1:30')
+    expect(screen.queryByTestId('hero-split')).toBeNull()
+  })
+
+  it('renders PhaseCountdownView (not TileGrid) during cooldown', () => {
+    mockWorkoutProgress.current = {
+      segments: [
+        { kind: 'work', index: 0, distanceM: 5000, startTimeSec: 0, endTimeSec: 0, startDistanceM: 0, endDistanceM: 5000 },
+        { kind: 'cooldown', index: 1, durationSec: 60, startTimeSec: 0, endTimeSec: 60, startDistanceM: 5000, endDistanceM: 5000 },
+      ],
+      active: {
+        segment: { kind: 'cooldown', index: 1, durationSec: 60, startTimeSec: 0, endTimeSec: 60, startDistanceM: 5000, endDistanceM: 5000 },
+        remainingSec: 25,
+        progressRatio: 0.583,
+        totalSegments: 2,
+        activeIndexOneBased: 2,
+      },
+      workoutId: 'W1',
+      isLoading: false,
+      workout: { id: 'W1', mode: 'distance', params: { meters: 5000 }, intensity: null, warmup_sec: 0, cooldown_sec: 60, created_at: '' },
+    }
+    wrapRender(stateInPhase('cooldown'))
+    expect(screen.getByTestId('phase-countdown')).toBeInTheDocument()
+    expect(screen.getByTestId('phase-countdown-time')).toHaveTextContent('0:25')
+    expect(screen.queryByTestId('hero-split')).toBeNull()
+  })
+
+  it('renders TileGrid (not PhaseCountdownView) during work phase', () => {
+    mockWorkoutProgress.current = {
+      segments: [
+        { kind: 'work', index: 0, distanceM: 5000, startTimeSec: 0, endTimeSec: 0, startDistanceM: 0, endDistanceM: 5000 },
+      ],
+      active: {
+        segment: { kind: 'work', index: 0, distanceM: 5000, startTimeSec: 0, endTimeSec: 0, startDistanceM: 0, endDistanceM: 5000 },
+        remainingM: 2500,
+        progressRatio: 0.5,
+        totalSegments: 1,
+        activeIndexOneBased: 1,
+      },
+      workoutId: 'W1',
+      isLoading: false,
+      workout: { id: 'W1', mode: 'distance', params: { meters: 5000 }, intensity: null, warmup_sec: 0, cooldown_sec: 0, created_at: '' },
+    }
+    wrapRender(stateInPhase('work'))
+    expect(screen.queryByTestId('phase-countdown')).toBeNull()
+    // The progress strip remains in any phase; the countdown is the
+    // signal that dashboard tiles were swapped out.
+    expect(screen.queryByTestId('phase-countdown-time')).toBeNull()
+  })
+})

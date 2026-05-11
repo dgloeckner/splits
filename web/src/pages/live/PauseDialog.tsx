@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { deleteSession, endSession } from '../../api/client'
+import { deleteSession } from '../../api/client'
+import { enqueueEndSession, processPendingEndSessions } from '../../live/endSessionQueue'
 import { useLiveSession } from '../../live/LiveSessionContext'
 import { useIsLivePaused } from '../../live/useLiveDisplay'
 import { useWorkoutOverlay } from './WorkoutOverlayContext'
@@ -29,16 +30,25 @@ export function PauseDialog() {
 
   const sessionActive = state.session !== null && state.summary === null
   const hasStrokes = state.stroke !== null
-  const open = sessionActive && hasStrokes && paused && !dismissed
+  // Phase-gate (FEAT-0015 Slice 1 / ADR-0010): only auto-pop during the
+  // Work phase. Idleness inside Warmup or Cooldown is expected and must
+  // not trigger the Speichern/Weiter/Verwerfen sheet. FreeRow / Just Row
+  // sessions carry phase = null and retain today's behaviour. The ✕ in
+  // WorkoutProgressStrip opens the same dialog unconditionally in any
+  // phase.
+  const phaseAllowsAutoOpen = state.phase === null || state.phase === 'work'
+  const open = sessionActive && hasStrokes && paused && phaseAllowsAutoOpen && !dismissed
   const sessionId = state.session?.session_id ?? null
 
   return (
     <AbortWorkoutDialog
       open={open}
       onSave={() => {
-        void endSession()
-          .then(() => qc.invalidateQueries({ queryKey: ['sessions'] }))
-          .catch(() => {})
+        // Route through the retry queue so a transient backend or
+        // network failure does not silently drop the session-end.
+        // FEAT-0015 Slice 2 / ADR-0010.
+        if (sessionId) enqueueEndSession(sessionId)
+        void processPendingEndSessions()
         abort()
         setDismissed(false)
         nav('/')

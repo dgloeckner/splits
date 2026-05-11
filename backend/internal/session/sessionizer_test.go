@@ -106,8 +106,14 @@ func TestSessionizerEnrichesTier2(t *testing.T) {
 	if st2.StrokeCycleSec != 2.2 {
 		t.Errorf("cycle = %v, want 2.2", st2.StrokeCycleSec)
 	}
-	if st2.PaceSecPer500m != 137 {
-		t.Errorf("pace = %v, want 137", st2.PaceSecPer500m)
+	// Pace is now the windowed sliding-window split (ADR-0011 / FEAT-0015
+	// Slice 5), not the per-stroke extrapolation. With strokes at t=0,d=0
+	// and t=2.2,d=8, a 5 s trailing window ending at t=2.2 sees tStart =
+	// -2.8 (clamped to first stroke), so 8 m of motion over 5 s ⇒
+	// 500/8 * 5 = 312 s/500m. Per-stroke extrapolation would have read
+	// 137 (= 500/8 * 2.2); preserved here as a witness for the cutover.
+	if st2.PaceSecPer500m != 312 {
+		t.Errorf("pace = %v, want 312 (5s windowed split)", st2.PaceSecPer500m)
 	}
 }
 
@@ -429,6 +435,101 @@ func TestSessionizerEndsOnWorkoutComplete(t *testing.T) {
 	if len(ends) != 1 {
 		t.Fatalf("expected 1 session_end, got %d", len(ends))
 	}
+}
+
+// TestSessionizerEndsOnPhaseDoneAcrossAllBoundaries verifies that a
+// structured Distance workout with both warmup and cooldown phases
+// emits exactly one KindSessionEnd, stamped with EndedAt = Now(), at
+// the moment PhasePlan reports PhaseDone (cooldown elapsed). This is
+// the Slice-1 acceptance criterion (FEAT-0015): phase-driven auto-end
+// fires reliably across warmup→work→cooldown→done.
+//
+// Fixture: 100m, warmup=10s, cooldown=20s.
+// PM5-cumulative frames; the sessionizer rebases the first stroke to
+// (0,0).
+//   - t=2,  d=0:   anchor stroke → rebased (0,0); warmup
+//   - t=15, d=0:   rebased (13,0); warmup elapsed → phase_change(warmup→work)
+//   - t=25, d=100: rebased (23,100); work crossing, crossedAt=23
+//   - t=30, d=101: rebased (28,101); cooldown begins; phase_change(work→cooldown)
+//   - t=55, d=101: rebased (53,101); cooldown elapsed (53-23=30 > 20); session_end
+func TestSessionizerEndsOnPhaseDoneAcrossAllBoundaries(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	in := make(chan ipm.Frame, 8)
+	out := make(chan event.Event, 64)
+
+	// Pin Now() so we can assert EndedAt deterministically.
+	fixedNow := time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	w := makeDistanceWorkout(100, 10, 20)
+	s := New(Options{
+		IdleTimeout: time.Minute,
+		Now:         func() time.Time { return fixedNow },
+		LoadWorkout: func(id string) (*workout.Workout, error) { return w, nil },
+	})
+	go func() { _ = s.Run(ctx, in, out) }()
+
+	s.StartSession("test-workout")
+	in <- frame(2, 0, 25, 200, 3)    // warmup anchor (rebased 0,0)
+	in <- frame(15, 0, 25, 200, 3)   // warmup→work transition (rebased 13,0)
+	in <- frame(25, 100, 25, 200, 3) // work crossing (rebased 23,100)
+	in <- frame(30, 101, 25, 200, 3) // work→cooldown (rebased 28,101)
+	in <- frame(55, 101, 25, 200, 3) // cooldown elapsed → session_end (rebased 53,101)
+
+	// Drain everything until session_end shows up (or timeout).
+	var got []event.Event
+	deadline := time.After(2 * time.Second)
+	for {
+		select {
+		case e := <-out:
+			got = append(got, e)
+			if e.Kind == event.KindSessionEnd {
+				goto Done
+			}
+		case <-deadline:
+			t.Fatalf("timeout waiting for session_end; got kinds so far: %v", kinds(got))
+		}
+	}
+Done:
+
+	ends := collectKind(got, event.KindSessionEnd)
+	if len(ends) != 1 {
+		t.Fatalf("expected exactly 1 session_end across all phase boundaries, got %d", len(ends))
+	}
+	end := ends[0]
+	if end.SessionEnd == nil {
+		t.Fatalf("session_end payload is nil")
+	}
+	if !end.SessionEnd.EndedAt.Equal(fixedNow) {
+		t.Errorf("session_end.EndedAt = %v, want %v (now() at phase-driven close)",
+			end.SessionEnd.EndedAt, fixedNow)
+	}
+
+	// Each phase boundary should fire exactly one phase_change event.
+	changes := collectKind(got, event.KindPhaseChange)
+	wantChanges := []struct{ from, to string }{
+		{"work", "warmup"}, // synthetic initial: sessionizer seeds currentPhase=work, first stroke classifies warmup
+		{"warmup", "work"},
+		{"work", "cooldown"},
+	}
+	if len(changes) < len(wantChanges) {
+		t.Fatalf("expected at least %d phase_change events, got %d: %v",
+			len(wantChanges), len(changes), changes)
+	}
+	for i, w := range wantChanges {
+		if changes[i].PhaseChange.From != w.from || changes[i].PhaseChange.To != w.to {
+			t.Errorf("phase_change[%d] = %q→%q, want %q→%q", i,
+				changes[i].PhaseChange.From, changes[i].PhaseChange.To, w.from, w.to)
+		}
+	}
+}
+
+// kinds is a tiny debug helper for the loop above.
+func kinds(evts []event.Event) []string {
+	out := make([]string, len(evts))
+	for i, e := range evts {
+		out[i] = string(e.Kind)
+	}
+	return out
 }
 
 // TestSessionizerSummaryWorkOnlyTotals verifies that warmup-phase strokes

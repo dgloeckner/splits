@@ -5,6 +5,7 @@ import { getWorkout } from '../api/workouts'
 import { fetchRaceOpponents } from '../api/raceOpponents'
 import { workoutChipLabel } from '../util/workoutLabel'
 import { useLiveSession } from '../live/LiveSessionContext'
+import { useWakeLock } from '../live/useWakeLock'
 import { ConnectionBanner } from '../live/ConnectionBanner'
 import { useWorkoutProgress } from '../live/useWorkoutProgress'
 import { LiveHero } from './LiveHero'
@@ -14,6 +15,7 @@ import { useWorkoutOverlay } from './live/WorkoutOverlayContext'
 import { WorkoutProgressStrip } from './live/WorkoutProgressStrip'
 import { SegmentStatus } from './live/SegmentStatus'
 import { SessionEndedOverlay } from './live/SessionEndedOverlay'
+import { PhaseCountdownView } from './live/PhaseCountdownView'
 import { RacePostScreen } from '../race/RacePostScreen'
 import { PauseDialog } from './live/PauseDialog'
 import { useSegmentTransitions } from '../live/useSegmentTransitions'
@@ -81,12 +83,24 @@ function LiveBody() {
           <SegmentStatus />
         </div>
       )}
-      <div className={styles.leftCol}>
-        <LiveHero state={state} target={target} />
-      </div>
-      <div className={styles.rightCol}>
-        <TileGrid state={state} />
-      </div>
+      {state.phase === 'warmup' || state.phase === 'cooldown' ? (
+        // FEAT-0015 Slice 1: warmup/cooldown swap the dashboard for a
+        // dedicated mm:ss countdown. The progress strip + ✕ remain
+        // visible above so the user can still abort.
+        <PhaseCountdownView
+          phase={state.phase}
+          remainingSec={seg && seg.kind === state.phase ? active?.remainingSec ?? null : null}
+        />
+      ) : (
+        <>
+          <div className={styles.leftCol}>
+            <LiveHero state={state} target={target} />
+          </div>
+          <div className={styles.rightCol}>
+            <TileGrid state={state} />
+          </div>
+        </>
+      )}
     </div>
   )
 }
@@ -95,6 +109,13 @@ export function LivePage() {
   const state = useLiveSession()
   const nav = useNavigate()
   const qc = useQueryClient()
+
+  // FEAT-0015 Slice 2 / ADR-0010: hold the screen awake for the
+  // duration of every active session so the phone does not power-save
+  // mid-row and silently drop the connection. Best-effort —
+  // unsupported browsers (iOS PWAs etc.) are non-blocking.
+  const sessionOpen = state.session !== null && state.summary === null
+  useWakeLock(sessionOpen)
 
   // Latch the just-ended summary locally so a subsequent
   // `session_start` from the SSE stream (e.g. someone keeps rowing
