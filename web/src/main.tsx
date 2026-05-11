@@ -17,6 +17,11 @@ import './styles/base.css'
 import { AppRouter } from './app/AppRouter'
 import { ToastHost, showToast } from './app/Toast'
 import { ApiError } from './api/error'
+import { endSession } from './api/client'
+import {
+  configureEndSessionQueue,
+  processPendingEndSessions,
+} from './live/endSessionQueue'
 
 registerSW({ immediate: true })
 
@@ -66,6 +71,33 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+// FEAT-0015 Slice 2 / ADR-0010: wire the endSession retry queue so
+// session-end failures (sleeping phone, dropped Wi-Fi mid-cooldown)
+// are recovered on app start and on `online` events. The backend
+// `endSession` endpoint is currently keyless ("end whatever is open"
+// for the paired rower) and idempotent on 204; passing the id keeps
+// the queue keyed correctly for future per-id finalize.
+configureEndSessionQueue({
+  endSession: async (_sessionId: string) => {
+    await endSession()
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['sessions'] })
+  },
+  onPersistentFailure: () => {
+    showToast('Session-Ende fehlgeschlagen — wird erneut versucht.', 'warn')
+  },
+})
+
+// Drain any prior-run entries on boot, and whenever the browser
+// reports the network is back.
+void processPendingEndSessions()
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => {
+    void processPendingEndSessions()
+  })
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

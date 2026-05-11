@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import { deleteSession, endSession } from '../../api/client'
+import { deleteSession } from '../../api/client'
+import { enqueueEndSession, processPendingEndSessions } from '../../live/endSessionQueue'
 import { useLiveSession } from '../../live/LiveSessionContext'
 import { useWorkoutProgress } from '../../live/useWorkoutProgress'
 import type { ActiveSegment, Segment } from '../../live/segments'
 import { useWorkoutOverlay } from './WorkoutOverlayContext'
 import { AbortWorkoutDialog } from './AbortWorkoutDialog'
 import { useExtrapolatedActiveSegment } from './SegmentStatus'
+import { WorkProgressBadge } from './WorkProgressBadge'
 import styles from './WorkoutProgressStrip.module.css'
 
 export function WorkoutProgressStrip() {
@@ -27,15 +29,18 @@ export function WorkoutProgressStrip() {
         active={active}
         onAbort={() => setOpen(true)}
       />
+      <WorkProgressBadge />
       <AbortWorkoutDialog
         open={open}
         onSave={() => {
           // Force-close the open session immediately rather than
           // waiting for idle timeout. Backend handles "no session
-          // open" gracefully (idempotent 204).
-          void endSession()
-            .then(() => qc.invalidateQueries({ queryKey: ['sessions'] }))
-            .catch(() => {})
+          // open" gracefully (idempotent 204). Route through the
+          // retry queue so a transient failure (sleeping phone,
+          // dropped Wi-Fi mid-cooldown) is recovered on the next
+          // app start or `online` event. FEAT-0015 Slice 2.
+          if (sessionId) enqueueEndSession(sessionId)
+          void processPendingEndSessions()
           abort()
           setOpen(false)
           nav('/')
