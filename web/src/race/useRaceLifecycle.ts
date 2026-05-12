@@ -2,6 +2,7 @@ import { useCallback, useEffect, useReducer, useRef } from 'react'
 import {
   initialRaceLifecycle,
   raceLifecycle,
+  type RaceLifecycleConfig,
   type RaceLifecycleEvent,
   type RaceLifecycleState,
 } from './raceLifecycle'
@@ -14,8 +15,8 @@ import {
  * caller is responsible for dispatching `bereitTap`, `stroke`,
  * `sessionEnd`, `abort` and `confirm` events.
  */
-export function useRaceLifecycle() {
-  const [state, dispatch] = useReducer(raceLifecycle, undefined, initialRaceLifecycle)
+export function useRaceLifecycle(config?: RaceLifecycleConfig) {
+  const [state, dispatch] = useReducer(raceLifecycle, config, initialRaceLifecycle)
   const stateRef = useRef<RaceLifecycleState>(state)
   stateRef.current = state
 

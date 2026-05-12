@@ -15,6 +15,8 @@
  * Falschstart, Bereit) for the architectural decisions.
  */
 
+import { computeRaceResultLatch, type LatchOpponentCurve, type RaceResultLatch } from './raceResultLatch'
+
 export type CeremonyStep = 'ATTENTION' | 'SET' | 'GO'
 export type LiveKind = 'NormalStart' | 'Falschstart'
 export type RacePhase =
@@ -25,6 +27,11 @@ export type RacePhase =
   | 'Finished'
   | 'Post'
   | 'Aborted'
+
+export type RaceLifecycleConfig = {
+  totalMeters?: number | null
+  opponents?: { ghost?: LatchOpponentCurve; pb?: LatchOpponentCurve }
+}
 
 export type RaceLifecycleState = {
   phase: RacePhase
@@ -37,8 +44,11 @@ export type RaceLifecycleState = {
   /** session_start in stroke-time seconds (caller's clock). */
   session_start: number | null
   falschstart: boolean
-  /** Placeholder slot for the latched finish-cross result (0014-06). */
-  latchedResult: null
+  /** Latched finish-cross result (0014-06); null until the user crosses. */
+  latchedResult: RaceResultLatch | null
+  /** Captured config + last stroke for latch derivation. Internal. */
+  _config: RaceLifecycleConfig
+  _prevStroke: { t: number; dist: number } | null
 }
 
 export type RaceLifecycleEvent =
@@ -46,12 +56,13 @@ export type RaceLifecycleEvent =
   | { type: 'bereitTap'; t: number }
   | { type: 'tick'; nowMs: number }
   | { type: 'stroke'; t: number; dist: number; userDistance: number; total?: number }
+  | { type: 'setConfig'; config: RaceLifecycleConfig }
   | { type: 'sessionEnd' }
   | { type: 'abort' }
 
 export const CEREMONY_STEP_MS = 1500
 
-export function initialRaceLifecycle(): RaceLifecycleState {
+export function initialRaceLifecycle(config?: RaceLifecycleConfig): RaceLifecycleState {
   return {
     phase: 'Confirmed',
     ceremonyStep: null,
@@ -61,6 +72,8 @@ export function initialRaceLifecycle(): RaceLifecycleState {
     session_start: null,
     falschstart: false,
     latchedResult: null,
+    _config: config ?? {},
+    _prevStroke: null,
   }
 }
 
@@ -82,6 +95,12 @@ export function raceLifecycle(
     case 'confirm':
       if (state.phase === 'Confirmed') return { ...state, phase: 'Bereit' }
       return state
+
+    case 'setConfig':
+      // Allowed pre-Finished; once the latch is sealed we don't accept
+      // late opponent updates (consistency).
+      if (state.phase === 'Finished') return state
+      return { ...state, _config: { ...state._config, ...event.config } }
 
     case 'bereitTap':
       if (state.phase === 'Bereit') {
@@ -138,8 +157,26 @@ export function raceLifecycle(
           state = { ...state, session_start: event.t }
         }
         if (event.total != null && event.userDistance >= event.total) {
-          return { ...state, phase: 'Finished' }
+          const totalMeters = state._config.totalMeters ?? event.total
+          const latched = computeRaceResultLatch({
+            cross: { t: event.t, dist: event.dist },
+            prev: state._prevStroke,
+            totalMeters,
+            opponents: state._config.opponents ?? {},
+          })
+          return {
+            ...state,
+            phase: 'Finished',
+            latchedResult: latched,
+            _prevStroke: { t: event.t, dist: event.dist },
+          }
         }
+        return { ...state, _prevStroke: { t: event.t, dist: event.dist } }
+      }
+      // Finished: keep latched result frozen; ignore subsequent strokes
+      // for latch purposes (still update _prevStroke for completeness).
+      if (state.phase === 'Finished') {
+        return { ...state, _prevStroke: { t: event.t, dist: event.dist } }
       }
       return state
     }

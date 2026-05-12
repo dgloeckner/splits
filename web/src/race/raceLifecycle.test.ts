@@ -78,7 +78,50 @@ describe('raceLifecycle reducer', () => {
     expect(s.phase).toBe('Live')
     s = raceLifecycle(s, { type: 'stroke', t: 100, dist: 2000, userDistance: 2000, total: 2000 })
     expect(s.phase).toBe('Finished')
-    expect(s.latchedResult).toBeNull()
+    // Without configured totalMeters/opponents the latch still fires
+    // with finalTimeS = stroke t and no gaps.
+    expect(s.latchedResult).not.toBeNull()
+    expect(s.latchedResult?.finalTimeS).toBe(100)
+    expect(s.latchedResult?.gaps).toEqual({})
+  })
+
+  it('finish-cross stroke latches result; subsequent strokes do NOT recompute', () => {
+    const ghost = { tSec: [0, 100, 200], distM: [0, 1000, 2000] }
+    let s = initialRaceLifecycle({ totalMeters: 2000, opponents: { ghost } })
+    s = raceLifecycle(s, { type: 'confirm' })
+    s = raceLifecycle(s, { type: 'bereitTap', t: 0 })
+    s = raceLifecycle(s, { type: 'tick', nowMs: 1500 })
+    s = raceLifecycle(s, { type: 'tick', nowMs: 3000 })
+    s = raceLifecycle(s, { type: 'tick', nowMs: 4500 })
+    // Two strokes mid-race so the latch can derive a split from the last 2.
+    s = raceLifecycle(s, { type: 'stroke', t: 90, dist: 1958, userDistance: 1958, total: 2000 })
+    s = raceLifecycle(s, { type: 'stroke', t: 100, dist: 2000, userDistance: 2000, total: 2000 })
+    expect(s.phase).toBe('Finished')
+    expect(s.latchedResult).not.toBeNull()
+    const latched = s.latchedResult
+    expect(latched?.finalTimeS).toBe(100)
+    // ghost at 2000 m → 200 s. User finished at 100 s → -100 s.
+    expect(latched?.gaps.ghost).toBeCloseTo(-100, 6)
+    // Subsequent stroke (Paddelst aus) must NOT change the latched result.
+    s = raceLifecycle(s, { type: 'stroke', t: 110, dist: 2010, userDistance: 2010, total: 2000 })
+    expect(s.phase).toBe('Finished')
+    expect(s.latchedResult).toBe(latched)
+  })
+
+  it('sessionEnd from Finished → Post carries the latched result', () => {
+    const ghost = { tSec: [0, 100, 200], distM: [0, 1000, 2000] }
+    let s = initialRaceLifecycle({ totalMeters: 2000, opponents: { ghost } })
+    s = raceLifecycle(s, { type: 'confirm' })
+    s = raceLifecycle(s, { type: 'bereitTap', t: 0 })
+    s = raceLifecycle(s, { type: 'tick', nowMs: 1500 })
+    s = raceLifecycle(s, { type: 'tick', nowMs: 3000 })
+    s = raceLifecycle(s, { type: 'tick', nowMs: 4500 })
+    s = raceLifecycle(s, { type: 'stroke', t: 90, dist: 1958, userDistance: 1958, total: 2000 })
+    s = raceLifecycle(s, { type: 'stroke', t: 100, dist: 2000, userDistance: 2000, total: 2000 })
+    const latched = s.latchedResult
+    s = raceLifecycle(s, { type: 'sessionEnd' })
+    expect(s.phase).toBe('Post')
+    expect(s.latchedResult).toBe(latched)
   })
 
   it('sessionEnd from Live → Post', () => {
