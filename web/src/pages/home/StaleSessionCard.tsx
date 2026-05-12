@@ -71,6 +71,10 @@ type RowProps = {
 
 function StaleSessionRow({ session, onFinalize, onDiscard, onResume, busy }: RowProps) {
   const km = (session.total_distance_m / 1000).toFixed(2)
+  // ADR-0012: race-mode sessions are non-resumable. The recovery card
+  // for race rows exposes only Finalize and Discard; "Weiter rudern"
+  // (rejoin live) is omitted entirely.
+  const isRace = session.mode === 'race'
   return (
     <li>
       <p className={styles.summary}>
@@ -86,15 +90,17 @@ function StaleSessionRow({ session, onFinalize, onDiscard, onResume, busy }: Row
         >
           Beenden mit gerudertem Stand
         </button>
-        <button
-          type="button"
-          className={styles.secondary}
-          onClick={onResume}
-          disabled={busy}
-          data-testid="stale-resume"
-        >
-          Weiter rudern
-        </button>
+        {!isRace && (
+          <button
+            type="button"
+            className={styles.secondary}
+            onClick={onResume}
+            disabled={busy}
+            data-testid="stale-resume"
+          >
+            Weiter rudern
+          </button>
+        )}
         <button
           type="button"
           className={styles.danger}

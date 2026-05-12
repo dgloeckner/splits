@@ -56,6 +56,11 @@ type StaleOpenSessionRow struct {
 	LastStrokeAt   time.Time `json:"last_stroke_at"`
 	TotalDistanceM int       `json:"total_distance_m"`
 	WorkoutID      string    `json:"workout_id,omitempty"`
+	// Mode is the attached workout's mode (e.g. "race", "distance",
+	// "just_row") or "" when no workout is attached. The recovery card
+	// branches on this to hide "rejoin live" for race rows per
+	// ADR-0012 (race-mode non-resumable).
+	Mode string `json:"mode,omitempty"`
 }
 
 // ListStaleOpenSessions returns every `status='stale-open'` session for
@@ -67,9 +72,11 @@ func ListStaleOpenSessions(ctx context.Context, db *sql.DB, rowerID string) ([]S
 		       MAX(st.at) AS last_stroke_at,
 		       COALESCE((SELECT distance_m FROM strokes
 		                 WHERE session_id = s.id
-		                 ORDER BY stroke_no DESC LIMIT 1), 0) AS last_distance_m
+		                 ORDER BY stroke_no DESC LIMIT 1), 0) AS last_distance_m,
+		       COALESCE(w.mode, '') AS mode
 		FROM sessions s
 		JOIN strokes st ON st.session_id = s.id
+		LEFT JOIN workout w ON w.id = s.workout_id
 		WHERE s.status = 'stale-open'
 		  AND s.ended_at IS NULL
 		  AND s.rower_id = ?
@@ -86,7 +93,7 @@ func ListStaleOpenSessions(ctx context.Context, db *sql.DB, rowerID string) ([]S
 			startedStr   string
 			lastStrokeStr string
 		)
-		if err := rows.Scan(&r.ID, &startedStr, &r.WorkoutID, &lastStrokeStr, &r.TotalDistanceM); err != nil {
+		if err := rows.Scan(&r.ID, &startedStr, &r.WorkoutID, &lastStrokeStr, &r.TotalDistanceM, &r.Mode); err != nil {
 			return nil, err
 		}
 		t, err := time.Parse(time.RFC3339Nano, startedStr)
@@ -140,6 +147,13 @@ func FinalizeStaleSession(ctx context.Context, db *sql.DB, sessionID string) err
 		summary.Samples = stats.ComputeSamples(work, stats.BucketStrokesFor(len(work)))
 		summary.PBCandidates = stats.ComputeCandidates(work)
 	}
+	// ADR-0012: race-mode sessions are non-resumable. An interrupted
+	// race always finalises with summary.race == null regardless of
+	// where the last stroke landed relative to the finish line. No
+	// stroke-history inspection is required — the simple two-button
+	// recovery flow (Finalize / Discard) guarantees this outcome by
+	// construction.
+	summary.Race = nil
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
