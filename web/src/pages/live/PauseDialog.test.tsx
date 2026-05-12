@@ -8,6 +8,24 @@ import { initialLiveState, type LiveState } from '../../live/reducer'
 import { WorkoutOverlayProvider } from './WorkoutOverlayContext'
 import { PauseDialog } from './PauseDialog'
 
+const mockWorkoutProgress = vi.hoisted(
+  () => ({ current: null as null | Record<string, unknown> }),
+)
+vi.mock('../../live/useWorkoutProgress', async (orig) => {
+  const real = (await orig()) as Record<string, unknown>
+  return {
+    ...real,
+    useWorkoutProgress: () =>
+      mockWorkoutProgress.current ?? {
+        segments: [],
+        active: null,
+        workoutId: null,
+        isLoading: false,
+        workout: null,
+      },
+  }
+})
+
 // A paused session with an active stroke and the given phase.
 function pausedState(phase: LiveState['phase']): LiveState {
   return {
@@ -56,6 +74,7 @@ function wrap(state: LiveState) {
 beforeEach(() => {
   // Force Date.now() large so (Date.now() - lastStrokeReceivedAtMs) >> pauseThresholdMs.
   vi.spyOn(Date, 'now').mockReturnValue(1_000_000)
+  mockWorkoutProgress.current = null
 })
 afterEach(() => {
   vi.restoreAllMocks()
@@ -94,6 +113,50 @@ describe('PauseDialog phase-gate (Slice 1)', () => {
 
   it('auto-opens for FreeRow (phase = null) — no-phase sessions retain today behaviour', () => {
     const Wrap = wrap(pausedState(null))
+    render(
+      <Wrap>
+        <PauseDialog />
+      </Wrap>,
+    )
+    expect(screen.getByTestId('abort-dialog')).toBeInTheDocument()
+  })
+})
+
+describe('PauseDialog race-mode suppression (0014-05)', () => {
+  it('does NOT auto-open when workout.mode === race', () => {
+    mockWorkoutProgress.current = {
+      segments: [],
+      active: null,
+      workoutId: 'W1',
+      isLoading: false,
+      workout: { id: 'W1', mode: 'race', params: { meters: 2000 }, intensity: null },
+    }
+    // Race workouts carry phase = null (no warmup/cooldown). The pause
+    // dialog would normally pop for a null-phase session; race mode must
+    // suppress it regardless.
+    const Wrap = wrap(pausedState(null))
+    render(
+      <Wrap>
+        <PauseDialog />
+      </Wrap>,
+    )
+    expect(screen.queryByTestId('abort-dialog')).toBeNull()
+  })
+
+  it('still auto-opens for non-race workouts (mode === distance)', () => {
+    mockWorkoutProgress.current = {
+      segments: [],
+      active: null,
+      workoutId: 'W1',
+      isLoading: false,
+      workout: {
+        id: 'W1',
+        mode: 'distance',
+        params: { meters: 5000 },
+        intensity: null,
+      },
+    }
+    const Wrap = wrap(pausedState('work'))
     render(
       <Wrap>
         <PauseDialog />

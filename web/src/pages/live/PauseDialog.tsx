@@ -5,6 +5,7 @@ import { deleteSession } from '../../api/client'
 import { enqueueEndSession, processPendingEndSessions } from '../../live/endSessionQueue'
 import { useLiveSession } from '../../live/LiveSessionContext'
 import { useIsLivePaused } from '../../live/useLiveDisplay'
+import { useWorkoutProgress } from '../../live/useWorkoutProgress'
 import { useWorkoutOverlay } from './WorkoutOverlayContext'
 import { AbortWorkoutDialog } from './AbortWorkoutDialog'
 
@@ -19,6 +20,7 @@ import { AbortWorkoutDialog } from './AbortWorkoutDialog'
 export function PauseDialog() {
   const state = useLiveSession()
   const paused = useIsLivePaused(state)
+  const { workout } = useWorkoutProgress()
   const { abort } = useWorkoutOverlay()
   const qc = useQueryClient()
   const nav = useNavigate()
@@ -37,7 +39,14 @@ export function PauseDialog() {
   // WorkoutProgressStrip opens the same dialog unconditionally in any
   // phase.
   const phaseAllowsAutoOpen = state.phase === null || state.phase === 'work'
-  const open = sessionActive && hasStrokes && paused && phaseAllowsAutoOpen && !dismissed
+  // 0014-05: race mode is a one-shot competition unit. The Speichern /
+  // Weiter / Verwerfen pause sheet is suppressed entirely; if the rower
+  // stops, they abort via the ✕ in WorkoutProgressStrip, which lands
+  // the session with summary_json.race = null (race_result.go: distance
+  // < goal → nil).
+  const isRace = workout?.mode === 'race'
+  const open =
+    sessionActive && hasStrokes && paused && phaseAllowsAutoOpen && !isRace && !dismissed
   const sessionId = state.session?.session_id ?? null
 
   return (
