@@ -19,11 +19,23 @@ cooldown — those are separate sessions before/after.
 
 The moment the green light fires in the start ceremony. The user's
 race time is measured from t=0; their distance accumulates from t=0.
-Strokes taken before t=0 do not count toward the race.
+Strokes taken before t=0 do not count toward the race distance and
+do not advance the race clock.
 
-In implementation, t=0 corresponds to the first stroke of the
-underlying erg session — the ceremony plays before the session opens,
-so session_start ≈ t=0.
+`race_t0` is a first-class concept distinct from `session_start`.
+The backend subscription opens when the rower taps **Bereit**, so
+any stroke during ATTENTION/SET opens the session normally
+(`session_start` = that early stroke), but `race_t0` is pinned to
+the GO! moment. On a clean start the two coincide; on a Falschstart
+they differ and the gap is the false-start offset.
+
+### Falschstart
+
+A stroke taken between Bereit-tap and GO!. The session opens at that
+stroke, a toast (`Falschstart — Uhr läuft ab GO!`) is shown, and
+`race_t0` remains at GO!. Pre-GO! meters and seconds are excluded
+from race distance and race time. v1 does not penalize a second
+false start.
 
 ### Bereit (am Catch)
 
@@ -109,6 +121,12 @@ with no new strokes. Caused most often by an iPhone screen-lock that
 killed the live connection mid-cooldown. The home page surfaces these
 on rower reconnect with a "Frühere Session abschließen?" card —
 finalize from last stroke, discard, or rejoin live. See ADR-0010.
+
+**Race-mode sessions are non-resumable.** The recovery card for a
+race omits "rejoin live"; only Finalize and Discard are offered. An
+interrupted race always finalizes with `summary_json.race = null` —
+the same outcome as an explicit abort. A race is a competition unit
+that either witnessed its own finish or did not happen.
 
 ### Live split (windowed)
 

@@ -109,14 +109,12 @@ opponent-pace transport shape).
       `warmupEnabled = cooldownEnabled = false`.
 - [ ] Backend `POST /workouts` rejects race-mode workouts with
       non-zero `warmup_sec` or `cooldown_sec` (HTTP 400).
-- [ ] One-shot migration: for existing race rows where
-      `warmup_sec > 0 OR cooldown_sec > 0`, decide between
-      (a) rewrite to zero + recompute `shape_hash` + recompute PBs,
-      or (b) leave as-is and accept the small population fragments
-      from new races. See open questions.
 - [ ] FEAT-0013 spec is annotated: line 54 simplifies to "meters",
       line 132-133 reduced-motion behavior is overridden by this
       FEAT.
+
+No data migration is required — there are no legacy race-mode rows
+with non-zero warmup/cooldown in production.
 
 ## UX notes
 
@@ -140,14 +138,7 @@ opponent-pace transport shape).
 
 ## Open questions
 
-1. **Migration of legacy race rows with warmup/cooldown** — rewrite
-   to zero (clean shape, but mutates persisted history) or leave
-   as-is (preserves history but fragments the small population)?
-   Recommend rewrite-with-recompute since the population is small
-   and recent (FEAT-0013 shipped 2026-05-07).
-2. **Falschstart strictness** — does a stroke during ATTENTION abort
-   the ceremony and require a re-tap, or just shift t=0 to GO! as
-   specced? Lean toward the latter for v1 (less punishing).
-3. **Result overlay vs in-canvas finish flag** — does the existing
-   finish flag glyph stay visible behind the overlay, or fade out
-   when the overlay slides in?
+All open questions resolved during the 2026-05-12 grilling session.
+See decisions captured in this spec's AC, in CONTEXT.md (Race t=0,
+Falschstart, stale-open recovery), and in ADR-0012 (race-mode
+non-resumability).
