@@ -10,7 +10,7 @@ import { ConnectionBanner } from '../live/ConnectionBanner'
 import { useWorkoutProgress } from '../live/useWorkoutProgress'
 import { LiveHero } from './LiveHero'
 import { TileGrid } from './TileGrid'
-import { RaceLiveView } from '../race/RaceLiveView'
+import { RaceFlow } from '../race/RaceFlow'
 import { useWorkoutOverlay } from './live/WorkoutOverlayContext'
 import { WorkoutProgressStrip } from './live/WorkoutProgressStrip'
 import { SegmentStatus } from './live/SegmentStatus'
@@ -38,9 +38,18 @@ function LiveBody() {
   const isRace = workout?.mode === 'race'
   if (isRace) {
     const meters = (workout.params as { meters: number }).meters
+    let opponentsLabel = 'Ghost · PB'
+    try {
+      const raw = sessionStorage.getItem('race-opp-selection')
+      if (raw) {
+        const sel = JSON.parse(raw) as { ghost: boolean; pb: boolean }
+        const parts = [sel.ghost ? 'Ghost' : null, sel.pb ? 'PB' : null].filter(Boolean)
+        opponentsLabel = parts.length ? parts.join(' · ') : '—'
+      }
+    } catch {}
     return (
       <div className={styles.page}>
-        <RaceLiveView liveState={state} totalMeters={meters} />
+        <RaceFlow liveState={state} totalMeters={meters} opponentsLabel={opponentsLabel} />
       </div>
     )
   }

@@ -234,7 +234,7 @@ describe('LivePage session-end overlay', () => {
     expect(invalidatedKeys).toContain('rower-trends')
   })
 
-  it('renders RaceLiveView when active workout mode is race', () => {
+  it('renders BereitScreen (not RaceLiveView) when active workout mode is race', () => {
     mockWorkoutProgress.current = {
       segments: [],
       active: null,
@@ -258,7 +258,11 @@ describe('LivePage session-end overlay', () => {
         workout_id: 'W-RACE',
       },
     })
-    expect(document.querySelector('[data-component="race-canvas"]')).not.toBeNull()
+    // 0014-04: opponent picker confirm now lands on BereitScreen,
+    // not directly on the live canvas. RaceLiveView mounts only on
+    // Bereit tap + ceremony reaching GO!.
+    expect(document.querySelector('[data-testid="bereit-screen"]')).not.toBeNull()
+    expect(document.querySelector('[data-component="race-canvas"]')).toBeNull()
     expect(document.querySelector('[data-component="tile-grid"]')).toBeNull()
   })
 

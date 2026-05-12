@@ -1,0 +1,16 @@
+.toast {
+  position: absolute;
+  top: var(--space-4, 16px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(200, 83, 75, 0.95);
+  color: #ffffff;
+  padding: 8px 16px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  z-index: 20;
+  white-space: nowrap;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  pointer-events: none;
+}
