@@ -13,7 +13,7 @@ import * as dataHook from './useRaceData'
 import * as motionHook from './reducedMotion'
 
 const fakeOpps = {
-  ghost: { kind: 'session' as const, sourceSessionId: 'g', label: 'ghost' as const, tSec: [0,60], split: [120,120] },
+  ghost: { kind: 'session' as const, sourceSessionId: 'g', label: 'ghost' as const, tSec: [0,60], distM: [0, 250] },
   pb: null,
 }
 

@@ -8,7 +8,7 @@ const ghost = {
   sourceSessionId: 'g',
   label: 'ghost' as const,
   tSec: [0, 60, 120, 180, 240],
-  split: [120, 120, 120, 120, 120],
+  distM: [0, 250, 500, 750, 1000],
 }
 
 describe('RacePostScreen', () => {
@@ -42,7 +42,7 @@ describe('RacePostScreen', () => {
         userTSec={userSeries.tSec}
         userSplit={userSeries.split}
         ghost={ghost}
-        pb={{ ...ghost, sourceSessionId: 'p', label: 'pb', split: [110, 110, 110, 110, 110] }}
+        pb={{ ...ghost, sourceSessionId: 'p', label: 'pb', distM: [0, 273, 545, 818, 1091] }}
         vsGhostSec={2.1}
         vsPbSec={-3.4}
         onRetry={() => {}}

@@ -15,12 +15,17 @@ import (
 // WorkoutOpponent is the wire shape for one opponent (ghost or PB).
 // `kind` distinguishes synthesised ghosts from real session-derived
 // opponents. `source_session_id` is omitted for synth ghosts.
+//
+// Transport (0014-01): the client receives parallel `t_sec` and
+// `distance_m` arrays. The legacy `split` field is removed; clients
+// look up opponent distance directly via binary search rather than
+// integrating split→distance every frame.
 type WorkoutOpponent struct {
 	Kind            string    `json:"kind"`
 	SourceSessionID string    `json:"source_session_id,omitempty"`
 	Label           string    `json:"label"`
 	TSec            []float64 `json:"t_sec"`
-	Split           []float64 `json:"split"`
+	DistanceM       []float64 `json:"distance_m"`
 }
 
 type WorkoutOpponentsResponse struct {
@@ -66,7 +71,12 @@ func WorkoutOpponentsHandler(db *sql.DB) http.Handler {
 				return
 			}
 			tSec, split := race.SynthGhost(rp.Meters, workout.Intensity(intensity))
-			ghost = &WorkoutOpponent{Kind: "synth", Label: "ghost", TSec: tSec, Split: split}
+			ghost = &WorkoutOpponent{
+				Kind:      "synth",
+				Label:     "ghost",
+				TSec:      tSec,
+				DistanceM: integrateDistance(tSec, split),
+			}
 		}
 		resp.Ghost = ghost
 
@@ -126,9 +136,10 @@ func loadOpponentGhost(ctx context.Context, db *sql.DB, rowerID, shape string) (
 	if !ok {
 		return nil, nil
 	}
+	tSec = rebaseToZero(tSec)
 	return &WorkoutOpponent{
 		Kind: "session", SourceSessionID: sid, Label: "ghost",
-		TSec: tSec, Split: split,
+		TSec: tSec, DistanceM: integrateDistance(tSec, split),
 	}, nil
 }
 
@@ -189,10 +200,52 @@ func loadOpponentPB(ctx context.Context, db *sql.DB, rowerID, shape, paramsJSON 
 	if !ok {
 		return nil, nil
 	}
+	tSec = rebaseToZero(tSec)
 	return &WorkoutOpponent{
 		Kind: "session", SourceSessionID: bestID, Label: "pb",
-		TSec: tSec, Split: split,
+		TSec: tSec, DistanceM: integrateDistance(tSec, split),
 	}, nil
+}
+
+// rebaseToZero returns a copy of tSec with the first sample subtracted
+// from every entry. Today, summary `t_sec[]` arrays are emitted starting
+// at 0, so this is a no-op; the explicit rebase guarantees the
+// `t_sec[0]==0` invariant in the wire response regardless of source.
+// Issue 0014-02 will trim leading warmup-covering samples before this
+// rebase runs.
+func rebaseToZero(tSec []float64) []float64 {
+	if len(tSec) == 0 || tSec[0] == 0 {
+		return tSec
+	}
+	out := make([]float64, len(tSec))
+	base := tSec[0]
+	for i, v := range tSec {
+		out[i] = v - base
+	}
+	return out
+}
+
+// integrateDistance turns parallel (t_sec, split) samples into a
+// parallel distance_m series. Velocity at step i is `500 / split[i]`
+// m/s; non-positive split contributes zero progress for that step.
+// The first sample is always 0 — `t_sec[0]` is treated as the
+// opponent's work-segment start. Output length matches input length.
+func integrateDistance(tSec, split []float64) []float64 {
+	n := len(tSec)
+	if n == 0 {
+		return nil
+	}
+	out := make([]float64, n)
+	out[0] = 0
+	for i := 1; i < n; i++ {
+		dt := tSec[i] - tSec[i-1]
+		v := 0.0
+		if i < len(split) && split[i] > 0 {
+			v = 500.0 / split[i]
+		}
+		out[i] = out[i-1] + v*dt
+	}
+	return out
 }
 
 type opponentSamplesPayload struct {

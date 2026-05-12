@@ -7,7 +7,7 @@ export type RaceOpponent = {
   sourceSessionId?: string
   label: 'ghost' | 'pb'
   tSec: number[]
-  split: number[]
+  distM: number[]
 }
 
 export type RaceOpponentsResponse = {
@@ -20,7 +20,7 @@ type WireOpponent = {
   source_session_id?: string
   label: 'ghost' | 'pb'
   t_sec: number[]
-  split: number[]
+  distance_m: number[]
 }
 
 export async function fetchRaceOpponents(args: {
@@ -37,7 +37,7 @@ export async function fetchRaceOpponents(args: {
     sourceSessionId: o.source_session_id,
     label: o.label,
     tSec: o.t_sec ?? [],
-    split: o.split ?? [],
+    distM: o.distance_m ?? [],
   } : null
   return { ghost: map(w.ghost), pb: map(w.pb) }
 }
