@@ -19,6 +19,11 @@ export function NumericTile({ def, state, disabled }: Props) {
   let v = rawV
   if (def.id === 'distanz') v = { value: phasedDist.text, unit: rawV.unit }
   if (def.id === 'zeit') v = { value: phasedTime.text }
+  // FEAT-0015 Slice 7 / M11: Distance-to-go needs workout meta. Source
+  // the work-phase target from the attached workout and subtract
+  // work-phase distance (distance − phaseAnchor.distanceM).
+  const dtg = useDistanceToGo(def.id, state)
+  if (def.id === 'distanz-uebrig') v = { value: dtg, unit: rawV.unit }
   const unit = v.unit ?? def.unit
   const cls = [styles.tile, disabled && styles.disabled].filter(Boolean).join(' ')
 
@@ -35,6 +40,19 @@ export function NumericTile({ def, state, disabled }: Props) {
       </div>
     </div>
   )
+}
+
+function useDistanceToGo(tileId: string, state: LiveState): string {
+  // Hook order: always called from NumericTile; bail to '—' inside.
+  const { workout } = useWorkoutProgress()
+  if (tileId !== 'distanz-uebrig') return '—'
+  if (!workout || workout.mode !== 'distance') return '—'
+  const target = (workout.params as { meters: number }).meters
+  if (!target || !Number.isFinite(target)) return '—'
+  const total = state.stroke?.distance_m ?? 0
+  const anchor = state.phaseAnchor?.distanceM ?? 0
+  const work = Math.max(0, total - anchor)
+  return String(Math.max(0, Math.round(target - work)))
 }
 
 function useTargetStatus(tileId: string, state: LiveState) {

@@ -42,6 +42,14 @@ export const TILES: TileDef[] = [
   },
   { id: 'watt', label: 'Watt', type: 'numeric', unit: 'W', category: 'zahlen' },
   {
+    id: 'distanz-uebrig',
+    label: 'übrig',
+    subtitle: 'Verbleibende Strecke im Work-Abschnitt',
+    type: 'numeric',
+    unit: 'm',
+    category: 'zahlen',
+  },
+  {
     id: 'oe-split',
     label: 'Ø Split',
     subtitle: 'Session-Durchschnitt',
