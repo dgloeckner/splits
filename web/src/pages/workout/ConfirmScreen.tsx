@@ -147,12 +147,15 @@ export function ConfirmScreen() {
     }
   }
 
+  // ADR-0009: race mode excludes warmup and cooldown.
+  const isRace = state.mode === 'race'
+
   async function start() {
     if (starting) return
     setStarting(true)
     try {
-      const warmup = state.warmupEnabled ? state.warmupSec : 0
-      const cooldown = state.cooldownEnabled ? state.cooldownSec : 0
+      const warmup = isRace ? 0 : state.warmupEnabled ? state.warmupSec : 0
+      const cooldown = isRace ? 0 : state.cooldownEnabled ? state.cooldownSec : 0
       const input: CreateWorkoutInput = {
         mode: state.mode as WorkoutMode,
         params: params!,
@@ -185,8 +188,9 @@ export function ConfirmScreen() {
     sessionStorage.setItem('race-opp-selection', JSON.stringify(sel))
     try {
       await startSession(picker.workoutId)
-      const warmup = state.warmupEnabled ? state.warmupSec : 0
-      const cooldown = state.cooldownEnabled ? state.cooldownSec : 0
+      // ADR-0009: race mode forces zero warmup/cooldown.
+      const warmup = 0
+      const cooldown = 0
       const input: CreateWorkoutInput = {
         mode: 'race' as WorkoutMode,
         params: params!,
@@ -225,47 +229,51 @@ export function ConfirmScreen() {
 
       <Timeline state={state} />
 
-      <section className={styles.toggleRow} aria-label="Warm-up">
-        <label className={styles.toggle}>
-          <input
-            type="checkbox"
-            checked={state.warmupEnabled}
-            onChange={() => dispatch({ type: 'TOGGLE_WARMUP' })}
+      {!isRace && (
+        <section className={styles.toggleRow} aria-label="Warm-up">
+          <label className={styles.toggle}>
+            <input
+              type="checkbox"
+              checked={state.warmupEnabled}
+              onChange={() => dispatch({ type: 'TOGGLE_WARMUP' })}
+            />
+            Warm-up
+          </label>
+          <Stepper
+            disabled={!state.warmupEnabled}
+            value={Math.round(state.warmupSec / 60)}
+            min={0}
+            max={15}
+            step={1}
+            unit="min"
+            onChange={(m) => dispatch({ type: 'SET_WARMUP_SEC', seconds: m * 60 })}
+            ariaLabel="Warm-up Dauer"
           />
-          Warm-up
-        </label>
-        <Stepper
-          disabled={!state.warmupEnabled}
-          value={Math.round(state.warmupSec / 60)}
-          min={0}
-          max={15}
-          step={1}
-          unit="min"
-          onChange={(m) => dispatch({ type: 'SET_WARMUP_SEC', seconds: m * 60 })}
-          ariaLabel="Warm-up Dauer"
-        />
-      </section>
+        </section>
+      )}
 
-      <section className={styles.toggleRow} aria-label="Cool-down">
-        <label className={styles.toggle}>
-          <input
-            type="checkbox"
-            checked={state.cooldownEnabled}
-            onChange={() => dispatch({ type: 'TOGGLE_COOLDOWN' })}
+      {!isRace && (
+        <section className={styles.toggleRow} aria-label="Cool-down">
+          <label className={styles.toggle}>
+            <input
+              type="checkbox"
+              checked={state.cooldownEnabled}
+              onChange={() => dispatch({ type: 'TOGGLE_COOLDOWN' })}
+            />
+            Cool-down
+          </label>
+          <Stepper
+            disabled={!state.cooldownEnabled}
+            value={Math.round(state.cooldownSec / 60)}
+            min={0}
+            max={15}
+            step={1}
+            unit="min"
+            onChange={(m) => dispatch({ type: 'SET_COOLDOWN_SEC', seconds: m * 60 })}
+            ariaLabel="Cool-down Dauer"
           />
-          Cool-down
-        </label>
-        <Stepper
-          disabled={!state.cooldownEnabled}
-          value={Math.round(state.cooldownSec / 60)}
-          min={0}
-          max={15}
-          step={1}
-          unit="min"
-          onChange={(m) => dispatch({ type: 'SET_COOLDOWN_SEC', seconds: m * 60 })}
-          ariaLabel="Cool-down Dauer"
-        />
-      </section>
+        </section>
+      )}
 
       <section className={styles.favRow}>
         <label className={styles.toggle}>

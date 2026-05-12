@@ -71,6 +71,45 @@ func TestPostWorkoutInvalid(t *testing.T) {
 	}
 }
 
+func TestPostWorkoutRaceAcceptsZeroWarmupCooldown(t *testing.T) {
+	srv, _ := newWorkoutTestServer(t)
+	body := `{"mode":"race","params":{"meters":2000},"intensity":"hart","warmup_sec":0,"cooldown_sec":0}`
+	resp, err := http.Post(srv.URL+"/api/v1/workouts", "application/json", bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusCreated {
+		t.Fatalf("status=%d (expected 201)", resp.StatusCode)
+	}
+}
+
+func TestPostWorkoutRaceRejectsWarmup(t *testing.T) {
+	srv, _ := newWorkoutTestServer(t)
+	body := `{"mode":"race","params":{"meters":2000},"intensity":"hart","warmup_sec":300,"cooldown_sec":0}`
+	resp, err := http.Post(srv.URL+"/api/v1/workouts", "application/json", bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status=%d (expected 400)", resp.StatusCode)
+	}
+}
+
+func TestPostWorkoutRaceRejectsCooldown(t *testing.T) {
+	srv, _ := newWorkoutTestServer(t)
+	body := `{"mode":"race","params":{"meters":2000},"intensity":"hart","warmup_sec":0,"cooldown_sec":120}`
+	resp, err := http.Post(srv.URL+"/api/v1/workouts", "application/json", bytes.NewBufferString(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status=%d (expected 400)", resp.StatusCode)
+	}
+}
+
 func TestGetWorkoutByID(t *testing.T) {
 	srv, repo := newWorkoutTestServer(t)
 	ctx := context.Background()

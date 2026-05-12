@@ -173,6 +173,44 @@ describe('ConfirmScreen', () => {
     expect(favCalled).toBe(false)
   })
 
+  it('hides warmup and cooldown toggles for race mode', async () => {
+    mockRoutes({})
+    wrap(<Harness setup="race" />)
+    await screen.findByRole('heading', { name: /2 km Rennen/i })
+    expect(screen.queryByRole('checkbox', { name: /warm-up/i })).toBeNull()
+    expect(screen.queryByRole('checkbox', { name: /cool-down/i })).toBeNull()
+  })
+
+  it('shows warmup and cooldown toggles for non-race mode', async () => {
+    mockRoutes({})
+    wrap(<Harness setup="distance" />)
+    await screen.findByRole('heading', { name: /5 km/i })
+    expect(screen.getByRole('checkbox', { name: /warm-up/i })).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /cool-down/i })).toBeInTheDocument()
+  })
+
+  it('race submission forces warmup_sec=0 and cooldown_sec=0', async () => {
+    let postedBody: any = null
+    mockRoutes({
+      '/api/v1/workouts': (init) => {
+        if (init?.method === 'POST') postedBody = JSON.parse(init.body as string)
+        return { body: JSON.stringify({ id: 'W1', mode: 'race', params: { meters: 2000 }, warmup_sec: 0, cooldown_sec: 0, created_at: '2026-04-23T00:00:00Z' }), status: 201 }
+      },
+      '/api/v1/workouts/W1/opponents': () => ({
+        body: JSON.stringify({ ghost: null, pb: null }),
+        status: 200,
+      }),
+      '/api/v1/session/start': () => ({ body: null, status: 204 }),
+    })
+    sessionStorage.removeItem('race-opp-selection')
+    wrap(<Harness setup="race" />)
+    await userEvent.click(await screen.findByRole('button', { name: /^start$/i }))
+    await waitFor(() => expect(postedBody).not.toBeNull())
+    expect(postedBody?.mode).toBe('race')
+    expect(postedBody?.warmup_sec).toBe(0)
+    expect(postedBody?.cooldown_sec).toBe(0)
+  })
+
   it('Zurück dispatches GO_BACK (returns to step 3)', async () => {
     mockRoutes({})
     wrap(<Harness setup="distance" />)
