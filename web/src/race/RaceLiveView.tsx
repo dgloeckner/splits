@@ -2,12 +2,18 @@ import { useEffect, useRef, useState } from 'react'
 import type { LiveState } from '../live/reducer'
 import { StatBar } from './StatBar'
 import { RaceCanvas } from './RaceCanvas'
-import { RaceStartSequence } from './RaceStartSequence'
 import { useRaceData } from './useRaceData'
 import { useReducedMotion } from './reducedMotion'
 import { opponentLookup } from './opponentLookup'
 import styles from './RaceLiveView.module.css'
 
+/**
+ * Renders the in-race canvas + stat bar. As of 0014-04 this component
+ * no longer fires the start ceremony on mount — that responsibility
+ * moved to the `raceLifecycle` reducer driven by `BereitScreen`. The
+ * caller (e.g. `RaceFlow`) must only mount this view once the reducer
+ * has transitioned to Ceremony(GO!) or Live.
+ */
 type Props = { liveState: LiveState; totalMeters: number }
 
 export function RaceLiveView({ liveState, totalMeters }: Props) {
@@ -61,7 +67,6 @@ export function RaceLiveView({ liveState, totalMeters }: Props) {
         viewportHeight={canvasH}
         reducedMotion={reducedMotion}
       /></div>
-      <RaceStartSequence enabled={!reducedMotion} />
     </div>
   )
 }

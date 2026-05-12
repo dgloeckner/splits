@@ -1,0 +1,42 @@
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-6, 24px);
+  background: #050505;
+  color: #ffffff;
+  padding: var(--space-4, 16px);
+  text-align: center;
+}
+
+.summary {
+  font-size: clamp(16px, 4vw, 22px);
+  color: #cccccc;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.button {
+  appearance: none;
+  border: none;
+  outline-offset: 4px;
+  background: #14b8a6;
+  color: #04211d;
+  font-size: clamp(40px, 10vw, 72px);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: clamp(24px, 6vw, 40px) clamp(48px, 14vw, 120px);
+  border-radius: 999px;
+  min-width: 60vw;
+  min-height: 20vh;
+  cursor: pointer;
+  box-shadow: 0 12px 32px rgba(20, 184, 166, 0.35);
+}
+
+.button:active {
+  transform: translateY(1px);
+}

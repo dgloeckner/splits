@@ -50,6 +50,29 @@ describe('RaceStartSequence', () => {
     expect(onComplete).toHaveBeenCalledTimes(1)
   })
 
+  it('reduced-motion still renders ATTENTION → SET → GO! text (no dot-pulse)', () => {
+    const { getByText, container, rerender } = render(
+      <RaceStartSequence enabled reducedMotion />,
+    )
+    act(() => {
+      vi.advanceTimersByTime(0)
+    })
+    expect(getByText('ATTENTION')).toBeTruthy()
+    // No dots rendered under reduced motion.
+    expect(container.querySelector('[data-color="red"]')).toBeNull()
+    expect(container.querySelector('[data-reduced-motion="true"]')).not.toBeNull()
+    act(() => {
+      vi.advanceTimersByTime(1500)
+    })
+    expect(getByText('SET')).toBeTruthy()
+    act(() => {
+      vi.advanceTimersByTime(1500)
+    })
+    expect(getByText('GO!')).toBeTruthy()
+    // Cleanup
+    rerender(<RaceStartSequence enabled={false} reducedMotion />)
+  })
+
   it('clears timers on unmount', () => {
     const onComplete = vi.fn()
     const { unmount } = render(<RaceStartSequence enabled onComplete={onComplete} />)
