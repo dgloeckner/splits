@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -41,6 +42,10 @@ func (r *Repo) CreateWorkout(ctx context.Context, in CreateWorkoutInput) (*Worko
 	}
 	if in.WarmupSec < 0 || in.CooldownSec < 0 {
 		return nil, ErrInvalidParams
+	}
+	// ADR-0009: race mode excludes warmup and cooldown.
+	if in.Mode == ModeRace && (in.WarmupSec > 0 || in.CooldownSec > 0) {
+		return nil, fmt.Errorf("%w: race mode requires warmup_sec=0 and cooldown_sec=0 (ADR-0009)", ErrInvalidParams)
 	}
 	id := uuid.NewString()
 	now := time.Now().UTC()
