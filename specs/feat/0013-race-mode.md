@@ -54,6 +54,10 @@ runs against both `pb_workout` and `pb_distance`).
       `distance` workout of the same meters/warmup/cooldown — i.e. a
       race and a distance row of the same shape **share** the same
       `pb_workout` row.
+  > **Override (FEAT-0014 / PRD-0014, ADR-0009)**: race workouts cannot
+  > carry warmup or cooldown, so the race-distance copy simplifies to
+  > just "meters". Do not reintroduce warmup/cooldown into race
+  > shape descriptions.
 - [x] Completing a `race` workout sets/refreshes BOTH `pb_workout`
       (race shape) AND `pb_distance` (the meters achieved). FEAT-0010
       recompute is unchanged; the race mode does not bypass it.
@@ -131,6 +135,10 @@ runs against both `pb_workout` and `pb_distance`).
       `ATTENTION` (0ms) → `SET` (1500ms) → `GO!` (3000ms, teal,
       ~2× size); auto-dismisses at 4500ms. Reduced-motion skips
       the sequence entirely.
+  > **Override (FEAT-0014 / PRD-0014)**: reduced-motion no longer skips
+  > the sequence. The ATTENTION → SET → GO! text transitions still
+  > render (without the dot-pulse animation); the cue is never an
+  > empty render. See PRD-0014 user stories 5–6.
 
 ### Pause & abort
 
