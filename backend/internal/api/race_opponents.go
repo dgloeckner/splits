@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/gloeckner-daniel/splits/internal/opponentsamples"
 	"github.com/gloeckner-daniel/splits/internal/race"
 	"github.com/gloeckner-daniel/splits/internal/workout"
 )
@@ -110,7 +111,7 @@ func loadOpponentWorkout(ctx context.Context, db *sql.DB, workoutID string) (mod
 }
 
 const opponentGhostQuery = `
-SELECT s.id, s.summary_json
+SELECT s.id, s.summary_json, w.warmup_sec
 FROM sessions s
 JOIN workout w ON w.id = s.workout_id
 WHERE s.rower_id = ?
@@ -125,7 +126,8 @@ func loadOpponentGhost(ctx context.Context, db *sql.DB, rowerID, shape string) (
 		return nil, nil
 	}
 	var sid, summary string
-	err := db.QueryRowContext(ctx, opponentGhostQuery, rowerID, shape).Scan(&sid, &summary)
+	var warmupSec int
+	err := db.QueryRowContext(ctx, opponentGhostQuery, rowerID, shape).Scan(&sid, &summary, &warmupSec)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -137,16 +139,21 @@ func loadOpponentGhost(ctx context.Context, db *sql.DB, rowerID, shape string) (
 		return nil, nil
 	}
 	tSec = rebaseToZero(tSec)
+	distM := integrateDistance(tSec, split)
+	// Issue 0014-02: drop leading warmup-covering samples and rebase to
+	// the source session's work-segment start.
+	tSec, distM = opponentsamples.Trim(tSec, distM, float64(warmupSec))
 	return &WorkoutOpponent{
 		Kind: "session", SourceSessionID: sid, Label: "ghost",
-		TSec: tSec, DistanceM: integrateDistance(tSec, split),
+		TSec: tSec, DistanceM: distM,
 	}, nil
 }
 
 const opponentPBWorkoutQuery = `
-SELECT s.id, s.summary_json, pw.value
+SELECT s.id, s.summary_json, pw.value, w.warmup_sec
 FROM pb_workout pw
 JOIN sessions s ON s.id = pw.source_session_id
+JOIN workout w  ON w.id = s.workout_id
 WHERE pw.rower_id = ?
   AND pw.shape_hash = ?
   AND pw.value_kind = 'time_sec'
@@ -155,9 +162,10 @@ WHERE pw.rower_id = ?
 LIMIT 1`
 
 const opponentPBDistanceQuery = `
-SELECT s.id, s.summary_json, pd.time_sec
+SELECT s.id, s.summary_json, pd.time_sec, w.warmup_sec
 FROM pb_distance pd
 JOIN sessions s ON s.id = pd.source_session_id
+JOIN workout w  ON w.id = s.workout_id
 WHERE pd.rower_id = ?
   AND pd.distance_m = ?
   AND pd.invalidated_at IS NULL
@@ -170,27 +178,30 @@ func loadOpponentPB(ctx context.Context, db *sql.DB, rowerID, shape, paramsJSON 
 		return nil, fmt.Errorf("decode race params: %w", err)
 	}
 	var bestID, bestSummary string
+	bestWarmup := 0
 	bestTime := -1.0
 	if shape != "" {
 		var sid, summary string
 		var t float64
-		err := db.QueryRowContext(ctx, opponentPBWorkoutQuery, rowerID, shape).Scan(&sid, &summary, &t)
+		var warmupSec int
+		err := db.QueryRowContext(ctx, opponentPBWorkoutQuery, rowerID, shape).Scan(&sid, &summary, &t, &warmupSec)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, err
 		}
 		if err == nil {
-			bestID, bestSummary, bestTime = sid, summary, t
+			bestID, bestSummary, bestTime, bestWarmup = sid, summary, t, warmupSec
 		}
 	}
 	if workout.IsStandardRaceDistance(rp.Meters) {
 		var sid, summary string
 		var t float64
-		err := db.QueryRowContext(ctx, opponentPBDistanceQuery, rowerID, rp.Meters).Scan(&sid, &summary, &t)
+		var warmupSec int
+		err := db.QueryRowContext(ctx, opponentPBDistanceQuery, rowerID, rp.Meters).Scan(&sid, &summary, &t, &warmupSec)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
 			return nil, err
 		}
 		if err == nil && (bestTime < 0 || t < bestTime) {
-			bestID, bestSummary = sid, summary
+			bestID, bestSummary, bestWarmup = sid, summary, warmupSec
 		}
 	}
 	if bestID == "" {
@@ -201,9 +212,13 @@ func loadOpponentPB(ctx context.Context, db *sql.DB, rowerID, shape, paramsJSON 
 		return nil, nil
 	}
 	tSec = rebaseToZero(tSec)
+	distM := integrateDistance(tSec, split)
+	// Issue 0014-02: trim leading warmup-covering samples for the PB
+	// source session and rebase to its work-segment start.
+	tSec, distM = opponentsamples.Trim(tSec, distM, float64(bestWarmup))
 	return &WorkoutOpponent{
 		Kind: "session", SourceSessionID: bestID, Label: "pb",
-		TSec: tSec, DistanceM: integrateDistance(tSec, split),
+		TSec: tSec, DistanceM: distM,
 	}, nil
 }
 
