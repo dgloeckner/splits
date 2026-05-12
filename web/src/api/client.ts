@@ -86,6 +86,10 @@ export type StaleOpenSession = {
   last_stroke_at: string
   total_distance_m: number
   workout_id?: string
+  // mode is the workout mode of the attached workout (if any).
+  // Used by the recovery card to hide "rejoin live" for race rows
+  // per ADR-0012 (race-mode non-resumable).
+  mode?: string
 }
 
 export async function listStaleOpenSessions(rowerID: string): Promise<StaleOpenSession[]> {

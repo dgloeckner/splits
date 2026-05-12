@@ -33,6 +33,15 @@ const sampleStale = {
   workout_id: '',
 }
 
+const sampleRaceStale = {
+  id: 'S-race',
+  started_at: '2026-05-10T10:00:00Z',
+  last_stroke_at: '2026-05-10T10:20:00Z',
+  total_distance_m: 1800,
+  workout_id: 'W-race',
+  mode: 'race',
+}
+
 describe('StaleSessionCard', () => {
   it('renders nothing when no stale sessions', async () => {
     global.fetch = vi.fn(async () =>
@@ -116,5 +125,36 @@ describe('StaleSessionCard', () => {
   it('renders nothing without a rowerID', () => {
     const { container } = renderCard(undefined)
     expect(container.firstChild).toBeNull()
+  })
+
+  // ADR-0012 / PRD-0014 issue 08: race rows are non-resumable.
+  it('hides "Weiter rudern" for race-mode rows (ADR-0012)', async () => {
+    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+      if (String(url).includes('/api/v1/sessions/stale-open')) {
+        return new Response(JSON.stringify({ sessions: [sampleRaceStale] }), { status: 200 })
+      }
+      return new Response('', { status: 404 })
+    }) as typeof fetch
+    renderCard('R1')
+    expect(await screen.findByRole('button', { name: /Beenden mit gerudertem Stand/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Verwerfen/i })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Weiter rudern/i })).not.toBeInTheDocument()
+    expect(screen.queryByTestId('stale-resume')).not.toBeInTheDocument()
+  })
+
+  it('renders all three actions for non-race rows (regression guard)', async () => {
+    global.fetch = vi.fn(async (url: RequestInfo | URL) => {
+      if (String(url).includes('/api/v1/sessions/stale-open')) {
+        return new Response(
+          JSON.stringify({ sessions: [{ ...sampleStale, mode: 'distance' }] }),
+          { status: 200 },
+        )
+      }
+      return new Response('', { status: 404 })
+    }) as typeof fetch
+    renderCard('R1')
+    expect(await screen.findByRole('button', { name: /Beenden mit gerudertem Stand/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Verwerfen/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Weiter rudern/i })).toBeInTheDocument()
   })
 })
