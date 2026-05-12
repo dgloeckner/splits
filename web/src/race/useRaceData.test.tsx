@@ -11,7 +11,7 @@ beforeEach(() => {
 describe('useRaceData', () => {
   it('returns null opponents until fetch resolves', async () => {
     vi.spyOn(api, 'fetchRaceOpponents').mockResolvedValueOnce({
-      ghost: { kind: 'session', sourceSessionId: 'S1', label: 'ghost', tSec: [0, 5], split: [120, 120] },
+      ghost: { kind: 'session', sourceSessionId: 'S1', label: 'ghost', tSec: [0, 5], distM: [0, 20] },
       pb: null,
     })
     const { result } = renderHook(() => useRaceData({ workoutId: 'W1', rowerId: 'R1' }))
@@ -22,8 +22,8 @@ describe('useRaceData', () => {
   it('respects sessionStorage opponent selection (deselected pb hidden)', async () => {
     sessionStorage.setItem('race-opp-selection', JSON.stringify({ ghost: true, pb: false }))
     vi.spyOn(api, 'fetchRaceOpponents').mockResolvedValueOnce({
-      ghost: { kind: 'session', sourceSessionId: 'S1', label: 'ghost', tSec: [0], split: [120] },
-      pb: { kind: 'session', sourceSessionId: 'S2', label: 'pb', tSec: [0], split: [110] },
+      ghost: { kind: 'session', sourceSessionId: 'S1', label: 'ghost', tSec: [0], distM: [0] },
+      pb: { kind: 'session', sourceSessionId: 'S2', label: 'pb', tSec: [0], distM: [0] },
     })
     const { result } = renderHook(() => useRaceData({ workoutId: 'W1', rowerId: 'R1' }))
     await waitFor(() => expect(result.current.ghost).not.toBeNull())

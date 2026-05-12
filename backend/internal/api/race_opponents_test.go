@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -59,6 +60,64 @@ func TestWorkoutOpponents_RealGhostFromMatchingSession(t *testing.T) {
 	if got.Ghost == nil || got.Ghost.Kind != "session" || got.Ghost.SourceSessionID != "S_OLD" {
 		t.Fatalf("ghost=%+v", got.Ghost)
 	}
+	// New transport: t_sec[] and distance_m[] parallel, monotone, t_sec[0]==0.
+	if len(got.Ghost.TSec) == 0 || len(got.Ghost.DistanceM) != len(got.Ghost.TSec) {
+		t.Fatalf("expected parallel t_sec/distance_m arrays, got tSec=%d distM=%d",
+			len(got.Ghost.TSec), len(got.Ghost.DistanceM))
+	}
+	if got.Ghost.TSec[0] != 0 {
+		t.Fatalf("t_sec[0]=%v, want 0", got.Ghost.TSec[0])
+	}
+	for i := 1; i < len(got.Ghost.TSec); i++ {
+		if got.Ghost.TSec[i] < got.Ghost.TSec[i-1] {
+			t.Fatalf("t_sec not monotone at %d: %v", i, got.Ghost.TSec)
+		}
+		if got.Ghost.DistanceM[i] < got.Ghost.DistanceM[i-1] {
+			t.Fatalf("distance_m not monotone at %d: %v", i, got.Ghost.DistanceM)
+		}
+	}
+	// Raw body must contain `distance_m` and must NOT contain the old `split` field.
+	body := rec.Body.String()
+	if !strings.Contains(body, `"distance_m"`) {
+		t.Fatalf("body missing distance_m: %s", body)
+	}
+	if strings.Contains(body, `"split"`) {
+		t.Fatalf("body still contains legacy split field: %s", body)
+	}
+}
+
+func TestWorkoutOpponents_NeitherGhostNorPB(t *testing.T) {
+	db, rowerID, workoutID, _ := raceOpponentsSeed(t)
+	// Clear shape so no synth ghost is generated either.
+	if _, err := db.Handle().Exec(`UPDATE workout SET shape_hash='' WHERE id=?`, workoutID); err != nil {
+		t.Fatal(err)
+	}
+	// Synth ghost is still produced because shape_hash only gates session ghost
+	// lookup, not synth generation. Re-seed with no prior session and no pb to
+	// confirm the response decodes cleanly with the new shape.
+	h := api.WorkoutOpponentsHandler(db.Handle())
+	req := httptest.NewRequest("GET",
+		fmt.Sprintf("/api/v1/workouts/%s/opponents?rower_id=%s", workoutID, rowerID), nil)
+	req.SetPathValue("id", workoutID)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var got api.WorkoutOpponentsResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	// Synth ghost is generated; PB nil.
+	if got.PB != nil {
+		t.Fatalf("expected pb=nil, got %+v", got.PB)
+	}
+	if got.Ghost != nil {
+		// If a ghost is present it must use the new shape.
+		if len(got.Ghost.DistanceM) != len(got.Ghost.TSec) {
+			t.Fatalf("ghost parallel arrays mismatch")
+		}
+	}
 }
 
 func TestWorkoutOpponents_PBFromWorkoutShape(t *testing.T) {
@@ -83,6 +142,12 @@ func TestWorkoutOpponents_PBFromWorkoutShape(t *testing.T) {
 	_ = json.Unmarshal(rec.Body.Bytes(), &got)
 	if got.PB == nil || got.PB.SourceSessionID != "S_PB" {
 		t.Fatalf("pb=%+v", got.PB)
+	}
+	if len(got.PB.DistanceM) == 0 || len(got.PB.DistanceM) != len(got.PB.TSec) {
+		t.Fatalf("pb arrays not parallel: tSec=%d distM=%d", len(got.PB.TSec), len(got.PB.DistanceM))
+	}
+	if got.PB.TSec[0] != 0 {
+		t.Fatalf("pb t_sec[0]=%v, want 0", got.PB.TSec[0])
 	}
 }
 
@@ -142,9 +207,9 @@ func TestWorkoutOpponents_SynthGhostWhenNoPriorSession(t *testing.T) {
 	}
 	var got struct {
 		Ghost *struct {
-			Kind  string    `json:"kind"`
-			TSec  []float64 `json:"t_sec"`
-			Split []float64 `json:"split"`
+			Kind      string    `json:"kind"`
+			TSec      []float64 `json:"t_sec"`
+			DistanceM []float64 `json:"distance_m"`
 		} `json:"ghost"`
 		PB *json.RawMessage `json:"pb"`
 	}
@@ -160,7 +225,19 @@ func TestWorkoutOpponents_SynthGhostWhenNoPriorSession(t *testing.T) {
 	if len(got.Ghost.TSec) < 5 {
 		t.Fatalf("samples too short: %d", len(got.Ghost.TSec))
 	}
+	if len(got.Ghost.DistanceM) != len(got.Ghost.TSec) {
+		t.Fatalf("synth ghost not parallel: tSec=%d distM=%d",
+			len(got.Ghost.TSec), len(got.Ghost.DistanceM))
+	}
+	if got.Ghost.TSec[0] != 0 || got.Ghost.DistanceM[0] != 0 {
+		t.Fatalf("synth ghost not rebased at 0: t[0]=%v d[0]=%v",
+			got.Ghost.TSec[0], got.Ghost.DistanceM[0])
+	}
 	if got.PB != nil && string(*got.PB) != "null" {
 		t.Fatalf("pb should be null, got %s", string(*got.PB))
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, `"split"`) {
+		t.Fatalf("body still contains legacy split field: %s", body)
 	}
 }

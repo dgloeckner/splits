@@ -124,7 +124,7 @@ describe('ConfirmScreen', () => {
       '/api/v1/workouts': () => ({ body: JSON.stringify({ id: 'W1', mode: 'race', params: { meters: 2000 }, warmup_sec: 0, cooldown_sec: 0, created_at: '2026-04-23T00:00:00Z' }), status: 201 }),
       '/api/v1/workouts/W1/opponents': () => ({
         body: JSON.stringify({
-          ghost: { kind: 'session', source_session_id: 'S1', label: 'ghost', t_sec: [0, 60], split: [120, 121] },
+          ghost: { kind: 'session', source_session_id: 'S1', label: 'ghost', t_sec: [0, 60], distance_m: [0, 250] },
           pb: null,
         }),
         status: 200,
@@ -151,7 +151,7 @@ describe('ConfirmScreen', () => {
       '/api/v1/workouts': () => ({ body: JSON.stringify({ id: 'W1', mode: 'race', params: { meters: 2000 }, warmup_sec: 0, cooldown_sec: 0, created_at: '2026-04-23T00:00:00Z' }), status: 201 }),
       '/api/v1/workouts/W1/opponents': () => ({
         body: JSON.stringify({
-          ghost: { kind: 'session', source_session_id: 'S1', label: 'ghost', t_sec: [0, 60], split: [120, 121] },
+          ghost: { kind: 'session', source_session_id: 'S1', label: 'ghost', t_sec: [0, 60], distance_m: [0, 250] },
           pb: null,
         }),
         status: 200,

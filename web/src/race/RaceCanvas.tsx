@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import type { CSSProperties } from 'react'
 import type { RaceOpponent } from '../api/raceOpponents'
-import { reconstructDistance, distanceAt, type DistanceSeries } from './distance'
+import { distanceAt, type DistanceSeries } from './distance'
 import { BoatSprite } from './BoatSprite'
 import styles from './RaceCanvas.module.css'
 
@@ -97,8 +97,7 @@ function Lane({ kind, opp, color, height, centerX, paneWidth, elapsedSec, userDi
 }) {
   const series: DistanceSeries | null = useMemo(() => {
     if (!opp) return null
-    const distM = reconstructDistance({ tSec: opp.tSec, split: opp.split })
-    return { tSec: opp.tSec, distM }
+    return { tSec: opp.tSec, distM: opp.distM }
   }, [opp])
 
   const oppDistanceM = series == null

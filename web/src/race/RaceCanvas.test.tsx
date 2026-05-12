@@ -3,8 +3,8 @@ import { describe, it, expect } from 'vitest'
 import { RaceCanvas } from './RaceCanvas'
 
 const ghost = { kind: 'session' as const, sourceSessionId: 'g', label: 'ghost' as const,
-  tSec: [0, 60, 120, 180, 240], split: [120, 120, 120, 120, 120] }
-const pb = { ...ghost, sourceSessionId: 'p', label: 'pb' as const, split: [110, 110, 110, 110, 110] }
+  tSec: [0, 60, 120, 180, 240], distM: [0, 250, 500, 750, 1000] }
+const pb = { ...ghost, sourceSessionId: 'p', label: 'pb' as const, distM: [0, 273, 545, 818, 1091] }
 
 describe('RaceCanvas', () => {
   it('3 lanes with both opponents', () => {

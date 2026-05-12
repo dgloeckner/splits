@@ -31,11 +31,25 @@ function fmtGap(n: number): string {
   return `${sign}${n.toFixed(1)} s`
 }
 
+function splitFromDistance(tSec: number[], distM: number[]): number[] {
+  // Derive per-sample split (s / 500m) from cumulative distance. The
+  // first sample carries no prior step; copy the following step's split.
+  const n = tSec.length
+  const out = new Array<number>(n).fill(0)
+  for (let i = 1; i < n; i++) {
+    const dt = tSec[i] - tSec[i - 1]
+    const dm = distM[i] - distM[i - 1]
+    out[i] = dt > 0 && dm > 0 ? 500 * dt / dm : 0
+  }
+  if (n > 1) out[0] = out[1]
+  return out
+}
+
 export function RacePostScreen(p: Props) {
   const series = [
     { color: '#14B8A6', label: 'Du', tSec: p.userTSec, split: p.userSplit },
-    ...(p.pb ? [{ color: '#F59E0B', label: 'PB', tSec: p.pb.tSec, split: p.pb.split }] : []),
-    ...(p.ghost ? [{ color: '#94A3B8', label: 'Ghost', tSec: p.ghost.tSec, split: p.ghost.split }] : []),
+    ...(p.pb ? [{ color: '#F59E0B', label: 'PB', tSec: p.pb.tSec, split: splitFromDistance(p.pb.tSec, p.pb.distM) }] : []),
+    ...(p.ghost ? [{ color: '#94A3B8', label: 'Ghost', tSec: p.ghost.tSec, split: splitFromDistance(p.ghost.tSec, p.ghost.distM) }] : []),
   ]
   return (
     <div className={styles.screen}>

@@ -5,7 +5,7 @@ describe('fetchRaceOpponents', () => {
   it('parses synth ghost without source_session_id', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response(JSON.stringify({
-        ghost: { kind: 'synth', label: 'ghost', t_sec: [0, 5], split: [120, 120] },
+        ghost: { kind: 'synth', label: 'ghost', t_sec: [0, 5], distance_m: [0, 20] },
         pb: null,
       }), { status: 200, headers: { 'Content-Type': 'application/json' } }),
     )
@@ -18,8 +18,8 @@ describe('fetchRaceOpponents', () => {
   it('parses session-kind opponents with source ids', async () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response(JSON.stringify({
-        ghost: { kind: 'session', source_session_id: 'S1', label: 'ghost', t_sec: [0], split: [120] },
-        pb:    { kind: 'session', source_session_id: 'S2', label: 'pb',    t_sec: [0], split: [110] },
+        ghost: { kind: 'session', source_session_id: 'S1', label: 'ghost', t_sec: [0], distance_m: [0] },
+        pb:    { kind: 'session', source_session_id: 'S2', label: 'pb',    t_sec: [0], distance_m: [0] },
       }), { status: 200 }),
     )
     const got = await fetchRaceOpponents({ workoutId: 'W1', rowerId: 'R1' })
