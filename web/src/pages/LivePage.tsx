@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { getWorkout } from '../api/workouts'
+import { createWorkout, getWorkout, type CreateWorkoutInput, type WorkoutMode } from '../api/workouts'
+import { startSession } from '../api/client'
 import { fetchRaceOpponents } from '../api/raceOpponents'
 import { workoutChipLabel } from '../util/workoutLabel'
 import { useLiveSession } from '../live/LiveSessionContext'
@@ -269,9 +270,34 @@ export function LivePage() {
           pb={raceOpponentsQ.data?.pb ?? null}
           vsGhostSec={latched.summary.race.vs_ghost_sec ?? null}
           vsPbSec={latched.summary.race.vs_pb_sec ?? null}
-          onRetry={() => {
-            dismiss()
-            nav('/workout/new/race')
+          onRetry={async () => {
+            // 0014-07: re-enter the race flow with the prior distance,
+            // intensity, and opponent selection pre-filled — landing
+            // on BereitScreen, not the full wizard. The
+            // `race-opp-selection` entry in sessionStorage is left
+            // intact so the next BereitScreen reflects the same
+            // opponents; the new race session opens a fresh
+            // lifecycle (Confirmed → Bereit) once the SSE
+            // `session_start` lands.
+            const prior = workoutQ.data
+            const meters =
+              (prior?.params as { meters?: number } | undefined)?.meters ??
+              latched.summary.total_distance_m
+            const intensity = prior?.intensity
+            const input: CreateWorkoutInput = {
+              mode: 'race' as WorkoutMode,
+              params: { meters },
+              intensity,
+              warmup_sec: 0,
+              cooldown_sec: 0,
+            }
+            try {
+              const created = await createWorkout(input)
+              await startSession(created.id)
+              dismiss()
+            } catch (e) {
+              console.error('Erneut rennen failed', e)
+            }
           }}
           onShowDetail={() => {
             const id = latched.sessionId

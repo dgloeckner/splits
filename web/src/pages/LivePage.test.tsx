@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, act } from '@testing-library/react'
+import { render, screen, act, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -8,6 +8,23 @@ import { initialLiveState, type LiveState } from '../live/reducer'
 import type { SessionEndSummary } from '../live/events'
 import type { BannerState } from './live/usePBBanners'
 import { LivePage } from './LivePage'
+
+const mockCreateWorkout = vi.hoisted(() => vi.fn())
+const mockStartSession = vi.hoisted(() => vi.fn())
+const mockGetWorkout = vi.hoisted(() => vi.fn())
+vi.mock('../api/workouts', async (orig) => {
+  const real = (await orig()) as Record<string, unknown>
+  return { ...real, createWorkout: mockCreateWorkout, getWorkout: mockGetWorkout }
+})
+vi.mock('../api/client', async (orig) => {
+  const real = (await orig()) as Record<string, unknown>
+  return { ...real, startSession: mockStartSession }
+})
+
+const mockActiveRower = vi.hoisted(() => ({ current: { data: { id: 'R1' } } }))
+vi.mock('../hooks/useActiveRower', () => ({
+  useActiveRower: () => mockActiveRower.current,
+}))
 
 class ResizeObserverStub {
   observe() {}
@@ -49,6 +66,10 @@ beforeEach(() => {
   mockBannerState.current = { kind: 'idle' }
   mockWorkoutProgress.current = null
   mockRaceData.current = { ghost: null, pb: null }
+  mockActiveRower.current = { data: { id: 'R1' } }
+  mockCreateWorkout.mockReset()
+  mockStartSession.mockReset()
+  mockGetWorkout.mockReset()
 })
 
 function wrapRender(state: LiveState) {
@@ -396,5 +417,111 @@ describe('LivePage phase-aware countdown (FEAT-0015 Slice 1)', () => {
     // The progress strip remains in any phase; the countdown is the
     // signal that dashboard tiles were swapped out.
     expect(screen.queryByTestId('phase-countdown-time')).toBeNull()
+  })
+})
+
+describe('LivePage Erneut rennen (0014-07)', () => {
+  it('re-enters race flow with prior distance + opponents pre-filled (no full wizard)', async () => {
+    // Prior selection lives in sessionStorage; the retry must NOT clear
+    // it so the next race shows the same opponents on BereitScreen.
+    sessionStorage.setItem(
+      'race-opp-selection',
+      JSON.stringify({ ghost: true, pb: false }),
+    )
+    mockGetWorkout.mockResolvedValue({
+      id: 'W-RACE',
+      mode: 'race',
+      params: { meters: 1000 },
+      intensity: 'allout',
+      warmup_sec: 0,
+      cooldown_sec: 0,
+      created_at: '2026-04-27T12:00:00Z',
+    })
+    mockCreateWorkout.mockResolvedValue({
+      id: 'W-RACE-2',
+      mode: 'race',
+      params: { meters: 1000 },
+      intensity: 'allout',
+      warmup_sec: 0,
+      cooldown_sec: 0,
+      created_at: '2026-04-27T12:10:00Z',
+    })
+    mockStartSession.mockResolvedValue(undefined)
+
+    const summary: SessionEndSummary = {
+      total_distance_m: 1000, total_time_sec: 240, total_strokes: 100,
+      avg_power_w: 200, peak_power_w: 280, avg_spm: 28, avg_dps: 9,
+      avg_pace_sec_per_500m: 120, session_calories: 80,
+      samples: { t_sec: [0, 60, 120, 180, 240], split: [120, 118, 116, 114, 112] } as never,
+      race: { vs_pb_sec: null, vs_ghost_sec: -2.5, ghost_kind: 'session' },
+    }
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const { rerender } = render(
+      <QueryClientProvider client={qc}>
+        <LiveSessionContext.Provider value={{ ...initialLiveState, summary: null }}>
+          <MemoryRouter initialEntries={['/live']}>
+            <Routes>
+              <Route path="/live" element={<LivePage />} />
+              <Route path="/workout/new/race" element={<div>FULL_WIZARD</div>} />
+              <Route path="/" element={<div>HOME</div>} />
+            </Routes>
+          </MemoryRouter>
+        </LiveSessionContext.Provider>
+      </QueryClientProvider>,
+    )
+    act(() => {
+      rerender(
+        <QueryClientProvider client={qc}>
+          <LiveSessionContext.Provider
+            value={{
+              ...initialLiveState,
+              summary,
+              session: {
+                session_id: 'S1',
+                started_at: '2026-04-27T12:00:00Z',
+                rower_id: 'R1',
+                rower_name: 'Daniel',
+                initial_level: 5,
+                workout_id: 'W-RACE',
+              },
+            }}
+          >
+            <MemoryRouter initialEntries={['/live']}>
+              <Routes>
+                <Route path="/live" element={<LivePage />} />
+                <Route path="/workout/new/race" element={<div>FULL_WIZARD</div>} />
+                <Route path="/" element={<div>HOME</div>} />
+              </Routes>
+            </MemoryRouter>
+          </LiveSessionContext.Provider>
+        </QueryClientProvider>,
+      )
+    })
+
+    // RacePostScreen visible with Erneut rennen CTA.
+    const retryBtn = await screen.findByText(/Erneut rennen/)
+    await userEvent.click(retryBtn)
+
+    // Must NOT route to the full wizard.
+    await waitFor(() => {
+      expect(mockCreateWorkout).toHaveBeenCalledTimes(1)
+    })
+    expect(screen.queryByText('FULL_WIZARD')).toBeNull()
+
+    // createWorkout called with prior distance + intensity, race mode.
+    const callArg = mockCreateWorkout.mock.calls[0][0]
+    expect(callArg.mode).toBe('race')
+    expect(callArg.params).toEqual({ meters: 1000 })
+    expect(callArg.intensity).toBe('allout')
+
+    // startSession invoked with the new workout id.
+    await waitFor(() => {
+      expect(mockStartSession).toHaveBeenCalledWith('W-RACE-2')
+    })
+
+    // Opponent selection preserved so BereitScreen renders the same opponents.
+    expect(sessionStorage.getItem('race-opp-selection')).toBe(
+      JSON.stringify({ ghost: true, pb: false }),
+    )
   })
 })
