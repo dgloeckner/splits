@@ -174,6 +174,11 @@ auto-popped during Warmup/Cooldown.
   is null).
 - In race mode, abort is reached via a small **Abbrechen** pill in
   the top-right of the race surface. It is visible across Bereit,
-  Ceremony, Live, and Finished (rendered above the ceremony overlay).
+  Ceremony, and Live (rendered above the ceremony overlay).
   Tapping it opens a confirmation sheet — the abort itself only
   fires on confirm.
+- **Abort is unavailable once the finish horn has fired; the result
+  is locked at that instant** (see §Finish horn). The Abbrechen pill
+  is therefore absent on Finished and Post — there is no in-progress
+  race to wave off, only a latched result. Paddle-down ends via the
+  normal idle-timeout `session_end` path.

@@ -20,7 +20,9 @@ import { seedPriorRaceSession } from '../helpers/seedPriorRaceSession'
  *   A. Abort from Bereit
  *   B. Abort from Ceremony (ATTENTION)
  *   C. Abort from Live (post-GO!, mid-stroke)
- *   D. Abort from Finished (after finish-cross, before Post)
+ *   D. Finished: Abbrechen pill is NOT in the DOM (PRD-0017 / 0017-02
+ *      Option A — finish horn latches the result; abort is unavailable
+ *      after the horn fires).
  *
  * Cross-cutting: one of the scenarios also exercises the cancel path
  * (tap pill → cancel → sheet closes, race surface intact).
@@ -39,19 +41,15 @@ import { seedPriorRaceSession } from '../helpers/seedPriorRaceSession'
  * unmount, `summary.race == null` over the sessions API) rather than
  * boat visibility pre-GO!.
  *
- * Scenario D behaviour (documented, NOT a regression):
- * -----------------------------------------------------
- * Tapping Abbrechen on Finished does NOT clear the latched race
- * result. Per raceLifecycle.ts the reducer's `abort` event is a
- * no-op on Finished ("result already latched") and per RaceFlow.tsx
- * the `onAbort` hook is still called — but by then the backend has
- * already persisted `summary.race != null` because the rower crossed
- * the goal distance (race_result.go line 91-94: only `userDistanceM
- * < rp.Meters` returns nil). The spec therefore asserts the OPPOSITE
- * post-condition for scenario D: at least one ended session exists
- * with `summary.race != null`. This matches the issue's AC note that
- * post-finish-abort legitimately keeps the latched result — the
- * finish horn latches the result.
+ * Scenario D contract (PRD-0017 / 0017-02 Option A):
+ * --------------------------------------------------
+ * The Abbrechen pill is hidden once the FinishOverlay appears: the
+ * finish horn latches the race result and abort is unavailable
+ * thereafter (CONTEXT.md §Pause/Abort). The spec asserts the pill is
+ * NOT in the DOM while the FinishOverlay is visible — there is no
+ * gesture to confirm and no backend post-condition to poll. The
+ * normal session-end path (idle timeout → `session_end`) is
+ * out-of-scope for this spec.
  */
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -68,9 +66,9 @@ const SCREENSHOT_ROOT = resolve(
 const AC_LIST = [
   'AC1: Spec lives at web/tests/e2e/race/abort.spec.ts.',
   'AC2: All four sub-scenarios use the dynamic-port infra from 0016-01.',
-  'AC3: Each sub-scenario: tap Abbrechen → confirm → race surface unmounts.',
+  'AC3: Bereit/Ceremony/Live sub-scenarios: tap Abbrechen → confirm → race surface unmounts.',
   'AC4: After confirm on Bereit, Ceremony, and Live aborts: summary.race == null (polled via sessions API).',
-  'AC5: Finished-phase abort behaviour documented: latched result persists (summary.race != null) because finish horn latched the result before abort fired (reducer treats Finished as terminal for abort).',
+  'AC5: Finished sub-scenario asserts the Abbrechen pill is NOT in the DOM while the FinishOverlay is visible (PRD-0017 / 0017-02 Option A — finish horn latches the result).',
   'AC6: Cancel path: tap Abbrechen → cancel → race surface intact, confirm sheet closed.',
   'AC7: Spec invokes e2e-critic with screenshots + AC list.',
   'AC8: Critic returns no severity: blocker findings against current code.',
@@ -275,8 +273,8 @@ test.describe('race-flow canonical abort-from-each-phase (0016-07)', () => {
     annotateWallClock('live', startedAt)
   })
 
-  // ── Scenario D: Finished (after finish-cross, before Post) ────────
-  test('Abort from Finished (latched result persists)', async ({
+  // ── Scenario D: Finished — pill must be absent ────────────────────
+  test('On Finished the Abbrechen pill is absent (PRD-0017 / 0017-02 Option A)', async ({
     startBackend,
     seedActiveRower,
     raceFlow,
@@ -309,28 +307,17 @@ test.describe('race-flow canonical abort-from-each-phase (0016-07)', () => {
     await raceFlow.waitForFinishOverlay(45_000)
     await page.screenshot({ path: `${dir}/01-finish-overlay.png` })
 
-    // Abort pill must still be visible on Finished (it's only hidden
-    // once the reducer reaches Post).
-    await expect(raceFlow.abortPill()).toBeVisible()
-    await raceFlow.tapAbbrechen()
-    await page.screenshot({ path: `${dir}/02-abort-confirm-sheet.png` })
-    await raceFlow.confirmAbbrechen()
-    await page.screenshot({ path: `${dir}/03-after-confirm.png` })
-
-    // Documented behaviour: the reducer ignores `abort` while on
-    // Finished ("result already latched") and the rower has already
-    // crossed 500 m, so the backend's ComputeRaceResult is non-nil.
-    // Assert summary.race is NON-null for the ended session. If a
-    // future change makes the abort-after-finish path clear the race
-    // result, this assertion will flip — and the AC-strengthening
-    // feedback loop kicks in (see file header).
-    await expectRaceSummaryPersisted(context.request, setup.rower.id)
+    // PRD-0017 / 0017-02 Option A: once the finish horn fires the
+    // result is latched (CONTEXT.md §Finish horn) and abort is
+    // unavailable. The Abbrechen pill must NOT be in the DOM while
+    // the FinishOverlay is visible.
+    await expect(raceFlow.abortPill()).toHaveCount(0)
+    await page.screenshot({ path: `${dir}/02-pill-absent.png` })
 
     invokeCriticAdvisory(
       buildCriticInput('race-abort-finished', dir, [
-        ['01-finish-overlay', 'FinishOverlay shown after 500 m crossed — abort pill still visible top-right.'],
-        ['02-abort-confirm-sheet', 'Confirm sheet open over FinishOverlay.'],
-        ['03-after-confirm', 'After confirming abort on Finished: result was already latched; race summary persists non-null on the backend.'],
+        ['01-finish-overlay', 'FinishOverlay shown after 500 m crossed — abort pill must be absent (Option A).'],
+        ['02-pill-absent', 'Confirmation: no abort-pill in the DOM while FinishOverlay is visible.'],
       ]),
       dir,
     )
@@ -455,50 +442,6 @@ async function expectRaceSummaryNullOnEnded(
   }
   throw new Error(
     `expectRaceSummaryNullOnEnded: no ended session for ${rowerID} within ${timeoutMs}ms; lastBody=${JSON.stringify(lastBody)}`,
-  )
-}
-
-/**
- * Mirror of falschstart.spec.ts's expectRaceSummaryPersisted: assert
- * at least one ended session with `summary.race != null`. Used for
- * scenario D, where the rower crossed the goal before aborting.
- */
-async function expectRaceSummaryPersisted(
-  request: {
-    get(url: string): Promise<{ ok(): boolean; json(): Promise<unknown> }>
-  },
-  rowerID: string,
-  timeoutMs = 15_000,
-): Promise<void> {
-  const deadline = Date.now() + timeoutMs
-  let lastBody: unknown = null
-  while (Date.now() < deadline) {
-    try {
-      const r = await request.get(
-        `/api/v1/sessions?rower_id=${encodeURIComponent(rowerID)}&limit=10`,
-      )
-      if (r.ok()) {
-        const body = (await r.json()) as {
-          sessions?: Array<{
-            id: string
-            ended_at?: string
-            summary?: { race?: unknown } | null
-          }>
-        }
-        lastBody = body
-        const ended = (body.sessions ?? []).filter((s) => !!s.ended_at)
-        const withRace = ended.find(
-          (s) => s.summary != null && (s.summary as { race?: unknown }).race != null,
-        )
-        if (withRace) return
-      }
-    } catch {
-      /* retry */
-    }
-    await new Promise((r) => setTimeout(r, 250))
-  }
-  throw new Error(
-    `expectRaceSummaryPersisted: no ended session with summary.race for ${rowerID} within ${timeoutMs}ms; lastBody=${JSON.stringify(lastBody)}`,
   )
 }
 

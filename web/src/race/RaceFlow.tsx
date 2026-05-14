@@ -133,9 +133,7 @@ export function RaceFlow({ liveState, totalMeters, opponentsLabel, onRetry, onSh
         <RaceStartSequence enabled reducedMotion={reducedMotion} />
       )}
       <FalschstartToast visible={state.falschstart && state.phase === 'Live'} />
-      {(state.phase === 'Ceremony' ||
-        state.phase === 'Live' ||
-        state.phase === 'Finished') && (
+      {(state.phase === 'Ceremony' || state.phase === 'Live') && (
         <AbortControl onConfirmAbort={handleConfirmAbort} />
       )}
     </>

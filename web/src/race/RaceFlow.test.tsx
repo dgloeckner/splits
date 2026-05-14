@@ -206,7 +206,7 @@ describe('RaceFlow integration', () => {
     expect(wrapperZ).toBeGreaterThan(10)
   })
 
-  it('AbortControl pill is rendered on Live and Finished but absent on Post', () => {
+  it('AbortControl pill is rendered on Live but absent on Finished and Post (PRD-0017 / 0017-02 Option A)', () => {
     vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps as any)
     const rafCallbacks: FrameRequestCallback[] = []
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
@@ -236,11 +236,13 @@ describe('RaceFlow integration', () => {
 
     expect(queryByTestId('abort-pill')).not.toBeNull()
 
-    // Finish-cross → Finished
+    // Finish-cross → Finished. Per PRD-0017 / 0017-02 (Option A) the
+    // Abbrechen pill is hidden once the finish horn fires: the result
+    // is latched and abort is unavailable (see CONTEXT.md §Pause/Abort).
     liveState = { ...baseLive, stroke: { time_sec: 470, distance_m: 2000, pace_sec_per_500m: 118, power_w: 280, spm: 32 } }
     rerender(<RaceFlow liveState={liveState} totalMeters={2000} opponentsLabel="" />)
     expect(queryByTestId('finish-overlay')).not.toBeNull()
-    expect(queryByTestId('abort-pill')).not.toBeNull()
+    expect(queryByTestId('abort-pill')).toBeNull()
 
     // Session ends → Post
     liveState = {

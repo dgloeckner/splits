@@ -2,6 +2,19 @@
 
 Status: ready-for-agent
 
+## Decision (2026-05-14)
+
+**Option A chosen** — Hide the Abbrechen pill on `Finished`.
+
+- Decided by: @gloeckner (via AFK agent dispatch)
+- Rationale: matches the domain rule (finish horn = result locked,
+  see CONTEXT.md §Finish horn). The pill on `Finished` was a
+  misleading dead affordance; removing it eliminates the no-op
+  gesture. The "session end" path during paddle-down is already
+  covered by the idle timeout firing `session_end` automatically.
+- Implementation follows the per-option work list under
+  **What to build, given a decision → Option A** below.
+
 - **Type**: HITL (decision) → AFK (implementation)
 - **Parent**: [PRD-0017](../PRD.md)
 - **Surfaced by**: [PRD-0016 / 0016-07](../../e2e-automation/issues/07-canonical-abort-each-phase.md), Scenario D
