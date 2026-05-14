@@ -5,6 +5,7 @@ export type LiveEventKind =
   | 'stroke'
   | 'session_start'
   | 'session_end'
+  | 'session_finalized'
   | 'level_change'
   | 'workout_attached'
   | 'phase_change'
@@ -75,6 +76,15 @@ export type SessionEndPayload = {
   summary: SessionEndSummary
 }
 
+// Emitted by the persister AFTER session_end's SQLite txn commits, so
+// fields the sessionizer can't compute synchronously (race, samples,
+// pb_candidates) are present. The reducer replaces state.summary when
+// session_id matches. PRD-0017 / 0017-03.
+export type SessionFinalizedPayload = {
+  session_id: string
+  summary: SessionEndSummary
+}
+
 export type LevelChangePayload = {
   from: number
   to: number
@@ -109,6 +119,7 @@ export type LiveEvent =
   | { kind: 'stroke'; id: number; data: StrokePayload }
   | { kind: 'session_start'; id: number; data: SessionStartPayload }
   | { kind: 'session_end'; id: number; data: SessionEndPayload }
+  | { kind: 'session_finalized'; id: number; data: SessionFinalizedPayload }
   | { kind: 'level_change'; id: number; data: LevelChangePayload }
   | { kind: 'workout_attached'; id: number; data: WorkoutAttachedPayload }
   | { kind: 'phase_change'; id: number; data: PhaseChangePayload }

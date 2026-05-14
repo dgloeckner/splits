@@ -141,7 +141,16 @@ func run() error {
 	})
 	dispatcher := &pipeline.Dispatcher{Ring: ring, Persist: persistCh, Broadcast: broadcastCh}
 	scheduler := stats.NewRecomputeScheduler(db.Handle())
-	persister := &storage.Persister{DB: db.Handle(), Scheduler: scheduler}
+	persister := &storage.Persister{
+		DB:        db.Handle(),
+		Scheduler: scheduler,
+		// Feed session_finalized back into the dispatcher input so the
+		// ring + broadcaster + persister fan-out picks it up like any
+		// sessionizer-led event. The persister's apply() ignores
+		// KindSessionFinalized so the cycle terminates safely.
+		Out:   events,
+		Stamp: sessionizer.Stamp,
+	}
 
 	(&storage.BootJanitor{DB: db.Handle(), Scheduler: scheduler}).Run(ctx)
 	// FEAT-0015 Slice 3: stale-open janitor sweeps every minute.

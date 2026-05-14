@@ -249,6 +249,14 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
             summary: ev.data.summary,
           }
 
+        case 'session_finalized':
+          // PRD-0017 / 0017-03: post-persist enriched summary. Replace
+          // only when the payload's session_id matches the latched
+          // session — events for a different (stale / restored)
+          // session must not overwrite live state.
+          if (ev.data.session_id !== state.session?.session_id) return state
+          return { ...state, summary: ev.data.summary }
+
         case 'level_change':
           return state
 

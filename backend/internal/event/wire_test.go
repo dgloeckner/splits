@@ -103,6 +103,7 @@ func TestEventNameMatrix(t *testing.T) {
 		{KindSessionStart, "session_start"},
 		{KindSessionEnd, "session_end"},
 		{KindLevelChange, "level_change"},
+		{KindSessionFinalized, "session_finalized"},
 	}
 	for _, tc := range cases {
 		if got := EventName(tc.kind); got != tc.want {

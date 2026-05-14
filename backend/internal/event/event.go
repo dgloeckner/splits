@@ -14,6 +14,12 @@ const (
 	KindLevelChange
 	KindWorkoutAttached
 	KindPhaseChange
+	// KindSessionFinalized is emitted by the persister AFTER the
+	// session_end transaction commits. It carries the enriched
+	// SessionSummary (with Samples, PBCandidates, Race, etc. populated)
+	// so SSE clients can replace their latched session_end summary with
+	// the post-persist version. See PRD-0017 / 0017-03.
+	KindSessionFinalized
 )
 
 // Event is the internal envelope handed from the sessionizer to every
@@ -25,12 +31,21 @@ type Event struct {
 	SessionID string    // ULID; set on session_start, copied into subsequent events
 	At        time.Time // server receive time
 
-	Stroke          *StrokePayload
-	SessionStart    *SessionStartPayload
-	SessionEnd      *SessionEndPayload
-	LevelChange     *LevelChangePayload
-	WorkoutAttached *WorkoutAttachedPayload
-	PhaseChange     *PhaseChangePayload
+	Stroke            *StrokePayload
+	SessionStart      *SessionStartPayload
+	SessionEnd        *SessionEndPayload
+	LevelChange       *LevelChangePayload
+	WorkoutAttached   *WorkoutAttachedPayload
+	PhaseChange       *PhaseChangePayload
+	SessionFinalized  *SessionFinalizedPayload
+}
+
+// SessionFinalizedPayload carries the enriched session summary written
+// to SQLite by the persister at session_end. Emitted after the txn
+// commits so DB and SSE consumers agree on the same content. See
+// PRD-0017 / 0017-03.
+type SessionFinalizedPayload struct {
+	Summary SessionSummary
 }
 
 // WorkoutAttachedPayload signals that a workout was attached to the

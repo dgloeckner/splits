@@ -201,6 +201,151 @@ func TestPersisterStoresWorkoutID(t *testing.T) {
 	}
 }
 
+// PRD-0017 / 0017-03: a race-mode session_end triggers BOTH the
+// inbound session_end and a follow-up session_finalized emission on
+// the persister's Out channel, with Race populated.
+func TestPersisterEmitsSessionFinalizedAfterRaceCommit(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	now := time.Now().UTC().Format(time.RFC3339Nano)
+	if _, err := db.Handle().Exec(`INSERT INTO rowers(id,name,color,created_at) VALUES('R1','D','#0f0',?)`, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Handle().Exec(`
+        INSERT INTO workout(id,mode,params_json,intensity,warmup_sec,cooldown_sec,created_at,shape_hash)
+        VALUES('W1','race','{"meters":2000}','moderat',0,0,?,'shape')`, now); err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	in := make(chan event.Event, 16)
+	out := make(chan event.Event, 8)
+	var nextID uint64 = 1000
+	stamp := func(e *event.Event) {
+		nextID++
+		e.ID = nextID
+		if e.At.IsZero() {
+			e.At = time.Now()
+		}
+	}
+	p := &Persister{DB: db.Handle(), Out: out, Stamp: stamp}
+	done := make(chan error, 1)
+	go func() { done <- p.Run(ctx, in) }()
+
+	started := time.Date(2026, 4, 21, 10, 0, 0, 0, time.UTC)
+	in <- event.Event{ID: 1, Kind: event.KindSessionStart, SessionID: "S1",
+		SessionStart: &event.SessionStartPayload{StartedAt: started, RowerID: "R1", InitialLevel: 3, WorkoutID: "W1"}}
+	// A handful of work strokes so summary.Samples is populated and
+	// the persister sees a non-trivial session to enrich.
+	for i := 1; i <= 5; i++ {
+		in <- event.Event{ID: uint64(1 + i), Kind: event.KindStroke, SessionID: "S1", At: started,
+			Stroke: &event.StrokePayload{StrokeNo: i, TimeSec: float64(i) * 2.0, DistanceM: i * 400,
+				SPM: 26, PowerW: 200, CalPerHr: 1100, Level: 3,
+				DPS: 8, StrokeCycleSec: 2.0, PaceSecPer500m: 120, EnergyJoules: 500, Phase: "work"}}
+	}
+	in <- event.Event{ID: 100, Kind: event.KindSessionEnd, SessionID: "S1",
+		SessionEnd: &event.SessionEndPayload{EndedAt: started.Add(8 * time.Minute),
+			Summary: event.SessionSummary{
+				TotalDistanceM: 2000, TotalTimeSec: 480.0, TotalStrokes: 5,
+			}}}
+	close(in)
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("run: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("persister did not finish")
+	}
+
+	close(out)
+	var fin *event.Event
+	for e := range out {
+		if e.Kind == event.KindSessionFinalized {
+			ee := e
+			fin = &ee
+		}
+	}
+	if fin == nil {
+		t.Fatal("expected session_finalized emission on Out")
+	}
+	if fin.SessionID != "S1" {
+		t.Errorf("session_id=%q want S1", fin.SessionID)
+	}
+	if fin.ID == 0 {
+		t.Error("session_finalized event missing stamped ID")
+	}
+	if fin.SessionFinalized == nil {
+		t.Fatal("session_finalized payload is nil")
+	}
+	if fin.SessionFinalized.Summary.Race == nil {
+		t.Fatalf("expected enriched Race in session_finalized, got summary=%+v", fin.SessionFinalized.Summary)
+	}
+	if fin.SessionFinalized.Summary.Race.VsGhostSec == nil {
+		t.Errorf("expected vs_ghost_sec populated, got %+v", fin.SessionFinalized.Summary.Race)
+	}
+}
+
+// PRD-0017 / 0017-03: a non-race session still commits and the
+// session_finalized event fires but carries summary.Race=nil (no
+// regression in non-race flow).
+func TestPersisterSessionFinalizedNonRaceHasNoRace(t *testing.T) {
+	db, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	in := make(chan event.Event, 8)
+	out := make(chan event.Event, 4)
+	var nextID uint64
+	p := &Persister{DB: db.Handle(), Out: out, Stamp: func(e *event.Event) {
+		nextID++
+		e.ID = nextID
+	}}
+	done := make(chan error, 1)
+	go func() { done <- p.Run(ctx, in) }()
+
+	started := time.Date(2026, 4, 21, 10, 0, 0, 0, time.UTC)
+	in <- event.Event{ID: 1, Kind: event.KindSessionStart, SessionID: "S2",
+		SessionStart: &event.SessionStartPayload{StartedAt: started, RowerID: "R2", InitialLevel: 3}}
+	in <- event.Event{ID: 2, Kind: event.KindSessionEnd, SessionID: "S2",
+		SessionEnd: &event.SessionEndPayload{EndedAt: started.Add(time.Minute),
+			Summary: event.SessionSummary{TotalDistanceM: 100, TotalTimeSec: 30, TotalStrokes: 5}}}
+	close(in)
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("run: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("persister did not finish")
+	}
+	close(out)
+	found := false
+	for e := range out {
+		if e.Kind == event.KindSessionFinalized {
+			found = true
+			if e.SessionFinalized == nil || e.SessionFinalized.Summary.Race != nil {
+				t.Errorf("non-race session_finalized: expected Race=nil, got %+v", e.SessionFinalized)
+			}
+		}
+	}
+	if !found {
+		t.Error("expected session_finalized emission for non-race session")
+	}
+}
+
 func TestPersister_DeadLettersAfterMaxRetries(t *testing.T) {
 	t.Parallel()
 	db, err := sql.Open("sqlite", ":memory:")

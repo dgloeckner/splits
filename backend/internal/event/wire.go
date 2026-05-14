@@ -22,6 +22,8 @@ func EventName(k Kind) string {
 		return "workout_attached"
 	case KindPhaseChange:
 		return "phase_change"
+	case KindSessionFinalized:
+		return "session_finalized"
 	}
 	return ""
 }
@@ -100,6 +102,14 @@ func Marshal(e Event) ([]byte, error) {
 			AtTimeSec:   p.AtTimeSec,
 			AtDistanceM: p.AtDistanceM,
 		})
+	case KindSessionFinalized:
+		p := e.SessionFinalized
+		// The enriched summary is serialised verbatim using its JSON
+		// tags so clients receive Race, Samples, PBCandidates, etc.
+		return json.Marshal(sessionFinalizedWire{
+			SessionID: e.SessionID,
+			Summary:   p.Summary,
+		})
 	}
 	return nil, nil
 }
@@ -167,4 +177,9 @@ type levelChangeWire struct {
 type workoutAttachedWire struct {
 	SessionID string `json:"session_id"`
 	WorkoutID string `json:"workout_id"`
+}
+
+type sessionFinalizedWire struct {
+	SessionID string         `json:"session_id"`
+	Summary   SessionSummary `json:"summary"`
 }

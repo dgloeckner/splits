@@ -85,6 +85,102 @@ describe('liveReducer', () => {
     expect(s.sparklines.power.map((p) => p.value)).toEqual([200, 300])
   })
 
+  it('session_finalized replaces summary when session_id matches (PRD-0017 / 0017-03)', () => {
+    let s = liveReducer(initialLiveState, { type: 'event', event: start() })
+    s = liveReducer(s, {
+      type: 'event',
+      event: {
+        kind: 'session_end',
+        id: 2,
+        data: {
+          session_id: 'S1',
+          ended_at: '2026-04-20T10:05:00Z',
+          summary: {
+            total_distance_m: 2000,
+            total_time_sec: 480,
+            total_strokes: 200,
+            avg_power_w: 250,
+            peak_power_w: 320,
+            avg_spm: 30,
+            avg_dps: 8,
+            avg_pace_sec_per_500m: 120,
+            session_calories: 200,
+          },
+        },
+      },
+    })
+    expect(s.summary?.race).toBeUndefined()
+    s = liveReducer(s, {
+      type: 'event',
+      event: {
+        kind: 'session_finalized',
+        id: 3,
+        data: {
+          session_id: 'S1',
+          summary: {
+            total_distance_m: 2000,
+            total_time_sec: 480,
+            total_strokes: 200,
+            avg_power_w: 250,
+            peak_power_w: 320,
+            avg_spm: 30,
+            avg_dps: 8,
+            avg_pace_sec_per_500m: 120,
+            session_calories: 200,
+            race: {
+              vs_pb_sec: null,
+              vs_ghost_sec: 1.4,
+              ghost_kind: 'synth',
+            },
+          },
+        },
+      },
+    })
+    expect(s.summary?.race?.vs_ghost_sec).toBe(1.4)
+    expect(s.summary?.race?.ghost_kind).toBe('synth')
+  })
+
+  it('session_finalized for a non-matching session_id is ignored', () => {
+    let s = liveReducer(initialLiveState, { type: 'event', event: start() })
+    const baselineSummary = {
+      total_distance_m: 2000,
+      total_time_sec: 480,
+      total_strokes: 200,
+      avg_power_w: 250,
+      peak_power_w: 320,
+      avg_spm: 30,
+      avg_dps: 8,
+      avg_pace_sec_per_500m: 120,
+      session_calories: 200,
+    }
+    s = liveReducer(s, {
+      type: 'event',
+      event: {
+        kind: 'session_end',
+        id: 2,
+        data: { session_id: 'S1', ended_at: '2026-04-20T10:05:00Z', summary: baselineSummary },
+      },
+    })
+    const before = s.summary
+    s = liveReducer(s, {
+      type: 'event',
+      event: {
+        kind: 'session_finalized',
+        id: 3,
+        data: {
+          // Belongs to a different (stale) session — must NOT overwrite.
+          session_id: 'S_OTHER',
+          summary: {
+            ...baselineSummary,
+            race: { vs_pb_sec: null, vs_ghost_sec: 99, ghost_kind: 'synth' },
+          },
+        },
+      },
+    })
+    expect(s.summary).toBe(before)
+    expect(s.summary?.race).toBeUndefined()
+  })
+
   it('session_end clears live stroke but keeps session summary', () => {
     let s = liveReducer(initialLiveState, { type: 'event', event: start() })
     s = liveReducer(s, { type: 'event', event: stroke(1, {}) })

@@ -195,6 +195,7 @@ export class EventSourceChannel implements Channel {
     handle('stroke')
     handle('session_start')
     handle('session_end')
+    handle('session_finalized')
     handle('level_change')
     handle('workout_attached')
 

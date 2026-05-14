@@ -140,6 +140,15 @@ func (s *Sessionizer) stamp(e *event.Event) {
 	}
 }
 
+// Stamp exposes the sessionizer's monotonic ID + At allocator to
+// downstream stages (currently the persister, for its post-commit
+// session_finalized emission per PRD-0017). The lifetime-monotonic
+// invariant on Event.ID is preserved: all emissions — sessionizer-led
+// or persister-led — draw from the same counter under s.mu.
+func (s *Sessionizer) Stamp(e *event.Event) {
+	s.stamp(e)
+}
+
 func (s *Sessionizer) emit(ctx context.Context, out chan<- event.Event, e event.Event) error {
 	s.stamp(&e)
 	select {

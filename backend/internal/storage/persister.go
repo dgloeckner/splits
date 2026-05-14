@@ -37,6 +37,21 @@ type Persister struct {
 	// Optional: when nil, session_end commits without triggering a
 	// recompute — used by tests that don't care about derived stats.
 	Scheduler *stats.RecomputeScheduler
+
+	// Out is the channel on which the persister publishes
+	// post-persist events (currently only session_finalized after a
+	// session_end txn commits). It is the same channel the sessionizer
+	// writes into, so dispatcher fan-out (ring + broadcast + persist)
+	// handles it for free. Optional: when nil, the persister silently
+	// skips the secondary emission. See PRD-0017 / 0017-03.
+	Out chan<- event.Event
+
+	// Stamp populates an event's monotonic ID + At fields. Provided by
+	// the sessionizer so its and the persister's emissions share the
+	// same id allocator. Required when Out is non-nil; otherwise the
+	// ring would receive an unstamped event with id 0 and SSE clients
+	// could not advance Last-Event-ID past it.
+	Stamp func(*event.Event)
 }
 
 const (
@@ -266,7 +281,44 @@ func (p *Persister) applySessionEnd(ctx context.Context, e event.Event) error {
 	if p.Scheduler != nil && rowerID != "" {
 		stats.OnSessionChange(p.Scheduler, rowerID, stats.SessionCreated)
 	}
+	p.emitSessionFinalized(ctx, e.SessionID, summary)
 	return nil
+}
+
+// emitSessionFinalized publishes the enriched summary on Out so SSE
+// clients can replace their latched session_end summary with the
+// post-persist version (Race result etc. populated). No-op when the
+// hook surface isn't wired (tests).
+func (p *Persister) emitSessionFinalized(ctx context.Context, sessionID string, summary event.SessionSummary) {
+	if p.Out == nil || p.Stamp == nil {
+		return
+	}
+	// During shutdown the sessionizer closes Out before the persister
+	// drains its last events. The durable summary in SQLite is the
+	// source of truth for any client that reconnects; a send-on-closed
+	// panic here would mask a successful commit, so we recover and
+	// log.
+	defer func() {
+		if r := recover(); r != nil {
+			slog.Error("storage.persister.session_finalized_drop_on_closed_out",
+				"session_id", sessionID, "panic", r)
+		}
+	}()
+	if ctx.Err() != nil {
+		return
+	}
+	fin := event.Event{
+		Kind:      event.KindSessionFinalized,
+		SessionID: sessionID,
+		SessionFinalized: &event.SessionFinalizedPayload{
+			Summary: summary,
+		},
+	}
+	p.Stamp(&fin)
+	select {
+	case p.Out <- fin:
+	case <-ctx.Done():
+	}
 }
 
 // computeInsightsSafely runs the insights pipeline with panic
