@@ -123,6 +123,36 @@ export class RaceFlowPage {
       timeout: timeoutMs,
     })
   }
+
+  // ── Abort affordance (0016-07) ────────────────────────────────────
+
+  abortPill(): Locator {
+    return this.page.getByTestId('abort-pill')
+  }
+
+  abortConfirmSheet(): Locator {
+    return this.page.getByTestId('abort-confirm-sheet')
+  }
+
+  /** Tap the top-right Abbrechen pill — opens the confirmation sheet. */
+  async tapAbbrechen(): Promise<void> {
+    await expect(this.abortPill()).toBeVisible()
+    await this.abortPill().click()
+    await expect(this.abortConfirmSheet()).toBeVisible()
+  }
+
+  /** Tap the confirm button inside the confirmation sheet. */
+  async confirmAbbrechen(): Promise<void> {
+    await expect(this.abortConfirmSheet()).toBeVisible()
+    await this.page.getByTestId('abort-confirm-confirm').click()
+  }
+
+  /** Tap the cancel button inside the confirmation sheet — no side effects. */
+  async cancelAbbrechen(): Promise<void> {
+    await expect(this.abortConfirmSheet()).toBeVisible()
+    await this.page.getByTestId('abort-confirm-cancel').click()
+    await expect(this.abortConfirmSheet()).toBeHidden()
+  }
 }
 
 function formatRaceLabel(meters: number): string {
