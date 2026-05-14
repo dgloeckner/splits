@@ -28,7 +28,9 @@ export function useRaceLifecycle(config?: RaceLifecycleConfig) {
       if (stateRef.current.phase === 'Ceremony') raf = requestAnimationFrame(loop)
     }
     raf = requestAnimationFrame(loop)
-    return () => cancelAnimationFrame(raf)
+    return () => {
+      if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(raf)
+    }
   }, [state.phase])
 
   const send = useCallback((e: RaceLifecycleEvent) => dispatch(e), [])

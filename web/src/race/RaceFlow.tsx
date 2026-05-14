@@ -6,6 +6,7 @@ import { RaceStartSequence } from './RaceStartSequence'
 import { FalschstartToast } from './FalschstartToast'
 import { FinishOverlay } from './FinishOverlay'
 import { RacePostScreen } from './RacePostScreen'
+import { AbortControl } from './AbortControl'
 import { useRaceLifecycle } from './useRaceLifecycle'
 import { useReducedMotion } from './reducedMotion'
 import { useRaceData } from './useRaceData'
@@ -24,9 +25,18 @@ type Props = {
   opponentsLabel: string
   onRetry?: () => void
   onShowDetail?: () => void
+  /**
+   * Optional session-termination hook invoked on confirmed abort. The
+   * caller should run the existing X-abort flow (enqueueEndSession +
+   * WorkoutOverlay.abort() + navigate home); the backend's
+   * `AbortBeforeGoal` path then persists `summary.race = null`. If
+   * omitted, the reducer still transitions to `Aborted` and the race
+   * surface unmounts.
+   */
+  onAbort?: () => void
 }
 
-export function RaceFlow({ liveState, totalMeters, opponentsLabel, onRetry, onShowDetail }: Props) {
+export function RaceFlow({ liveState, totalMeters, opponentsLabel, onRetry, onShowDetail, onAbort }: Props) {
   const { state, send } = useRaceLifecycle({ totalMeters })
   const reducedMotion = useReducedMotion()
 
@@ -69,13 +79,30 @@ export function RaceFlow({ liveState, totalMeters, opponentsLabel, onRetry, onSh
     }
   }, [liveState.summary, state.phase, send])
 
+  const handleConfirmAbort = () => {
+    send({ type: 'abort' })
+    if (onAbort) onAbort()
+  }
+
+  // Aborted terminal: unmount the race surface entirely. Caller's
+  // `onAbort` is expected to have triggered the existing session-end
+  // path (enqueueEndSession → backend AbortBeforeGoal → summary.race=null).
+  if (state.phase === 'Aborted') {
+    return null
+  }
+
   if (state.phase === 'Confirmed' || state.phase === 'Bereit') {
     return (
-      <BereitScreen
-        distanceMeters={totalMeters}
-        opponentsLabel={opponentsLabel}
-        onTap={() => send({ type: 'bereitTap', t: performance.now() })}
-      />
+      <>
+        <BereitScreen
+          distanceMeters={totalMeters}
+          opponentsLabel={opponentsLabel}
+          onTap={() => send({ type: 'bereitTap', t: performance.now() })}
+        />
+        {state.phase === 'Bereit' && (
+          <AbortControl onConfirmAbort={handleConfirmAbort} />
+        )}
+      </>
     )
   }
 
@@ -106,6 +133,11 @@ export function RaceFlow({ liveState, totalMeters, opponentsLabel, onRetry, onSh
         <RaceStartSequence enabled reducedMotion={reducedMotion} />
       )}
       <FalschstartToast visible={state.falschstart && state.phase === 'Live'} />
+      {(state.phase === 'Ceremony' ||
+        state.phase === 'Live' ||
+        state.phase === 'Finished') && (
+        <AbortControl onConfirmAbort={handleConfirmAbort} />
+      )}
     </>
   )
 }
