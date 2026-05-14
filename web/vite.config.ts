@@ -79,8 +79,12 @@ export default defineConfig({
   ],
   server: {
     proxy: {
+      // VITE_BACKEND_URL is per-worker in e2e (0016-05): the worker-scoped
+      // Vite fixture spawns this dev server with a backend URL pointing
+      // at the worker's own dynamic-port backend, so multiple parallel
+      // agents do not share port 8080.
       '/api': {
-        target: 'http://localhost:8080',
+        target: process.env.VITE_BACKEND_URL ?? 'http://localhost:8080',
         changeOrigin: true,
       },
     },

@@ -8,7 +8,11 @@ const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? DEFAULT_BASE_URL
 // Auto-spawn Vite only for human runs. When PLAYWRIGHT_BASE_URL is set
 // (agent runs in worktrees, parallel agents share the host) the caller
 // is responsible for the dev server — skipping the auto-spawn avoids a
-// 5173 bind collision.
+// 5173 bind collision. The worker-scoped Vite fixture in fixtures.ts
+// (0016-05) spawns Vite per worker on a dynamic port and overrides
+// `baseURL`, so agent runs typically set PLAYWRIGHT_BASE_URL to any
+// non-empty value (e.g. `noop`) to suppress this auto-spawn — the
+// worker fixture then takes over.
 const webServer = process.env.PLAYWRIGHT_BASE_URL
   ? undefined
   : {
