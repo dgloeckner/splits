@@ -10,11 +10,15 @@ const options: { id: FlowIntensity; label: string }[] = [
 ]
 
 export function Step3Intensity() {
-  const { dispatch } = useWorkoutFlow()
+  const { state, dispatch } = useWorkoutFlow()
   function pick(intensity: FlowIntensity) {
     dispatch({ type: 'SET_INTENSITY', intensity })
     dispatch({ type: 'GO_TO_CONFIRM' })
   }
+  const subtitle =
+    state.mode === 'race'
+      ? 'Wie schnell dein synthetischer Geist rudert.'
+      : 'Dein Zieltempo — Split und Schlagzahl auf der Live-Anzeige.'
   return (
     <div className={styles.wrap}>
       <header className={styles.header}>
@@ -22,6 +26,7 @@ export function Step3Intensity() {
           ← Zurück
         </button>
         <h1 className={styles.title}>Intensität</h1>
+        <p className={styles.subtitle}>{subtitle}</p>
       </header>
       <ul className={styles.cards}>
         {options.map((opt) => {

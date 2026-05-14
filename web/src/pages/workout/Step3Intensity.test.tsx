@@ -3,22 +3,27 @@ import { useEffect } from 'react'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
-import { WorkoutFlowProvider, useWorkoutFlow, type FlowIntensity } from './WorkoutFlowProvider'
+import { WorkoutFlowProvider, useWorkoutFlow, type FlowIntensity, type FlowMode } from './WorkoutFlowProvider'
 import { Step3Intensity } from './Step3Intensity'
 
-function Harness({ out }: { out: { step: unknown; intensity?: FlowIntensity } }) {
+function Harness({ out, mode = 'distance' }: { out: { step: unknown; intensity?: FlowIntensity }; mode?: FlowMode }) {
   const { state, dispatch } = useWorkoutFlow()
   useEffect(() => {
     if (state.step === 1) {
-      dispatch({ type: 'SELECT_MODE', mode: 'distance' })
-      dispatch({ type: 'SET_DISTANCE', meters: 5000 })
+      dispatch({ type: 'SELECT_MODE', mode })
+      if (mode === 'distance') dispatch({ type: 'SET_DISTANCE', meters: 5000 })
+      if (mode === 'time') dispatch({ type: 'SET_TIME', seconds: 1200 })
+      if (mode === 'race') dispatch({ type: 'SET_DISTANCE', meters: 2000 })
       dispatch({ type: 'GO_TO_STEP3' })
     }
-  }, [state.step, dispatch])
+  }, [state.step, dispatch, mode])
   out.step = state.step
   out.intensity = state.intensity
   return state.step === 3 ? <Step3Intensity /> : null
 }
+
+const RACE_SUBTITLE = 'Wie schnell dein synthetischer Geist rudert.'
+const NON_RACE_SUBTITLE = 'Dein Zieltempo — Split und Schlagzahl auf der Live-Anzeige.'
 
 describe('Step3Intensity', () => {
   it('renders all four options with split + SPM ranges', async () => {
@@ -51,5 +56,29 @@ describe('Step3Intensity', () => {
     render(<MemoryRouter><WorkoutFlowProvider><Harness out={out} /></WorkoutFlowProvider></MemoryRouter>)
     await userEvent.click(await screen.findByRole('button', { name: /zurück/i }))
     expect(out.step).toBe(2)
+  })
+
+  it('shows race subtitle in race mode', async () => {
+    const out = { step: 0 as unknown }
+    render(<MemoryRouter><WorkoutFlowProvider><Harness out={out} mode="race" /></WorkoutFlowProvider></MemoryRouter>)
+    await screen.findByRole('button', { name: 'Locker' })
+    expect(screen.getByText(RACE_SUBTITLE)).toBeInTheDocument()
+    expect(screen.queryByText(NON_RACE_SUBTITLE)).not.toBeInTheDocument()
+  })
+
+  it('shows non-race subtitle in distance mode', async () => {
+    const out = { step: 0 as unknown }
+    render(<MemoryRouter><WorkoutFlowProvider><Harness out={out} mode="distance" /></WorkoutFlowProvider></MemoryRouter>)
+    await screen.findByRole('button', { name: 'Locker' })
+    expect(screen.getByText(NON_RACE_SUBTITLE)).toBeInTheDocument()
+    expect(screen.queryByText(RACE_SUBTITLE)).not.toBeInTheDocument()
+  })
+
+  it('shows non-race subtitle in time mode', async () => {
+    const out = { step: 0 as unknown }
+    render(<MemoryRouter><WorkoutFlowProvider><Harness out={out} mode="time" /></WorkoutFlowProvider></MemoryRouter>)
+    await screen.findByRole('button', { name: 'Locker' })
+    expect(screen.getByText(NON_RACE_SUBTITLE)).toBeInTheDocument()
+    expect(screen.queryByText(RACE_SUBTITLE)).not.toBeInTheDocument()
   })
 })
