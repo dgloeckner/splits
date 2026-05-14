@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { LiveState } from '../live/reducer'
 import { StatBar } from './StatBar'
 import { RaceCanvas } from './RaceCanvas'
@@ -19,6 +19,15 @@ type Props = { liveState: LiveState; totalMeters: number }
 export function RaceLiveView({ liveState, totalMeters }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
+  // 0017-01: seed `size` synchronously before paint so the very first
+  // rendered frame has non-zero lane heights and the user/ghost/PB
+  // sprites are visible at Ceremony(ATTENTION) rather than appearing
+  // one async ResizeObserver tick later.
+  useLayoutEffect(() => {
+    if (!ref.current) return
+    const r = ref.current.getBoundingClientRect()
+    setSize({ w: r.width, h: r.height })
+  }, [])
   useEffect(() => {
     if (!ref.current) return
     const ro = new ResizeObserver((entries) => {
