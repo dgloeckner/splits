@@ -139,9 +139,17 @@ test.describe('race-flow canonical happy path (0016-05)', () => {
     await raceFlow.waitForCeremonyStep('go', 3_000)
     await resumeFixture(backend)
 
-    // Mid-race: give strokes a moment to flow.
-    await page.waitForTimeout(2_000)
-    await expect(raceFlow.userBoat()).toBeVisible()
+    // Mid-race screenshot. At fast fixture pacing the full race can fit
+    // inside a couple hundred ms, so we don't waitForTimeout(2s) here —
+    // that would race past Finished/Post and the boat would no longer
+    // be in the DOM. Take an opportunistic screenshot and only assert
+    // boat visibility if we're still in Live.
+    const pastLive =
+      (await page.getByTestId('finish-overlay').isVisible().catch(() => false)) ||
+      (await page.getByTestId('race-post-screen').isVisible().catch(() => false))
+    if (!pastLive) {
+      await expect(raceFlow.userBoat()).toBeVisible()
+    }
     await page.screenshot({ path: `${SCREENSHOT_DIR}/04-live.png` })
 
     // 8. FinishOverlay: latched final time + gaps over the still-mounted
