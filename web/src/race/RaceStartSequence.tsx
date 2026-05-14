@@ -47,6 +47,8 @@ export function RaceStartSequence({ enabled, reducedMotion = false, onComplete }
       role="status"
       aria-live="assertive"
       data-reduced-motion={reducedMotion ? 'true' : 'false'}
+      data-testid="race-start-sequence"
+      data-ceremony-phase={phase}
     >
       {!reducedMotion && (
         <div className={styles.lights}>

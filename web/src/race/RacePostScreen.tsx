@@ -52,23 +52,23 @@ export function RacePostScreen(p: Props) {
     ...(p.ghost ? [{ color: '#94A3B8', label: 'Ghost', tSec: p.ghost.tSec, split: splitFromDistance(p.ghost.tSec, p.ghost.distM) }] : []),
   ]
   return (
-    <div className={styles.screen}>
+    <div className={styles.screen} data-testid="race-post-screen">
       <h1 className={styles.title}>{fmtMeters(p.totalMeters)} Rennen</h1>
       <div className={styles.summary}>
         <div className={styles.cell}>
           <span className={styles.label}>Endzeit</span>
-          <span className={styles.value}>{fmtMmSs(p.userTotalSec)}</span>
+          <span className={styles.value} data-testid="post-endzeit">{fmtMmSs(p.userTotalSec)}</span>
         </div>
         {p.vsPbSec != null && (
           <div className={styles.cell}>
             <span className={styles.label}>vs. PB</span>
-            <span className={styles.value}>{fmtGap(p.vsPbSec)}</span>
+            <span className={styles.value} data-testid="post-vs-pb">{fmtGap(p.vsPbSec)}</span>
           </div>
         )}
         {p.vsGhostSec != null && (
           <div className={styles.cell}>
             <span className={styles.label}>vs. Ghost</span>
-            <span className={styles.value}>{fmtGap(p.vsGhostSec)}</span>
+            <span className={styles.value} data-testid="post-vs-ghost">{fmtGap(p.vsGhostSec)}</span>
           </div>
         )}
       </div>

@@ -48,7 +48,7 @@ export function RaceCanvas({
   const finishOffsetPx = (totalMeters - userDistanceM) * LANE_PX_PER_METER
 
   return (
-    <div className={styles.canvas} style={{ width: viewportWidth, height: viewportHeight }}>
+    <div className={styles.canvas} data-testid="race-canvas" style={{ width: viewportWidth, height: viewportHeight }}>
       {showBanner && <div className={styles.banner}>{totalMeters} m Rennen</div>}
       <div
         className={styles.water}
@@ -111,7 +111,7 @@ function Lane({ kind, opp, color, height, centerX, paneWidth, elapsedSec, userDi
   const onScreen = Math.abs(offsetPx) <= paneWidth / 2 - SPRITE_HALF_WIDTH
 
   return (
-    <div className={styles.lane} data-lane={kind} style={{ height, color }}>
+    <div className={styles.lane} data-lane={kind} data-testid={`race-lane-${kind}`} style={{ height, color }}>
       {series && [0, 1, 2].map((i) => {
         const lookback = TRAIL_OFFSETS_SEC[i]
         const t = elapsedSec + lookback
@@ -135,6 +135,7 @@ function Lane({ kind, opp, color, height, centerX, paneWidth, elapsedSec, userDi
       {onScreen && (
         <span
           className={styles.sprite}
+          data-testid={`boat-${kind}`}
           style={{ left: centerX + offsetPx - SPRITE_HALF_WIDTH }}
         >
           <BoatSprite variant="full" />
