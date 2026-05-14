@@ -2,6 +2,13 @@
   display: grid;
   gap: var(--space-2);
   padding: var(--space-3);
+  /* 0015-01: race-mode inner grid is `grid-template-rows: 56px 1fr; height:
+     100%;`. Without an explicit height on `.page`, the `1fr` canvas row
+     collapses to 0px and the rower sees only the stat bar over a black
+     screen. `100dvh` (dynamic viewport height) over `100vh` so mobile
+     chrome (URL bar showing/hiding) does not truncate. Non-race modes are
+     unaffected: their children define intrinsic heights. */
+  min-height: 100dvh;
 }
 
 .topStrip {
