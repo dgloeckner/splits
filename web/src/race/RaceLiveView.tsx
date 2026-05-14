@@ -57,7 +57,7 @@ export function RaceLiveView({ liveState, totalMeters }: Props) {
         vsPbSec={pbGap}
         vsGhostSec={ghostGap}
       /></div>
-      <div data-component="race-canvas"><RaceCanvas
+      <div data-component="race-canvas" data-user-distance-m={userDistanceM}><RaceCanvas
         elapsedSec={elapsedSec}
         userDistanceM={userDistanceM}
         totalMeters={totalMeters}
