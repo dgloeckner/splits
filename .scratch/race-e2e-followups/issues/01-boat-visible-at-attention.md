@@ -27,26 +27,35 @@ with `paneWidth = 0`).
 Fix the gap so the rower sees their boat (and ghost + PB) at the
 start line on the same visual frame the canvas appears.
 
-Likely approaches (pick whichever is cleanest after exploration):
+### Resolved approach (from 2026-05-14 grilling)
 
-- **Synchronous initial size via `useLayoutEffect`** — measure the
-  container's `getBoundingClientRect` synchronously before paint,
-  seed the `size` state with that value. The `ResizeObserver` then
-  takes over for subsequent changes.
-- **Initial size from the parent's known bounds** — pass viewport
-  dimensions from `LivePage` (which already fills `100dvh`) into
-  `RaceCanvas` as initial props.
-- **Soft fallback in `Lane`** — if `paneWidth === 0`, render the
-  sprite at a stable known offset (e.g. centered) rather than gating
-  on `onScreen`. Less faithful to the production rendering once
-  layout settles, but bulletproof on first frame.
-- **Intrinsic minimum size on `BoatSprite`** — give the SVG a fixed
-  px width/height so Playwright sees a non-zero bounding box even if
-  the lane is still being measured.
+Two complementary fixes; both must land together.
 
-Whichever path is taken, the user boat MUST be visible (non-zero
-bounding box per Playwright) by the time `data-ceremony-phase="attention"`
-appears on screen.
+1. **`BoatSprite` gets explicit `width` and `height` attributes** on
+   its `<svg>`. Today the SVG has `viewBox="0 0 72 24"` but no
+   width/height, so its rendered size depends on the layout-context
+   defaults of the wrapping span (which is `position: absolute` with
+   no sizing of its own). Cross-browser fragile; headless Chromium
+   computes 0×0. Adding explicit dimensions eliminates the
+   fragility. The other unsized SVGs in the repo (icons under
+   `web/src/icons/`, chart components) render in non-absolutely-
+   positioned, CSS-sized containers and are unaffected.
+
+2. **`RaceCanvas` gains a `useLayoutEffect` for synchronous initial
+   measurement.** Today, on first render `size = { w: 0, h: 0 }`;
+   the existing `useEffect` + `ResizeObserver` reports the real
+   bounds asynchronously after paint, leaving one frame where lanes
+   have zero height and boats are positioned at the top of the
+   canvas rather than centred in their lane. Adding a
+   `useLayoutEffect` that reads `ref.current.getBoundingClientRect()`
+   and seeds `size` state before first paint eliminates the flash
+   and the Playwright-vs-`ResizeObserver` race. The existing
+   `useEffect` + `ResizeObserver` stays in place to handle
+   subsequent resizes.
+
+The user boat MUST be visible (non-zero bounding box per Playwright)
+on the first frame `data-ceremony-phase="attention"` appears on
+screen.
 
 ## Acceptance criteria
 
@@ -55,8 +64,9 @@ appears on screen.
 - [ ] No regression in the post-GO! / Live / Finished phases — boats continue to render correctly with their existing layout logic.
 - [ ] Visible-from-mount behaviour survives across phone (`viewport ≤ 480 px wide`) and tablet (`viewport ≥ 768 px wide`) variants.
 - [ ] The fix does not break the Falschstart `userDistance = 0` visual clamp added in 0015-02: a stroke during ATTENTION/SET must NOT advance the visible boat.
-- [ ] Component tests for `RaceCanvas` cover the zero-size-initial-mount case (assert the sprite renders at center regardless of `viewportWidth=0`).
-- [ ] The E2E happy-path spec's boat-visibility spot-check (currently a documented known-failure) becomes a hard assertion.
+- [ ] Unit test on `BoatSprite` asserts the rendered `<svg>` element has explicit `width="72"` and `height="24"` attributes (catches a future regression of someone removing them).
+- [ ] The PRD-0016 / 0016-05 happy-path spec's `expect(raceFlow.userBoat()).toBeVisible()` at the ATTENTION step is promoted from a documented-known-failure to a hard assertion (delete the "advisory on first integration" comment block around it).
+- [ ] No `useLayoutEffect`-only test in jsdom — jsdom doesn't compute layout, so any such assertion would be either redundant with the BoatSprite test or weaker than the E2E.
 
 ## E2E walkthrough
 
