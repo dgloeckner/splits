@@ -9,8 +9,6 @@ import {
   type WorkoutParams,
 } from '../../api/workouts'
 import { createFavorite } from '../../api/favorites'
-import { fetchRaceOpponents } from '../../api/raceOpponents'
-import { OpponentPickerSheet } from '../home/OpponentPickerSheet'
 import { useWorkoutFlow, type FlowState } from './WorkoutFlowProvider'
 import styles from './ConfirmScreen.module.css'
 
@@ -123,7 +121,10 @@ export function ConfirmScreen() {
   const active = useActiveRower()
   const rowerID = active.data?.id
   const [starting, setStarting] = useState(false)
-  const [picker, setPicker] = useState<{ open: boolean; workoutId: string; hasGhost: boolean; hasPB: boolean } | null>(null)
+  // 0015-05: opponent toggles live inline on the Übersicht (race mode).
+  // Defaults match the prior OpponentPickerSheet behaviour.
+  const [ghostOn, setGhostOn] = useState(true)
+  const [pbOn, setPbOn] = useState(true)
 
   const params: WorkoutParams | null = buildParams(state)
   if (!state.mode || !params) return null
@@ -164,15 +165,15 @@ export function ConfirmScreen() {
         cooldown_sec: cooldown,
       }
       const created = await createWorkout(input)
-      if (state.mode === 'race' && rowerID) {
-        const opps = await fetchRaceOpponents({ workoutId: created.id, rowerId: rowerID })
-        setPicker({
-          open: true,
-          workoutId: created.id,
-          hasGhost: !!opps.ghost && opps.ghost.kind === 'session',
-          hasPB: !!opps.pb,
-        })
-        return
+      if (state.mode === 'race') {
+        // 0015-05: opponent selection is taken from the inline toggles
+        // and persisted to sessionStorage; LivePage / BereitScreen read
+        // it back to render the opponents summary. No modal sheet is
+        // opened — Start commits the toggles and proceeds directly.
+        sessionStorage.setItem(
+          'race-opp-selection',
+          JSON.stringify({ ghost: ghostOn, pb: pbOn }),
+        )
       }
       await startSession(created.id)
       await maybeCreateFavorite(input, warmup, cooldown)
@@ -181,36 +182,6 @@ export function ConfirmScreen() {
       console.error('start workout failed', e)
       setStarting(false)
     }
-  }
-
-  async function onPickerConfirm(sel: { ghost: boolean; pb: boolean }) {
-    if (!picker) return
-    sessionStorage.setItem('race-opp-selection', JSON.stringify(sel))
-    try {
-      await startSession(picker.workoutId)
-      // ADR-0009: race mode forces zero warmup/cooldown.
-      const warmup = 0
-      const cooldown = 0
-      const input: CreateWorkoutInput = {
-        mode: 'race' as WorkoutMode,
-        params: params!,
-        intensity: state.intensity,
-        warmup_sec: warmup,
-        cooldown_sec: cooldown,
-      }
-      await maybeCreateFavorite(input, warmup, cooldown)
-      setPicker(null)
-      nav('/live')
-    } catch (e) {
-      console.error('start race failed', e)
-      setStarting(false)
-      setPicker(null)
-    }
-  }
-
-  function onPickerClose() {
-    setPicker(null)
-    setStarting(false)
   }
 
   return (
@@ -224,10 +195,41 @@ export function ConfirmScreen() {
         >
           ← Anpassen
         </button>
-        <h1 className={styles.title}>{titleFor(state, params)}</h1>
+        {isRace && <h1 className={styles.title}>Übersicht</h1>}
+        <h2 className={isRace ? styles.subtitle : styles.title}>
+          {titleFor(state, params)}
+        </h2>
       </header>
 
       <Timeline state={state} />
+
+      {isRace && (
+        <section className={styles.toggleRow} aria-label="Gegner">
+          <div className={styles.opponentList}>
+            <label className={styles.toggle}>
+              <input
+                type="checkbox"
+                checked={ghostOn}
+                onChange={(e) => setGhostOn(e.target.checked)}
+              />
+              Synthetischer Geist nach Härte
+            </label>
+            <label className={styles.toggle}>
+              <input
+                type="checkbox"
+                checked={pbOn}
+                onChange={(e) => setPbOn(e.target.checked)}
+              />
+              Bestzeit
+            </label>
+            {!ghostOn && (
+              <p className={styles.opponentNote}>
+                Intensität wirkt sich nicht aus.
+              </p>
+            )}
+          </div>
+        </section>
+      )}
 
       {!isRace && (
         <section className={styles.toggleRow} aria-label="Warm-up">
@@ -299,17 +301,6 @@ export function ConfirmScreen() {
       <button type="button" className={styles.start} onClick={start} disabled={starting}>
         {starting ? 'Wird gestartet…' : 'Start'}
       </button>
-
-      {picker && (
-        <OpponentPickerSheet
-          open={picker.open}
-          meters={(params as { meters: number }).meters}
-          hasGhost={picker.hasGhost}
-          hasPB={picker.hasPB}
-          onConfirm={onPickerConfirm}
-          onClose={onPickerClose}
-        />
-      )}
     </div>
   )
 }

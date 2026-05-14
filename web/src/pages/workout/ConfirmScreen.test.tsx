@@ -75,6 +75,45 @@ describe('ConfirmScreen', () => {
     expect(await screen.findByRole('heading', { name: /2 km Rennen/i })).toBeInTheDocument()
   })
 
+  it('race mode header reads "Übersicht" (not "Bereit")', async () => {
+    mockRoutes({})
+    wrap(<Harness setup="race" />)
+    expect(await screen.findByRole('heading', { name: /Übersicht/i })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /^Bereit$/i })).toBeNull()
+  })
+
+  it('race mode shows inline opponent toggles (synth-ghost + PB) with no separate sheet', async () => {
+    mockRoutes({})
+    wrap(<Harness setup="race" />)
+    await screen.findByRole('heading', { name: /Übersicht/i })
+    expect(
+      screen.getByRole('checkbox', { name: /Synthetischer Geist nach Härte/i }),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('checkbox', { name: /Bestzeit/i })).toBeInTheDocument()
+    // No standalone picker sheet is mounted.
+    expect(screen.queryByRole('button', { name: /Rennen starten/i })).toBeNull()
+  })
+
+  it('race mode opponent toggles default to checked', async () => {
+    mockRoutes({})
+    wrap(<Harness setup="race" />)
+    const ghost = await screen.findByRole('checkbox', { name: /Synthetischer Geist nach Härte/i })
+    const pb = screen.getByRole('checkbox', { name: /Bestzeit/i })
+    expect((ghost as HTMLInputElement).checked).toBe(true)
+    expect((pb as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('toggling synth-ghost off shows "Intensität wirkt sich nicht aus." note; on hides it', async () => {
+    mockRoutes({})
+    wrap(<Harness setup="race" />)
+    const ghost = await screen.findByRole('checkbox', { name: /Synthetischer Geist nach Härte/i })
+    expect(screen.queryByText(/Intensität wirkt sich nicht aus\./i)).toBeNull()
+    await userEvent.click(ghost)
+    expect(screen.getByText(/Intensität wirkt sich nicht aus\./i)).toBeInTheDocument()
+    await userEvent.click(ghost)
+    expect(screen.queryByText(/Intensität wirkt sich nicht aus\./i)).toBeNull()
+  })
+
   it('timeline shows intervals as alternating work/rest', async () => {
     mockRoutes({})
     wrap(<Harness setup="intervals" />)
@@ -118,28 +157,27 @@ describe('ConfirmScreen', () => {
     await waitFor(() => expect(favBody?.name).toBe('My 5k'))
   })
 
-  it('opens opponent picker for race mode after confirming', async () => {
-    let started = false
+  it('race Start: no picker sheet, calls workout-create + startSession once, writes selection, navigates', async () => {
+    let postCount = 0
+    let started = 0
     mockRoutes({
-      '/api/v1/workouts': () => ({ body: JSON.stringify({ id: 'W1', mode: 'race', params: { meters: 2000 }, warmup_sec: 0, cooldown_sec: 0, created_at: '2026-04-23T00:00:00Z' }), status: 201 }),
-      '/api/v1/workouts/W1/opponents': () => ({
-        body: JSON.stringify({
-          ghost: { kind: 'session', source_session_id: 'S1', label: 'ghost', t_sec: [0, 60], distance_m: [0, 250] },
-          pb: null,
-        }),
-        status: 200,
-      }),
-      '/api/v1/session/start': () => { started = true; return { body: null, status: 204 } },
+      '/api/v1/workouts': (init) => {
+        if (init?.method === 'POST') postCount++
+        return { body: JSON.stringify({ id: 'W1', mode: 'race', params: { meters: 2000 }, warmup_sec: 0, cooldown_sec: 0, created_at: '2026-04-23T00:00:00Z' }), status: 201 }
+      },
+      '/api/v1/session/start': () => { started++; return { body: null, status: 204 } },
     })
     sessionStorage.removeItem('race-opp-selection')
     wrap(<Harness setup="race" />)
-    await userEvent.click(await screen.findByRole('button', { name: /^start$/i }))
-    // picker opens
-    const confirmBtn = await screen.findByRole('button', { name: /Rennen starten/i })
-    expect(started).toBe(false)
-    await userEvent.click(confirmBtn)
+    await screen.findByRole('heading', { name: /Übersicht/i })
+    // Toggle PB off so we can verify the persisted selection matches user state.
+    await userEvent.click(screen.getByRole('checkbox', { name: /Bestzeit/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^start$/i }))
     await waitFor(() => expect(screen.getByText('LIVE')).toBeInTheDocument())
-    expect(started).toBe(true)
+    expect(postCount).toBe(1)
+    expect(started).toBe(1)
+    // No picker sheet opened during the Start path.
+    expect(screen.queryByRole('button', { name: /Rennen starten/i })).toBeNull()
     const stored = sessionStorage.getItem('race-opp-selection')
     expect(stored).not.toBeNull()
     expect(JSON.parse(stored!)).toEqual({ ghost: true, pb: false })
@@ -149,13 +187,6 @@ describe('ConfirmScreen', () => {
     let favCalled = false
     mockRoutes({
       '/api/v1/workouts': () => ({ body: JSON.stringify({ id: 'W1', mode: 'race', params: { meters: 2000 }, warmup_sec: 0, cooldown_sec: 0, created_at: '2026-04-23T00:00:00Z' }), status: 201 }),
-      '/api/v1/workouts/W1/opponents': () => ({
-        body: JSON.stringify({
-          ghost: { kind: 'session', source_session_id: 'S1', label: 'ghost', t_sec: [0, 60], distance_m: [0, 250] },
-          pb: null,
-        }),
-        status: 200,
-      }),
       '/api/v1/session/start': () => ({ body: null, status: 204 }),
       '/api/v1/favorites': (init) => {
         if (init?.method === 'POST') favCalled = true
@@ -167,8 +198,6 @@ describe('ConfirmScreen', () => {
     await userEvent.click(await screen.findByRole('checkbox', { name: /als favorit speichern/i }))
     await userEvent.type(await screen.findByRole('textbox', { name: /favoritenname/i }), 'My Race')
     await userEvent.click(screen.getByRole('button', { name: /^start$/i }))
-    const confirmBtn = await screen.findByRole('button', { name: /Rennen starten/i })
-    await userEvent.click(confirmBtn)
     await waitFor(() => expect(screen.getByText('LIVE')).toBeInTheDocument())
     expect(favCalled).toBe(false)
   })
