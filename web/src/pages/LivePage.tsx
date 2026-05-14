@@ -116,6 +116,28 @@ function LiveBody() {
 }
 
 export function LivePage() {
+  // 0017-05: gate the entire LivePage on the workout query's loaded
+  // state. While the active session's workout is still loading,
+  // `workout?.mode` is undefined and the LiveBody falls through to
+  // its non-race branch — which transiently mounts the
+  // `SessionEndedOverlay` container alongside RaceFlow on the
+  // null→summary transition (see 0017-03 investigation). Rendering a
+  // minimal placeholder here prevents that branch from ever painting
+  // a non-race tree for a race workout, and guarantees only one of
+  // RaceFlow / SessionEndedOverlay is in the DOM at a time. The
+  // content lives in a separate component so the latched-summary,
+  // wake-lock, and overlay hooks below only mount once the workout
+  // is known — keeping React's hook ordering stable across the gate.
+  const progress = useWorkoutProgress()
+  const workoutResolving =
+    progress.workoutId !== null && (progress.isLoading || progress.workout === null)
+  if (workoutResolving) {
+    return <div className={styles.page} data-testid="live-loading" aria-busy="true" />
+  }
+  return <LivePageContent />
+}
+
+function LivePageContent() {
   const state = useLiveSession()
   const nav = useNavigate()
   const qc = useQueryClient()

@@ -382,6 +382,72 @@ describe('LivePage session-end overlay', () => {
   })
 })
 
+describe('LivePage workout-loading guard (0017-05)', () => {
+  it('renders neither RaceFlow nor SessionEndedOverlay while the workout query is loading; mounts RaceFlow once the query resolves to mode === race', () => {
+    // While the active session's workout_id is known but the workout
+    // query is still in-flight, `workout?.mode` is undefined and the
+    // legacy code would fall through to LiveBody's non-race branch —
+    // transiently mounting the SessionEndedOverlay container next to
+    // RaceFlow on the null → summary transition. The guard must
+    // render a minimal placeholder instead.
+    mockWorkoutProgress.current = {
+      segments: [],
+      active: null,
+      workoutId: 'W-RACE',
+      isLoading: true,
+      workout: null,
+    }
+    const sessionState: LiveState = {
+      ...initialLiveState,
+      session: {
+        session_id: 'S1',
+        started_at: '2026-04-27T12:00:00Z',
+        rower_id: 'R1',
+        rower_name: 'Daniel',
+        initial_level: 5,
+        workout_id: 'W-RACE',
+      },
+    }
+    const { rerender } = wrapRender(sessionState)
+    // Loading state: minimal placeholder, no RaceFlow, no overlay.
+    expect(screen.getByTestId('live-loading')).toBeInTheDocument()
+    expect(document.querySelector('[data-testid="bereit-screen"]')).toBeNull()
+    expect(document.querySelector('[data-component="race-canvas"]')).toBeNull()
+    expect(screen.queryByTestId('session-ended-overlay')).toBeNull()
+    expect(document.querySelector('[data-component="tile-grid"]')).toBeNull()
+
+    // Workout resolves as race mode → RaceFlow mounts.
+    mockWorkoutProgress.current = {
+      segments: [],
+      active: null,
+      workoutId: 'W-RACE',
+      isLoading: false,
+      workout: {
+        id: 'W-RACE',
+        mode: 'race',
+        params: { meters: 2000 },
+        intensity: null,
+      },
+    }
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    rerender(
+      <QueryClientProvider client={qc}>
+        <LiveSessionContext.Provider value={sessionState}>
+          <MemoryRouter initialEntries={['/live']}>
+            <Routes>
+              <Route path="/live" element={<LivePage />} />
+              <Route path="/" element={<div>HOME</div>} />
+            </Routes>
+          </MemoryRouter>
+        </LiveSessionContext.Provider>
+      </QueryClientProvider>,
+    )
+    expect(screen.queryByTestId('live-loading')).toBeNull()
+    expect(document.querySelector('[data-testid="bereit-screen"]')).not.toBeNull()
+    expect(screen.queryByTestId('session-ended-overlay')).toBeNull()
+  })
+})
+
 describe('LivePage phase-aware countdown (FEAT-0015 Slice 1)', () => {
   function stateInPhase(phase: LiveState['phase']): LiveState {
     return {
