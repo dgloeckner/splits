@@ -85,3 +85,26 @@ documented-known-failure to required-pass.
 ## Blocked by
 
 None — can start immediately.
+
+## Comments
+
+### 2026-05-14 — Fix landed; primary AC verified by real E2E run
+
+Both parts of the resolved approach merged (commit `6e7f196`):
+
+1. `BoatSprite.tsx`: SVG now has explicit `width="72"` `height="24"`.
+2. `RaceLiveView.tsx`: `useLayoutEffect` seeds `size` from `getBoundingClientRect()` before first paint; existing `useEffect` + `ResizeObserver` retained for subsequent resizes.
+
+Validation via `PLAYWRIGHT_BASE_URL=noop npx playwright test happy-path.spec.ts --workers=1`:
+
+- Spec previously failed at **line 128** (`expect(raceFlow.userBoat()).toBeVisible()` at ATTENTION).
+- Spec now passes ATTENTION + SET assertions. Screenshots `02-attention.png` and `03-set.png` captured. `02-attention.png` shows the user's teal boat clearly visible at the start line on the canvas, with the FISA red light + ATTENTION overlay layered correctly above the still-mounted canvas.
+- 506 unit tests pass (+2 new for BoatSprite SVG dimensions).
+
+The primary AC ("boats visible during ATTENTION") is met.
+
+### Knock-on finding (separate from 0017-01): Live-phase spec races finish
+
+After 0017-01 landed, the same happy-path spec now fails at **line 144** (`userBoat().toBeVisible()` after the 2 s mid-race `waitForTimeout`). Likely cause: at "fast" fixture rate, the rower crosses 500 m in ~2 s of wall clock — the 2 s wait puts the spec past `Finished` and possibly into `Post`, where `RaceLiveView` unmounts and `RacePostScreen` takes over (canvas + user boat gone from DOM).
+
+This is a spec-pacing concern, not a real-app behaviour bug. The fix is in the *test*: either use a shorter mid-race wait, or assert against the reducer's phase before re-asserting `userBoat()`. Tracked as a follow-up against PRD-0016 / 0016-05, not a re-open of 0017-01.
