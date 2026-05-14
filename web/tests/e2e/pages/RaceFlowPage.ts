@@ -90,6 +90,26 @@ export class RaceFlowPage {
     return this.page.getByTestId('boat-pb')
   }
 
+  falschstartToast(): Locator {
+    return this.page.getByTestId('falschstart-toast')
+  }
+
+  /**
+   * Wait for the Falschstart toast to render. The toast appears when the
+   * reducer transitions Ceremony(ATTENTION|SET) → Live(Falschstart).
+   */
+  async waitForFalschstartToast(timeoutMs = 4_000): Promise<void> {
+    await expect(this.falschstartToast()).toBeVisible({ timeout: timeoutMs })
+  }
+
+  /**
+   * Wait for the Falschstart toast to auto-dismiss (~2 s after render).
+   * Gives a small headroom over the toast's 2000 ms self-timeout.
+   */
+  async waitForFalschstartToastDismissed(timeoutMs = 4_000): Promise<void> {
+    await expect(this.falschstartToast()).toBeHidden({ timeout: timeoutMs })
+  }
+
   /** Wait for the FinishOverlay (latched final time). */
   async waitForFinishOverlay(timeoutMs = 45_000): Promise<void> {
     await expect(this.page.getByTestId('finish-overlay')).toBeVisible({
