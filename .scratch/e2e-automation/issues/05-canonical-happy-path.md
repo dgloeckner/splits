@@ -51,3 +51,16 @@ existing user-facing components. Use the soft convention from 0016-04.
 - 0016-01 (dynamic ports)
 - 0016-02 (fixture-resume endpoint)
 - 0016-03 (`e2e-critic` sub-agent)
+
+## Comments
+
+### 2026-05-14 — E2E machinery lands; follow-up needed on boat visibility at ATTENTION
+
+The walkthrough spec, worker-scoped Vite fixture, race helpers, and added `data-testid`s all landed. The spec runs end-to-end against the real running app up to and including BereitScreen (verified screenshot `01-bereit.png` — distance + opponent summary, Bereit button, Abbrechen pill top-right). Two glue fixes were needed after the initial merge:
+
+1. `fixtures.ts` worker-scoped `baseURL` override conflicted with Playwright's built-in test-scoped `baseURL` fixture; reverted to test-scope (still reads from the worker-scoped `viteWorker` inside).
+2. Spec ordering: `seedActiveRower` goes through the Vite proxy, so `startBackend` had to run first or every API call returned 502.
+
+**Known failure (real-app finding, follow-up needed):** the spot-check `expect(raceFlow.userBoat()).toBeVisible()` at the ATTENTION step fails. The `<span data-testid="boat-user">` is in the DOM but Playwright's visibility check returns "hidden" (zero bounding box). The most likely cause is that the `RaceCanvas` `ResizeObserver` hasn't reported viewport dimensions on the frame following mount-at-ATTENTION (per ADR-0013), so the boat sprite is rendered at offset position with zero parent lane height. This is exactly the kind of regression the E2E gate is designed to surface; it's a real-app finding worth a follow-up PRD/issue (likely "render starting-position boats deterministically before ResizeObserver fires", or "BoatSprite gets an intrinsic minimum size").
+
+Per ADR-0014, on this first-integration retrofit critic blockers are advisory — the machinery is the deliverable. The boat-visibility assertion finding goes into the AC-strengthening backlog.
