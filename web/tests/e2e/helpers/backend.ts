@@ -35,6 +35,12 @@ export type BackendOptions = {
   fixtureRate?: 'fast' | 'realtime'
   /** Defer fixture playback so the test can finish setup. Default 6s. */
   fixtureDelay?: string
+  /**
+   * Start the fixture replayer in a paused state. Default false.
+   * Resume via {@link resumeFixture}. Lets race-mode specs align the
+   * first stroke with a precise phase boundary (e.g. ATTENTION).
+   */
+  fixturePaused?: boolean
   /** Sessionizer idle timeout. Default 2s for snappy session_end. */
   idleTimeout?: string
   /** TCP address. Optional — defaults to a dynamically picked free port on 127.0.0.1. */
@@ -76,6 +82,9 @@ export async function spawnBackend(opts: BackendOptions = {}): Promise<BackendHa
     env.SPLITS_FIXTURE = opts.fixture
     env.SPLITS_FIXTURE_RATE = opts.fixtureRate ?? 'fast'
     env.SPLITS_FIXTURE_DELAY = opts.fixtureDelay ?? '6s'
+    if (opts.fixturePaused) {
+      env.SPLITS_FIXTURE_PAUSED = '1'
+    }
   }
 
   const proc = spawn(bin, [], {
@@ -143,6 +152,39 @@ async function killBackend(proc: ChildProcess, hostPort: string): Promise<void> 
     }
     await new Promise((r) => setTimeout(r, 200))
   }
+}
+
+/**
+ * Response shape from POST /test/fixture/resume. The endpoint is
+ * idempotent: a successful first call yields {started:true}; later
+ * calls return {started:false, reason:"already_running"}. When the
+ * backend has no fixture configured the same 200 response carries
+ * reason:"no_fixture", letting specs assert "no stroke source" without
+ * a separate probe.
+ */
+export type ResumeFixtureResponse = {
+  started: boolean
+  reason?: 'already_running' | 'no_fixture'
+}
+
+/**
+ * POST /test/fixture/resume on the given backend. The endpoint is
+ * only mounted when SPLITS_DEV_MODE=1, which spawnBackend always sets.
+ * Returns the parsed JSON body; throws on non-2xx so race specs fail
+ * fast if the dev gate is misconfigured (e.g. 404).
+ */
+export async function resumeFixture(
+  handle: BackendHandle,
+): Promise<ResumeFixtureResponse> {
+  const hostPort = handle.addr.startsWith(':')
+    ? '127.0.0.1' + handle.addr
+    : handle.addr
+  const url = `http://${hostPort}/test/fixture/resume`
+  const r = await fetch(url, { method: 'POST' })
+  if (!r.ok) {
+    throw new Error(`resumeFixture: ${url} returned ${r.status}`)
+  }
+  return (await r.json()) as ResumeFixtureResponse
 }
 
 /**
