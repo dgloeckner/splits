@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { pickFreePort } from './ports'
 
 // ESM helpers don't have __dirname.
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -36,7 +37,7 @@ export type BackendOptions = {
   fixtureDelay?: string
   /** Sessionizer idle timeout. Default 2s for snappy session_end. */
   idleTimeout?: string
-  /** TCP address. Default 127.0.0.1:8080. */
+  /** TCP address. Optional — defaults to a dynamically picked free port on 127.0.0.1. */
   addr?: string
 }
 
@@ -51,11 +52,17 @@ export type BackendHandle = {
  * Spawn a fresh splits backend with a private SQLite DB and the
  * configured fixture. Awaits /api/health before returning. Always
  * sets `SPLITS_DEV_MODE=1` so the TLS startup gate is bypassed.
+ *
+ * If `opts.addr` is omitted the helper picks a free TCP port via the
+ * ports helper, so concurrent workers don't collide on a fixed port.
  */
 export async function spawnBackend(opts: BackendOptions = {}): Promise<BackendHandle> {
   const bin = ensureSplitsBinary()
   const tmp = mkdtempSync(join(tmpdir(), 'splits-e2e-flow-'))
   const dbPath = join(tmp, 'e2e.db')
+  // Legacy specs without `addr` keep the historic 8080 default (they
+  // run in serial mode so collisions are avoided that way). New
+  // parallel-aware callers should pass an explicit dynamic addr.
   const addr = opts.addr ?? '127.0.0.1:8080'
 
   const env: Record<string, string> = {
@@ -71,12 +78,6 @@ export async function spawnBackend(opts: BackendOptions = {}): Promise<BackendHa
     env.SPLITS_FIXTURE_DELAY = opts.fixtureDelay ?? '6s'
   }
 
-  // Belt + braces: ensure any straggler backend on 8080 is dead
-  // before binding. The previous test's killBackend already polled
-  // for connection refused, but TIME_WAIT or a slow exit can still
-  // leave the port held; this hard-kill step removes that race.
-  await killAnyOn8080()
-
   const proc = spawn(bin, [], {
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -86,7 +87,8 @@ export async function spawnBackend(opts: BackendOptions = {}): Promise<BackendHa
   proc.stderr?.on('data', (d) => process.stderr.write(`${tag} ${d}`))
   proc.stdout?.on('data', (d) => process.stderr.write(`${tag} ${d}`))
 
-  const url = `http://${addr.startsWith(':') ? '127.0.0.1' + addr : addr}/api/health`
+  const hostPort = addr.startsWith(':') ? '127.0.0.1' + addr : addr
+  const url = `http://${hostPort}/api/health`
   const deadline = Date.now() + 30_000
   while (Date.now() < deadline) {
     try {
@@ -96,7 +98,7 @@ export async function spawnBackend(opts: BackendOptions = {}): Promise<BackendHa
           proc,
           addr,
           dbPath,
-          kill: () => killBackend(proc),
+          kill: () => killBackend(proc, hostPort),
         }
       }
     } catch {
@@ -104,35 +106,11 @@ export async function spawnBackend(opts: BackendOptions = {}): Promise<BackendHa
     }
     await new Promise((r) => setTimeout(r, 100))
   }
-  await killBackend(proc)
+  await killBackend(proc, hostPort)
   throw new Error('backend did not come up in 30s')
 }
 
-/**
- * Hard-kill every process listening on 8080 (lsof + kill -9). Used
- * defensively before spawnBackend to bury any straggler from a
- * previous test. No-op when nothing is listening.
- */
-async function killAnyOn8080(): Promise<void> {
-  const r = spawnSync('lsof', ['-tiTCP:8080', '-sTCP:LISTEN'], { encoding: 'utf8' })
-  const pids = (r.stdout || '')
-    .split('\n')
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0 && /^\d+$/.test(s))
-  for (const pid of pids) {
-    try {
-      spawnSync('kill', ['-9', pid])
-    } catch {
-      /* ignore */
-    }
-  }
-  if (pids.length > 0) {
-    // Let the kernel reap the listening socket.
-    await new Promise((r) => setTimeout(r, 500))
-  }
-}
-
-async function killBackend(proc: ChildProcess): Promise<void> {
+async function killBackend(proc: ChildProcess, hostPort: string): Promise<void> {
   if (!proc.pid || proc.killed) return
   // Immediate SIGKILL — these are short-lived tests, no graceful
   // shutdown needed and SIGTERM has been racy in practice.
@@ -145,13 +123,14 @@ async function killBackend(proc: ChildProcess): Promise<void> {
     proc.once('exit', () => resolve())
     setTimeout(() => resolve(), 3_000).unref()
   })
-  // Block until port 8080 frees up so the next test's spawn lands on
+  // Block until the chosen port frees up so the next spawn lands on
   // a real fresh backend, not the dying one. A live backend serves
   // /api/health 200; a dead one refuses the connection.
+  const healthUrl = `http://${hostPort}/api/health`
   const deadline = Date.now() + 10_000
   while (Date.now() < deadline) {
     try {
-      const r = await fetch('http://localhost:8080/api/health', {
+      const r = await fetch(healthUrl, {
         signal: AbortSignal.timeout(200),
       })
       r.body?.cancel()
