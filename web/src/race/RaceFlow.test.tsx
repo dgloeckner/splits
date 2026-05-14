@@ -293,6 +293,35 @@ describe('RaceFlow integration', () => {
     expect(document.querySelector('[role="status"][aria-live="assertive"]')).toBeNull()
   })
 
+  it('Confirm invokes the onAbort prop (caller wires session-end via useWorkoutOverlay.abort)', () => {
+    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps as any)
+    const rafCallbacks: FrameRequestCallback[] = []
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      rafCallbacks.push(cb)
+      return rafCallbacks.length
+    })
+    vi.stubGlobal('cancelAnimationFrame', () => {})
+    let now = 0
+    vi.stubGlobal('performance', { now: () => now } as any)
+    function pumpRaf(toMs: number) {
+      now = toMs
+      act(() => {
+        const cbs = rafCallbacks.splice(0)
+        cbs.forEach((cb) => cb(now))
+      })
+    }
+
+    const onAbort = vi.fn()
+    const { getByTestId } = render(
+      <RaceFlow liveState={baseLive} totalMeters={2000} opponentsLabel="" onAbort={onAbort} />,
+    )
+    act(() => { fireEvent.click(getByTestId('bereit-button')) })
+    pumpRaf(100)
+    act(() => { fireEvent.click(getByTestId('abort-pill')) })
+    act(() => { fireEvent.click(getByTestId('abort-confirm-confirm')) })
+    expect(onAbort).toHaveBeenCalledTimes(1)
+  })
+
   it('Cancel path: tap pill → cancel → reducer state unchanged; canvas + overlay intact', () => {
     vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps as any)
     const rafCallbacks: FrameRequestCallback[] = []

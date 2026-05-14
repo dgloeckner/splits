@@ -29,7 +29,7 @@ function LiveBody() {
   useSegmentTransitions()
   const state = useLiveSession()
   const { active, segments, workout, isLoading } = useWorkoutProgress()
-  const { aborted } = useWorkoutOverlay()
+  const { aborted, abort } = useWorkoutOverlay()
   const seg = active?.segment
   const workSeg = seg && seg.kind === 'work' ? seg : null
   const target = workSeg
@@ -50,7 +50,7 @@ function LiveBody() {
     } catch {}
     return (
       <div className={styles.page}>
-        <RaceFlow liveState={state} totalMeters={meters} opponentsLabel={opponentsLabel} />
+        <RaceFlow liveState={state} totalMeters={meters} opponentsLabel={opponentsLabel} onAbort={abort} />
       </div>
     )
   }
