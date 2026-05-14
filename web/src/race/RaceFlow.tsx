@@ -79,8 +79,13 @@ export function RaceFlow({ liveState, totalMeters, opponentsLabel, onRetry, onSh
     )
   }
 
+  // ADR-0013: the canvas + opponent fetch mount at Ceremony(ATTENTION),
+  // not at Ceremony(GO!). The visible boat stays parked at distance 0
+  // until GO! fires (see `RaceLiveStage` for the clamp). The live-stroke
+  // subscription is unaffected — strokes are still routed through the
+  // reducer, which discards pre-GO meters from race-distance/race-time.
   const liveMounted =
-    (state.phase === 'Ceremony' && state.ceremonyStep === 'GO') ||
+    state.phase === 'Ceremony' ||
     state.phase === 'Live' ||
     state.phase === 'Finished' ||
     state.phase === 'Post'
@@ -168,9 +173,29 @@ function RaceLiveStage({
     )
   }
 
+  // Visual gate (ADR-0013): until GO! fires, the rower's boat must stay
+  // parked at distance 0 on the canvas even if a Falschstart stroke has
+  // already opened the session. The reducer already excludes pre-GO
+  // meters from race-distance/race-time; this is the visual mirror.
+  const stroke = liveState.stroke
+  const inCeremony = lifecycle.phase === 'Ceremony'
+  const preGoFalschstart =
+    lifecycle.phase === 'Live' &&
+    lifecycle.falschstart &&
+    lifecycle.race_t0 != null &&
+    stroke != null &&
+    stroke.time_sec * 1000 < lifecycle.race_t0
+  const clampVisualToZero = inCeremony || preGoFalschstart
+  const visualLiveState: LiveState =
+    clampVisualToZero && stroke
+      ? { ...liveState, stroke: { ...stroke, distance_m: 0 } }
+      : clampVisualToZero
+        ? { ...liveState, stroke: null }
+        : liveState
+
   return (
     <>
-      <RaceLiveView liveState={liveState} totalMeters={totalMeters} />
+      <RaceLiveView liveState={visualLiveState} totalMeters={totalMeters} />
       {lifecycle.phase === 'Finished' && lifecycle.latchedResult && (
         <FinishOverlay result={lifecycle.latchedResult} />
       )}

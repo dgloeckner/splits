@@ -92,7 +92,7 @@ describe('RaceFlow integration', () => {
     expect(queryByTestId('finish-overlay')).not.toBeNull()
   })
 
-  it('Bereit tap → ATTENTION → SET → GO!; live view mounts only at GO', () => {
+  it('Bereit tap → ATTENTION → SET → GO!; canvas mounts at ATTENTION (ADR-0013)', () => {
     const spy = vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps as any)
     // Drive rAF via fake timers so the lifecycle hook can advance.
     const rafCallbacks: FrameRequestCallback[] = []
@@ -116,20 +116,84 @@ describe('RaceFlow integration', () => {
       })
     }
 
+    // Pre-Bereit: useRaceData NOT called (Bereit still does not open fetch).
+    expect(spy).not.toHaveBeenCalled()
+
     // Tap Bereit at t=0
     act(() => {
       fireEvent.click(getByTestId('bereit-button'))
     })
-    // ATTENTION should be showing
+    // ATTENTION should be showing AND canvas is mounted now (ADR-0013).
     pumpRaf(100)
+    act(() => { vi.advanceTimersByTime(0) })
     expect(queryByTestId('bereit-screen')).toBeNull()
-    expect(spy).not.toHaveBeenCalled()
-    // Advance to SET (>= 1500ms)
-    pumpRaf(1500)
-    // Advance to GO (>= 3000ms) — live view mounts
-    pumpRaf(3000)
     expect(spy).toHaveBeenCalled()
-    // Advance past GO+1500 to Live
+    const canvasAtAttention = document.querySelector('[data-component="race-canvas"]')
+    expect(canvasAtAttention).not.toBeNull()
+    // Ceremony overlay is rendered (above the canvas in DOM order, z-index 10).
+    expect(document.querySelector('[role="status"][aria-live="assertive"]')).not.toBeNull()
+
+    // Advance to SET (>= 1500ms) — canvas stays mounted (same DOM node).
+    pumpRaf(1500)
+    act(() => { vi.advanceTimersByTime(1500) })
+    const canvasAtSet = document.querySelector('[data-component="race-canvas"]')
+    expect(canvasAtSet).toBe(canvasAtAttention)
+    // Ceremony overlay still present at SET.
+    expect(document.querySelector('[role="status"][aria-live="assertive"]')).not.toBeNull()
+
+    // Advance to GO (>= 3000ms) — canvas still same node.
+    pumpRaf(3000)
+    act(() => { vi.advanceTimersByTime(1500) })
+    const canvasAtGo = document.querySelector('[data-component="race-canvas"]')
+    expect(canvasAtGo).toBe(canvasAtAttention)
+
+    // Advance past GO+1500 to Live — canvas remains, ceremony overlay gone.
     pumpRaf(4500)
+    act(() => { vi.advanceTimersByTime(1500) })
+    const canvasAtLive = document.querySelector('[data-component="race-canvas"]')
+    expect(canvasAtLive).toBe(canvasAtAttention)
+    expect(document.querySelector('[role="status"][aria-live="assertive"]')).toBeNull()
+  })
+
+  it('Falschstart: stroke during ATTENTION → Live(falschstart); visible boat stays at 0', () => {
+    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps as any)
+    const rafCallbacks: FrameRequestCallback[] = []
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      rafCallbacks.push(cb)
+      return rafCallbacks.length
+    })
+    vi.stubGlobal('cancelAnimationFrame', () => {})
+    let now = 0
+    vi.stubGlobal('performance', { now: () => now } as any)
+
+    function pumpRaf(toMs: number) {
+      now = toMs
+      act(() => {
+        const cbs = rafCallbacks.splice(0)
+        cbs.forEach((cb) => cb(now))
+      })
+    }
+
+    let liveState: any = { ...baseLive, stroke: null }
+    const { getByTestId, rerender } = render(
+      <RaceFlow liveState={liveState} totalMeters={2000} opponentsLabel="" />,
+    )
+    act(() => { fireEvent.click(getByTestId('bereit-button')) })
+    pumpRaf(100) // ATTENTION
+
+    // Stroke arrives during ATTENTION: time_sec is well before race_t0 (ms).
+    liveState = {
+      ...baseLive,
+      stroke: { time_sec: 0.5, distance_m: 3, pace_sec_per_500m: 130, power_w: 100, spm: 20 },
+    }
+    rerender(<RaceFlow liveState={liveState} totalMeters={2000} opponentsLabel="" />)
+
+    // Reducer should have transitioned to Live(Falschstart); FalschstartToast visible.
+    expect(document.querySelector('[data-testid="falschstart-toast"]')).not.toBeNull()
+
+    // The visible userDistanceM passed to RaceCanvas must read 0, not 3.
+    const canvas = document.querySelector('[data-component="race-canvas"]')
+    expect(canvas).not.toBeNull()
+    expect(canvas?.getAttribute('data-user-distance-m')).toBe('0')
   })
 })

@@ -43,6 +43,12 @@ opponent-pace transport shape).
       (ATTENTION → SET → GO!, total 3 s; auto-dismisses at 4.5 s).
 - [ ] On GO!, the live page mounts and starts subscribing. The
       rower's first stroke = `session_start` = race t=0.
+      *(Superseded by ADR-0013 for the canvas + opponent fetch only: the
+      `RaceCanvas` and `useRaceData` opponent fetch now mount at
+      Ceremony(ATTENTION) so the rower can orient. The visible boat
+      stays parked at distance 0 until GO! fires. The live-stroke
+      subscription and `session_start`/race t=0 semantics are
+      unchanged.)*
 - [ ] If the rower strokes during ATTENTION/SET (i.e. before GO!),
       that stroke still opens the session but a small toast notes
       `Falschstart` and t=0 remains the GO! moment (clock starts
