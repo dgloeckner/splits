@@ -112,6 +112,13 @@ func run() error {
 
 	deviceMonitor := ipm.NewDeviceMonitor()
 	producer := pickProducer(cfg, deviceMonitor)
+	// fixtureCtl is the resume-control surface exposed to the API
+	// layer for POST /test/fixture/resume. nil when no fixture is
+	// configured; the handler then returns reason="no_fixture".
+	var fixtureCtl api.FixtureResumer
+	if fp, ok := unwrapFixture(producer); ok {
+		fixtureCtl = &fixtureResumeAdapter{fp: fp}
+	}
 	ring := pipeline.NewRing(10000)
 	bcast := stream.NewBroadcaster(broadcastCh)
 	sessionizer := session.New(session.Options{
@@ -164,6 +171,8 @@ func run() error {
 			DeviceCookieSecure: !cfg.DevMode,
 			PublicURL:          cfg.PublicURL,
 			DeviceMonitor:      deviceMonitor,
+			DevMode:            cfg.DevMode,
+			FixtureControl:     fixtureCtl,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
@@ -197,9 +206,13 @@ func pickProducer(cfg *config.Config, monitor *ipm.DeviceMonitor) ipm.Producer {
 		if cfg.FixtureRate == "fast" {
 			pacing = ipm.PacingFast
 		}
-		var p ipm.Producer = &ipm.FixtureProducer{Path: cfg.Fixture, Pacing: pacing}
+		fp := &ipm.FixtureProducer{Path: cfg.Fixture, Pacing: pacing}
+		if cfg.FixturePaused {
+			fp.Pause()
+		}
+		var p ipm.Producer = fp
 		if cfg.FixtureDelay > 0 {
-			p = &delayedProducer{inner: p, delay: cfg.FixtureDelay}
+			p = &delayedProducer{inner: p, delay: cfg.FixtureDelay, fixture: fp}
 		}
 		// Fixture is always "connected" for the UI banner — it's the
 		// dev/demo source replacing the IPM, not a real device.
@@ -221,6 +234,11 @@ func pickProducer(cfg *config.Config, monitor *ipm.DeviceMonitor) ipm.Producer {
 type delayedProducer struct {
 	inner ipm.Producer
 	delay time.Duration
+	// fixture is the underlying FixtureProducer for pause/resume
+	// control (or nil if delayedProducer wraps something else). Kept
+	// alongside `inner` so unwrapFixture can return it without
+	// type-introspecting the producer chain.
+	fixture *ipm.FixtureProducer
 }
 
 func (d *delayedProducer) Run(ctx context.Context, out chan<- ipm.Frame) error {
@@ -231,6 +249,34 @@ func (d *delayedProducer) Run(ctx context.Context, out chan<- ipm.Frame) error {
 		return ctx.Err()
 	}
 	return d.inner.Run(ctx, out)
+}
+
+// unwrapFixture returns the FixtureProducer at the heart of `p` if
+// there is one. Used to expose Pause/Resume to the api layer without
+// teaching every wrapper type how to forward the control surface.
+func unwrapFixture(p ipm.Producer) (*ipm.FixtureProducer, bool) {
+	switch v := p.(type) {
+	case *ipm.FixtureProducer:
+		return v, true
+	case *delayedProducer:
+		if v.fixture != nil {
+			return v.fixture, true
+		}
+	}
+	return nil, false
+}
+
+// fixtureResumeAdapter bridges *ipm.FixtureProducer (which returns
+// only wasPaused) to api.FixtureResumer (which speaks the wire-level
+// {started, reason} vocabulary). "already_running" is the only reason
+// surfaced for now; future producers may add more.
+type fixtureResumeAdapter struct{ fp *ipm.FixtureProducer }
+
+func (a *fixtureResumeAdapter) Resume() (bool, string) {
+	if a.fp.Resume() {
+		return true, ""
+	}
+	return false, "already_running"
 }
 
 // enforceTLSPolicy refuses to start in production-like configurations

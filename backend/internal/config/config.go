@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -28,7 +29,13 @@ type Config struct {
 	// streaming, otherwise frames are dropped at the sessionizer
 	// because no session is open yet. Env: SPLITS_FIXTURE_DELAY.
 	FixtureDelay time.Duration
-	DevMode      bool
+	// FixturePaused, when true, starts the FixtureProducer in a paused
+	// state — no frames are emitted until POST /test/fixture/resume is
+	// called. Used by race-mode E2E to align stroke emission with a
+	// phase boundary (e.g. produce a stroke during ATTENTION). Env:
+	// SPLITS_FIXTURE_PAUSED ("1" or "true").
+	FixturePaused bool
+	DevMode       bool
 	// PublicURL is the externally-reachable base URL of this instance
 	// (e.g. https://splits.example.de). Used to build absolute pairing
 	// URLs encoded into QR codes. Empty means "derive from request Host".
@@ -76,6 +83,7 @@ func Load(env Lookup) (*Config, error) {
 		c.FixtureDelay = d
 	}
 	c.DevMode = get(env, "SPLITS_DEV_MODE", "") == "1"
+	c.FixturePaused = parseBool(get(env, "SPLITS_FIXTURE_PAUSED", ""))
 	c.PublicURL = get2(env, "SPLITS_PUBLIC_URL", "HOMEERGO_PUBLIC_URL", "")
 
 	switch c.FixtureRate {
@@ -107,6 +115,18 @@ func get(env Lookup, key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// parseBool recognises "1" / "true" (case-insensitive) as true. All
+// other values — including "0", "false", or "" — yield false. Kept
+// local to config to avoid pulling in strconv's stricter semantics
+// (e.g. strconv.ParseBool would reject "yes").
+func parseBool(s string) bool {
+	switch strings.ToLower(s) {
+	case "1", "true":
+		return true
+	}
+	return false
 }
 
 // get2 prefers the primary key; falls back to a legacy key for one

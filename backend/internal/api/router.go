@@ -36,6 +36,15 @@ type Inputs struct {
 	// frontend via /api/v1/device. Optional — nil → endpoint omitted
 	// (e.g. fixture-only test runs).
 	DeviceMonitor *ipm.DeviceMonitor
+	// DevMode gates the mounting of dev-only test affordances
+	// (currently POST /test/fixture/resume). In production this is
+	// false so those routes are not registered, and the mux returns
+	// 404 by default.
+	DevMode bool
+	// FixtureControl, when non-nil and DevMode is true, is wired into
+	// the /test/fixture/resume endpoint. nil + DevMode=true is valid:
+	// the handler then reports {"started":false,"reason":"no_fixture"}.
+	FixtureControl FixtureResumer
 }
 
 func NewRouter(in Inputs) http.Handler {
@@ -126,6 +135,8 @@ func NewRouter(in Inputs) http.Handler {
 			mux.Handle("GET /api/v1/session/active", gate(SessionActiveHandler(p)))
 		}
 	}
+
+	registerFixtureRoutes(mux, in.DevMode, in.FixtureControl)
 
 	mux.Handle("GET /debug/ingest", gate(DebugIngestHandler(DebugIngestInputs{
 		Ring:        in.Ring,

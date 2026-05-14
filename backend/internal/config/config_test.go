@@ -200,6 +200,39 @@ func TestLoad_PublicURL_LegacyVar(t *testing.T) {
 	}
 }
 
+func TestLoad_FixturePaused(t *testing.T) {
+	for _, tc := range []struct {
+		val  string
+		want bool
+	}{
+		{"1", true},
+		{"true", true},
+		{"TRUE", true},
+		{"True", true},
+		{"0", false},
+		{"false", false},
+		{"", false},
+	} {
+		cfg, err := Load(mapLookup(map[string]string{"SPLITS_FIXTURE_PAUSED": tc.val}))
+		if err != nil {
+			t.Fatalf("val=%q: %v", tc.val, err)
+		}
+		if cfg.FixturePaused != tc.want {
+			t.Errorf("val=%q: FixturePaused = %v, want %v", tc.val, cfg.FixturePaused, tc.want)
+		}
+	}
+}
+
+func TestLoad_FixturePausedDefaultFalse(t *testing.T) {
+	cfg, err := Load(mapLookup(nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.FixturePaused {
+		t.Fatal("FixturePaused default should be false")
+	}
+}
+
 func TestLoad_InvalidFixtureRate(t *testing.T) {
 	if _, err := Load(mapLookup(map[string]string{"HOMEERGO_FIXTURE_RATE": "hyperspeed"})); err == nil {
 		t.Fatal("Load() expected error for unknown fixture rate, got nil")
