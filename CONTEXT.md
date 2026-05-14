@@ -45,12 +45,26 @@ Tapping Bereit triggers the start ceremony (ATTENTION → SET → GO!).
 Only on GO! does the user take their first stroke, opening the
 session.
 
+Note: the upstream configuration step's confirmation screen is named
+**Übersicht**, not "Bereit", to avoid colliding with this term. Only
+the at-the-catch screen carries the name Bereit.
+
 ### Start ceremony
 
 A FISA-style traffic-light sequence: red (ATTENTION, 0 ms), amber
 (SET, 1500 ms), green (GO!, 3000 ms), then dismiss. Decorative when
 reduced-motion is on, but the timing is real — the user is expected
 to wait at the catch through ATTENTION/SET and stroke on GO!.
+
+The race canvas — track and boats parked at the start line — is
+mounted from **Ceremony(ATTENTION)** onward and stays mounted across
+GO!, Live, Finished, and the paddle-down. The ceremony is rendered
+as an overlay over the still canvas, so GO! produces no mount/swap
+flash. Opponent curves are fetched at ATTENTION (they are static, so
+fetching early is harmless and warms the data before the rower
+needs it). The **live stroke subscription** remains gated on GO! —
+strokes are still excluded from race-distance/race-time until then,
+preserving the Falschstart rule.
 
 ### Finish horn
 
@@ -158,3 +172,8 @@ auto-popped during Warmup/Cooldown.
 - **Abort** ends the session before the finish horn. Abort produces
   a normal session record but no race result (`summary_json.race`
   is null).
+- In race mode, abort is reached via a small **Abbrechen** pill in
+  the top-right of the race surface. It is visible across Bereit,
+  Ceremony, Live, and Finished (rendered above the ceremony overlay).
+  Tapping it opens a confirmation sheet — the abort itself only
+  fires on confirm.
