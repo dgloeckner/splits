@@ -148,9 +148,17 @@ export function raceLifecycle(
             session_start: event.t,
           }
         }
-        // Stroke during GO! is a normal first stroke. Defer transition
-        // to the post-GO tick; record session_start though.
-        return state
+        // Stroke during GO! is the race-start signal: transition to
+        // Live(NormalStart) immediately and fall through to the Live
+        // path so this stroke's distance is recorded (and an immediate
+        // finish-cross can latch in the same step). race_t0 stays at
+        // the pending GO! moment set at bereitTap.
+        state = {
+          ...state,
+          phase: 'Live',
+          ceremonyStep: null,
+          liveKind: 'NormalStart',
+        }
       }
       if (state.phase === 'Live') {
         if (state.session_start == null) {

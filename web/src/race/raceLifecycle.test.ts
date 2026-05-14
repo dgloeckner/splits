@@ -67,6 +67,45 @@ describe('raceLifecycle reducer', () => {
     expect(s.session_start).toBe(2000)
   })
 
+  it('Stroke during GO! → Live(NormalStart), records session_start + _prevStroke (0017-04)', () => {
+    let s = run([
+      { type: 'confirm' },
+      { type: 'bereitTap', t: 0 },
+      { type: 'tick', nowMs: 1500 },
+      { type: 'tick', nowMs: 3000 },
+    ])
+    expect(s.phase).toBe('Ceremony')
+    expect(s.ceremonyStep).toBe('GO')
+    expect(s.race_t0).toBe(3000)
+    s = raceLifecycle(s, { type: 'stroke', t: 3.5, dist: 8, userDistance: 8, total: 2000 })
+    expect(s.phase).toBe('Live')
+    expect(s.liveKind).toBe('NormalStart')
+    expect(s.ceremonyStep).toBeNull()
+    expect(s.falschstart).toBe(false)
+    expect(s.session_start).toBe(3.5)
+    expect(s._prevStroke).toEqual({ t: 3.5, dist: 8 })
+    // race_t0 unchanged from the GO! moment set at bereitTap.
+    expect(s.race_t0).toBe(3000)
+  })
+
+  it('Stroke during GO! with userDistance >= total → Finished in one step (0017-04)', () => {
+    const ghost = { tSec: [0, 100, 200], distM: [0, 1000, 2000] }
+    let s = initialRaceLifecycle({ totalMeters: 2000, opponents: { ghost } })
+    s = raceLifecycle(s, { type: 'confirm' })
+    s = raceLifecycle(s, { type: 'bereitTap', t: 0 })
+    s = raceLifecycle(s, { type: 'tick', nowMs: 1500 })
+    s = raceLifecycle(s, { type: 'tick', nowMs: 3000 })
+    expect(s.ceremonyStep).toBe('GO')
+    // Whole fixture compresses into the GO! window: first stroke is already
+    // a finish-cross. Reducer must skip the Live frame and latch immediately.
+    s = raceLifecycle(s, { type: 'stroke', t: 100, dist: 2000, userDistance: 2000, total: 2000 })
+    expect(s.phase).toBe('Finished')
+    expect(s.session_start).toBe(100)
+    expect(s.latchedResult).not.toBeNull()
+    expect(s.latchedResult?.finalTimeS).toBe(100)
+    expect(s._prevStroke).toEqual({ t: 100, dist: 2000 })
+  })
+
   it('userDistance >= total → Finished', () => {
     let s = run([
       { type: 'confirm' },
