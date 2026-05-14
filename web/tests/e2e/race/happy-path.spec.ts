@@ -85,21 +85,12 @@ test.describe('race-flow canonical happy path (0016-05)', () => {
     const startedAt = Date.now()
     mkdirSync(SCREENSHOT_DIR, { recursive: true })
 
-    // 1. Seed the rower (sets device cookie + active rower).
-    const rower = await seedActiveRower()
-
-    // 2. Seed a prior race session at 500 m so the opponent fetch has
-    //    *something* to consider. See "Known limitations" above — until
-    //    a session-seeding endpoint lands this only creates the workout
-    //    row, but it documents the intent.
-    await seedPriorRaceSession(context.request, { meters: 500, intensity: 'moderat' })
-
-    // 3. Start the backend with the long fixture, paused so we can
-    //    align stroke release with GO!.
+    // 1. Start the backend FIRST on the worker's reserved port so the
+    //    Vite proxy has something to forward `/api/*` to. (seedRower
+    //    below uses context.request → goes through baseURL=viteUrl →
+    //    Vite proxies to 127.0.0.1:${backendPort}; without a live
+    //    backend that returns 502.)
     const backend = await startBackend({
-      // Bind the backend to the same port the worker's Vite proxy was
-      // launched pointing at, so all /api/* requests proxied through
-      // Vite reach this backend (per-worker isolation, 0016-01).
       addr: `127.0.0.1:${viteWorker.backendPort}`,
       fixture: FIXTURE,
       fixtureRate: 'fast',
@@ -107,6 +98,15 @@ test.describe('race-flow canonical happy path (0016-05)', () => {
       fixturePaused: true,
       idleTimeout: '5s',
     })
+
+    // 2. Seed the rower (sets device cookie + active rower).
+    const rower = await seedActiveRower()
+
+    // 3. Seed a prior race session at 500 m so the opponent fetch has
+    //    *something* to consider. See "Known limitations" above — until
+    //    a session-seeding endpoint lands this only creates the workout
+    //    row, but it documents the intent.
+    await seedPriorRaceSession(context.request, { meters: 500, intensity: 'moderat' })
 
     // 4. Workflow: pick race → 500 m → Moderat → Übersicht confirm.
     await raceFlow.gotoWorkoutFlow()

@@ -90,12 +90,13 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   // Override Playwright's `baseURL` so the browser context picks up
   // the worker's Vite URL. Worker scope: same Vite for the whole
   // worker's test list.
-  baseURL: [
-    async ({ viteWorker }, use) => {
-      await use(viteWorker.viteUrl)
-    },
-    { scope: 'worker' },
-  ],
+  // Override Playwright's built-in `baseURL` test-scope fixture. Must
+  // stay test-scope (Playwright registers it as such); we read the
+  // worker-scoped Vite URL inside the override so every test in the
+  // worker picks up the same address without re-spawning Vite.
+  baseURL: async ({ viteWorker }, use) => {
+    await use(viteWorker.viteUrl)
+  },
 
   // ── Per-test ─────────────────────────────────────────────────────
   // `startBackend` does NOT depend on the worker-scoped Vite fixture:
