@@ -255,6 +255,59 @@ describe('LivePage session-end overlay', () => {
     expect(invalidatedKeys).toContain('rower-trends')
   })
 
+  it('LivePage .page container fills the viewport in race mode (regression: race canvas had 0px height)', () => {
+    // 0015-01 regression guard. Cause of the bug: `LivePage`'s
+    // `.page` is `display: grid` with no explicit height, so
+    // `RaceLiveView`'s inner `grid-template-rows: 56px 1fr; height:
+    // 100%;` collapses the `1fr` canvas row to 0px and the user sees
+    // only the stat bar over a black screen.
+    //
+    // Fix: give `.page` `min-height: 100dvh` so the page fills the
+    // viewport and the inner grid has a real height to subdivide.
+    //
+    // jsdom does not perform real layout, so we cannot assert
+    // `getBoundingClientRect().height > 0` on the canvas. Instead, we
+    // assert that the `.page` element wrapping the race surface has
+    // the load-bearing CSS rule applied (resolved via getComputedStyle
+    // against the CSS-module-injected stylesheet — vitest.config has
+    // `css: true`).
+    mockWorkoutProgress.current = {
+      segments: [],
+      active: null,
+      workoutId: 'W-RACE',
+      isLoading: false,
+      workout: {
+        id: 'W-RACE',
+        mode: 'race',
+        params: { meters: 2000 },
+        intensity: null,
+      },
+    }
+    wrapRender({
+      ...initialLiveState,
+      session: {
+        session_id: 'S1',
+        started_at: '2026-04-27T12:00:00Z',
+        rower_id: 'R1',
+        rower_name: 'Daniel',
+        initial_level: 5,
+        workout_id: 'W-RACE',
+      },
+    })
+    const bereit = document.querySelector('[data-testid="bereit-screen"]')
+    expect(bereit).not.toBeNull()
+    // The `.page` wrapper is the direct ancestor of <RaceFlow/>'s
+    // first child. Walk up until we find an element whose className
+    // starts with the page CSS-module token.
+    let el: HTMLElement | null = bereit as HTMLElement
+    while (el && !/(^|\s)[\w-]*_?page_?[\w-]*(\s|$)/.test(el.className)) {
+      el = el.parentElement
+    }
+    expect(el).not.toBeNull()
+    const cs = window.getComputedStyle(el as HTMLElement)
+    expect(cs.minHeight).toBe('100dvh')
+  })
+
   it('renders BereitScreen (not RaceLiveView) when active workout mode is race', () => {
     mockWorkoutProgress.current = {
       segments: [],
