@@ -6,6 +6,8 @@ export function BoatSprite({ variant = 'full', flipped = false }: Props): JSX.El
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
+      width="72"
+      height="24"
       viewBox="0 0 72 24"
       fill="none"
       stroke="currentColor"

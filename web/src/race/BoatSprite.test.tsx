@@ -40,4 +40,21 @@ describe('BoatSprite', () => {
     const svg = container.querySelector('svg')!
     expect(svg.style.transform).toBe('')
   })
+
+  it('renders explicit width="72" and height="24" attributes on the svg (full variant)', () => {
+    // Guards against the 0017-01 regression: an SVG without intrinsic
+    // dimensions inside an absolutely-positioned wrapper computes 0x0
+    // in headless Chromium, so the boat is invisible at ATTENTION.
+    const { container } = render(<BoatSprite />)
+    const svg = container.querySelector('svg')!
+    expect(svg.getAttribute('width')).toBe('72')
+    expect(svg.getAttribute('height')).toBe('24')
+  })
+
+  it('renders explicit width="72" and height="24" attributes on the svg (hull variant)', () => {
+    const { container } = render(<BoatSprite variant="hull" />)
+    const svg = container.querySelector('svg')!
+    expect(svg.getAttribute('width')).toBe('72')
+    expect(svg.getAttribute('height')).toBe('24')
+  })
 })
