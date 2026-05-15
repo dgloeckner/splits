@@ -104,11 +104,19 @@ export const test = base.extend<TestFixtures, WorkerFixtures>({
   // its own serial 8080 lock, etc.) skip Vite entirely. UI tests pull
   // the worker's `viteWorker.backendPort` and pass it as `addr` so the
   // Vite proxy resolves to the same backend.
-  startBackend: async ({}, use) => {
+  startBackend: async ({ viteWorker }, use) => {
     let handle: BackendHandle | null = null
     await use(async (opts) => {
       ensureSplitsBinary()
-      handle = await spawnBackend(opts)
+      // Bind to the worker's reserved backend port unless the caller
+      // explicitly overrides `addr`. Without this, the backend
+      // defaults to 8080 while Vite's proxy points at the worker
+      // port, and every /api request returns 502.
+      const resolved: BackendOptions = {
+        ...opts,
+        addr: opts?.addr ?? `127.0.0.1:${viteWorker.backendPort}`,
+      }
+      handle = await spawnBackend(resolved)
       return handle
     })
     if (handle) await handle.kill()
