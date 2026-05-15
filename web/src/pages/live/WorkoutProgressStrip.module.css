@@ -35,10 +35,13 @@
   min-width: 4px;
 }
 
+/* F9: warmup/cooldown previously used a dashed outline that read as
+ * "broken / placeholder". Solid low-opacity fill matches the visual
+ * language of the live work blocks while staying clearly subordinate. */
 .block_warmup,
 .block_cooldown {
-  background: transparent;
-  border: 1px dashed var(--color-outline-variant, #3d494a);
+  background: color-mix(in srgb, var(--color-on-surface-variant) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-on-surface-variant) 24%, transparent);
 }
 
 .block[data-active='true'] {
@@ -49,8 +52,8 @@
 
 .block_warmup[data-active='true'],
 .block_cooldown[data-active='true'] {
-  background: color-mix(in srgb, var(--color-primary) 25%, transparent);
-  border: 1px dashed var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 35%, transparent);
+  border: 1px solid var(--color-primary);
 }
 
 .block_rest[data-active='true'] {

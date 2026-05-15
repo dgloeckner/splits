@@ -28,7 +28,7 @@ import styles from './LivePage.module.css'
 function LiveBody() {
   useSegmentTransitions()
   const state = useLiveSession()
-  const { active, segments, workout, isLoading } = useWorkoutProgress()
+  const { active, segments, workout, isLoading, remainingAnchorMs } = useWorkoutProgress()
   const { aborted, abort } = useWorkoutOverlay()
   const seg = active?.segment
   const workSeg = seg && seg.kind === 'work' ? seg : null
@@ -93,15 +93,43 @@ function LiveBody() {
           <SegmentStatus />
         </div>
       )}
-      {state.phase === 'warmup' || state.phase === 'cooldown' ? (
+      {(() => {
         // FEAT-0015 Slice 1: warmup/cooldown swap the dashboard for a
         // dedicated mm:ss countdown. The progress strip + ✕ remain
         // visible above so the user can still abort.
-        <PhaseCountdownView
-          phase={state.phase}
-          remainingSec={seg && seg.kind === state.phase ? active?.remainingSec ?? null : null}
-        />
-      ) : (
+        //
+        // F8: cover the gap between Start and the first server
+        // phase_change event. If the workout has a warmup and no
+        // stroke has landed yet, show the warmup countdown eagerly
+        // with the full warmup duration. The earlier behaviour
+        // briefly flashed the standard tile dashboard with "sammle
+        // Daten …" placeholders before the server signal arrived.
+        const serverPhase = state.phase
+        if (serverPhase === 'warmup' || serverPhase === 'cooldown') {
+          return (
+            <PhaseCountdownView
+              phase={serverPhase}
+              remainingSec={seg && seg.kind === serverPhase ? active?.remainingSec ?? null : null}
+              anchorMs={remainingAnchorMs}
+            />
+          )
+        }
+        if (
+          serverPhase === null &&
+          workout != null &&
+          workout.warmup_sec > 0 &&
+          state.stroke === null &&
+          state.session !== null
+        ) {
+          return (
+            <PhaseCountdownView
+              phase="warmup"
+              remainingSec={workout.warmup_sec}
+            />
+          )
+        }
+        return null
+      })() ?? (
         <>
           <div className={styles.leftCol}>
             <LiveHero state={state} target={target} />

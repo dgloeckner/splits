@@ -5,7 +5,13 @@
   justify-content: center;
   gap: 0.5rem;
   padding: 2rem 1rem;
-  min-height: 60vh;
+  /* F4: previously min-height: 60vh, which on shorter phones plus the
+   * progress strip pushed the wrap's bbox into the bottom-nav region.
+   * Size the wrap relative to the safe content area instead, so the
+   * countdown vertically centres without overlapping the nav. */
+  min-height: calc(
+    100dvh - 56px - var(--layout-bottom-nav-h, 76px) - 80px
+  );
   text-align: center;
 }
 

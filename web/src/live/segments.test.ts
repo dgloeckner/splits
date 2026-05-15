@@ -160,3 +160,50 @@ describe('locateSegment cooldown after distance work', () => {
     expect(active).toBeNull()
   })
 })
+
+// B5: when a warmup precedes the distance work, the work segment must
+// measure metres relative to the warmup-end distance rather than 0.
+// Otherwise distance rowed during warmup silently shortens the goal.
+describe('locateSegment with B5 workStartDistanceM offset', () => {
+  function makeSegs() {
+    return expandWorkout({
+      id: 'w1',
+      mode: 'distance',
+      params: { meters: 2000 },
+      warmup_sec: 60,
+      cooldown_sec: 0,
+      intensity: undefined,
+    } as unknown as Workout)
+  }
+  const WARMUP_END = 50 // cumulative metres at warmup-end
+
+  it('inside work: remainingM reflects metres remaining of the 2000m goal, not cum-distance to 2000', () => {
+    const segs = makeSegs()
+    // 500m of post-warmup work done → 1500m remaining. Cumulative is
+    // WARMUP_END+500 = 550m, but the goal is "2000m post-warmup".
+    const a = locateSegment(segs, WARMUP_END + 500, 200, WARMUP_END)
+    expect(a?.segment.kind).toBe('work')
+    expect(a?.remainingM).toBe(1500)
+  })
+
+  it('crossing fires only when 2000m of post-warmup work is completed', () => {
+    const segs = makeSegs()
+    // Cumulative 2000m would have completed work under the OLD rule;
+    // with B5 it is still 1950m into the goal → work continues.
+    const stillWork = locateSegment(segs, 2000, 600, WARMUP_END)
+    expect(stillWork?.segment.kind).toBe('work')
+    expect(stillWork?.remainingM).toBe(50)
+    // Cumulative 2050m = exactly 2000m post-warmup → crossing.
+    const done = locateSegment(segs, WARMUP_END + 2000, 700, WARMUP_END)
+    // No cooldown in this fixture → null is returned at completion.
+    expect(done).toBeNull()
+  })
+
+  it('without offset (no warmup or warmup not yet ended) behaves as before', () => {
+    const segs = makeSegs()
+    const a = locateSegment(segs, 500, 200, null)
+    // Before B5 the cumulative 500m was treated as 500m of work.
+    expect(a?.segment.kind).toBe('work')
+    expect(a?.remainingM).toBe(1500)
+  })
+})

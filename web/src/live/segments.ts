@@ -105,8 +105,14 @@ export function locateSegment(
   segments: Segment[],
   distanceM: number,
   timeSec: number,
+  /** B5: cumulative distance at the warmup → work transition.
+   *  Distance segments evaluate `consumed = distanceM - startDistanceM
+   *  - workStartDistanceM`. Pass null when no warmup was used (or
+   *  before warmup has ended); 0 is also fine. */
+  workStartDistanceM: number | null = null,
 ): ActiveSegment | null {
   if (segments.length === 0) return null
+  const distOffset = workStartDistanceM ?? 0
   let timeAnchor = 0
   // workCompletedAt: timeSec at which the most recently completed
   // distance segment's target distance was crossed. Tracked so that
@@ -154,7 +160,7 @@ export function locateSegment(
         timeAnchor += seg.durationSec
       }
     } else if (seg.distanceM != null) {
-      const consumed = Math.max(0, distanceM - seg.startDistanceM)
+      const consumed = Math.max(0, distanceM - seg.startDistanceM - distOffset)
       if (consumed < seg.distanceM) {
         return {
           segment: seg,

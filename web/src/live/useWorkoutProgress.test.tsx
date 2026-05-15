@@ -69,6 +69,31 @@ describe('useWorkoutProgress', () => {
     expect(result.current.workout?.id).toBe('W1')
   })
 
+  it('exposes remainingAnchorMs from lastStrokeReceivedAtMs for wall-clock extrapolation', async () => {
+    mockRoutes({
+      '/api/v1/workouts/W1': {
+        body: JSON.stringify({
+          id: 'W1', mode: 'distance', params: { meters: 2000 },
+          intensity: 'moderat', warmup_sec: 120, cooldown_sec: 0,
+          created_at: '2026-04-24T00:00:00Z',
+        }),
+        status: 200,
+      },
+    })
+    const anchor = 1_700_000_000_000
+    const { result } = renderHook(() => useWorkoutProgress(), {
+      wrapper: wrap({
+        ...initialLiveState,
+        session: { session_id: 'S1', started_at: '', rower_id: 'R1', rower_name: 'A', initial_level: 3, workout_id: 'W1' },
+        stroke: { session_id: 'S1', stroke: 1, time_sec: 60, distance_m: 30, spm: 20, power_w: 100, cal_per_hr: 500, level: 3, dps: 8, stroke_cycle_sec: 3, pace_sec_per_500m: 150, energy_joules: 300 },
+        lastStrokeReceivedAtMs: anchor,
+      }),
+    })
+    await waitFor(() => expect(result.current.active?.segment.kind).toBe('warmup'))
+    expect(result.current.active?.remainingSec).toBe(60)
+    expect(result.current.remainingAnchorMs).toBe(anchor)
+  })
+
   it('no stroke → active is null even with segments', async () => {
     mockRoutes({
       '/api/v1/workouts/W1': {

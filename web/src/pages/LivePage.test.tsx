@@ -515,6 +515,40 @@ describe('LivePage phase-aware countdown (FEAT-0015 Slice 1)', () => {
     expect(screen.queryByTestId('hero-split')).toBeNull()
   })
 
+  // F8: before the server's first phase_change event arrives, the
+  // live page used to flash the tile dashboard with "sammle Daten …"
+  // placeholders. With a warmup-configured workout and no stroke
+  // yet, show the warmup countdown eagerly (full duration, static
+  // until the server signal lands).
+  it('shows warmup countdown eagerly while server phase event is pending', () => {
+    mockWorkoutProgress.current = {
+      segments: [
+        { kind: 'warmup', index: 0, durationSec: 120, startTimeSec: 0, endTimeSec: 120, startDistanceM: 0, endDistanceM: 0 },
+        { kind: 'work', index: 1, distanceM: 5000, startTimeSec: 120, endTimeSec: 120, startDistanceM: 0, endDistanceM: 5000 },
+      ],
+      active: null,
+      workoutId: 'W1',
+      isLoading: false,
+      workout: { id: 'W1', mode: 'distance', params: { meters: 5000 }, intensity: null, warmup_sec: 120, cooldown_sec: 0, created_at: '' },
+      remainingAnchorMs: null,
+    }
+    // state.phase null + no stroke yet (just past Start, before any
+    // server event has updated the live state).
+    wrapRender({
+      ...initialLiveState,
+      session: {
+        session_id: 'S1', started_at: '2026-04-27T12:00:00Z',
+        rower_id: 'R1', rower_name: 'Daniel', initial_level: 5, workout_id: 'W1',
+      },
+      stroke: null,
+      phase: null,
+    })
+    expect(screen.getByTestId('phase-countdown')).toBeInTheDocument()
+    expect(screen.getByTestId('phase-countdown-label')).toHaveTextContent(/Aufwärmen/i)
+    expect(screen.getByTestId('phase-countdown-time')).toHaveTextContent('2:00')
+    expect(screen.queryByTestId('hero-split')).toBeNull()
+  })
+
   it('renders TileGrid (not PhaseCountdownView) during work phase', () => {
     mockWorkoutProgress.current = {
       segments: [
