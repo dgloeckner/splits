@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { useWorkoutFlow } from './WorkoutFlowProvider'
 import { distancePresets, timePresets, intervalPresets, racePresets } from './presets'
+import { formatDistanceLabel } from '../../util/format'
 import styles from './Step2Dimension.module.css'
 
 // ── Shared stepper ────────────────────────────────────────────────────────────
@@ -21,6 +21,11 @@ interface StepperProps {
 }
 
 function Stepper({ value, onChange, step, min, max, formatValue, unit, label }: StepperProps) {
+  // F6: visually + semantically disable the clamping side. Tapping a
+  // button that does nothing was the prior behaviour; users wasted
+  // clicks before realising the value was at min/max.
+  const atMin = value <= min
+  const atMax = max !== undefined && value >= max
   const dec = () => onChange(Math.max(min, value - step))
   const inc = () => onChange(max !== undefined ? Math.min(max, value + step) : value + step)
   const display = formatValue ? formatValue(value) : String(value)
@@ -28,10 +33,22 @@ function Stepper({ value, onChange, step, min, max, formatValue, unit, label }: 
     <div className={styles.stepperRow}>
       {label && <span className={styles.stepperLabel}>{label}</span>}
       <div className={styles.stepperControls}>
-        <button type="button" className={styles.stepperBtn} onClick={dec} aria-label="−">−</button>
+        <button
+          type="button"
+          className={styles.stepperBtn}
+          onClick={dec}
+          aria-label="−"
+          disabled={atMin}
+        >−</button>
         <span className={styles.stepperValue}>{display}</span>
         {unit && <span className={styles.stepperUnit}>{unit}</span>}
-        <button type="button" className={styles.stepperBtn} onClick={inc} aria-label="+">+</button>
+        <button
+          type="button"
+          className={styles.stepperBtn}
+          onClick={inc}
+          aria-label="+"
+          disabled={atMax}
+        >+</button>
       </div>
     </div>
   )
@@ -39,10 +56,21 @@ function Stepper({ value, onChange, step, min, max, formatValue, unit, label }: 
 
 // ── Distance panel ────────────────────────────────────────────────────────────
 
+// Eigene custom distance ceiling. HM/Marathon presets were removed
+// (F11) as out of scope, but Eigene still needs headroom above the
+// longest preset (10 km) so the affordance can produce off-preset
+// distances — 20 km covers all realistic home-rowing targets.
+const EIGENE_MAX_M = 20000
+// C3: on re-entry from Step3 back-nav, seed the local Eigene panel
+// state from the committed distance so the user sees the value they
+// previously picked rather than the panel's defaults.
 function DistancePanel() {
-  const { dispatch } = useWorkoutFlow()
-  const [eigene, setEigene] = useState(false)
-  const [meters, setMeters] = useState(3000)
+  const { state, dispatch } = useWorkoutFlow()
+  const committed = state.distanceMeters
+  const isCustomCommitted =
+    committed != null && !distancePresets.some((p) => p.meters === committed)
+  const [eigene, setEigene] = useState(isCustomCommitted)
+  const [meters, setMeters] = useState(committed && isCustomCommitted ? committed : 3000)
 
   function pick(m: number) {
     dispatch({ type: 'SET_DISTANCE', meters: m })
@@ -54,10 +82,7 @@ function DistancePanel() {
     dispatch({ type: 'GO_TO_STEP3' })
   }
 
-  function formatMeters(m: number) {
-    if (m >= 1000) return `${m / 1000} km`
-    return `${m} m`
-  }
+  // F3: shared `formatDistanceLabel` keeps Step2 and Confirm in sync.
 
   return (
     <div className={styles.panel}>
@@ -84,7 +109,8 @@ function DistancePanel() {
             onChange={setMeters}
             step={500}
             min={500}
-            formatValue={formatMeters}
+            max={EIGENE_MAX_M}
+            formatValue={formatDistanceLabel}
           />
           <button type="button" className={styles.submitBtn} onClick={submit}>
             Übernehmen
@@ -302,23 +328,12 @@ function IntervalsPanel() {
 
 export function Step2Dimension() {
   const { state } = useWorkoutFlow()
-  const nav = useNavigate()
 
   if (!state.mode) return null
 
+  // Back-navigation moved up to WorkoutFlowPage's unified flow header.
   return (
     <div className={styles.wrap}>
-      <header className={styles.header}>
-        <button
-          type="button"
-          className={styles.back}
-          onClick={() => nav('/')}
-          aria-label="Zurück"
-        >
-          ← Zurück
-        </button>
-      </header>
-
       {state.mode === 'distance' && <DistancePanel />}
       {state.mode === 'time' && <TimePanel />}
       {state.mode === 'intervals' && <IntervalsPanel />}

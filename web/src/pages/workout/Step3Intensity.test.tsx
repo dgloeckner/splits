@@ -51,12 +51,8 @@ describe('Step3Intensity', () => {
     expect(out.step).toBe('confirm')
   })
 
-  it('Zurück dispatches GO_BACK (back to step 2)', async () => {
-    const out = { step: 0 as unknown }
-    render(<MemoryRouter><WorkoutFlowProvider><Harness out={out} /></WorkoutFlowProvider></MemoryRouter>)
-    await userEvent.click(await screen.findByRole('button', { name: /zurück/i }))
-    expect(out.step).toBe(2)
-  })
+  // Back-nav moved to WorkoutFlowPage's unified flow header
+  // (F1+F2). Covered by WorkoutFlowPage.test.tsx.
 
   it('shows race subtitle in race mode', async () => {
     const out = { step: 0 as unknown }

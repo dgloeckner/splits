@@ -5,8 +5,6 @@ export const distancePresets: { label: string; meters: number }[] = [
   { label: '5 km', meters: 5000 },
   { label: '6 km', meters: 6000 },
   { label: '10 km', meters: 10000 },
-  { label: 'HM', meters: 21097 },
-  { label: 'Marathon', meters: 42195 },
 ]
 
 export const timePresets: { label: string; seconds: number }[] = [
@@ -31,13 +29,16 @@ export const intervalPresets: IntervalPreset[] = [
   { label: '4×4 min', reps: 4, length: { unit: 'min', value: 4 }, rest_sec: 120 },
 ]
 
+// F4: race preset labels match distance preset labels — same domain
+// concept (a fixed standard distance) should read the same on both
+// chip rows.
+// F11: HM (21097) and Marathon (42195) dropped — household rowers
+// don't actually use those distances.
 export const racePresets: { label: string; meters: number }[] = [
-  { label: '500 m',    meters: 500 },
-  { label: '1 000 m',  meters: 1000 },
-  { label: '2 000 m',  meters: 2000 },
-  { label: '5 000 m',  meters: 5000 },
-  { label: '6 000 m',  meters: 6000 },
-  { label: '10 000 m', meters: 10000 },
-  { label: 'Halbmarathon', meters: 21097 },
-  { label: 'Marathon',    meters: 42195 },
+  { label: '500 m', meters: 500 },
+  { label: '1 km', meters: 1000 },
+  { label: '2 km', meters: 2000 },
+  { label: '5 km', meters: 5000 },
+  { label: '6 km', meters: 6000 },
+  { label: '10 km', meters: 10000 },
 ]

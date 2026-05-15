@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen, act } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { WorkoutFlowPage } from './WorkoutFlowPage'
 import { WorkoutFlowProvider, useWorkoutFlow } from './WorkoutFlowProvider'
@@ -81,8 +82,36 @@ describe('WorkoutFlowPage', () => {
     expect(screen.getByText('HOME')).toBeInTheDocument()
   })
 
-  it('shows step indicator "1 / 2" at start', () => {
+  it('shows a 3-segment progress bar with the first segment filled at start', () => {
     renderAt('/workout/new/time')
-    expect(screen.getByText('1 / 2')).toBeInTheDocument()
+    // First step → segment 1 is "-done", segments 2 and 3 are pending.
+    expect(screen.getByTestId('flow-step-1-done')).toBeInTheDocument()
+    expect(screen.getByTestId('flow-step-2')).toBeInTheDocument()
+    expect(screen.getByTestId('flow-step-3')).toBeInTheDocument()
+    // Step counter on the right of the header row.
+    expect(screen.getByTestId('flow-step-count')).toHaveTextContent('1 / 3')
+    // The old text indicators ("1 / 2", "2 / 2", "Bereit") are gone.
+    expect(screen.queryByText('1 / 2')).toBeNull()
+    expect(screen.queryByText(/^Bereit$/)).toBeNull()
+  })
+
+  it('shows the mode label in the flow header', () => {
+    renderAt('/workout/new/race')
+    expect(screen.getByText('Rennen')).toBeInTheDocument()
+  })
+
+  it('back arrow on Step 2 navigates to Home', async () => {
+    renderAt('/workout/new/distance')
+    await userEvent.click(screen.getByTestId('flow-back'))
+    expect(screen.getByText('HOME')).toBeInTheDocument()
+  })
+
+  it('back arrow on Step 3 returns to Step 2 (dispatches GO_BACK)', async () => {
+    renderAt('/workout/new/distance')
+    // Pick a preset to advance to Step 3.
+    await userEvent.click(screen.getByRole('button', { name: /500 m/ }))
+    expect(screen.getByTestId('flow-step-count')).toHaveTextContent('2 / 3')
+    await userEvent.click(screen.getByTestId('flow-back'))
+    expect(screen.getByTestId('flow-step-count')).toHaveTextContent('1 / 3')
   })
 })

@@ -39,6 +39,29 @@ export function fmtMeters(meters: number | null | undefined): string {
   return fmtInt(meters)
 }
 
+/**
+ * Canonical short label for a workout distance, used by Step2 chip
+ * row, ConfirmScreen title, and anywhere else we display a preset or
+ * custom distance to the user.
+ *
+ *   500   → "500 m"
+ *   1000  → "1 km"
+ *   3500  → "3.5 km"   (Eigene custom values)
+ *   5000  → "5 km"
+ *
+ * Unifies the previously-divergent Step2 and ConfirmScreen formatters
+ * (F3). HM / Marathon special-cases removed in F11 — household rowers
+ * don't use those distances.
+ */
+export function formatDistanceLabel(meters: number): string {
+  if (meters >= 1000) {
+    // JS number→string already drops trailing zeroes (1000/1000 → "1",
+    // 3500/1000 → "3.5"), so no fixed-precision call needed.
+    return `${meters / 1000} km`
+  }
+  return `${meters} m`
+}
+
 // hhmm renders a duration in seconds as h:mm — e.g. 5_400 → "1:30".
 // For sub-hour durations it falls back to "0:MM".
 export function hhmm(seconds: number | null | undefined): string {

@@ -5,6 +5,15 @@
   padding: var(--space-4) var(--space-3);
 }
 
+/* F6: on tablet+ cap the content column so the picker doesn't stretch
+ * across 800+ px of empty space. */
+@media (min-width: 768px) {
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+  }
+}
+
 .header {
   display: flex;
   align-items: center;
@@ -57,8 +66,9 @@
   font-family: var(--font-body);
   font-size: var(--text-label-md);
   cursor: pointer;
-  transition: background-color var(--motion-state) var(--motion-ease),
-              border-color var(--motion-state) var(--motion-ease);
+  /* F2: selection state must be instant. The earlier transition meant
+   * tapping "Eigene" looked unresponsive — the chip animated toward
+   * teal while the panel was already open. */
 }
 
 .chip:active {
@@ -100,7 +110,8 @@
 .stepperControls {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  justify-content: center;
+  gap: var(--space-4);
 }
 
 .stepperBtn {
@@ -119,8 +130,15 @@
   line-height: 1;
 }
 
-.stepperBtn:active {
+.stepperBtn:active:not(:disabled) {
   background: var(--color-primary-container);
+}
+
+/* F6: clamped at min/max — show the button as inactive so the user
+ * doesn't tap something that does nothing. */
+.stepperBtn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
 }
 
 .stepperValue {
@@ -128,7 +146,9 @@
   font-size: var(--text-title-lg);
   font-weight: 700;
   color: var(--color-on-surface);
-  min-width: 80px;
+  /* F1: needs to fit "10 km" / "20 km" without bleeding into the
+   * neighbouring stepper buttons. */
+  min-width: 120px;
   text-align: center;
 }
 

@@ -1,4 +1,13 @@
 .page { padding: 16px; }
+
+/* F6: cap the Home column on tablet+ so the mode picker doesn't
+ * stretch across 800+ px of empty space. */
+@media (min-width: 768px) {
+  .page {
+    max-width: 640px;
+    margin: 0 auto;
+  }
+}
 .heading { font-size: 24px; margin: 0 0 var(--space-3); }
 
 .start {
@@ -55,6 +64,15 @@
   font-family: var(--font-body);
   font-size: var(--text-label-sm);
   opacity: 0.85;
+}
+
+.heroChevron {
+  margin-left: auto;
+  font-size: 28px;
+  line-height: 1;
+  font-weight: 400;
+  opacity: 0.8;
+  flex-shrink: 0;
 }
 
 .modes {

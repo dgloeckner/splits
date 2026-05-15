@@ -2,8 +2,90 @@
   padding: 16px;
 }
 
-.stepIndicator {
-  font-size: 14px;
-  color: var(--color-on-surface-variant);
+/* F6: cap the workout-flow column on tablet+ — header bar, progress
+ * strip and step content all live in one centred 640 px lane. */
+@media (min-width: 768px) {
+  .page {
+    max-width: 640px;
+    margin: 0 auto;
+  }
+}
+
+/* F1+F2 (Option B + mode-label + integrated back arrow):
+ *   row 1 — mode label ("Distanz" etc.) on left, "N / 3" on right
+ *   row 2 — back-arrow button + 3-segment progress bar
+ * Replaces the per-step "← Zurück" links and the previous text
+ * indicator ("1 / 2" / "2 / 2" / "Bereit"). One persistent header
+ * gives the user mode context, progress location, and a back
+ * affordance pinned at the same place across all three steps. */
+
+.flowHeader {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
   margin-bottom: 16px;
+}
+
+.flowHeaderRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.modeLabel {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-on-surface-variant);
+}
+
+.stepCount {
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-on-surface-variant);
+  font-variant-numeric: tabular-nums;
+}
+
+.progressRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.backArrow {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  padding: 4px 4px;
+  margin: 0;
+  cursor: pointer;
+  color: var(--color-primary);
+  font-family: var(--font-body);
+  font-size: 20px;
+  line-height: 1;
+  border-radius: 4px;
+}
+
+.backArrow:active {
+  opacity: 0.7;
+}
+
+.progress {
+  flex: 1;
+  display: flex;
+  gap: 6px;
+  height: 4px;
+}
+
+.segment {
+  flex: 1;
+  border-radius: 2px;
+  background: var(--color-outline-variant);
+}
+
+.segment[data-done='true'] {
+  background: var(--color-primary);
 }

@@ -5,6 +5,15 @@
   padding: var(--space-4) var(--space-3);
 }
 
+/* F6: tablet+ caps the Confirm column so warmup/cool-down rows aren't
+ * 800 px wide with tiny content clusters at the left. */
+@media (min-width: 768px) {
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+  }
+}
+
 /* ── Header ── */
 
 .header {
@@ -61,6 +70,12 @@
 
 /* ── Timeline ── */
 
+.timelineWrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
 .timeline {
   display: flex;
   gap: 3px;
@@ -69,14 +84,22 @@
   overflow: hidden;
 }
 
+.timelineLegend {
+  font-family: var(--font-body);
+  font-size: var(--text-label-sm);
+  color: var(--color-on-surface-variant);
+}
+
 .block {
   flex: 1;
   border-radius: 2px;
 }
 
-.block_warmup {
-  background: var(--color-outline-variant);
-  border: 1.5px dashed var(--color-outline);
+/* F10/F9: solid-but-muted instead of dashed-outline so the segments
+ * read as "subordinate phase" rather than "unfinished CSS". */
+.block_warmup,
+.block_cooldown {
+  background: color-mix(in srgb, var(--color-on-surface-variant) 22%, transparent);
 }
 
 .block_work {
@@ -86,11 +109,6 @@
 .block_rest {
   background: var(--color-surface-container-high);
   border: 1px solid var(--color-outline-variant);
-}
-
-.block_cooldown {
-  background: var(--color-outline-variant);
-  border: 1.5px dashed var(--color-outline);
 }
 
 /* ── Toggle rows ── */
@@ -115,6 +133,10 @@
   color: var(--color-on-surface);
   cursor: pointer;
   user-select: none;
+  /* F11: on phone width the stepper squeezes the toggle column below
+   * the natural width of "Warm-up" / "Cool-down", breaking the labels
+   * mid-word at the hyphen. Prevent intra-word breaks. */
+  white-space: nowrap;
 }
 
 .toggle input[type='checkbox'] {
@@ -130,12 +152,16 @@
 .stepperControls {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  /* F11: tightened gap + compact buttons bring the stepper natural
+   * width under the row budget on a 390-px viewport so the toggle
+   * label keeps its width. */
+  gap: var(--space-1);
+  flex-shrink: 0;
 }
 
 .stepperBtn {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   background: var(--color-surface-container-high);
   color: var(--color-on-surface);
   border: 1.5px solid var(--color-outline-variant);

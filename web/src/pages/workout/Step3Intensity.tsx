@@ -22,9 +22,7 @@ export function Step3Intensity() {
   return (
     <div className={styles.wrap}>
       <header className={styles.header}>
-        <button type="button" className={styles.back} onClick={() => dispatch({ type: 'GO_BACK' })} aria-label="Zurück">
-          ← Zurück
-        </button>
+        {/* Back-navigation moved up to WorkoutFlowPage's unified flow header. */}
         <h1 className={styles.title}>Intensität</h1>
         <p className={styles.subtitle}>{subtitle}</p>
       </header>

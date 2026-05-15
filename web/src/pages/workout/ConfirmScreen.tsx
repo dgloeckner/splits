@@ -9,6 +9,7 @@ import {
   type WorkoutParams,
 } from '../../api/workouts'
 import { createFavorite } from '../../api/favorites'
+import { formatDistanceLabel } from '../../util/format'
 import { useWorkoutFlow, type FlowState } from './WorkoutFlowProvider'
 import styles from './ConfirmScreen.module.css'
 
@@ -75,11 +76,36 @@ function Timeline({ state }: { state: FlowState }) {
   }
   if (state.cooldownEnabled && state.cooldownSec > 0) blocks.push({ kind: 'cooldown' })
 
+  const KIND_LABEL: Record<typeof blocks[number]['kind'], string> = {
+    warmup: 'Aufwärmen',
+    work: 'Workout',
+    rest: 'Pause',
+    cooldown: 'Cool-down',
+  }
+  // F10: legend turns the (otherwise mute) coloured bar into something
+  // a first-time user can read. Distinct kinds only, in the order they
+  // appear, so 4×500m intervals collapse to "Aufwärmen · Workout ·
+  // Pause · Cool-down" rather than repeating Workout/Pause.
+  const legend: string[] = []
+  for (const b of blocks) {
+    const label = KIND_LABEL[b.kind]
+    if (legend[legend.length - 1] !== label) legend.push(label)
+  }
+
   return (
-    <div className={styles.timeline} data-testid="timeline">
-      {blocks.map((b, idx) => (
-        <span key={idx} className={`${styles.block} ${styles[`block_${b.kind}` as keyof typeof styles]}`} />
-      ))}
+    <div className={styles.timelineWrap}>
+      <div className={styles.timeline} data-testid="timeline">
+        {blocks.map((b, idx) => (
+          <span
+            key={idx}
+            className={`${styles.block} ${styles[`block_${b.kind}` as keyof typeof styles]}`}
+            title={KIND_LABEL[b.kind]}
+          />
+        ))}
+      </div>
+      <div className={styles.timelineLegend} data-testid="timeline-legend">
+        {legend.join(' · ')}
+      </div>
     </div>
   )
 }
@@ -98,7 +124,7 @@ function titleFor(state: FlowState, params: WorkoutParams): string {
   let base = ''
   if (state.mode === 'distance') {
     const m = (params as { meters: number }).meters
-    base = m >= 1000 && m % 1000 === 0 ? `${m / 1000} km` : `${m} m`
+    base = formatDistanceLabel(m)
   } else if (state.mode === 'time') {
     const s = (params as { seconds: number }).seconds
     base = `${Math.round(s / 60)} min`
@@ -107,7 +133,7 @@ function titleFor(state: FlowState, params: WorkoutParams): string {
     base = `${iv.reps}×${iv.length.value} ${iv.length.unit}`
   } else if (state.mode === 'race') {
     const m = (params as { meters: number }).meters
-    base = `${m >= 1000 && m % 1000 === 0 ? `${m / 1000} km` : `${m} m`} Rennen`
+    base = `${formatDistanceLabel(m)} Rennen`
   }
   const label = state.intensity ? intensityLabelFor(state.intensity) : ''
   return label ? `${base} · ${label}` : base
@@ -187,14 +213,7 @@ export function ConfirmScreen() {
   return (
     <div className={styles.wrap}>
       <header className={styles.header}>
-        <button
-          type="button"
-          className={styles.back}
-          onClick={() => dispatch({ type: 'GO_BACK' })}
-          aria-label="Zurück"
-        >
-          ← Anpassen
-        </button>
+        {/* Back-navigation moved up to WorkoutFlowPage's unified flow header. */}
         {isRace && <h1 className={styles.title}>Übersicht</h1>}
         <h2 className={isRace ? styles.subtitle : styles.title}>
           {titleFor(state, params)}

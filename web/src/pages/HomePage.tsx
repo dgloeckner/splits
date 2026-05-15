@@ -37,6 +37,10 @@ export function HomePage() {
             <span className={styles.heroLabel}>Nur rudern</span>
             <span className={styles.heroHint}>Schnellstart ohne Ziel</span>
           </span>
+          {/* F7: chevron signals "tap to act" so the teal-fill doesn't
+            * read as "this mode is already selected" (it's a sibling
+            * mode, not a current selection). */}
+          <span className={styles.heroChevron} aria-hidden="true">›</span>
         </button>
 
         <div className={styles.modes}>

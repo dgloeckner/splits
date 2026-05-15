@@ -24,7 +24,13 @@ function mockRoutes(routes: Record<string, R | ((init?: RequestInit) => R)>) {
 }
 afterEach(() => { global.fetch = origFetch })
 
-function Harness({ setup }: { setup: 'distance' | 'intervals' | 'race' }) {
+function Harness({
+  setup,
+  distanceMeters,
+}: {
+  setup: 'distance' | 'intervals' | 'race'
+  distanceMeters?: number
+}) {
   const { state, dispatch } = useWorkoutFlow()
   const initialized = useRef(false)
   useEffect(() => {
@@ -32,10 +38,10 @@ function Harness({ setup }: { setup: 'distance' | 'intervals' | 'race' }) {
       initialized.current = true
       if (setup === 'distance') {
         dispatch({ type: 'SELECT_MODE', mode: 'distance' })
-        dispatch({ type: 'SET_DISTANCE', meters: 5000 })
+        dispatch({ type: 'SET_DISTANCE', meters: distanceMeters ?? 5000 })
       } else if (setup === 'race') {
         dispatch({ type: 'SELECT_MODE', mode: 'race' })
-        dispatch({ type: 'SET_DISTANCE', meters: 2000 })
+        dispatch({ type: 'SET_DISTANCE', meters: distanceMeters ?? 2000 })
       } else {
         dispatch({ type: 'SELECT_MODE', mode: 'intervals' })
         dispatch({ type: 'SET_INTERVALS', intervals: { reps: 4, length: { unit: 'm', value: 500 }, rest_sec: 60 } })
@@ -73,6 +79,19 @@ describe('ConfirmScreen', () => {
     mockRoutes({})
     wrap(<Harness setup="race" />)
     expect(await screen.findByRole('heading', { name: /2 km Rennen/i })).toBeInTheDocument()
+  })
+
+  // F11: HM/Marathon dropped — household rowers don't use those
+  // distances. Tests for those labels removed.
+
+  // F3: custom Eigene meters that are not exact km multiples used to
+  // fall through to raw metres on Confirm ("3500 m") even though
+  // Step2 shows the value as "3.5 km". Same value, two labels. Now
+  // unified via the shared formatDistanceLabel helper.
+  it('renders Eigene custom 3500 m as "3.5 km" (parity with Step2)', async () => {
+    mockRoutes({})
+    wrap(<Harness setup="distance" distanceMeters={3500} />)
+    expect(await screen.findByRole('heading', { name: /3\.5 km · moderat/i })).toBeInTheDocument()
   })
 
   it('race mode header reads "Übersicht" (not "Bereit")', async () => {
@@ -240,11 +259,6 @@ describe('ConfirmScreen', () => {
     expect(postedBody?.cooldown_sec).toBe(0)
   })
 
-  it('Zurück dispatches GO_BACK (returns to step 3)', async () => {
-    mockRoutes({})
-    wrap(<Harness setup="distance" />)
-    await userEvent.click(await screen.findByRole('button', { name: /zurück|anpassen/i }))
-    // After back, ConfirmScreen unmounts — so timeline disappears
-    await waitFor(() => expect(screen.queryByTestId('timeline')).toBeNull())
-  })
+  // Back-nav moved to WorkoutFlowPage's unified flow header
+  // (F1+F2). Covered by WorkoutFlowPage.test.tsx.
 })
