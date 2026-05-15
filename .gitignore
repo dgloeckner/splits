@@ -66,3 +66,12 @@ Cargo.lock
 .claude/worktrees/
 backend/splits
 dev/caddy_darwin_amd64_custom
+
+# Playwright + audit artefacts
+test-results/
+playwright-report/
+
+# Local scratch — not for the repo
+tmp.png
+tmp_bar.png
+dg@ergo
