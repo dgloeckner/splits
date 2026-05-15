@@ -132,6 +132,100 @@ func TestComputeCandidatesProduces2kForExactWorkout(t *testing.T) {
 	}
 }
 
+// TestComputeCandidatesB1 reproduces the real-data scenario where a
+// 5K distance workout with a 2-minute warmup ate the headroom that
+// distanceCandidates needed and no PB-5000 candidate could ever be
+// produced — observed on splits-raspi.db session 01KRNGHFXX...
+// (warmup ended at cum-distance 407m, work ended at 5005m → work-only
+// span = 4598m < 5000m). Fix: ComputeCandidates uses warmup+work
+// strokes for distance candidates so the warmup contributes headroom
+// but cannot win the fastest-window race.
+func TestComputeCandidatesB1_FivekGoalReachableAcrossWarmupBoundary(t *testing.T) {
+	// 40 slow warmup strokes covering ~410m, then 470 work strokes at
+	// 10m/2s covering 4700m → total span 5110m. Work-only span = 4700m,
+	// which would have prevented any 5000m candidate before the fix
+	// (matches the real-data shape from session 01KRNGHFXX...).
+	var in []event.StrokePayload
+	cumD := 0
+	cumT := 0.0
+	for i := 1; i <= 40; i++ {
+		cumT += 3 // slow recovery, ~3 s/stroke
+		cumD += 10
+		in = append(in, event.StrokePayload{
+			StrokeNo: i, TimeSec: cumT, DistanceM: cumD, PowerW: 150, Phase: "warmup",
+		})
+	}
+	for i := 41; i <= 510; i++ {
+		cumT += 2
+		cumD += 10
+		in = append(in, event.StrokePayload{
+			StrokeNo: i, TimeSec: cumT, DistanceM: cumD, PowerW: 260, Phase: "work",
+		})
+	}
+	c := ComputeCandidates(in)
+	var got *DistanceCandidate
+	for i := range c.Distance {
+		if c.Distance[i].DistanceM == 5000 {
+			got = &c.Distance[i]
+		}
+	}
+	if got == nil {
+		t.Fatalf("expected 5000m candidate; got distances %v", distancesOf(c.Distance))
+	}
+	// The fastest 5000m window must include some warmup tail because
+	// work-only span (4700m) is too short. Best window: drop the
+	// slowest warmup strokes, keep 300m of late warmup + all 4700m of
+	// work ≈ 30 strokes × 3s + 470 strokes × 2s ≈ 1030 s. Generous
+	// bracket: anything reasonable but distinctly better than 1500 s
+	// (which would mean all warmup strokes leaked in).
+	if got.TimeSec > 1100 || got.TimeSec < 950 {
+		t.Errorf("5000m candidate time = %v, expected ~1030 s", got.TimeSec)
+	}
+}
+
+// TestComputeCandidatesB1_WindowCandidatesIgnoreWarmup confirms that
+// warmup strokes still don't dilute non-distance candidates: the
+// per-candidate phase filter keeps work-only strokes for window and
+// consistency computation.
+func TestComputeCandidatesB1_WindowCandidatesIgnoreWarmup(t *testing.T) {
+	var in []event.StrokePayload
+	// 30 weak warmup strokes (60W) then 100 strong work strokes (300W).
+	cumD := 0
+	cumT := 0.0
+	for i := 1; i <= 30; i++ {
+		cumT += 2
+		cumD += 5
+		in = append(in, event.StrokePayload{
+			StrokeNo: i, TimeSec: cumT, DistanceM: cumD, PowerW: 60, Phase: "warmup",
+		})
+	}
+	for i := 31; i <= 130; i++ {
+		cumT += 2
+		cumD += 10
+		in = append(in, event.StrokePayload{
+			StrokeNo: i, TimeSec: cumT, DistanceM: cumD, PowerW: 300, Phase: "work",
+		})
+	}
+	c := ComputeCandidates(in)
+	for _, w := range c.Window {
+		if w.Metric == "power" && w.Kind == "seconds" && w.Size == 60 {
+			if w.Value < 250 {
+				t.Errorf("power-60s window value = %v, expected ≥ 250W (warmup leaked into window?)", w.Value)
+			}
+			return
+		}
+	}
+	t.Fatal("expected a power-60s window candidate")
+}
+
+func distancesOf(in []DistanceCandidate) []int {
+	out := make([]int, 0, len(in))
+	for _, c := range in {
+		out = append(out, c.DistanceM)
+	}
+	return out
+}
+
 func TestComputeCandidatesPerWorkSegmentRuns(t *testing.T) {
 	mk := func(no int, ts float64, d int, p int) event.StrokePayload {
 		return event.StrokePayload{StrokeNo: no, TimeSec: ts, DistanceM: d, PowerW: p}

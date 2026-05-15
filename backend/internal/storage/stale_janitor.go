@@ -145,7 +145,10 @@ func FinalizeStaleSession(ctx context.Context, db *sql.DB, sessionID string) err
 	if len(strokes) > 0 {
 		work := filterWorkStrokesForFinalize(strokes)
 		summary.Samples = stats.ComputeSamples(work, stats.BucketStrokesFor(len(work)))
-		summary.PBCandidates = stats.ComputeCandidates(work)
+		// Pass the full stroke list — ComputeCandidates filters phases
+		// per candidate type (B1: warmup strokes are needed as headroom
+		// for distance candidates).
+		summary.PBCandidates = stats.ComputeCandidates(strokes)
 	}
 	// ADR-0012: race-mode sessions are non-resumable. An interrupted
 	// race always finalises with summary.race == null regardless of
@@ -195,6 +198,14 @@ func StartStaleJanitor(ctx context.Context, db *sql.DB) {
 			case <-t.C:
 				if _, err := SweepStaleOpen(ctx, db, StaleOpenThreshold); err != nil {
 					slog.Error("stale_janitor.sweep", "err", err)
+				}
+				// B6: self-heal rower stats every tick. If the async
+				// per-session recompute failed or was interrupted by
+				// shutdown, the next sweep catches it and the user
+				// never stays on stale PB / lifetime numbers for
+				// longer than one tick.
+				if err := RecomputeStaleRowerStats(ctx, db); err != nil {
+					slog.Error("stale_janitor.recompute_stale", "err", err)
 				}
 			}
 		}

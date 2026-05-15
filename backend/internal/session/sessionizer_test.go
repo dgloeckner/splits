@@ -106,14 +106,14 @@ func TestSessionizerEnrichesTier2(t *testing.T) {
 	if st2.StrokeCycleSec != 2.2 {
 		t.Errorf("cycle = %v, want 2.2", st2.StrokeCycleSec)
 	}
-	// Pace is now the windowed sliding-window split (ADR-0011 / FEAT-0015
-	// Slice 5), not the per-stroke extrapolation. With strokes at t=0,d=0
-	// and t=2.2,d=8, a 5 s trailing window ending at t=2.2 sees tStart =
-	// -2.8 (clamped to first stroke), so 8 m of motion over 5 s ⇒
-	// 500/8 * 5 = 312 s/500m. Per-stroke extrapolation would have read
-	// 137 (= 500/8 * 2.2); preserved here as a witness for the cutover.
-	if st2.PaceSecPer500m != 312 {
-		t.Errorf("pace = %v, want 312 (5s windowed split)", st2.PaceSecPer500m)
+	// Pace is now the N-stroke windowed split (U3 fix). The buffer
+	// holds 2 strokes (t=0,d=0 and t=2.2,d=8), shy of the 5-stroke
+	// window so it shrinks to the available pair: 8 m in 2.2 s ⇒
+	// 500/8 * 2.2 = 137 s/500m. The earlier 5-second window stretched
+	// to a clamped 312 here; the stroke-anchored window is closer to
+	// physical truth on the opening pair.
+	if st2.PaceSecPer500m != 137 {
+		t.Errorf("pace = %v, want 137 (N-stroke windowed split)", st2.PaceSecPer500m)
 	}
 }
 
@@ -308,11 +308,12 @@ func collectKind(evts []event.Event, k event.Kind) []event.Event {
 
 // TestSessionizerTagsStrokesWithPhase verifies that stroke events carry the
 // correct Phase field when a distance workout with warmup and cooldown is used.
-// Fixture: 100 m, warmup=30s, cooldown=60s.
+// Fixture: 100 m work goal, warmup=30s, cooldown=60s.
 //   - t=5,  d=0:   warmup (5 < 30s)
-//   - t=35, d=5:   work (warmup elapsed, d=5 < 100m)
-//   - t=70, d=100: work (crossing stroke: PhasePlan records crossing but returns work)
-//   - t=75, d=101: cooldown (past target, crossedAt set → falls through to cooldown)
+//   - t=35, d=5:   work (warmup elapsed; warmupEndDistance latches at d=5)
+//   - t=70, d=105: work crossing — 100m of post-warmup work reached
+//                  (PhasePlan records crossing but returns work)
+//   - t=75, d=106: cooldown (past target, crossedAt set → falls through)
 func TestSessionizerTagsStrokesWithPhase(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -329,9 +330,9 @@ func TestSessionizerTagsStrokesWithPhase(t *testing.T) {
 
 	s.StartSession("test-workout")
 	in <- frame(5, 0, 25, 200, 3)    // warmup
-	in <- frame(35, 5, 25, 200, 3)   // work
-	in <- frame(70, 100, 25, 200, 3) // work (crossing stroke: tagged work, crossedAt recorded)
-	in <- frame(75, 101, 25, 200, 3) // cooldown (past target, crossedAt set)
+	in <- frame(35, 5, 25, 200, 3)   // work (warmup ended; anchor=5)
+	in <- frame(70, 105, 25, 200, 3) // work (crossing 100m of post-warmup work)
+	in <- frame(75, 106, 25, 200, 3) // cooldown
 
 	// Events: session_start, phase_change(work→warmup), stroke(warmup),
 	//         phase_change(warmup→work), stroke(work), stroke(work/crossing),
@@ -368,9 +369,9 @@ func TestSessionizerEmitsPhaseChange(t *testing.T) {
 
 	s.StartSession("test-workout")
 	in <- frame(5, 0, 25, 200, 3)    // warmup
-	in <- frame(35, 5, 25, 200, 3)   // work
-	in <- frame(70, 100, 25, 200, 3) // work (crossing stroke; no phase_change yet)
-	in <- frame(75, 101, 25, 200, 3) // cooldown (past target → phase_change work→cooldown)
+	in <- frame(35, 5, 25, 200, 3)   // work (warmup ended; anchor=5)
+	in <- frame(70, 105, 25, 200, 3) // work crossing (100m post-warmup work)
+	in <- frame(75, 106, 25, 200, 3) // cooldown (past target → phase_change work→cooldown)
 
 	// 8 events: session_start, 3×phase_change, 4×stroke
 	got := drain(t, out, 8)

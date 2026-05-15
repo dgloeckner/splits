@@ -440,13 +440,12 @@ func (s *Sessionizer) enrich(f ipm.Frame) event.StrokePayload {
 		p.EnergyJoules = EnergyJoules(f.PowerW, p.StrokeCycleSec)
 	}
 
-	// Windowed live split (ADR-0011 / FEAT-0015 Slice 5). The wire field
-	// pace_sec_per_500m carries the windowed result, not the per-stroke
-	// extrapolation. Append the current stroke to the recent-stroke ring
-	// buffer (trimmed to the active window plus one bracketing stroke),
-	// then evaluate.
-	s.session.recentStrokes = appendAndTrimWindow(s.session.recentStrokes, p, LivePaceWindowSec)
-	pace, kind := LivePace(s.session.recentStrokes, LivePaceWindowSec, p.TimeSec)
+	// N-stroke windowed live split (U3 fix — see livePace.go). The
+	// wire field pace_sec_per_500m carries the windowed result, not
+	// the per-stroke extrapolation. Keep the ring buffer trimmed to
+	// the active stroke window.
+	s.session.recentStrokes = appendAndTrimWindow(s.session.recentStrokes, p, LivePaceWindowStrokes)
+	pace, kind := LivePace(s.session.recentStrokes, LivePaceWindowStrokes, p.TimeSec)
 	switch kind {
 	case LivePaceValue:
 		s.session.lastLivePace = pace
@@ -459,26 +458,15 @@ func (s *Sessionizer) enrich(f ipm.Frame) event.StrokePayload {
 	return p
 }
 
-// appendAndTrimWindow appends p to buf and drops leading entries that
-// fall outside the current window (plus one bracketing stroke before
-// the window edge — needed so LivePace can interpolate the leading
-// edge). Keeps the buffer small (O(strokes-per-window), typically <10).
-func appendAndTrimWindow(buf []event.StrokePayload, p event.StrokePayload, windowSec float64) []event.StrokePayload {
+// appendAndTrimWindow appends p to buf and caps the buffer length at
+// windowStrokes. The N-stroke LivePace needs exactly the last N
+// strokes — no bracketing entry is required since the window endpoints
+// land on actual strokes (no interpolation).
+func appendAndTrimWindow(buf []event.StrokePayload, p event.StrokePayload, windowStrokes int) []event.StrokePayload {
 	buf = append(buf, p)
-	cutoff := p.TimeSec - windowSec
-	// Find the largest index i such that buf[i].TimeSec < cutoff — that
-	// stroke is the one bracketing stroke we keep so distAt() can
-	// interpolate the leading edge. Drop everything before it.
-	bracket := -1
-	for i, s := range buf {
-		if s.TimeSec < cutoff {
-			bracket = i
-		} else {
-			break
-		}
-	}
-	if bracket > 0 {
-		buf = append(buf[:0], buf[bracket:]...)
+	if len(buf) > windowStrokes {
+		drop := len(buf) - windowStrokes
+		buf = append(buf[:0], buf[drop:]...)
 	}
 	return buf
 }

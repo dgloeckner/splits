@@ -91,24 +91,55 @@ type WindowDef struct {
 }
 
 // ComputeCandidates runs every per-session candidate computation
-// over `strokes` (already ordered by stroke_no). Returns a fully
-// populated PBCandidates (Workout slot left for the caller to fill
-// in if a workout is attached).
+// over `strokes` (the full session's strokes, ordered by stroke_no
+// and including every phase). Returns a fully populated PBCandidates
+// (Workout slot left for the caller to fill in if a workout is
+// attached).
 //
-// Distance and window candidates are computed per work-segment run
-// (split wherever stroke_no jumps by more than 1, indicating a rest
-// interval whose strokes were filtered out). The best value across
-// runs wins. Consistency candidates are computed over the full stroke
-// list, as they measure whole-session variability.
+// Phase filtering happens here, per-candidate-type:
+//
+//   - Distance candidates use warmup + work strokes (no rest, no
+//     cool-down). The window-finder picks the FASTEST d-metre stretch,
+//     so warmup is self-deselecting unless the user's distance goal
+//     was so short that the only d-metre window has to span the
+//     warmup-to-work transition — which is exactly the case we want
+//     to enable (BUG B1: a 5-km goal whose warmup already burned ~400 m
+//     of cumulative distance left work-phase strokes with <5 km of
+//     headroom and no 5-km candidate could be produced at all).
+//   - Window and consistency candidates use work-phase strokes only —
+//     warmup/cool-down would dilute "best 60 s of power" etc.
+//
+// Stroke runs are split wherever stroke_no jumps by more than 1
+// (rest intervals whose strokes were filtered out). The best value
+// across runs wins.
 func ComputeCandidates(strokes []event.StrokePayload) *PBCandidates {
-	runs := splitByStrokeNoGap(strokes)
+	distanceStrokes := keepPhases(strokes, "", "warmup", "work")
+	workStrokes := keepPhases(strokes, "", "work")
 	out := &PBCandidates{}
-	for _, run := range runs {
+	for _, run := range splitByStrokeNoGap(distanceStrokes) {
 		mergeDistance(&out.Distance, distanceCandidates(run, StandardDistances))
+	}
+	for _, run := range splitByStrokeNoGap(workStrokes) {
 		mergeWindow(&out.Window, windowCandidates(run, WindowDefs))
 	}
-	if len(strokes) >= MinStrokesForConsistency {
-		out.Consistency = consistencyCandidates(strokes)
+	if len(workStrokes) >= MinStrokesForConsistency {
+		out.Consistency = consistencyCandidates(workStrokes)
+	}
+	return out
+}
+
+// keepPhases returns the subset of strokes whose Phase matches any of
+// the given values. The empty-string match preserves legacy strokes
+// that pre-date phase tagging.
+func keepPhases(in []event.StrokePayload, phases ...string) []event.StrokePayload {
+	out := make([]event.StrokePayload, 0, len(in))
+	for _, s := range in {
+		for _, p := range phases {
+			if s.Phase == p {
+				out = append(out, s)
+				break
+			}
+		}
 	}
 	return out
 }

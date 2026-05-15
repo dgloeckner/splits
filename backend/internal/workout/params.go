@@ -29,7 +29,9 @@ func (m Mode) Valid() bool {
 
 // StandardRaceDistances enumerates the meters values accepted by ModeRace.
 // Mirrors the PB-distance bucket list (FEAT-0010).
-var StandardRaceDistances = []int{500, 1000, 2000, 5000, 6000, 10000, 21097, 42195}
+// F11: HM (21097) and Marathon (42195) removed — household rowers
+// don't use those distances.
+var StandardRaceDistances = []int{500, 1000, 2000, 5000, 6000, 10000}
 
 // IsStandardRaceDistance reports whether m is one of the standard race distances.
 func IsStandardRaceDistance(m int) bool {

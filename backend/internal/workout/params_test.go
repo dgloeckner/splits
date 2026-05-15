@@ -70,7 +70,7 @@ func TestModeRaceValid(t *testing.T) {
 }
 
 func TestDecodeRaceParamsAcceptsStandardDistances(t *testing.T) {
-	for _, m := range []int{500, 1000, 2000, 5000, 6000, 10000, 21097, 42195} {
+	for _, m := range []int{500, 1000, 2000, 5000, 6000, 10000} {
 		raw := json.RawMessage(fmt.Sprintf(`{"meters":%d}`, m))
 		p, err := DecodeParams(ModeRace, raw)
 		if err != nil {

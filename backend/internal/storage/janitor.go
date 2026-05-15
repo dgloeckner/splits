@@ -51,6 +51,63 @@ func (j *BootJanitor) Run(ctx context.Context) {
 	if err := purgeExpiredPairingTokens(ctx, j.DB); err != nil {
 		slog.Error("janitor.purge_pairing_tokens", "err", err)
 	}
+	// B6: self-heal stats for any rower whose latest session ended
+	// after the lifetime_stats was last computed — i.e. the async
+	// post-session-end recompute didn't run (e.g. the backend was
+	// shut down before the scheduler drained). Without this, PBs and
+	// totals stay stuck on the prior recompute and the user sees
+	// stale data.
+	if err := RecomputeStaleRowerStats(ctx, j.DB); err != nil {
+		slog.Error("janitor.recompute_stale", "err", err)
+	}
+}
+
+// RecomputeStaleRowerStats runs stats.Recompute synchronously for
+// every rower whose most recent ended-session is newer than their
+// rower_lifetime_stats.computed_at — i.e. the async OnSessionChange
+// recompute didn't land (backend shutdown mid-recompute, scheduler
+// failure, etc.). Rowers without a lifetime_stats row at all are also
+// recomputed (first-session-ever case). Idempotent: a run-in-a-row
+// against an up-to-date state picks up zero candidates.
+//
+// Called both at boot (BootJanitor) and on the periodic sweep
+// (StartStaleJanitor) so any stale-stats state is auto-healed within
+// at most one tick of the sweep cadence.
+func RecomputeStaleRowerStats(ctx context.Context, db *sql.DB) error {
+	rows, err := db.QueryContext(ctx, `
+		SELECT DISTINCT s.rower_id
+		FROM sessions s
+		LEFT JOIN rower_lifetime_stats r ON r.rower_id = s.rower_id
+		WHERE s.deleted_at IS NULL
+		  AND s.ended_at IS NOT NULL
+		  AND s.rower_id != ''
+		  AND (
+		    r.rower_id IS NULL
+		    OR s.ended_at > r.computed_at
+		  )`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	var rowerIDs []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return err
+		}
+		rowerIDs = append(rowerIDs, id)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, id := range rowerIDs {
+		if err := stats.Recompute(ctx, db, id); err != nil {
+			slog.Error("janitor.recompute", "rower_id", id, "err", err)
+			// Continue with the remaining rowers; one failure shouldn't
+			// stop the sweep.
+		}
+	}
+	return nil
 }
 
 func (j *BootJanitor) finaliseOrphans(ctx context.Context) error {
@@ -94,12 +151,21 @@ func (j *BootJanitor) finaliseOne(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	endedAt := time.Now().UTC()
-	if len(strokes) > 0 {
-		// Use last stroke's event time + 1 s as ended_at.
-		// Strokes are stored without explicit ts, so approximate.
-		endedAt = time.Now().UTC()
+	// B4: a session opened but never rowed (StartSession with no
+	// subsequent strokes — e.g. user tapped Start, walked away) is
+	// not a "recoverable" workout; finalising it as one produced
+	// zero-totals "ghost" rows that polluted history and the
+	// trends/PB aggregates. Drop the row entirely. Domain rule:
+	// a rower has at most one open session at a time, and an
+	// open session without strokes carries no signal.
+	if len(strokes) == 0 {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM sessions WHERE id = ?`, id); err != nil {
+			return err
+		}
+		return tx.Commit()
 	}
+
+	endedAt := time.Now().UTC()
 	summary := buildSummary(strokes)
 	summary.Samples = stats.ComputeSamples(strokes, stats.BucketStrokesFor(len(strokes)))
 	summary.PBCandidates = stats.ComputeCandidates(strokes)

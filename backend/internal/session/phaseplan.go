@@ -44,19 +44,28 @@ type segment struct {
 }
 
 // PhasePlan classifies a (distance, time) point into a phase. Stateful:
-// the crossedAt map records the first timeSec at which each distance
-// segment's target was crossed so that following time-based segments
-// (rest, cooldown) can anchor their countdown to that moment.
+//
+//   - crossedAt records the first timeSec at which each distance
+//     segment's target was crossed, so that following time-based
+//     segments (rest, cooldown) anchor their countdown to that moment.
+//   - warmupEndDistance records the cumulative distance at the first
+//     stroke after warmup completes. Distance segments are evaluated
+//     relative to this anchor (B5): a 5K distance workout should mean
+//     5 km of post-warmup rowing, not 5 km of cumulative session
+//     distance — otherwise the metres rowed while the warmup timer
+//     ticks down silently shorten the work goal. -1 = not yet
+//     recorded (no stroke past warmup, or no warmup at all).
 type PhasePlan struct {
-	segs      []segment
-	hasAny    bool // false for FreeRow
-	crossedAt map[int]float64 // key: segment slice index of distance segments
+	segs              []segment
+	hasAny            bool // false for FreeRow
+	crossedAt         map[int]float64 // key: segment slice index of distance segments
+	warmupEndDistance int             // cumulative distance at warmup-end; -1 = unset
 }
 
 // FreeRowPhasePlan is the no-workout plan: every stroke is work, never
 // completes.
 func FreeRowPhasePlan() *PhasePlan {
-	return &PhasePlan{hasAny: false, crossedAt: make(map[int]float64)}
+	return &PhasePlan{hasAny: false, crossedAt: make(map[int]float64), warmupEndDistance: -1}
 }
 
 // BuildPhasePlan expands a workout into segments.
@@ -67,7 +76,7 @@ func BuildPhasePlan(w *workout.Workout) (*PhasePlan, error) {
 	if w.Mode == workout.ModeJustRow {
 		return FreeRowPhasePlan(), nil
 	}
-	p := &PhasePlan{hasAny: true, crossedAt: make(map[int]float64)}
+	p := &PhasePlan{hasAny: true, crossedAt: make(map[int]float64), warmupEndDistance: -1}
 	if w.WarmupSec > 0 {
 		p.segs = append(p.segs, segment{kind: PhaseWarmup, durationSec: float64(w.WarmupSec)})
 	}
@@ -137,6 +146,12 @@ func (p *PhasePlan) Reset() {
 		return
 	}
 	p.crossedAt = make(map[int]float64)
+	p.warmupEndDistance = -1
+}
+
+// hasWarmup reports whether the plan begins with a warmup segment.
+func (p *PhasePlan) hasWarmup() bool {
+	return len(p.segs) > 0 && p.segs[0].kind == PhaseWarmup
 }
 
 // Classify returns the phase for the given absolute (distanceM, timeSec).
@@ -183,9 +198,22 @@ func (p *PhasePlan) Classify(distanceM int, timeSec float64) (Phase, bool) {
 			} else {
 				timeAnchor += s.durationSec
 			}
+			// B5: the moment we fall through the warmup segment, latch
+			// the cumulative distance so subsequent distance segments
+			// are measured from here, not from session start. Without
+			// this anchor, distance rowed during warmup silently
+			// shortens the work goal.
+			if s.kind == PhaseWarmup && p.warmupEndDistance < 0 {
+				p.warmupEndDistance = distanceM
+			}
 		} else if s.distanceM > 0 {
-			// Distance-based segment.
-			consumed := distanceM - s.startDistance
+			// Distance-based segment. Offset by warmupEndDistance so
+			// the goal counts post-warmup metres only (B5).
+			offset := 0
+			if p.warmupEndDistance > 0 {
+				offset = p.warmupEndDistance
+			}
+			consumed := distanceM - s.startDistance - offset
 			if consumed < s.distanceM {
 				return s.kind, false
 			}

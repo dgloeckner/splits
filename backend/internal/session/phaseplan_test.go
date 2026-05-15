@@ -19,6 +19,10 @@ func TestPhasePlanDistanceWithWarmupCooldown(t *testing.T) {
 	if err != nil {
 		t.Fatalf("build: %v", err)
 	}
+	// B5: distance segments count post-warmup metres only. The first
+	// stroke after warmup ends (here at d=5, t=61) latches
+	// warmupEndDistance=5, so the 2000m work goal is reached at
+	// cumulative distance 2005, not 2000.
 	cases := []struct {
 		name     string
 		dist     int
@@ -27,16 +31,16 @@ func TestPhasePlanDistanceWithWarmupCooldown(t *testing.T) {
 		complete bool
 	}{
 		{"warmup mid", 0, 30, PhaseWarmup, false},
-		{"work start", 5, 61, PhaseWork, false},
+		{"work start", 5, 61, PhaseWork, false}, // latches warmupEndDistance=5
 		{"work mid", 1000, 300, PhaseWork, false},
-		// (2000, 600) is the first stroke to reach the 2000m target: the
-		// crossing stroke itself is still classified as work so it counts
-		// toward totals and PB candidates. crossedAt is recorded here.
-		{"work crossing", 2000, 600, PhaseWork, false},
-		// On the next call, crossedAt is already set → falls through to cooldown.
-		{"cooldown start", 2000, 600, PhaseCooldown, false},
-		{"cooldown mid", 2000, 660, PhaseCooldown, false},
-		{"cooldown done", 2000, 721, PhaseDone, true},
+		// (2005, 600) is the first stroke to reach 2000m post-warmup
+		// (2005 cumulative − 5 warmup-end = 2000 work). Crossing stroke
+		// itself stays classified as work.
+		{"work crossing", 2005, 600, PhaseWork, false},
+		// Next call at same distance: crossedAt set → cooldown begins.
+		{"cooldown start", 2005, 600, PhaseCooldown, false},
+		{"cooldown mid", 2005, 660, PhaseCooldown, false},
+		{"cooldown done", 2005, 721, PhaseDone, true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

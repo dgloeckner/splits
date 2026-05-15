@@ -233,7 +233,10 @@ func (p *Persister) applySessionEnd(ctx context.Context, e event.Event) error {
 	workStrokes := filterWorkStrokes(strokes)
 	summary := e.SessionEnd.Summary
 	summary.Samples = stats.ComputeSamples(workStrokes, stats.BucketStrokesFor(len(workStrokes)))
-	summary.PBCandidates = stats.ComputeCandidates(workStrokes)
+	// ComputeCandidates does its own per-candidate phase filtering — see
+	// the comment there. Pass the full stroke list so warmup is
+	// available as headroom for distance candidates (B1).
+	summary.PBCandidates = stats.ComputeCandidates(strokes)
 
 	// Pre-load workout mode + rower_id for insights eligibility.
 	var rowerID, workoutMode string

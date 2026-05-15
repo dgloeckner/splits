@@ -44,8 +44,8 @@ func synthGhost(meters int, intensity string) ([]float64, []float64) {
 const raceModeValue = "race"
 
 // standardRaceDistances mirrors workout.StandardRaceDistances; inlined
-// for the same reason as raceModeValue.
-var standardRaceDistances = []int{500, 1000, 2000, 5000, 6000, 10000, 21097, 42195}
+// for the same reason as raceModeValue. F11: HM/Marathon dropped.
+var standardRaceDistances = []int{500, 1000, 2000, 5000, 6000, 10000}
 
 func isStandardRaceDistance(m int) bool {
 	for _, s := range standardRaceDistances {
