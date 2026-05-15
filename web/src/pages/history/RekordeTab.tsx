@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   getRowerAchievements,
@@ -13,6 +14,7 @@ import styles from './RekordeTab.module.css'
 export function RekordeTab() {
   const active = useActiveRower()
   const rowerID = active.data?.id
+  const nav = useNavigate()
 
   const pbsQ = useQuery<RowerPBs>({
     queryKey: ['rower-pbs', rowerID],
@@ -67,8 +69,20 @@ export function RekordeTab() {
     consistency.length === 0
 
   if (isEmpty) {
+    // F8: match the Trends empty-state pattern — copy + tappable
+    // next-action pill. The bare-text version below had no affordance
+    // and read as a dead end.
     return (
-      <p className={styles.empty}>Noch keine Bestleistungen. Starte ein Workout.</p>
+      <div className={styles.empty} data-testid="rekorde-empty">
+        <p className={styles.emptyText}>Noch keine Bestleistungen.</p>
+        <button
+          type="button"
+          className={styles.startBtn}
+          onClick={() => nav('/')}
+        >
+          Workout starten
+        </button>
+      </div>
     )
   }
 

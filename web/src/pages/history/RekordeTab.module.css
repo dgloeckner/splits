@@ -1,7 +1,35 @@
+/* F8: empty state matches the Trends empty pattern — centred copy plus
+ * a tap-to-act pill, so the tab doesn't read as a dead end. */
 .empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-3);
+  text-align: center;
   color: var(--color-on-surface-variant);
+}
+
+.emptyText {
+  margin: 0;
   font-size: 14px;
-  padding: var(--space-3);
+}
+
+.startBtn {
+  appearance: none;
+  background: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+  border: none;
+  border-radius: 20px;
+  padding: 10px 18px;
+  font-family: var(--font-body);
+  font-size: var(--text-label-md);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.startBtn:active {
+  opacity: 0.8;
 }
 
 .section {

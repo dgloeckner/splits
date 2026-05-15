@@ -18,6 +18,33 @@
   text-align: center;
 }
 
+/* F5: skeleton placeholder rows during loading. Distinct from the
+ * empty state (a static centered paragraph) so users with slow
+ * networks don't mistake "loading" for "you have nothing here". */
+.skeletonList {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+}
+
+.skeletonRow {
+  height: 64px;
+  border-radius: var(--radius-card);
+  background: linear-gradient(
+    90deg,
+    var(--color-surface-container) 0%,
+    var(--color-surface-container-high) 50%,
+    var(--color-surface-container) 100%
+  );
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes skeletonShimmer {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
 .list {
   display: grid;
   gap: var(--space-1);

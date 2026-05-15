@@ -10,6 +10,26 @@ import styles from './TrendsTab.module.css'
 
 const VALID: TrendsRange[] = ['week', 'month', 'year', 'all']
 
+// F9: widening ladder used by the empty-state escape hatch.
+const RANGE_LABEL: Record<TrendsRange, string> = {
+  week: 'Woche',
+  month: 'Monat',
+  year: 'Jahr',
+  all: 'Alles',
+}
+function nextWiderRange(r: TrendsRange): TrendsRange | null {
+  switch (r) {
+    case 'week':
+      return 'month'
+    case 'month':
+      return 'year'
+    case 'year':
+      return 'all'
+    case 'all':
+      return null
+  }
+}
+
 function parseRange(s: string | null): TrendsRange {
   if (s && (VALID as string[]).includes(s)) return s as TrendsRange
   return 'month'
@@ -46,10 +66,25 @@ export function TrendsTab() {
         const hasChartData =
           data.performance.points.length > 0 || data.efficiency.points.length > 0
         if (data.totals.sessions === 0 && !hasChartData) {
+          // F9: empty state gives the user a way out. The current
+          // range hit zero; the next wider range may have data — and
+          // for a user whose sessions are 30+ days old, that's the
+          // actually useful affordance to surface.
+          const wider = nextWiderRange(range)
           return (
-            <p className={styles.placeholder} data-testid="trends-empty">
-              Noch keine Sessions im Zeitraum.
-            </p>
+            <div className={styles.empty} data-testid="trends-empty">
+              <p className={styles.placeholder}>Noch keine Sessions im Zeitraum.</p>
+              {wider && (
+                <button
+                  type="button"
+                  className={styles.widenBtn}
+                  onClick={() => setRange(wider)}
+                  data-testid="trends-widen"
+                >
+                  Zeitraum erweitern → {RANGE_LABEL[wider]}
+                </button>
+              )}
+            </div>
           )
         }
         return <TrendsContent data={data} />

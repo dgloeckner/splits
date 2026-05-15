@@ -34,11 +34,27 @@ export function SessionsTab() {
     if (q.data) workoutById.set(workoutIds[i], q.data)
   })
 
-  if (isPending) return <p className={styles.empty}>Lädt …</p>
+  // F5: loading renders a row-shaped skeleton so the user reads it
+  // as "data on the way" — not as the empty state's "you have
+  // nothing here" message.
+  if (isPending) {
+    return (
+      <div
+        className={styles.skeletonList}
+        aria-busy="true"
+        aria-label="Sessions werden geladen"
+        data-testid="sessions-loading"
+      >
+        <span className={styles.skeletonRow} />
+        <span className={styles.skeletonRow} />
+        <span className={styles.skeletonRow} />
+      </div>
+    )
+  }
   if (error) return <p className={styles.empty}>Konnte Sessions nicht laden.</p>
   if (!data || data.length === 0) {
     return (
-      <p className={styles.empty}>
+      <p className={styles.empty} data-testid="sessions-empty">
         Noch keine Sessions. Rudere eine Session und sie erscheint hier.
       </p>
     )
