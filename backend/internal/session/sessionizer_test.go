@@ -312,7 +312,7 @@ func collectKind(evts []event.Event, k event.Kind) []event.Event {
 //   - t=5,  d=0:   warmup (5 < 30s)
 //   - t=35, d=5:   work (warmup elapsed; warmupEndDistance latches at d=5)
 //   - t=70, d=105: work crossing — 100m of post-warmup work reached
-//                  (PhasePlan records crossing but returns work)
+//     (PhasePlan records crossing but returns work)
 //   - t=75, d=106: cooldown (past target, crossedAt set → falls through)
 func TestSessionizerTagsStrokesWithPhase(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -539,6 +539,7 @@ func kinds(evts []event.Event) []string {
 // Fixture: 10m distance, warmup=10s.
 //   - t=5,  d=0,  power=100: warmup stroke (not counted in work totals)
 //   - t=15, d=5,  power=200: work stroke (counted)
+//
 // Then EndSession() to flush.
 func TestSessionizerSummaryWorkOnlyTotals(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
@@ -585,6 +586,90 @@ func TestSessionizerSummaryWorkOnlyTotals(t *testing.T) {
 	// WarmupSec: boundary from t=5 (warmup start) to t=15 (work start) = 10s.
 	if sum.WarmupSec < 9.9 || sum.WarmupSec > 10.1 {
 		t.Errorf("WarmupSec = %v, want ~10", sum.WarmupSec)
+	}
+}
+
+// TestSessionizerRaceFinishHornCooldownAndAggregates is the integration
+// counterpart to TestPhasePlanRacePostHornIsCooldown. It drives a 500 m
+// race through the sessionizer, follows it with ~100 m of paddle-down,
+// then EndSession()s and asserts both the per-stroke wire shape (phase
+// tags + work→cooldown phase_change event — persister.filterWorkStrokes
+// keys off these) and the post-finalize aggregates.
+//
+// Mirrors PRD-0019 user story 6: "I want my 500 m race to appear in
+// Historie with the same 500 m / 1:38 / 2:05.0 numbers I saw on the
+// FinishOverlay, not the paddle-down-inflated totals".
+func TestSessionizerRaceFinishHornCooldownAndAggregates(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	in := make(chan ipm.Frame, 8)
+	out := make(chan event.Event, 64)
+
+	// Per ADR-0009, race shapes always have warmup_sec = cooldown_sec = 0.
+	params, _ := json.Marshal(map[string]int{"meters": 500})
+	w := &workout.Workout{
+		ID:          "test-race",
+		Mode:        workout.ModeRace,
+		ParamsJSON:  json.RawMessage(params),
+		WarmupSec:   0,
+		CooldownSec: 0,
+	}
+	s := New(Options{
+		IdleTimeout: time.Minute,
+		Now:         time.Now,
+		LoadWorkout: func(id string) (*workout.Workout, error) { return w, nil },
+	})
+	go func() { _ = s.Run(ctx, in, out) }()
+
+	s.StartSession("test-race")
+	// First stroke is rebased to (0,0). Subsequent frames are PM5-
+	// cumulative; we offset the user-distance by 0 so rebased values
+	// equal the frame values minus the anchor.
+	in <- frame(0, 0, 25, 200, 3)    // anchor: rebased (0,0) → work
+	in <- frame(50, 250, 25, 200, 3) // pre-horn → work
+	in <- frame(98, 500, 25, 200, 3) // FINISH HORN: cross stroke → work
+	in <- frame(163, 603, 25, 80, 3) // paddle-down → cooldown
+
+	// Events so far: session_start, 3×stroke(work),
+	// phase_change(work→cooldown), stroke(cooldown) = 6
+	got := drain(t, out, 6)
+
+	// (a) Per-stroke phase tags + single work→cooldown phase_change.
+	strokes := collectKind(got, event.KindStroke)
+	if len(strokes) != 4 {
+		t.Fatalf("expected 4 stroke events, got %d", len(strokes))
+	}
+	wantPhases := []string{"work", "work", "work", "cooldown"}
+	for i, e := range strokes {
+		if e.Stroke.Phase != wantPhases[i] {
+			t.Errorf("stroke %d phase = %q, want %q", i+1, e.Stroke.Phase, wantPhases[i])
+		}
+	}
+	changes := collectKind(got, event.KindPhaseChange)
+	if len(changes) != 1 {
+		t.Fatalf("expected 1 phase_change, got %d", len(changes))
+	}
+	if changes[0].PhaseChange.From != "work" || changes[0].PhaseChange.To != "cooldown" {
+		t.Errorf("phase_change = %q→%q, want work→cooldown",
+			changes[0].PhaseChange.From, changes[0].PhaseChange.To)
+	}
+
+	// (b) Post-finalize aggregates collapse to the race proper.
+	s.EndSession()
+	endEvts := drain(t, out, 1) // session_end
+	end := endEvts[0]
+	if end.Kind != event.KindSessionEnd {
+		t.Fatalf("expected session_end, got %v", end.Kind)
+	}
+	sum := end.SessionEnd.Summary
+	if sum.TotalDistanceM != 500 {
+		t.Errorf("TotalDistanceM = %d, want 500 (paddle-down stripped)", sum.TotalDistanceM)
+	}
+	if sum.TotalTimeSec < 97.9 || sum.TotalTimeSec > 98.1 {
+		t.Errorf("TotalTimeSec = %v, want ~98 (paddle-down stripped)", sum.TotalTimeSec)
+	}
+	if sum.TotalStrokes != 3 {
+		t.Errorf("TotalStrokes = %d, want 3 (work-only, incl. cross stroke)", sum.TotalStrokes)
 	}
 }
 
@@ -711,15 +796,15 @@ func TestSessionizerReanchorsOnWorkoutAttach(t *testing.T) {
 
 	// Free-row first.
 	s.StartSession("")
-	in <- frame(0, 0, 25, 200, 3)     // anchor
-	in <- frame(60, 300, 25, 200, 3)  // 60s / 300m into free-row
-	_ = drain(t, out, 3)              // session_start, stroke, stroke
+	in <- frame(0, 0, 25, 200, 3)    // anchor
+	in <- frame(60, 300, 25, 200, 3) // 60s / 300m into free-row
+	_ = drain(t, out, 3)             // session_start, stroke, stroke
 
 	// Attach workout mid-session.
 	s.AttachWorkout("test-workout")
-	in <- frame(65, 305, 25, 200, 3)  // first stroke after attach: phase anchor = absolute (65,305)
-	in <- frame(80, 310, 25, 200, 3)  // 15s into workout warmup
-	got := drain(t, out, 4)           // workout_attached, phase_change, stroke, stroke ?
+	in <- frame(65, 305, 25, 200, 3) // first stroke after attach: phase anchor = absolute (65,305)
+	in <- frame(80, 310, 25, 200, 3) // 15s into workout warmup
+	got := drain(t, out, 4)          // workout_attached, phase_change, stroke, stroke ?
 
 	strokes := collectKind(got, event.KindStroke)
 	if len(strokes) != 2 {

@@ -118,6 +118,52 @@ func TestPhasePlanCrossingStrokeIsWork(t *testing.T) {
 	}
 }
 
+func TestPhasePlanRacePostHornIsCooldown(t *testing.T) {
+	// CONTEXT.md §Finish horn: the moment userDistanceM >= totalMeters,
+	// the race is over; subsequent strokes are paddle-down (cooldown)
+	// even though the race shape declares cooldown_sec=0.
+	w := &workout.Workout{
+		ID:          "w-race",
+		Mode:        workout.ModeRace,
+		ParamsJSON:  json.RawMessage(`{"meters":500}`),
+		WarmupSec:   0,
+		CooldownSec: 0,
+	}
+	plan, err := BuildPhasePlan(w)
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	cases := []struct {
+		name     string
+		dist     int
+		time     float64
+		want     Phase
+		complete bool
+	}{
+		{"pre-horn early", 100, 20, PhaseWork, false},
+		{"pre-horn late", 499, 97, PhaseWork, false},
+		// First stroke at-or-past totalMeters is the cross stroke — the
+		// horn fires here, but the stroke itself stays work so that
+		// total_distance_m / total_time_sec land on the finish line
+		// (mirrors the existing distance-shape crossing convention).
+		{"cross stroke", 500, 98, PhaseWork, false},
+		// Every subsequent stroke is paddle-down → cooldown.
+		{"post-horn paddle-down", 550, 130, PhaseCooldown, false},
+		{"post-horn paddle-down late", 603, 163, PhaseCooldown, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, complete := plan.Classify(tc.dist, tc.time)
+			if got != tc.want {
+				t.Fatalf("phase: got %v want %v", got, tc.want)
+			}
+			if complete != tc.complete {
+				t.Fatalf("complete: got %v want %v", complete, tc.complete)
+			}
+		})
+	}
+}
+
 func TestPhasePlanFreeRow(t *testing.T) {
 	plan := FreeRowPhasePlan()
 	if p, _ := plan.Classify(0, 0); p != PhaseWork {

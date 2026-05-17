@@ -57,9 +57,15 @@ type segment struct {
 //     recorded (no stroke past warmup, or no warmup at all).
 type PhasePlan struct {
 	segs              []segment
-	hasAny            bool // false for FreeRow
+	hasAny            bool            // false for FreeRow
 	crossedAt         map[int]float64 // key: segment slice index of distance segments
 	warmupEndDistance int             // cumulative distance at warmup-end; -1 = unset
+	// Race shape (raceTotalMeters > 0): the cross stroke stays work so
+	// race totals land on the finish line, not short of it. The horn is
+	// the implicit work→cooldown transition; cooldown_sec=0 (per ADR-0009)
+	// must not suppress it. CONTEXT.md §Finish horn.
+	raceTotalMeters    int
+	raceCrossingPassed bool
 }
 
 // FreeRowPhasePlan is the no-workout plan: every stroke is work, never
@@ -97,6 +103,15 @@ func BuildPhasePlan(w *workout.Workout) (*PhasePlan, error) {
 			return nil, fmt.Errorf("parse time params: %w", err)
 		}
 		p.segs = append(p.segs, segment{kind: PhaseWork, durationSec: float64(params.Seconds)})
+	case workout.ModeRace:
+		var params struct {
+			Meters int `json:"meters"`
+		}
+		if err := json.Unmarshal(w.ParamsJSON, &params); err != nil {
+			return nil, fmt.Errorf("parse race params: %w", err)
+		}
+		p.segs = append(p.segs, segment{kind: PhaseWork, distanceM: params.Meters})
+		p.raceTotalMeters = params.Meters
 	case workout.ModeIntervals:
 		var params struct {
 			Reps   int `json:"reps"`
@@ -147,6 +162,7 @@ func (p *PhasePlan) Reset() {
 	}
 	p.crossedAt = make(map[int]float64)
 	p.warmupEndDistance = -1
+	p.raceCrossingPassed = false
 }
 
 // hasWarmup reports whether the plan begins with a warmup segment.
@@ -164,6 +180,15 @@ func (p *PhasePlan) hasWarmup() bool {
 // that exact moment rather than session start.
 func (p *PhasePlan) Classify(distanceM int, timeSec float64) (Phase, bool) {
 	if !p.hasAny {
+		return PhaseWork, false
+	}
+	if p.raceTotalMeters > 0 && distanceM >= p.raceTotalMeters {
+		// Race shapes never report complete=true; termination is owned by
+		// EndSession / idle-timeout (per ADR-0009).
+		if p.raceCrossingPassed {
+			return PhaseCooldown, false
+		}
+		p.raceCrossingPassed = true
 		return PhaseWork, false
 	}
 

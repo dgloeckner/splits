@@ -64,10 +64,10 @@ type Sessionizer struct {
 }
 
 type sessionState struct {
-	id            string
-	startedAt     time.Time
+	id        string
+	startedAt time.Time
 	// strokeSeq counts every stroke (all phases) for StrokeNo assignment.
-	strokeSeq     int
+	strokeSeq int
 	// strokes counts work-phase strokes only (used for summary averages).
 	strokes       int
 	totalDistance int

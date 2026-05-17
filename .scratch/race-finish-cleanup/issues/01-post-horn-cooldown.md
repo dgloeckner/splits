@@ -34,8 +34,13 @@ Domain rule in CONTEXT.md `§Finish horn`: already captured.
 - [ ] For a race shape, `PhasePlan.Classify` returns `work` for
       strokes with `userDistanceM < totalMeters`.
 - [ ] For a race shape, `PhasePlan.Classify` returns `cooldown` for
-      strokes with `userDistanceM ≥ totalMeters`, even though the
-      shape declares `cooldown_sec=0`.
+      strokes with `userDistanceM > totalMeters`, even though the
+      shape declares `cooldown_sec=0`. (The cross stroke at `==
+      totalMeters` stays `work` so race totals land exactly on the
+      finish line, mirroring the existing distance-shape crossing
+      convention; the §Finish horn rule "the instant
+      `userDistanceM >= totalMeters`" still holds — the horn fires
+      at the cross stroke, which is the last work stroke.)
 - [ ] For non-race shapes, classification is unchanged (regression
       coverage).
 - [ ] After a 500 m race with ~100 m of paddle-down (replay-driven
@@ -52,3 +57,24 @@ Domain rule in CONTEXT.md `§Finish horn`: already captured.
 ## Blocked by
 
 None — can start immediately.
+
+## Comments
+
+**2026-05-17 — implementation note.** AC2 was tightened during
+implementation: a literal `≥` reading would have stripped the cross
+stroke from work totals, breaking AC4 (`total_distance_m=500`).
+Resolved by classifying the cross stroke as `work` and every
+subsequent stroke as `cooldown`, mirroring the existing distance-shape
+convention. AC2 wording updated above.
+
+**2026-05-17 — strokes-table retention.** The strokes-table
+retention AC is verified at the sessionizer/event-stream layer
+(post-horn strokes emit with `Phase='cooldown'`). The persister path
+that writes to the `strokes` table is untouched (ADR-0011) and
+existing persister tests still pass; no additional persister-level
+test was added for this single bullet.
+
+**2026-05-17 — race termination.** Race shapes never report
+`PhasePlan.Classify(...).complete=true`; termination remains owned by
+`EndSession`/idle-timeout per ADR-0009. A one-line comment at the
+race early-return in `Classify` documents this.
