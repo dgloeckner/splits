@@ -23,7 +23,7 @@ describe('SessionEndedOverlay — U4 (post-session CTA)', () => {
     render(
       <SessionEndedOverlay
         summary={baseSummary}
-        banners={{ kind: 'no-banners' }}
+        banners={{ kind: 'resolved', banners: { distance: [], window: [] } }}
         onAcknowledge={onAcknowledge}
         onShowDetails={onShowDetails}
       />,
@@ -43,7 +43,7 @@ describe('SessionEndedOverlay — U4 (post-session CTA)', () => {
     render(
       <SessionEndedOverlay
         summary={baseSummary}
-        banners={{ kind: 'no-banners' }}
+        banners={{ kind: 'resolved', banners: { distance: [], window: [] } }}
         onAcknowledge={vi.fn()}
         onShowDetails={onShowDetails}
       />,
@@ -57,7 +57,7 @@ describe('SessionEndedOverlay — U4 (post-session CTA)', () => {
     render(
       <SessionEndedOverlay
         summary={baseSummary}
-        banners={{ kind: 'no-banners' }}
+        banners={{ kind: 'resolved', banners: { distance: [], window: [] } }}
         onAcknowledge={onAcknowledge}
       />,
     )
@@ -79,7 +79,7 @@ describe('SessionEndedOverlay — U4 (post-session CTA)', () => {
     rerender(
       <SessionEndedOverlay
         summary={baseSummary}
-        banners={{ kind: 'no-banners' }}
+        banners={{ kind: 'resolved', banners: { distance: [], window: [] } }}
         onAcknowledge={vi.fn()}
         onShowDetails={vi.fn()}
       />,
