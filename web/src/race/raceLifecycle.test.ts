@@ -147,7 +147,7 @@ describe('raceLifecycle reducer', () => {
     expect(s.latchedResult).toBe(latched)
   })
 
-  it('sessionEnd from Finished → Post carries the latched result', () => {
+  it('sessionEnd from Finished is ignored — the freeze stays up until the rower taps Fertig (0019-02/03)', () => {
     const ghost = { tSec: [0, 100, 200], distM: [0, 1000, 2000] }
     let s = initialRaceLifecycle({ totalMeters: 2000, opponents: { ghost } })
     s = raceLifecycle(s, { type: 'confirm' })
@@ -157,9 +157,13 @@ describe('raceLifecycle reducer', () => {
     s = raceLifecycle(s, { type: 'tick', nowMs: 4500 })
     s = raceLifecycle(s, { type: 'stroke', t: 90, dist: 1958, userDistance: 1958, total: 2000 })
     s = raceLifecycle(s, { type: 'stroke', t: 100, dist: 2000, userDistance: 2000, total: 2000 })
+    expect(s.phase).toBe('Finished')
     const latched = s.latchedResult
     s = raceLifecycle(s, { type: 'sessionEnd' })
-    expect(s.phase).toBe('Post')
+    // Post-finish session_end must NOT collapse the race surface — the
+    // StatBar / Canvas / FinishOverlay freeze persists across the
+    // paddle-down. Fertig is the only Finished → Post path.
+    expect(s.phase).toBe('Finished')
     expect(s.latchedResult).toBe(latched)
   })
 
@@ -175,7 +179,7 @@ describe('raceLifecycle reducer', () => {
     expect(s.phase).toBe('Post')
   })
 
-  it('sessionEnd from Finished → Post', () => {
+  it('sessionEnd from Finished is a no-op (stays Finished — Fertig is the explicit exit)', () => {
     let s = run([
       { type: 'confirm' },
       { type: 'bereitTap', t: 0 },
@@ -186,7 +190,7 @@ describe('raceLifecycle reducer', () => {
     ])
     expect(s.phase).toBe('Finished')
     s = raceLifecycle(s, { type: 'sessionEnd' })
-    expect(s.phase).toBe('Post')
+    expect(s.phase).toBe('Finished')
   })
 
   it('abort from Bereit → Aborted', () => {

@@ -83,3 +83,28 @@ screen.
 ## Blocked by
 
 None — can start immediately.
+
+## Comments
+
+**2026-05-17 — implementation note.** Hook signature is
+`useRaceFreeze({ liveState, totalMeters, opponents })` rather than the
+PRD's nominal `{ liveState, RaceResultLatch }`. The latch doesn't
+carry split/watts/spm/distance-left, so the hook needs the live state
++ opponents directly. AC4's cross-component consistency (StatBar gaps
+match FinishOverlay's latched gaps) is pinned by a unit test that
+compares `useRaceFreeze.ghostGap` against
+`computeRaceResultLatch.gaps.vs_ghost` for the same horn-crossing
+stroke and opponent curve.
+
+**2026-05-17 — StatBar gained an elapsed cell.** Before this slice
+the StatBar showed split / distance-to-go / watts / spm / gaps but
+not elapsed time. Per PRD user story 4 and AC6 the StatBar must
+freeze "elapsed time, distance-to-go, split, watts and spm" — so
+elapsed is now a first-class cell (`data-testid="statbar-elapsed"`),
+rendered in both phone and tablet layouts.
+
+**2026-05-17 — optional nits parked.** Code-quality review flagged
+four optional improvements (drop unused `frozen` flag or surface it
+as DOM data attr; add `statbar-distance` testid; extract shared
+stroke fixture; check `web/test-results/.last-run.json` gitignore).
+Not blocking; can be picked up in a follow-up polish slice.

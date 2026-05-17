@@ -27,10 +27,29 @@ export type RaceResultLatch = {
   finalTimeS: number
   finalSplitS: number
   gaps: { ghost?: number; pb?: number }
+  /**
+   * Snapshot of the cross stroke at the moment the finish line was
+   * crossed. Stored on the latch so render-time observers (StatBar,
+   * RaceCanvas via `useRaceFreeze`) can source frozen values from the
+   * same immutable record as `FinishOverlay`, preventing batched SSE
+   * delivery from snapshotting a later post-horn stroke (0019-02 AC3/AC4).
+   *
+   * `userDistanceM` is the user's distance at the cross. We render it as
+   * `totalMeters` (the line position) because the canvas/StatBar
+   * "distance left" UI is defined relative to the line, not the raw
+   * stroke sample. `watts` / `spm` / `split` are the cross stroke's
+   * instantaneous values when provided by the caller.
+   */
+  crossSnapshot: {
+    userDistanceM: number
+    watts: number
+    spm: number
+    split: number
+  }
 }
 
 export function computeRaceResultLatch(args: {
-  cross: { t: number; dist: number }
+  cross: { t: number; dist: number; watts?: number; spm?: number; split?: number }
   prev: { t: number; dist: number } | null
   totalMeters: number
   opponents: { ghost?: LatchOpponentCurve; pb?: LatchOpponentCurve }
@@ -63,5 +82,21 @@ export function computeRaceResultLatch(args: {
     )
   }
 
-  return Object.freeze({ finalTimeS, finalSplitS, gaps: Object.freeze(gaps) }) as RaceResultLatch
+  const crossSnapshot = Object.freeze({
+    // The line position, not the (possibly past-line) raw stroke sample.
+    userDistanceM: totalMeters,
+    watts: cross.watts ?? 0,
+    spm: cross.spm ?? 0,
+    // Prefer the cross stroke's instantaneous split; fall back to the
+    // derived `finalSplitS` (prev → cross pair) so the StatBar never
+    // reads zero when the caller omits per-stroke split.
+    split: cross.split ?? finalSplitS,
+  })
+
+  return Object.freeze({
+    finalTimeS,
+    finalSplitS,
+    gaps: Object.freeze(gaps),
+    crossSnapshot,
+  }) as RaceResultLatch
 }

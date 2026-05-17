@@ -52,3 +52,23 @@
 .value { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .gapAhead { color: #22c55e; }
 .gapBehind { color: #f87171; }
+
+/* 0019-03: explicit Fertig affordance — full-width primary button
+   pinned to the bottom of the overlay's auto-rows grid track. */
+.fertig {
+  align-self: end;
+  width: 100%;
+  min-height: 56px;
+  border: none;
+  border-radius: 12px;
+  background: #14b8a6;
+  color: #0f172a;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background-color 120ms ease-out, transform 80ms ease-out;
+}
+.fertig:hover { background: #2dd4bf; }
+.fertig:active { transform: scale(0.98); }
+.fertig:focus-visible { outline: 2px solid #f8fafc; outline-offset: 2px; }

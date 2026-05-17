@@ -1,9 +1,11 @@
 import styles from './StatBar.module.css'
+import { fmtGap } from './fmtGap'
 
 type Variant = 'phone' | 'tablet'
 
 type Props = {
   variant: Variant
+  elapsedSec: number
   splitSec: number
   distanceLeftM: number
   watts: number
@@ -18,9 +20,11 @@ function fmtSplit(s: number): string {
   return `${m}:${String(r).padStart(2, '0')}`
 }
 
-function fmtGap(n: number): string {
-  const sign = n > 0 ? '+' : ''
-  return `${sign}${n.toFixed(1)}s`
+function fmtElapsed(s: number): string {
+  const safe = Math.max(0, Math.floor(s))
+  const m = Math.floor(safe / 60)
+  const r = safe - m * 60
+  return `${m}:${String(r).padStart(2, '0')}`
 }
 
 function leaderGap(
@@ -46,11 +50,15 @@ export function StatBar(p: Props) {
     const lead = leaderGap(p.vsPbSec, p.vsGhostSec)
     return (
       <div className={styles.bar} data-variant="phone">
-        <span className={styles.cell}>{fmtSplit(p.splitSec)}</span>
+        <span className={styles.cell} data-testid="statbar-elapsed">{fmtElapsed(p.elapsedSec)}</span>
         <span className={styles.cell}>{p.distanceLeftM} m</span>
+        <span className={styles.cell} data-testid="statbar-split">{fmtSplit(p.splitSec)}</span>
         <span className={styles.cell}>{p.watts} W</span>
         {lead && (
-          <span className={styles.cell}>
+          <span
+            className={styles.cell}
+            data-testid={lead.label === 'Ghost' ? 'statbar-vs-ghost' : 'statbar-vs-pb'}
+          >
             {lead.label} {fmtGap(lead.value)}
           </span>
         )}
@@ -59,12 +67,13 @@ export function StatBar(p: Props) {
   }
   return (
     <div className={styles.bar} data-variant="tablet">
-      <span className={styles.cell}>{fmtSplit(p.splitSec)}</span>
+      <span className={styles.cell} data-testid="statbar-elapsed">{fmtElapsed(p.elapsedSec)}</span>
       <span className={styles.cell}>{p.distanceLeftM} m</span>
+      <span className={styles.cell} data-testid="statbar-split">{fmtSplit(p.splitSec)}</span>
       <span className={styles.cell}>{p.watts} W</span>
       {p.spm != null && <span className={styles.cell}>{p.spm}</span>}
-      {p.vsPbSec != null && <span className={styles.cell}>PB {fmtGap(p.vsPbSec)}</span>}
-      {p.vsGhostSec != null && <span className={styles.cell}>Ghost {fmtGap(p.vsGhostSec)}</span>}
+      {p.vsPbSec != null && <span className={styles.cell} data-testid="statbar-vs-pb">PB {fmtGap(p.vsPbSec)}</span>}
+      {p.vsGhostSec != null && <span className={styles.cell} data-testid="statbar-vs-ghost">Ghost {fmtGap(p.vsGhostSec)}</span>}
     </div>
   )
 }

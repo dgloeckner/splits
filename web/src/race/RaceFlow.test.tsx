@@ -403,4 +403,143 @@ describe('RaceFlow integration', () => {
     expect(canvas).not.toBeNull()
     expect(canvas?.getAttribute('data-user-distance-m')).toBe('0')
   })
+
+  // 0019-03: explicit Fertig affordance plumbed through RaceFlow.
+  it('Finished: tapping FinishOverlay Fertig invokes the onFinish prop exactly once', () => {
+    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps as any)
+    const rafCallbacks: FrameRequestCallback[] = []
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      rafCallbacks.push(cb)
+      return rafCallbacks.length
+    })
+    vi.stubGlobal('cancelAnimationFrame', () => {})
+    let now = 0
+    vi.stubGlobal('performance', { now: () => now } as any)
+    function pumpRaf(toMs: number) {
+      now = toMs
+      act(() => {
+        const cbs = rafCallbacks.splice(0)
+        cbs.forEach((cb) => cb(now))
+      })
+    }
+
+    const onFinish = vi.fn()
+    let liveState: any = { ...baseLive, stroke: null }
+    const { getByTestId, rerender, queryByTestId } = render(
+      <RaceFlow
+        liveState={liveState}
+        totalMeters={2000}
+        opponentsLabel=""
+        onFinish={onFinish}
+      />,
+    )
+    act(() => { fireEvent.click(getByTestId('bereit-button')) })
+    pumpRaf(0)
+    pumpRaf(1500)
+    pumpRaf(3000)
+    pumpRaf(4500)
+
+    // Finish-cross
+    liveState = { ...baseLive, stroke: { time_sec: 470, distance_m: 2000, pace_sec_per_500m: 118, power_w: 280, spm: 32 } }
+    rerender(
+      <RaceFlow
+        liveState={liveState}
+        totalMeters={2000}
+        opponentsLabel=""
+        onFinish={onFinish}
+      />,
+    )
+
+    // FinishOverlay + Fertig button present and enabled immediately on mount.
+    expect(getByTestId('finish-overlay')).toBeTruthy()
+    const fertig = getByTestId('finish-fertig') as HTMLButtonElement
+    expect(fertig.disabled).toBe(false)
+    // No "Paddelst aus" text in the rendered overlay (0019-03 polish).
+    expect(getByTestId('finish-overlay').textContent ?? '').not.toMatch(/Paddelst aus/i)
+
+    act(() => { fireEvent.click(fertig) })
+    expect(onFinish).toHaveBeenCalledTimes(1)
+    // Race surface (RaceFlow alone) does NOT auto-dismiss on Fertig —
+    // dismissal is driven by the caller's session_end flow, which
+    // surfaces as `liveState.summary` and drives the reducer to Post.
+    // Until then the overlay remains so the rower keeps seeing the
+    // result.
+    expect(queryByTestId('finish-overlay')).not.toBeNull()
+  })
+
+  // 0019-02: idle-timeout / backend session_end during Finished must
+  // NOT collapse the race surface — the StatBar + Canvas freeze and
+  // the FinishOverlay are designed to stay visible across the
+  // paddle-down. Only Fertig (or abort / navigation) advances Finished
+  // → Post. The PacingFast E2E fixture demonstrates this: the backend
+  // fires session_end within milliseconds of the horn, and we still
+  // need to keep showing the result.
+  it('Post-finish session_end does NOT auto-dismiss the FinishOverlay — Fertig is the only Finished → Post path (0019-02)', () => {
+    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps as any)
+    const rafCallbacks: FrameRequestCallback[] = []
+    vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+      rafCallbacks.push(cb)
+      return rafCallbacks.length
+    })
+    vi.stubGlobal('cancelAnimationFrame', () => {})
+    let now = 0
+    vi.stubGlobal('performance', { now: () => now } as any)
+    function pumpRaf(toMs: number) {
+      now = toMs
+      act(() => {
+        const cbs = rafCallbacks.splice(0)
+        cbs.forEach((cb) => cb(now))
+      })
+    }
+
+    const onFinish = vi.fn()
+    let liveState: any = { ...baseLive, stroke: null }
+    const { getByTestId, rerender, queryByTestId } = render(
+      <RaceFlow
+        liveState={liveState}
+        totalMeters={2000}
+        opponentsLabel=""
+        onFinish={onFinish}
+      />,
+    )
+    act(() => { fireEvent.click(getByTestId('bereit-button')) })
+    pumpRaf(0)
+    pumpRaf(1500)
+    pumpRaf(3000)
+    pumpRaf(4500)
+
+    // Finish-cross → Finished + FinishOverlay
+    liveState = { ...baseLive, stroke: { time_sec: 470, distance_m: 2000, pace_sec_per_500m: 118, power_w: 280, spm: 32 } }
+    rerender(
+      <RaceFlow
+        liveState={liveState}
+        totalMeters={2000}
+        opponentsLabel=""
+        onFinish={onFinish}
+      />,
+    )
+    expect(getByTestId('finish-overlay')).toBeTruthy()
+
+    // Rower walks away. Idle-timeout backend fires session_end; the
+    // caller's reducer surfaces `summary` on liveState — no Fertig
+    // tap occurred.
+    liveState = {
+      ...baseLive,
+      stroke: liveState.stroke,
+      summary: { duration_sec: 470, total_distance_m: 2000, race: null },
+    }
+    rerender(
+      <RaceFlow
+        liveState={liveState}
+        totalMeters={2000}
+        opponentsLabel=""
+        onFinish={onFinish}
+      />,
+    )
+
+    // FinishOverlay remains visible — the freeze persists. onFinish
+    // must NOT have been invoked because the user never tapped Fertig.
+    expect(queryByTestId('finish-overlay')).not.toBeNull()
+    expect(onFinish).not.toHaveBeenCalled()
+  })
 })

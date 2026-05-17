@@ -74,3 +74,25 @@ lands on Home on next interaction.
 ## Blocked by
 
 None — can start immediately.
+
+## Comments
+
+**2026-05-17 — wiring.** Fertig is wired in `LivePage` as
+`enqueueEndSession(sessionId) → processPendingEndSessions() → abort()
+→ nav('/')`, mirroring the existing X-abort path used by
+`WorkoutProgressStrip` and PauseDialog Save. The race surface
+dismissal is not driven directly by the click — it falls out of the
+existing reducer transition once the backend acks `session_end`,
+keeping Fertig and idle-timeout on the same downstream path.
+
+**2026-05-17 — idle-timeout regression.** The unit-level idle-timeout
+regression test proxies the backend timer via `liveState.summary`
+arrival (backend timeout → `session_end` event → reducer surfaces
+`summary` → Post). The actual idle timer is exercised by an E2E spot-
+check, not at unit level.
+
+**2026-05-17 — non-blocking nits parked.** Code-quality review flagged
+five small follow-ups: wrap `handleFinish` in `useCallback`, replace
+`onClick={() => onFinish?.()}` with `onClick={onFinish}`, extract a
+`setupRaceToFinished()` test helper, consider CSS theme tokens for
+the `.fertig` button, drop a redundant test rename. None blocking.

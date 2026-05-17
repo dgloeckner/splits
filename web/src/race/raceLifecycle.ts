@@ -55,7 +55,24 @@ export type RaceLifecycleEvent =
   | { type: 'confirm' }
   | { type: 'bereitTap'; t: number }
   | { type: 'tick'; nowMs: number }
-  | { type: 'stroke'; t: number; dist: number; userDistance: number; total?: number }
+  | {
+      type: 'stroke'
+      t: number
+      dist: number
+      userDistance: number
+      total?: number
+      /**
+       * Optional instantaneous values from the cross stroke. When the
+       * user crosses the finish line, these are snapshotted onto
+       * `latchedResult.crossSnapshot` so that render-time observers
+       * (StatBar, RaceCanvas) freeze on the exact cross stroke even if
+       * React batches subsequent SSE strokes into the same render
+       * (0019-02 AC3/AC4).
+       */
+      watts?: number
+      spm?: number
+      split?: number
+    }
   | { type: 'setConfig'; config: RaceLifecycleConfig }
   | { type: 'sessionEnd' }
   | { type: 'abort' }
@@ -167,7 +184,13 @@ export function raceLifecycle(
         if (event.total != null && event.userDistance >= event.total) {
           const totalMeters = state._config.totalMeters ?? event.total
           const latched = computeRaceResultLatch({
-            cross: { t: event.t, dist: event.dist },
+            cross: {
+              t: event.t,
+              dist: event.dist,
+              watts: event.watts,
+              spm: event.spm,
+              split: event.split,
+            },
             prev: state._prevStroke,
             totalMeters,
             opponents: state._config.opponents ?? {},
@@ -190,7 +213,16 @@ export function raceLifecycle(
     }
 
     case 'sessionEnd': {
-      if (state.phase === 'Live' || state.phase === 'Finished') {
+      // Pre-finish session_end (idle-timeout, abort) collapses straight
+      // to Post — there's no latched result to keep the FinishOverlay
+      // up. Once we've crossed the line, however, the race-surface
+      // freeze must persist until the rower taps Fertig (0019-02 /
+      // 0019-03): the backend's session_end fires within milliseconds
+      // of the fixture EOF at fast pacing, but the StatBar + Canvas
+      // freeze and the FinishOverlay are explicitly designed to stay
+      // visible across the paddle-down. The Fertig handler (parent's
+      // `onFinish`) is the only path that advances Finished → Post.
+      if (state.phase === 'Live') {
         return { ...state, phase: 'Post' }
       }
       return state

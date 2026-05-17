@@ -12,6 +12,7 @@ import { useWorkoutProgress } from '../live/useWorkoutProgress'
 import { LiveHero } from './LiveHero'
 import { TileGrid } from './TileGrid'
 import { RaceFlow } from '../race/RaceFlow'
+import { enqueueEndSession, processPendingEndSessions } from '../live/endSessionQueue'
 import { useWorkoutOverlay } from './live/WorkoutOverlayContext'
 import { WorkoutProgressStrip } from './live/WorkoutProgressStrip'
 import { SegmentStatus } from './live/SegmentStatus'
@@ -28,6 +29,7 @@ import styles from './LivePage.module.css'
 function LiveBody() {
   useSegmentTransitions()
   const state = useLiveSession()
+  const nav = useNavigate()
   const { active, segments, workout, isLoading, remainingAnchorMs } = useWorkoutProgress()
   const { aborted, abort } = useWorkoutOverlay()
   const seg = active?.segment
@@ -48,9 +50,27 @@ function LiveBody() {
         opponentsLabel = parts.length ? parts.join(' · ') : '—'
       }
     } catch {}
+    // 0019-03: Fertig button on the FinishOverlay routes through the
+    // existing endSessionQueue path used by the manual abort flow
+    // (see PauseDialog) — same end-point, different trigger. Idle-
+    // timeout `session_end` remains a passive fallback for rowers who
+    // walk away.
+    const sessionId = state.session?.session_id ?? null
+    const handleFinish = () => {
+      if (sessionId) enqueueEndSession(sessionId)
+      void processPendingEndSessions()
+      abort()
+      nav('/')
+    }
     return (
       <div className={styles.page}>
-        <RaceFlow liveState={state} totalMeters={meters} opponentsLabel={opponentsLabel} onAbort={abort} />
+        <RaceFlow
+          liveState={state}
+          totalMeters={meters}
+          opponentsLabel={opponentsLabel}
+          onAbort={abort}
+          onFinish={handleFinish}
+        />
       </div>
     )
   }

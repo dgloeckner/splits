@@ -4,7 +4,8 @@ import { StatBar } from './StatBar'
 import { RaceCanvas } from './RaceCanvas'
 import { useRaceData } from './useRaceData'
 import { useReducedMotion } from './reducedMotion'
-import { opponentLookup } from './opponentLookup'
+import { useRaceFreeze } from './useRaceFreeze'
+import type { RaceResultLatch } from './raceResultLatch'
 import styles from './RaceLiveView.module.css'
 
 /**
@@ -14,9 +15,18 @@ import styles from './RaceLiveView.module.css'
  * caller (e.g. `RaceFlow`) must only mount this view once the reducer
  * has transitioned to Ceremony(GO!) or Live.
  */
-type Props = { liveState: LiveState; totalMeters: number }
+type Props = {
+  liveState: LiveState
+  totalMeters: number
+  /**
+   * Authoritative finish-line latch from the parent lifecycle reducer.
+   * When set, drives the StatBar / Canvas freeze (0019-02 AC3/AC4).
+   * Optional so unit tests and older callers can render without it.
+   */
+  latchedResult?: RaceResultLatch | null
+}
 
-export function RaceLiveView({ liveState, totalMeters }: Props) {
+export function RaceLiveView({ liveState, totalMeters, latchedResult }: Props) {
   const ref = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState({ w: 0, h: 0 })
   // 0017-01: seed `size` synchronously before paint so the very first
@@ -43,14 +53,19 @@ export function RaceLiveView({ liveState, totalMeters }: Props) {
     rowerId: liveState.session?.rower_id ?? null,
   })
 
-  const elapsedSec = liveState.stroke?.time_sec ?? 0
-  const userDistanceM = liveState.stroke?.distance_m ?? 0
-  const split = liveState.stroke?.pace_sec_per_500m ?? 120
-  const watts = liveState.stroke?.power_w ?? 0
-  const spm = liveState.stroke?.spm ?? 0
-
-  const ghostGap = opps.ghost ? opponentLookup(opps.ghost.tSec, opps.ghost.distM, userDistanceM, elapsedSec) : null
-  const pbGap = opps.pb ? opponentLookup(opps.pb.tSec, opps.pb.distM, userDistanceM, elapsedSec) : null
+  // 0019-02: route all race-surface render inputs through `useRaceFreeze`
+  // so the StatBar and Canvas freeze on the finish-horn snapshot (and
+  // opponent positions in the Canvas freeze mechanically as a result).
+  const frozen = useRaceFreeze({
+    liveState,
+    totalMeters,
+    opponents: {
+      ghost: opps.ghost ? { tSec: opps.ghost.tSec, distM: opps.ghost.distM } : undefined,
+      pb: opps.pb ? { tSec: opps.pb.tSec, distM: opps.pb.distM } : undefined,
+    },
+    latchedResult,
+  })
+  const { elapsedSec, userDistanceM, split, watts, spm, ghostGap, pbGap } = frozen
 
   const variant: 'phone' | 'tablet' = size.w >= 768 ? 'tablet' : 'phone'
   const canvasH = Math.max(0, size.h - 56)
@@ -59,6 +74,7 @@ export function RaceLiveView({ liveState, totalMeters }: Props) {
     <div ref={ref} className={styles.view}>
       <div data-component="stat-bar"><StatBar
         variant={variant}
+        elapsedSec={elapsedSec}
         splitSec={split}
         distanceLeftM={Math.max(0, totalMeters - userDistanceM)}
         watts={watts}

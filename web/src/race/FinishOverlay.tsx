@@ -1,4 +1,5 @@
 import type { RaceResultLatch } from './raceResultLatch'
+import { fmtGap } from './fmtGap'
 import styles from './FinishOverlay.module.css'
 
 /**
@@ -11,7 +12,19 @@ import styles from './FinishOverlay.module.css'
  * The component renders pre-latched, immutable values; it does not
  * recompute when later strokes arrive.
  */
-type Props = { result: RaceResultLatch }
+type Props = {
+  result: RaceResultLatch
+  /**
+   * 0019-03: explicit Fertig affordance. When provided, the rendered
+   * Fertig button invokes this callback on tap. The parent is
+   * responsible for firing `session_end` via the existing
+   * `endSessionQueue` path and dismissing the race surface. If
+   * omitted, the button still renders (and is enabled) but tapping it
+   * is a no-op — the idle-timeout `session_end` path remains the
+   * passive fallback.
+   */
+  onFinish?: () => void
+}
 
 function fmtMmSs(s: number): string {
   const sign = s < 0 ? '-' : ''
@@ -28,19 +41,12 @@ function fmtSplit(s: number): string {
   return `${m}:${r.toFixed(1).padStart(4, '0')}`
 }
 
-function fmtGap(n: number): string {
-  if (n === 0) return '0.0 s'
-  const sign = n > 0 ? '+' : '-'
-  return `${sign}${Math.abs(n).toFixed(1)} s`
-}
-
-export function FinishOverlay({ result }: Props) {
+export function FinishOverlay({ result, onFinish }: Props) {
   const { finalTimeS, finalSplitS, gaps } = result
   return (
     <div className={styles.overlay} role="status" data-testid="finish-overlay">
       <div className={styles.header}>
         <h2 className={styles.title}>Ziel!</h2>
-        <span className={styles.copy}>Paddelst aus...</span>
       </div>
       <div className={styles.row}>
         <div className={styles.cell}>
@@ -74,6 +80,14 @@ export function FinishOverlay({ result }: Props) {
           </div>
         )}
       </div>
+      <button
+        type="button"
+        className={styles.fertig}
+        data-testid="finish-fertig"
+        onClick={() => onFinish?.()}
+      >
+        Fertig
+      </button>
     </div>
   )
 }

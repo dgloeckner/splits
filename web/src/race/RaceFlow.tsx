@@ -34,9 +34,18 @@ type Props = {
    * surface unmounts.
    */
   onAbort?: () => void
+  /**
+   * 0019-03: explicit Fertig affordance on the FinishOverlay. The
+   * caller should fire `session_end` via the existing
+   * `endSessionQueue` path (same end-point as the manual abort flow,
+   * different trigger) and navigate the rower home. If omitted, the
+   * Fertig button still renders but the idle-timeout `session_end`
+   * remains the only exit path.
+   */
+  onFinish?: () => void
 }
 
-export function RaceFlow({ liveState, totalMeters, opponentsLabel, onRetry, onShowDetail, onAbort }: Props) {
+export function RaceFlow({ liveState, totalMeters, opponentsLabel, onRetry, onShowDetail, onAbort, onFinish }: Props) {
   const { state, send } = useRaceLifecycle({ totalMeters })
   const reducedMotion = useReducedMotion()
 
@@ -68,6 +77,12 @@ export function RaceFlow({ liveState, totalMeters, opponentsLabel, onRetry, onSh
       dist: stroke.distance_m,
       userDistance: stroke.distance_m,
       total: totalMeters,
+      // Snapshot the instantaneous cross-stroke fields onto the latch
+      // so StatBar/Canvas freezes lock to the same stroke as the
+      // FinishOverlay even under batched SSE delivery (0019-02).
+      watts: stroke.power_w,
+      spm: stroke.spm,
+      split: stroke.pace_sec_per_500m,
     })
   }, [liveState.stroke, state.phase, totalMeters, send])
 
@@ -127,6 +142,7 @@ export function RaceFlow({ liveState, totalMeters, opponentsLabel, onRetry, onSh
           send={send}
           onRetry={onRetry}
           onShowDetail={onShowDetail}
+          onFinish={onFinish}
         />
       )}
       {state.phase === 'Ceremony' && (
@@ -154,6 +170,7 @@ function RaceLiveStage({
   send,
   onRetry,
   onShowDetail,
+  onFinish,
 }: {
   liveState: LiveState
   totalMeters: number
@@ -161,6 +178,7 @@ function RaceLiveStage({
   send: (e: RaceLifecycleEvent) => void
   onRetry?: () => void
   onShowDetail?: () => void
+  onFinish?: () => void
 }) {
   const opps = useRaceData({
     workoutId: liveState.session?.workout_id ?? null,
@@ -225,9 +243,13 @@ function RaceLiveStage({
 
   return (
     <>
-      <RaceLiveView liveState={visualLiveState} totalMeters={totalMeters} />
+      <RaceLiveView
+        liveState={visualLiveState}
+        totalMeters={totalMeters}
+        latchedResult={lifecycle.latchedResult}
+      />
       {lifecycle.phase === 'Finished' && lifecycle.latchedResult && (
-        <FinishOverlay result={lifecycle.latchedResult} />
+        <FinishOverlay result={lifecycle.latchedResult} onFinish={onFinish} />
       )}
     </>
   )
