@@ -139,7 +139,7 @@ describe('StaleSessionCard', () => {
     expect(await screen.findByRole('button', { name: /Beenden mit gerudertem Stand/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Verwerfen/i })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Weiter rudern/i })).not.toBeInTheDocument()
-    expect(screen.queryByTestId('stale-resume')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('stale-recovery-rejoin')).not.toBeInTheDocument()
   })
 
   it('renders all three actions for non-race rows (regression guard)', async () => {

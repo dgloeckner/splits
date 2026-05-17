@@ -75,3 +75,39 @@ path.
 ## Blocked by
 
 None — can start immediately.
+
+## Comments
+
+**2026-05-17 — already working.** The race-mode stale-open recovery
+surface was already correctly implemented before this issue was
+opened:
+- `web/src/pages/home/StaleSessionCard.tsx:77,93` derives
+  `isRace = session.mode === 'race'` and gates the Rejoin button
+  behind `!isRace`.
+- `backend/internal/storage/stale_janitor.go:159`
+  `FinalizeStaleSession` unconditionally sets `summary.Race = nil`
+  per ADR-0012.
+- Existing vitest at `StaleSessionCard.test.tsx` (8/8 passing)
+  covers the race-hides-rejoin path and the non-race regression.
+- Backend Go test `TestFinalizeStaleSession_RaceRow_SummaryRaceNil`
+  pins the `summary_json.race = null` behaviour at the storage layer.
+
+**2026-05-17 — testid rename.** Implementation testids
+(`stale-session-card`, `stale-finalize`, `stale-discard`,
+`stale-resume`) diverged from the names this issue's E2E spot-checks
+and issue 0019-04's absence assertion use
+(`stale-open-recovery-card`, `stale-recovery-finalize`,
+`stale-recovery-discard`, `stale-recovery-rejoin`). The latter
+absence assertion was passing vacuously (querying a name nothing
+rendered). Renamed the four testids in `StaleSessionCard.tsx` and the
+one query in `StaleSessionCard.test.tsx`; zero residuals across web/
+and backend/. The 0019-04 absence assertion is now meaningful.
+
+**2026-05-17 — no Playwright spec added.** AC1 calls for a Playwright
+test seeding a backend stale-open session. The existing vitest + Go
+integration coverage pins the same observable behaviour at the
+React-rendering and storage layers respectively. The project's full
+slice-level E2E gate (per `docs/agents/definition-of-done.md`) runs
+Playwright separately at the merge gate, which is the natural place
+for a true end-to-end backend-seeded test rather than a one-off spec
+written from this issue.

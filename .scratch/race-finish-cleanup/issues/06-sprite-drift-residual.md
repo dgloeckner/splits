@@ -61,3 +61,24 @@ is not occluded by the FinishOverlay.
 ## Blocked by
 
 - [0019-02 — Race surface freezes at finish horn](./02-race-surface-freeze.md)
+
+## Comments
+
+**2026-05-17 — resolved-by-freeze.** The 0019-02 freeze handles this
+by construction: `RaceCanvas`'s user lane has `opp=null` →
+`offsetMeters=0` → user sprite renders at `centerX -
+SPRITE_HALF_WIDTH` unconditionally, and `useRaceFreeze` pins
+`userDistanceM` post-horn so the camera and the sprite are doubly
+invariant. A new vitest case in `RaceLiveView.test.tsx` drives 10
+post-horn strokes (510→600m), asserts `data-testid="boat-user"` is
+present after each, that its `style.left` does not change, and that
+it stays within the canvas viewport bounding box. Passes on first
+run; 555/555 full suite green.
+
+**2026-05-17 — occlusion check deferred to Playwright.** The AC
+bullet "boat-user bounding box does not intersect the FinishOverlay
+bounding box" is genuinely a full-app-shell concern (FinishOverlay
+mounts in `RaceFlow`, not `RaceLiveView` in isolation). Covered by
+the slice's standard Playwright E2E gate (per
+`docs/agents/definition-of-done.md`), not a one-off spec from this
+issue. No production code change was needed for this slice.

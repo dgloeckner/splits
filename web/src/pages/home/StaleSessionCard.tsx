@@ -43,7 +43,7 @@ export function StaleSessionCard({ rowerID }: Props) {
   if (!rowerID || sessions.length === 0) return null
 
   return (
-    <section className={styles.card} data-testid="stale-session-card">
+    <section className={styles.card} data-testid="stale-open-recovery-card">
       <h2 className={styles.heading}>Frühere Session abschließen?</h2>
       <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
         {sessions.map((s) => (
@@ -86,7 +86,7 @@ function StaleSessionRow({ session, onFinalize, onDiscard, onResume, busy }: Row
           className={styles.primary}
           onClick={onFinalize}
           disabled={busy}
-          data-testid="stale-finalize"
+          data-testid="stale-recovery-finalize"
         >
           Beenden mit gerudertem Stand
         </button>
@@ -96,7 +96,7 @@ function StaleSessionRow({ session, onFinalize, onDiscard, onResume, busy }: Row
             className={styles.secondary}
             onClick={onResume}
             disabled={busy}
-            data-testid="stale-resume"
+            data-testid="stale-recovery-rejoin"
           >
             Weiter rudern
           </button>
@@ -106,7 +106,7 @@ function StaleSessionRow({ session, onFinalize, onDiscard, onResume, busy }: Row
           className={styles.danger}
           onClick={onDiscard}
           disabled={busy}
-          data-testid="stale-discard"
+          data-testid="stale-recovery-discard"
         >
           Verwerfen
         </button>
