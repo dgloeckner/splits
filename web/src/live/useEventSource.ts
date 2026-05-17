@@ -1,6 +1,6 @@
-import { useEffect, useReducer, useRef } from 'react'
+import { useEffect, useReducer, useRef, type Dispatch } from 'react'
 import type { Channel } from './channel'
-import { liveReducer, initialLiveState, type LiveState } from './reducer'
+import { liveReducer, initialLiveState, type LiveAction, type LiveState } from './reducer'
 
 // Persist the reducer state in sessionStorage so a tab reload mid-
 // session restores the live charts (split, watts, etc.) instead of
@@ -31,7 +31,12 @@ function hydrate(): LiveState {
   }
 }
 
-export function useEventSource(channel: Channel): LiveState {
+export type UseEventSourceResult = {
+  state: LiveState
+  dispatch: Dispatch<LiveAction>
+}
+
+export function useEventSource(channel: Channel): UseEventSourceResult {
   const [state, dispatch] = useReducer(liveReducer, undefined, hydrate)
 
   // Persist on every state change. The state object is small (a few
@@ -59,5 +64,5 @@ export function useEventSource(channel: Channel): LiveState {
     return () => channel.close()
   }, [channel])
 
-  return state
+  return { state, dispatch }
 }

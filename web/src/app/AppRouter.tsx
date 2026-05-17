@@ -4,6 +4,7 @@ import { ErrorBoundary } from './ErrorBoundary'
 import { NotFound } from './NotFound'
 import { RowerGate } from './RowerGate'
 import { LiveSessionProvider } from '../live/LiveSessionContext'
+import { useBootReconcile } from '../live/useBootReconcile'
 import { WorkoutOverlayProvider } from '../pages/live/WorkoutOverlayContext'
 import { LivePage } from '../pages/LivePage'
 import { HomePage } from '../pages/HomePage'
@@ -17,10 +18,19 @@ import { OnboardingPage } from '../pages/OnboardingPage'
 import { PairPage } from '../pages/PairPage'
 import { WorkoutFlowPage } from '../pages/workout/WorkoutFlowPage'
 
+// BootReconciler mounts `useBootReconcile` exactly once inside the
+// LiveSessionProvider so it can reach the live dispatch. Rendered as
+// a sibling of the router so it is not torn down on navigation.
+function BootReconciler() {
+  useBootReconcile()
+  return null
+}
+
 export function AppRouter() {
   return (
     <ErrorBoundary>
       <LiveSessionProvider>
+        <BootReconciler />
         <WorkoutOverlayProvider>
         <BrowserRouter>
           <Routes>

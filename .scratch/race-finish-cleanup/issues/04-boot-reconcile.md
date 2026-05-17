@@ -81,3 +81,34 @@ three bottom-nav tabs enabled. No recovery card appears.
 ## Blocked by
 
 None — can start immediately.
+
+## Comments
+
+**2026-05-17 — `reset` reducer action + dispatch-on-context.** The
+cache lives in `sessionStorage['splits:live-state']` via
+`useEventSource.hydrate()`. Rather than mutating storage directly, a
+new `reset` action returning `initialLiveState` (preserving channel
+`status`) was added, and `dispatch` was exposed through
+`LiveSessionContext`. The `reset` action accepts an optional `summary`
+payload so the BE-finalised branch can seed `liveState.summary` from
+the BE response in the same dispatch — avoiding a `summary=null`
+flicker through downstream consumers.
+
+**2026-05-17 — transient-error policy.** Network/5xx errors from the
+session-detail fetch are intentionally swallowed (cached state
+preserved). Only `ended_at IS NOT NULL` or HTTP 404 triggers the
+reset. Avoids wiping the cache on flaky-network reopens. Not
+explicitly enumerated in the PRD; documented here.
+
+**2026-05-17 — recovery-card absence.** The integration test asserts
+`stale-open-recovery-card` is absent post-reconcile against today's
+HomePage (where the card surface doesn't yet exist). The assertion
+will continue to pass once 0019-05 lands the surface, because the
+precondition (a finalised cached session) won't trigger the card.
+
+**2026-05-17 — non-blocking nits parked.** Code-quality review flagged
+5 small follow-ups: make `dispatch` non-optional on the context,
+inline the `bootSessionIdRef` seed, add a `?? null` rationale comment
+in the reducer, convert dynamic `await import` to static imports in
+tests, drop the defensive `sessionStorage.clear()` if unused. None
+blocking.

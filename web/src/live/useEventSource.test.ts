@@ -12,10 +12,10 @@ describe('useEventSource', () => {
     const ch = new MockChannel()
     const { result } = renderHook(() => useEventSource(ch))
 
-    expect(result.current.status).toBe('idle')
+    expect(result.current.state.status).toBe('idle')
 
     act(() => ch.setStatus('open'))
-    await waitFor(() => expect(result.current.status).toBe('open'))
+    await waitFor(() => expect(result.current.state.status).toBe('open'))
 
     act(() =>
       ch.push({
@@ -30,7 +30,7 @@ describe('useEventSource', () => {
         },
       }),
     )
-    await waitFor(() => expect(result.current.session?.rower_name).toBe('Daniel'))
+    await waitFor(() => expect(result.current.state.session?.rower_name).toBe('Daniel'))
   })
 
   it('closes the channel on unmount', () => {
@@ -72,8 +72,8 @@ describe('useEventSource', () => {
     const ch = new MockChannel()
     const { result } = renderHook(() => useEventSource(ch))
 
-    expect(result.current.sparklines.power).toHaveLength(1)
-    expect(result.current.session?.session_id).toBe('S1')
+    expect(result.current.state.sparklines.power).toHaveLength(1)
+    expect(result.current.state.session?.session_id).toBe('S1')
 
     // Snapshot replay: same session_id arrives again.
     act(() =>
@@ -90,8 +90,8 @@ describe('useEventSource', () => {
       }),
     )
 
-    await waitFor(() => expect(result.current.session?.rower_name).toBe('Daniel'))
-    expect(result.current.sparklines.power).toHaveLength(1)
-    expect(result.current.sparklines.split).toHaveLength(1)
+    await waitFor(() => expect(result.current.state.session?.rower_name).toBe('Daniel'))
+    expect(result.current.state.sparklines.power).toHaveLength(1)
+    expect(result.current.state.sparklines.split).toHaveLength(1)
   })
 })

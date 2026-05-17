@@ -20,15 +20,15 @@ export function BottomNav() {
 
   return (
     <nav className={styles.nav} aria-label="Hauptnavigation">
-      <NavLink to="/" end className={styles.link} {...lockedProps}>
+      <NavLink to="/" end className={styles.link} data-testid="bottom-nav-workout" {...lockedProps}>
         <IconWorkout />
         <span>Workout</span>
       </NavLink>
-      <NavLink to="/historie" className={styles.link} {...lockedProps}>
+      <NavLink to="/historie" className={styles.link} data-testid="bottom-nav-historie" {...lockedProps}>
         <IconHistory />
         <span>Historie</span>
       </NavLink>
-      <NavLink to="/profil" className={styles.link} {...lockedProps}>
+      <NavLink to="/profil" className={styles.link} data-testid="bottom-nav-profil" {...lockedProps}>
         <IconProfile />
         <span>Profil</span>
       </NavLink>

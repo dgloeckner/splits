@@ -77,6 +77,11 @@ export type LiveAction =
   | { type: 'status'; status: ChannelStatus }
   | { type: 'event'; event: LiveEvent }
   | { type: 'tick'; nowMs: number }
+  // Boot-time reconciliation (PRD-0019 / §Boot-time session reconciliation):
+  // imperatively drop the cached session/summary/sparklines when the BE
+  // says the cached session is already ended (or unknown). Preserves only
+  // the current channel `status` so the live SSE bind isn't disturbed.
+  | { type: 'reset'; summary?: SessionEndSummary | null }
 
 function trimWindow(points: SparklinePoint[], now: number): SparklinePoint[] {
   const cutoff = now - SPARKLINE_WINDOW_SEC
@@ -131,6 +136,19 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
 
     case 'tick':
       return state
+
+    case 'reset':
+      // Preserve the channel status (the SSE bind is still live); wipe
+      // everything else back to initial. Used by useBootReconcile when
+      // the backend says the cached "active workout" no longer exists
+      // or has already ended. When the BE returned a finalised
+      // SessionRow, seed `summary` from it so downstream consumers
+      // (Historie, RacePostScreen) can render without a re-fetch.
+      return {
+        ...initialLiveState,
+        status: state.status,
+        summary: action.summary ?? null,
+      }
 
     case 'event': {
       const ev = action.event
