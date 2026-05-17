@@ -73,6 +73,36 @@ deterministic at this moment: the user's time and gaps are latched.
 The user typically continues rowing for a paddle-down; the result
 overlay appears immediately and does not wait for the rower to stop.
 
+**The entire race surface freezes at the finish horn**, not just the
+result overlay. StatBar values (elapsed, distance-to-go, split, watts,
+spm, vs.Ghost, vs.PB) and Canvas positions (user boat, ghost, PB) are
+snapshotted at horn and held until the session ends. Post-finish strokes
+continue to be persisted (they belong to the session record for replay
+and audit) but are no longer routed into the race-view's render inputs.
+
+**The FinishOverlay carries an explicit "end session" affordance**
+(working name **Fertig**). Tapping it fires `session_end` immediately,
+giving the rower a one-tap escape from the race surface. The idle-
+timeout `session_end` remains as a passive fallback for rowers who
+just walk away. Rationale: relying on idle-timeout alone leaves the
+rower with no agency — low-amplitude paddle-down strokes, a screen
+lock, or a slow timer can trap them on the race surface with no exit.
+The label is intentionally not "Beenden" (which reads as Abort, and
+§Abort forbids abort after the horn — the result is already latched).
+
+**Post-horn strokes are classified as Cooldown**, even when the race
+shape declares `cooldown_sec=0`. The finish horn is itself the implicit
+phase transition from Work to Cooldown. `filterWorkStrokes` strips them,
+so race session aggregates (`total_distance_m`, `total_time_sec`,
+`avg_power_w`, `avg_spm`, `avg_pace_sec_per_500m`) reflect the race
+proper and match the FinishOverlay exactly. Without this rule, a
+500 m race with 100 m of paddle-down would persist as a `603 m / 2:43 /
+2:09 split` session, contradicting the `500 m / 1:38 / 2:05.0` the
+rower just saw on screen. Rationale: the latched result is the single source of truth from
+horn onward; allowing the StatBar to keep recomputing `vs.Ghost` against
+a still-advancing `userDistanceM` produced visible contradictions
+between the bar (e.g. "Ghost -10.0s") and the overlay ("vs.Ghost -22.0s").
+
 ### Ghost
 
 A virtual opponent boat whose pace curve is either (a) the user's
@@ -83,10 +113,34 @@ persistent.
 
 ### PB-leader
 
-A virtual opponent boat whose pace curve is the user's fastest prior
-session at this exact race shape (`pb_workout`) or, if that is empty,
-their fastest prior session at this distance (`pb_distance`),
-whichever is faster.
+A virtual opponent boat whose pace curve is sourced from the user's
+fastest prior N-metre window for this race's distance (`pb_distance`).
+
+The `pb_workout` table is reserved for **time mode** (PB = work-phase
+distance covered over the **fully completed** prescribed duration,
+higher better, `ValueKind=distance_m`). A candidate is emitted only
+when the work phase ran to completion — partial sessions (rower
+aborted before the prescribed time elapsed) do not contribute a PB
+candidate, mirroring the §Stale-open rule that "a competition unit
+either witnessed its own finish or did not happen". An incomplete
+8-of-20-min attempt would otherwise become the rower's "20-min PB"
+by default on their first try. Time mode is the only structured workout mode
+whose PB value cannot be expressed as a best N-metre window. Intervals
+mode is deliberately **not** in `pb_workout` — interval shapes are
+hard to compare even within themselves, and they need a separate PB
+surface (TBD) that engages with cross-shape comparison explicitly
+rather than pretending it's a normal one-value-per-shape ranking. Race and distance modes do not emit a `pb_workout`
+candidate — their PB is `pb_distance(shape_distance)`, sourced
+directly. This mirrors the `ShapeHash` collapse in
+`backend/internal/workout/hash.go`, which already maps `race →
+distance` so the two modes share a single PB row. For **race mode**, `pb_workout` is structurally
+redundant: a race's completion time always coincides with the best
+N-metre window starting at `race_t0`, because race strokes are exactly
+the strokes from `race_t0` to the finish horn (post-horn strokes are
+Cooldown and stripped by `filterWorkStrokes`). Races therefore do
+**not** emit a `pb_workout` candidate, and the PB-leader curve for a
+race is read directly from `pb_distance` — this is the canonical path,
+not a fallback.
 
 ### Opponent
 
@@ -141,6 +195,23 @@ race omits "rejoin live"; only Finalize and Discard are offered. An
 interrupted race always finalizes with `summary_json.race = null` —
 the same outcome as an explicit abort. A race is a competition unit
 that either witnessed its own finish or did not happen.
+
+### Boot-time session reconciliation
+
+The client-side `LiveSessionContext` may cache an "active workout"
+across app restarts. On app boot it must reconcile this cache against
+the backend before driving any UI that gates on workout-active state
+(notably BottomNav locking):
+
+- If the BE says the session is ended (`ended_at` set), drop the
+  local active-workout state and load `summary` from the BE. Nav
+  unlocks; no recovery card is shown (nothing to recover).
+- If the BE has `ended_at IS NULL` and matches the local active
+  state, keep the state and apply the §Stale-open recovery flow.
+
+Rationale: the backend is the source of truth for session lifecycle.
+A stale local cache must never trap the rower in a locked nav for a
+session that the backend has already closed.
 
 ### Live split (windowed)
 
