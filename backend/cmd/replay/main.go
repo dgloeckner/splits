@@ -25,6 +25,7 @@ import (
 	"io"
 	"os"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/gloeckner-daniel/splits/internal/config"
@@ -111,16 +112,17 @@ func Replay(ctx context.Context, db *sql.DB, sessionID string, w io.Writer) erro
 	out := make(chan event.Event, 64)
 	// Now() advances with each stroke's TimeSec so the sessionizer's
 	// idle/inactivity guards never fire during replay (they compare
-	// wall-clock deltas, not in-frame deltas).
+	// wall-clock deltas, not in-frame deltas). The clock is read by the
+	// sessionizer goroutine and advanced by feedStrokes, so go through
+	// a mutex.
 	base := time.Unix(0, 0).UTC()
-	var clock time.Time
-	clock = base
+	clock := &replayClock{now: base}
 	s := session.New(session.Options{
 		IdleTimeout:       1 * time.Hour,
 		InactivityTimeout: 0,
 		RowerID:           "replay",
 		RowerName:         "Replay",
-		Now:               func() time.Time { return clock },
+		Now:               clock.Now,
 	})
 
 	done := make(chan error, 1)
@@ -137,7 +139,7 @@ func Replay(ctx context.Context, db *sql.DB, sessionID string, w io.Writer) erro
 
 	emitErrCh := make(chan error, 1)
 	go func() {
-		emitErrCh <- feedStrokes(rctx, strokes, in, &clock, base)
+		emitErrCh <- feedStrokes(rctx, strokes, in, clock, base)
 	}()
 
 	rowsWritten := 0
@@ -170,15 +172,37 @@ func Replay(ctx context.Context, db *sql.DB, sessionID string, w io.Writer) erro
 	return w2.Error()
 }
 
+// replayClock is a mutex-guarded time source shared between the
+// sessionizer goroutine (reader, via Now) and the stroke feeder
+// (writer). Without the mutex, the race detector flags the read/write
+// pair as concurrent — see -race on cmd/replay tests.
+type replayClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func (c *replayClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *replayClock) Set(t time.Time) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = t
+}
+
 // feedStrokes turns each persisted stroke into an ipm.Frame and pushes
 // it onto the sessionizer's input channel, advancing the injected clock
 // in lockstep with TimeSec.
-func feedStrokes(ctx context.Context, strokes []event.StrokePayload, in chan<- ipm.Frame, clock *time.Time, base time.Time) error {
+func feedStrokes(ctx context.Context, strokes []event.StrokePayload, in chan<- ipm.Frame, clock *replayClock, base time.Time) error {
 	defer close(in)
 	for _, p := range strokes {
-		*clock = base.Add(time.Duration(p.TimeSec * float64(time.Second)))
+		next := base.Add(time.Duration(p.TimeSec * float64(time.Second)))
+		clock.Set(next)
 		f := ipm.Frame{
-			ReceivedAt: *clock,
+			ReceivedAt: next,
 			TimeSec:    p.TimeSec,
 			DistanceM:  p.DistanceM,
 			SPM:        p.SPM,

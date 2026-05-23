@@ -7,8 +7,13 @@ cd "$(dirname "$0")/../backend"
 cmd="${1:-help}"
 case "$cmd" in
   build)  go build -o splits ./cmd/splits ;;
-  test)   go test ./... ;;
-  vet)    go vet ./... ;;
+  # -race is on by default: backend suite finishes in ~15 s with the
+  # detector and has caught real concurrency bugs (sessionizer cache vs
+  # janitor sweep). Use `test-norace` for timing comparisons or
+  # platforms without -race support.
+  test)        go test -race ./... ;;
+  test-norace) go test ./... ;;
+  vet)         go vet ./... ;;
   fmt)    go fmt ./... ;;
   run)    go run ./cmd/splits ;;
   lint)
@@ -19,5 +24,5 @@ case "$cmd" in
     staticcheck ./...
     ;;
   clean)  rm -f splits splits.exe coverage.out coverage.html ;;
-  help|*) echo "usage: scripts/backend.sh {build|test|vet|fmt|run|lint|clean}" ;;
+  help|*) echo "usage: scripts/backend.sh {build|test|test-norace|vet|fmt|run|lint|clean}" ;;
 esac
