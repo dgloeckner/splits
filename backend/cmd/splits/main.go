@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -138,6 +139,7 @@ func run() error {
 		LoadWorkout: func(id string) (*workout.Workout, error) {
 			return workoutRepo.GetWorkout(ctx, id)
 		},
+		LivenessChecker: storageLivenessAdapter{db: db.Handle()},
 	})
 	dispatcher := &pipeline.Dispatcher{Ring: ring, Persist: persistCh, Broadcast: broadcastCh}
 	scheduler := stats.NewRecomputeScheduler(db.Handle())
@@ -154,7 +156,7 @@ func run() error {
 
 	(&storage.BootJanitor{DB: db.Handle(), Scheduler: scheduler}).Run(ctx)
 	// FEAT-0015 Slice 3: stale-open janitor sweeps every minute.
-	storage.StartStaleJanitor(ctx, db.Handle())
+	storage.StartStaleJanitor(ctx, db.Handle(), sessionizer)
 
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error { return producer.Run(gctx, frames) })
@@ -279,6 +281,26 @@ func unwrapFixture(p ipm.Producer) (*ipm.FixtureProducer, bool) {
 // only wasPaused) to api.FixtureResumer (which speaks the wire-level
 // {started, reason} vocabulary). "already_running" is the only reason
 // surfaced for now; future producers may add more.
+// storageLivenessAdapter bridges storage.CheckSessionLiveness to
+// session.SessionLivenessChecker. Owned by main so storage stays free
+// of a `session` import.
+type storageLivenessAdapter struct{ db *sql.DB }
+
+func (a storageLivenessAdapter) CheckSessionLiveness(ctx context.Context, id string) session.SessionStatus {
+	switch storage.CheckSessionLiveness(ctx, a.db, id) {
+	case storage.LivenessLive:
+		return session.SessionStatusLive
+	case storage.LivenessStaleOpen:
+		return session.SessionStatusStaleOpen
+	case storage.LivenessEnded:
+		return session.SessionStatusEnded
+	case storage.LivenessMissing:
+		return session.SessionStatusMissing
+	default:
+		return session.SessionStatusUnknown
+	}
+}
+
 type fixtureResumeAdapter struct{ fp *ipm.FixtureProducer }
 
 func (a *fixtureResumeAdapter) Resume() (bool, string) {

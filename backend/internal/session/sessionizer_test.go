@@ -24,6 +24,29 @@ func frame(timeSec float64, distanceM, spm, powerW, level int) ipm.Frame {
 	}
 }
 
+// testClock is a goroutine-safe time source for tests that advance
+// time across goroutine boundaries (the sessionizer's Run loop reads
+// Now() concurrently with the test driver advancing it). Replaces the
+// bare `now` variables that triggered -race warnings.
+type testClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func newTestClock(t time.Time) *testClock { return &testClock{now: t} }
+
+func (c *testClock) Now() time.Time {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.now
+}
+
+func (c *testClock) Advance(d time.Duration) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.now = c.now.Add(d)
+}
+
 func drain(t *testing.T, out <-chan event.Event, n int) []event.Event {
 	t.Helper()
 	var got []event.Event
@@ -122,21 +145,21 @@ func TestSessionizerIdleBoundary(t *testing.T) {
 	defer cancel()
 	in := make(chan ipm.Frame, 4)
 	out := make(chan event.Event, 16)
-	now := time.Unix(1000, 0)
-	s := New(Options{IdleTimeout: 60 * time.Second, Now: func() time.Time { return now }})
+	clk := newTestClock(time.Unix(1000, 0))
+	s := New(Options{IdleTimeout: 60 * time.Second, Now: clk.Now})
 	go func() { _ = s.Run(ctx, in, out) }()
 
 	// First session: explicit start + two strokes.
 	s.StartSession("")
 	in <- frame(0.0, 0, 25, 200, 3)
-	// Give goroutine time to advance before we mutate `now`
+	// Give goroutine time to advance before we mutate the clock
 	time.Sleep(50 * time.Millisecond)
-	now = now.Add(1 * time.Second)
+	clk.Advance(1 * time.Second)
 	in <- frame(1.0, 4, 25, 200, 3)
 
 	// Idle gap >60 s, then explicit start + new stroke for session 2.
 	time.Sleep(50 * time.Millisecond)
-	now = now.Add(90 * time.Second)
+	clk.Advance(90 * time.Second)
 	s.StartSession("")
 	in <- frame(0.0, 0, 24, 180, 3)
 
@@ -184,13 +207,19 @@ func TestSessionizerEmitsLevelChange(t *testing.T) {
 }
 
 func TestSessionizer_ResolverPicksRowerPerSession(t *testing.T) {
+	var mu sync.Mutex
 	current := "R1"
 	currentName := "Rower1"
-	now := time.Unix(1000, 0)
+	resolver := func() (string, string) {
+		mu.Lock()
+		defer mu.Unlock()
+		return current, currentName
+	}
+	clk := newTestClock(time.Unix(1000, 0))
 	s := New(Options{
 		IdleTimeout:  time.Minute,
-		ResolveRower: func() (string, string) { return current, currentName },
-		Now:          func() time.Time { return now },
+		ResolveRower: resolver,
+		Now:          clk.Now,
 	})
 
 	frames := make(chan ipm.Frame, 1)
@@ -208,9 +237,11 @@ func TestSessionizer_ResolverPicksRowerPerSession(t *testing.T) {
 	<-out // stroke
 
 	// idle close + switch
-	now = now.Add(5 * time.Minute)
+	clk.Advance(5 * time.Minute)
+	mu.Lock()
 	current = "R2"
 	currentName = "Rower2"
+	mu.Unlock()
 	s.StartSession("")
 	frames <- ipm.Frame{TimeSec: 2, DistanceM: 2, SPM: 20, PowerW: 100, Level: 3}
 	// drain until we see the next session_start
@@ -233,11 +264,11 @@ func TestSessionizer_ResolverPicksRowerPerSession(t *testing.T) {
 // session_start with the supplied ID and that a subsequent session (after the
 // idle gap closes the first one) has an empty WorkoutID.
 func TestAttachWorkout_OneShot(t *testing.T) {
-	now := time.Unix(1000, 0)
+	clk := newTestClock(time.Unix(1000, 0))
 	s := New(Options{
 		IdleTimeout: 60 * time.Second,
 		RowerID:     "R1",
-		Now:         func() time.Time { return now },
+		Now:         clk.Now,
 	})
 	frames := make(chan ipm.Frame, 4)
 	out := make(chan event.Event, 32)
@@ -262,7 +293,7 @@ func TestAttachWorkout_OneShot(t *testing.T) {
 
 	// Advance time past idle timeout, request a new start without
 	// a workout — should close session 1 and open session 2.
-	now = now.Add(90 * time.Second)
+	clk.Advance(90 * time.Second)
 	s.StartSession("")
 
 	// Second frame goes into session 2.
@@ -573,9 +604,13 @@ func TestSessionizerSummaryWorkOnlyTotals(t *testing.T) {
 	}
 	sum := end.SessionEnd.Summary
 
-	// Only the work stroke (d=5, power=200) should be counted.
-	if sum.TotalDistanceM != 5 {
-		t.Errorf("TotalDistanceM = %d, want 5", sum.TotalDistanceM)
+	// Work totals anchor at the FIRST work stroke (the warmup→work
+	// boundary stroke, which is reported as a work stroke). With a
+	// single work stroke at d=5 the post-anchor delta is 0 — matches
+	// the live WorkProgressBadge derivation (state.stroke.distance_m −
+	// phaseAnchor.distanceM = 5 − 5 = 0).
+	if sum.TotalDistanceM != 0 {
+		t.Errorf("TotalDistanceM = %d, want 0 (work-only delta from boundary stroke)", sum.TotalDistanceM)
 	}
 	if sum.AvgPowerW != 200 {
 		t.Errorf("AvgPowerW = %d, want 200", sum.AvgPowerW)
@@ -586,6 +621,224 @@ func TestSessionizerSummaryWorkOnlyTotals(t *testing.T) {
 	// WarmupSec: boundary from t=5 (warmup start) to t=15 (work start) = 10s.
 	if sum.WarmupSec < 9.9 || sum.WarmupSec > 10.1 {
 		t.Errorf("WarmupSec = %v, want ~10", sum.WarmupSec)
+	}
+}
+
+// fakeLivenessChecker is a hand-rolled SessionLivenessChecker that
+// returns whatever status the test stamped for an id. Default for
+// missing keys is SessionStatusLive (so existing tests aren't affected
+// by the addition of a checker).
+type fakeLivenessChecker struct {
+	mu     sync.Mutex
+	status map[string]SessionStatus
+}
+
+func (f *fakeLivenessChecker) CheckSessionLiveness(_ context.Context, id string) SessionStatus {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if s, ok := f.status[id]; ok {
+		return s
+	}
+	return SessionStatusLive
+}
+
+func (f *fakeLivenessChecker) set(id string, s SessionStatus) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.status == nil {
+		f.status = map[string]SessionStatus{}
+	}
+	f.status[id] = s
+}
+
+// TestSessionizerSnapshot_DropsStaleCacheAgainstDB exercises the
+// single-source-of-truth invariant: even if no one explicitly called
+// ClearActiveSession (drift window between "frames stopped" and the
+// next janitor sweep), a reconnecting SSE client must not be told the
+// dead session is still running.
+func TestSessionizerSnapshot_DropsStaleCacheAgainstDB(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	in := make(chan ipm.Frame, 4)
+	out := make(chan event.Event, 16)
+	checker := &fakeLivenessChecker{}
+	s := New(Options{
+		IdleTimeout:     time.Minute,
+		Now:             time.Now,
+		LivenessChecker: checker,
+	})
+	go func() { _ = s.Run(ctx, in, out) }()
+
+	s.StartSession("")
+	in <- frame(0, 0, 25, 200, 3)
+	_ = drain(t, out, 2)
+	id := s.ActiveSessionID()
+	if id == "" {
+		t.Fatal("expected an active session id")
+	}
+
+	// Cache live → Snapshot returns the session_start.
+	if got := len(s.Snapshot()); got == 0 {
+		t.Error("Snapshot before flip returned empty; want session_start")
+	}
+
+	// DB flips to stale-open out-of-band (janitor sweep raced ahead of
+	// the in-memory clear).
+	checker.set(id, SessionStatusStaleOpen)
+
+	if got := s.Snapshot(); len(got) != 0 {
+		t.Errorf("Snapshot after stale-open flip = %d events, want 0", len(got))
+	}
+	if got := s.ActiveSessionID(); got != "" {
+		t.Errorf("ActiveSessionID after stale-open flip = %q, want empty", got)
+	}
+}
+
+// TestSessionizerStart_DropsDeadAccumulator covers the second drift
+// path: a StartSession arrives while the in-memory accumulator still
+// points at a session the DB has long since flipped. Without the
+// liveness check, the startC handler's IdleTimeout heuristic would
+// silently drop the request (the in-memory `lastSeen` is fresh) and
+// the user is stuck.
+func TestSessionizerStart_DropsDeadAccumulator(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	in := make(chan ipm.Frame, 4)
+	out := make(chan event.Event, 16)
+	checker := &fakeLivenessChecker{}
+	s := New(Options{
+		IdleTimeout:     time.Hour, // generous: idle won't auto-close
+		Now:             time.Now,
+		LivenessChecker: checker,
+	})
+	go func() { _ = s.Run(ctx, in, out) }()
+
+	// Session 1.
+	s.StartSession("")
+	in <- frame(0, 0, 25, 200, 3)
+	_ = drain(t, out, 2)
+	id1 := s.ActiveSessionID()
+	if id1 == "" {
+		t.Fatal("expected active session id")
+	}
+
+	// DB declares session 1 stale-open (out-of-band — frames stopped,
+	// janitor flipped). Now the user starts a new session.
+	checker.set(id1, SessionStatusStaleOpen)
+
+	// Second StartSession should NOT be dropped by the IdleTimeout
+	// heuristic; the dead accumulator gets purged first, then a fresh
+	// session opens.
+	s.StartSession("")
+	in <- frame(0, 0, 25, 200, 3)
+	got := drain(t, out, 2) // expect session_start + stroke for NEW id
+
+	if got[0].Kind != event.KindSessionStart {
+		t.Fatalf("expected session_start, got %v", got[0].Kind)
+	}
+	if got[0].SessionID == id1 {
+		t.Errorf("new session opened with old id %q (dead accumulator was reused)", id1)
+	}
+	if s.ActiveSessionID() == id1 {
+		t.Errorf("ActiveSessionID still reports the dead id %q", id1)
+	}
+}
+
+// TestSessionizerClearActiveSession drops the in-memory active claim so
+// the next StartSession can open a fresh row. Used by the stale-open
+// janitor sweep to keep status='stale-open' (DB) and ActiveSessionID()
+// (memory) in sync — without this, DELETE /sessions/{id} returns 409
+// and the "Verwerfen" button silently fails.
+func TestSessionizerClearActiveSession(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	in := make(chan ipm.Frame, 4)
+	out := make(chan event.Event, 16)
+	s := New(Options{IdleTimeout: time.Minute, Now: time.Now})
+	go func() { _ = s.Run(ctx, in, out) }()
+
+	s.StartSession("")
+	in <- frame(0, 0, 25, 200, 3)
+	_ = drain(t, out, 2) // session_start, stroke
+
+	id := s.ActiveSessionID()
+	if id == "" {
+		t.Fatal("expected an active session id")
+	}
+
+	// Mismatched id: no-op.
+	s.ClearActiveSession("not-the-id")
+	if got := s.ActiveSessionID(); got != id {
+		t.Errorf("ClearActiveSession(other) altered active id: %q", got)
+	}
+
+	s.ClearActiveSession(id)
+	if got := s.ActiveSessionID(); got != "" {
+		t.Errorf("after ClearActiveSession(id): ActiveSessionID() = %q, want empty", got)
+	}
+}
+
+// TestSessionizerSummary_WarmupDistanceExcluded reproduces the bug where
+// warmup-phase distance/time leak into the persisted session summary in
+// distance mode (CONTEXT.md §Workout phases: "Only Work-phase strokes
+// count").
+//
+// Fixture: 100m work target, 30s warmup. Rower paddles 100 m during
+// warmup, then 110 m of real work (overshoots the target by 10 m on the
+// crossing stroke, which is normal — one stroke lands the target).
+//
+//   - t=5,   d=50,  power=80   → warmup
+//   - t=35,  d=100, power=80   → warmup→work; warmupEndDistance latches at 100
+//   - t=60,  d=210, power=250  → work (crossing 100 m post-warmup)
+//
+// Expected (work-phase only):
+//
+//	TotalDistanceM = 210 - 100 = 110
+//	TotalTimeSec   ≈ 60  - 35  = 25
+//	TotalStrokes   = 2
+//	WarmupSec      ≈ 30
+func TestSessionizerSummary_WarmupDistanceExcluded(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	in := make(chan ipm.Frame, 8)
+	out := make(chan event.Event, 64)
+
+	w := makeDistanceWorkout(100, 30, 0)
+	s := New(Options{
+		IdleTimeout: time.Minute,
+		Now:         time.Now,
+		LoadWorkout: func(id string) (*workout.Workout, error) { return w, nil },
+	})
+	go func() { _ = s.Run(ctx, in, out) }()
+
+	s.StartSession("test-workout")
+	in <- frame(5, 50, 25, 80, 3)    // warmup (rower paddling, distance climbs)
+	in <- frame(35, 100, 25, 80, 3)  // warmup→work transition
+	in <- frame(60, 210, 25, 250, 3) // work crossing (210-100=110m post-warmup)
+
+	// 6 events: session_start, phase_change(work→warmup), stroke(warmup),
+	//           phase_change(warmup→work), stroke(work), stroke(work)
+	_ = drain(t, out, 6)
+
+	s.EndSession()
+	endEvts := drain(t, out, 1)
+	end := endEvts[0]
+	if end.Kind != event.KindSessionEnd {
+		t.Fatalf("expected session_end, got %v", end.Kind)
+	}
+	sum := end.SessionEnd.Summary
+
+	if got, want := sum.TotalDistanceM, 110; got != want {
+		t.Errorf("TotalDistanceM = %d, want %d (warmup distance must NOT be counted)", got, want)
+	}
+	if sum.TotalTimeSec < 24.9 || sum.TotalTimeSec > 25.1 {
+		t.Errorf("TotalTimeSec = %v, want ~25 (work-only time, excludes warmup)", sum.TotalTimeSec)
+	}
+	if got, want := sum.TotalStrokes, 2; got != want {
+		t.Errorf("TotalStrokes = %d, want %d (work-only)", got, want)
+	}
+	if sum.WarmupSec < 29.9 || sum.WarmupSec > 30.1 {
+		t.Errorf("WarmupSec = %v, want ~30", sum.WarmupSec)
 	}
 }
 

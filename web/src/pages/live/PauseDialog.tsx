@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { deleteSession } from '../../api/client'
+import { showToast } from '../../app/Toast'
 import { enqueueEndSession, processPendingEndSessions } from '../../live/endSessionQueue'
 import { useLiveSession } from '../../live/LiveSessionContext'
 import { useIsLivePaused } from '../../live/useLiveDisplay'
@@ -63,11 +64,18 @@ export function PauseDialog() {
         nav('/')
       }}
       onContinue={() => setDismissed(true)}
-      onDiscard={() => {
+      onDiscard={async () => {
         if (sessionId) {
-          void deleteSession(sessionId)
-            .then(() => qc.invalidateQueries({ queryKey: ['sessions'] }))
-            .catch(() => {})
+          try {
+            await deleteSession(sessionId)
+            qc.invalidateQueries({ queryKey: ['sessions'] })
+          } catch {
+            // Backend rejected the discard (e.g. sessionizer didn't
+            // recognise the id, or session_end timeout). Surface the
+            // failure so the row doesn't silently leak into history.
+            showToast('Verwerfen fehlgeschlagen — bitte erneut versuchen.', 'warn')
+            return
+          }
         }
         abort()
         setDismissed(false)

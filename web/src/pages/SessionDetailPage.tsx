@@ -16,6 +16,7 @@ import { LineChart } from '../components/LineChart/LineChart'
 import { fmtFloat, fmtInt, fmtMeters, mmss, mmssWhole, pace500m } from '../util/format'
 import { formatSessionStart } from '../util/dates'
 import { DeleteSessionDialog } from './history/DeleteSessionDialog'
+import { showToast } from '../app/Toast'
 import { InsightsSection } from './session/InsightsSection'
 import styles from './SessionDetailPage.module.css'
 
@@ -52,6 +53,8 @@ export function SessionDetailPage() {
       qc.invalidateQueries({ queryKey: ['sessions'] })
       navigate('/historie', { replace: true })
     },
+    onError: () =>
+      showToast('Löschen fehlgeschlagen — bitte erneut versuchen.', 'warn'),
   })
 
   if (sessionQ.isPending) {

@@ -182,19 +182,37 @@ func (j *BootJanitor) finaliseOne(ctx context.Context, id string) error {
 }
 
 // buildSummary computes session totals + averages from strokes. Used
-// only by the boot janitor — the live pipeline computes its own via
-// the sessionizer's accumulator.
+// by the boot janitor and the stale-open finalizer — the live pipeline
+// computes its own via the sessionizer's accumulator.
+//
+// Work-only semantics: warmup/rest/cooldown strokes are excluded from
+// totals/averages and TotalDistanceM/TotalTimeSec are the *delta* from
+// the first work stroke (mirrors the sessionizer's workAnchor; see
+// CONTEXT.md §Workout phases). Strokes without a Phase tag (legacy
+// pre-phase-tagging rows) are treated as work for backward
+// compatibility.
 func buildSummary(strokes []event.StrokePayload) event.SessionSummary {
 	var s event.SessionSummary
 	if len(strokes) == 0 {
 		return s
 	}
-	s.TotalStrokes = len(strokes)
-	s.TotalDistanceM = strokes[len(strokes)-1].DistanceM
-	s.TotalTimeSec = strokes[len(strokes)-1].TimeSec
+	work := make([]event.StrokePayload, 0, len(strokes))
+	for _, p := range strokes {
+		if p.Phase == "" || p.Phase == "work" {
+			work = append(work, p)
+		}
+	}
+	if len(work) == 0 {
+		return s
+	}
+	first := work[0]
+	last := work[len(work)-1]
+	s.TotalStrokes = len(work)
+	s.TotalDistanceM = last.DistanceM - first.DistanceM
+	s.TotalTimeSec = last.TimeSec - first.TimeSec
 	var powerSum, spmSum, paceSum, calSum int
 	var dpsSum float64
-	for _, p := range strokes {
+	for _, p := range work {
 		powerSum += p.PowerW
 		spmSum += p.SPM
 		dpsSum += p.DPS
@@ -204,7 +222,7 @@ func buildSummary(strokes []event.StrokePayload) event.SessionSummary {
 			s.PeakPowerW = p.PowerW
 		}
 	}
-	n := len(strokes)
+	n := len(work)
 	s.AvgPowerW = powerSum / n
 	s.AvgSPM = float64(spmSum) / float64(n)
 	s.AvgDPS = dpsSum / float64(n)

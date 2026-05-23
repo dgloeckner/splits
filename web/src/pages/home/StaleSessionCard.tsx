@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -30,20 +31,44 @@ export function StaleSessionCard({ rowerID }: Props) {
     qc.invalidateQueries({ queryKey: ['sessions'] })
   }
 
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const finalize = useMutation({
     mutationFn: finalizeSession,
-    onSuccess: invalidate,
+    onSuccess: () => {
+      setErrorMsg(null)
+      invalidate()
+    },
+    onError: (e: unknown) => setErrorMsg(errorText(e, 'Beenden')),
   })
   const discard = useMutation({
     mutationFn: deleteSession,
-    onSuccess: invalidate,
+    onSuccess: () => {
+      setErrorMsg(null)
+      invalidate()
+    },
+    onError: (e: unknown) => setErrorMsg(errorText(e, 'Verwerfen')),
   })
 
   const sessions = data ?? []
+  const cardRef = useRef<HTMLElement | null>(null)
+  // 0019-09: on mount, scroll the card's bottom into view inside
+  // AppLayout.main (the scroll container). The card is the last child
+  // on Home and, on tall short-viewport devices (390x844), its
+  // Discard button can sit a few px under the persistent BottomNav.
+  // AppLayout.main reserves --layout-bottom-reserved of scroll space
+  // at the end of its scrollable region; aligning the card to that
+  // visible bottom guarantees the action row clears the nav.
+  useEffect(() => {
+    if (sessions.length === 0) return
+    const el = cardRef.current
+    if (!el || typeof el.scrollIntoView !== 'function') return
+    el.scrollIntoView({ block: 'end', behavior: 'auto' })
+  }, [sessions.length])
+
   if (!rowerID || sessions.length === 0) return null
 
   return (
-    <section className={styles.card} data-testid="stale-open-recovery-card">
+    <section ref={cardRef} className={styles.card} data-testid="stale-open-recovery-card">
       <h2 className={styles.heading}>Frühere Session abschließen?</h2>
       <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
         {sessions.map((s) => (
@@ -57,8 +82,27 @@ export function StaleSessionCard({ rowerID }: Props) {
           />
         ))}
       </ul>
+      {errorMsg && (
+        <p
+          role="alert"
+          data-testid="stale-recovery-error"
+          style={{ color: 'var(--color-danger, #c0392b)', margin: '8px 0 0' }}
+        >
+          {errorMsg}
+        </p>
+      )}
     </section>
   )
+}
+
+function errorText(e: unknown, action: string): string {
+  const status =
+    e && typeof e === 'object' && 'status' in e && typeof (e as { status?: unknown }).status === 'number'
+      ? (e as { status: number }).status
+      : null
+  if (status === 409) return `${action} fehlgeschlagen: Session ist noch aktiv. Bitte App neu starten.`
+  if (status === 404) return `Session existiert nicht mehr (bereits ${action.toLowerCase()}).`
+  return `${action} fehlgeschlagen. Bitte erneut versuchen.`
 }
 
 type RowProps = {

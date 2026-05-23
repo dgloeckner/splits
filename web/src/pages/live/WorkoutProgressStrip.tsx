@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { deleteSession } from '../../api/client'
+import { showToast } from '../../app/Toast'
 import { enqueueEndSession, processPendingEndSessions } from '../../live/endSessionQueue'
 import { useLiveSession } from '../../live/LiveSessionContext'
 import { useWorkoutProgress } from '../../live/useWorkoutProgress'
@@ -46,11 +47,15 @@ export function WorkoutProgressStrip() {
           nav('/')
         }}
         onContinue={() => setOpen(false)}
-        onDiscard={() => {
+        onDiscard={async () => {
           if (sessionId) {
-            void deleteSession(sessionId)
-              .then(() => qc.invalidateQueries({ queryKey: ['sessions'] }))
-              .catch(() => {})
+            try {
+              await deleteSession(sessionId)
+              qc.invalidateQueries({ queryKey: ['sessions'] })
+            } catch {
+              showToast('Verwerfen fehlgeschlagen — bitte erneut versuchen.', 'warn')
+              return
+            }
           }
           abort()
           setOpen(false)

@@ -4,9 +4,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"context"
 	"log/slog"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/gloeckner-daniel/splits/internal/event"
 	"github.com/gloeckner-daniel/splits/internal/stats"
@@ -17,8 +19,31 @@ import (
 // session, or "" when none is open. SessionsHandler uses it to reject
 // DELETE of a live session — deleting rows while the sessionizer is
 // still writing them races the persister and corrupts the summary.
+//
+// An implementer may additionally satisfy ActiveSessionClearer; when
+// the DELETE handler decides to override the active-claim (because the
+// row is `status='stale-open'` — the session is dead but in-memory
+// state didn't notice), it will call ClearActiveSession(id) so the
+// sessionizer drops its stale claim.
 type ActiveSessionIDer interface {
 	ActiveSessionID() string
+}
+
+// ActiveSessionClearer is the optional companion to ActiveSessionIDer.
+// Implemented by the sessionizer so the DELETE handler can drop a
+// stuck in-memory claim when the DB row already says the session went
+// stale-open. Janitor sweeps invoke this via the same path.
+type ActiveSessionClearer interface {
+	ClearActiveSession(id string)
+}
+
+// ActiveSessionEnder is the optional companion to ActiveSessionIDer
+// that lets the DELETE handler end a live session before deleting it.
+// Without this path, "Verwerfen" on a still-running session returns
+// 409 and the row leaks to history once the sessionizer's own idle
+// timeout finally closes it.
+type ActiveSessionEnder interface {
+	EndSession()
 }
 
 // SessionsHandler returns a mux handling every session-read endpoint.
@@ -210,21 +235,46 @@ func expandSamples(s *event.SessionSamples) []storage.SampleRow {
 func deleteSession(db *sql.DB, sched *stats.RecomputeScheduler, active ActiveSessionIDer) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		if active != nil {
-			if cur := active.ActiveSessionID(); cur != "" && cur == id {
-				http.Error(w, "session is currently active; end it first", http.StatusConflict)
-				return
-			}
-		}
-		var rowerID string
-		if err := db.QueryRowContext(r.Context(),
-			`SELECT rower_id FROM sessions WHERE id = ?`, id).Scan(&rowerID); err != nil {
-			if err == sql.ErrNoRows {
+		var rowerID, status string
+		err := db.QueryRowContext(r.Context(),
+			`SELECT rower_id, COALESCE(status,'') FROM sessions WHERE id = ?`, id).Scan(&rowerID, &status)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
 				w.WriteHeader(http.StatusNoContent)
 				return
 			}
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+		if active != nil {
+			if cur := active.ActiveSessionID(); cur != "" && cur == id {
+				switch status {
+				case "stale-open":
+					// Override: row is dead by definition (last stroke
+					// > threshold ago). Drop the in-memory claim, then
+					// proceed with the hard-delete below.
+					if cl, ok := active.(ActiveSessionClearer); ok {
+						cl.ClearActiveSession(id)
+					}
+				default:
+					// Live session: end it first, wait for the persister
+					// to commit ended_at, then hard-delete. Without this
+					// path, the "Verwerfen" button on a still-running
+					// session would 409 and the row would leak to
+					// history once the sessionizer's idle guard finally
+					// closed it.
+					ender, ok := active.(ActiveSessionEnder)
+					if !ok {
+						http.Error(w, "session is currently active; end it first", http.StatusConflict)
+						return
+					}
+					ender.EndSession()
+					if err := waitForSessionEnded(r.Context(), db, id, 5*time.Second); err != nil {
+						http.Error(w, "timed out waiting for session_end: "+err.Error(), http.StatusGatewayTimeout)
+						return
+					}
+				}
+			}
 		}
 		tx, err := db.BeginTx(r.Context(), nil)
 		if err != nil {
@@ -256,6 +306,33 @@ func deleteSession(db *sql.DB, sched *stats.RecomputeScheduler, active ActiveSes
 			}
 		}
 		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// waitForSessionEnded polls until the session row has ended_at set or
+// disappears, capped by `timeout`. Used by the DELETE handler to
+// synchronise with the persister after EndSession() — only then is it
+// safe to hard-delete without racing the persister's apply loop.
+func waitForSessionEnded(ctx context.Context, db *sql.DB, id string, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	for {
+		var ended sql.NullString
+		err := db.QueryRowContext(ctx,
+			`SELECT ended_at FROM sessions WHERE id = ?`, id).Scan(&ended)
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil
+		}
+		if err == nil && ended.Valid && ended.String != "" {
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return errors.New("session_end did not commit within timeout")
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(25 * time.Millisecond):
+		}
 	}
 }
 

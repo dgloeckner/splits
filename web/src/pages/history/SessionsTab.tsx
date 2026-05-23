@@ -8,6 +8,7 @@ import { formatSessionStart } from '../../util/dates'
 import { fmtMeters, mmss, pace500m } from '../../util/format'
 import { workoutChipLabel } from '../../util/workoutLabel'
 import { DeleteSessionDialog } from './DeleteSessionDialog'
+import { showToast } from '../../app/Toast'
 import styles from '../HistoryPage.module.css'
 
 export function SessionsTab() {
@@ -86,6 +87,8 @@ function SessionCard({ session: s, workout }: { session: SessionRow; workout: Wo
       qc.invalidateQueries({ queryKey: ['rower-trends'] })
       setConfirmOpen(false)
     },
+    onError: () =>
+      showToast('Löschen fehlgeschlagen — bitte erneut versuchen.', 'warn'),
   })
   return (
     <>

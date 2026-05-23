@@ -36,6 +36,39 @@ type Options struct {
 	// PhasePlan when a session opens. If nil, every session is treated as
 	// a free-row (all strokes are PhaseWork).
 	LoadWorkout func(id string) (*workout.Workout, error)
+	// LivenessChecker validates the in-memory `currentSessionStart` cache
+	// against the persisted row. Used at entry points (Snapshot,
+	// StartSession) to drop a stale cache when the DB says the session
+	// is ended / stale-open / missing. May be nil in tests; without it,
+	// the sessionizer trusts its in-memory state (legacy behaviour).
+	LivenessChecker SessionLivenessChecker
+}
+
+// SessionStatus is the DB-side verdict on whether a cached
+// currentSessionStart is still authoritative.
+type SessionStatus int
+
+const (
+	// SessionStatusUnknown means the checker could not determine the
+	// status (DB error, no checker wired). Treat as "trust the cache".
+	SessionStatusUnknown SessionStatus = iota
+	// SessionStatusLive: row exists, ended_at IS NULL, status='open'.
+	// The cache is authoritative.
+	SessionStatusLive
+	// SessionStatusStaleOpen: row exists, status='stale-open'. The
+	// session is dead in the database (idle > threshold); the
+	// in-memory cache must be cleared.
+	SessionStatusStaleOpen
+	// SessionStatusEnded: row exists, ended_at IS NOT NULL.
+	SessionStatusEnded
+	// SessionStatusMissing: no row with this id.
+	SessionStatusMissing
+)
+
+// SessionLivenessChecker reports whether a cached session id is still
+// authoritative according to the database. See SessionStatus.
+type SessionLivenessChecker interface {
+	CheckSessionLiveness(ctx context.Context, id string) SessionStatus
 }
 
 // Sessionizer is the pipeline stage that turns a stream of ipm.Frame
@@ -105,6 +138,15 @@ type sessionState struct {
 	phaseAnchorSet        bool
 	phaseAnchorDistance   int
 	phaseAnchorTimeSec    float64
+	// workAnchor is the (distance, time) of the first work-phase stroke,
+	// captured once (workAnchorSet=true) and never moved. The session
+	// summary's TotalDistanceM / TotalTimeSec are the *deltas* from this
+	// anchor to the last work stroke, so warmup distance/time that
+	// climbed the PM5 cumulative counters never leak into work totals
+	// (CONTEXT.md §Workout phases: "Only Work-phase strokes count").
+	workAnchorSet      bool
+	workAnchorDistance int
+	workAnchorTimeSec  float64
 	// recentStrokes is a small ring buffer of the most recent strokes
 	// used by LivePace for the windowed split. Trimmed to entries whose
 	// TimeSec is within the active window of the latest stroke (plus
@@ -180,6 +222,14 @@ func (s *Sessionizer) Run(ctx context.Context, in <-chan ipm.Frame, out chan<- e
 				}
 			}
 		case wid := <-s.startC:
+			// Single-source-of-truth: before deciding "session already
+			// open, ignore start", confirm with the DB. If the row is
+			// stale-open/ended/missing the in-memory cache is the loser;
+			// clearing it lets the caller open a fresh session
+			// immediately instead of being silently dropped during the
+			// drift window between "frames stopped" and the janitor
+			// sweep that flips the row.
+			s.dropDeadSessionOnStart(ctx)
 			if s.session != nil {
 				// If the open session has been idle past IdleTimeout,
 				// close it first so the new start opens a fresh
@@ -473,8 +523,13 @@ func appendAndTrimWindow(buf []event.StrokePayload, p event.StrokePayload, windo
 
 func (s *Sessionizer) accumulate(p *event.StrokePayload) {
 	s.session.strokes++
-	s.session.totalDistance = p.DistanceM
-	s.session.totalTime = p.TimeSec
+	if !s.session.workAnchorSet {
+		s.session.workAnchorSet = true
+		s.session.workAnchorDistance = p.DistanceM
+		s.session.workAnchorTimeSec = p.TimeSec
+	}
+	s.session.totalDistance = p.DistanceM - s.session.workAnchorDistance
+	s.session.totalTime = p.TimeSec - s.session.workAnchorTimeSec
 	s.session.powerSum += p.PowerW
 	if p.PowerW > s.session.peakPower {
 		s.session.peakPower = p.PowerW
@@ -570,6 +625,40 @@ func (s *Sessionizer) ActiveSessionID() string {
 		return ""
 	}
 	return s.currentSessionStart.SessionID
+}
+
+// ClearActiveSession drops the in-memory snapshot of the active
+// session for `id`. After it returns, ActiveSessionID() reports ""
+// and Snapshot() emits no synthetic session_start/workout_attached/
+// phase_change for that session, so reconnecting SSE clients and the
+// DELETE handler's active-claim guard agree with the DB that the
+// session is no longer live.
+//
+// Called from two places: (a) the stale-open janitor sweep, after
+// flipping a row to status='stale-open' — the session is by
+// definition dead (last stroke > threshold ago); (b) the DELETE
+// /sessions/{id} handler as a defensive cleanup when the row turned
+// out to already be stale-open. The invariant being maintained is:
+// status='stale-open' ⇒ no in-memory claim.
+//
+// Concurrency: only the snapshot trio is mutated, and it is owned by
+// s.mu. The Run goroutine's `s.session` accumulator is intentionally
+// left untouched here — frames arriving on the dead id eventually
+// close it via the IdleTimeout guard in onFrame, and emitting a
+// synthetic session_end from this thread would race the persister's
+// FinalizeStaleSession write path.
+func (s *Sessionizer) ClearActiveSession(id string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.currentSessionStart == nil {
+		return
+	}
+	if s.currentSessionStart.SessionID != id {
+		return
+	}
+	s.currentSessionStart = nil
+	s.currentWorkoutAttached = nil
+	s.currentPhaseChange = nil
 }
 
 // MaxEventID returns the highest event id this sessionizer has
@@ -682,7 +771,13 @@ func (s *Sessionizer) closeSession(ctx context.Context, out chan<- event.Event) 
 // workout_attached if any). Used by the SSE handler to bring
 // reconnecting clients up to date when their cursor is past these
 // events.
+//
+// Validates the in-memory cache against the DB first: if the row is
+// no longer live (ended, stale-open, missing) the cache is dropped
+// before snapshotting, so reconnecting clients can never be told that
+// a dead session is still running.
 func (s *Sessionizer) Snapshot() []event.Event {
+	s.revalidateSnapshot(context.Background())
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var out []event.Event
@@ -696,6 +791,56 @@ func (s *Sessionizer) Snapshot() []event.Event {
 		out = append(out, *s.currentPhaseChange)
 	}
 	return out
+}
+
+// revalidateSnapshot drops the in-memory currentSessionStart snapshot
+// (and the workout_attached / phase_change companions) if the
+// LivenessChecker reports the cached session is no longer the DB's
+// "open" row. No-op when no checker is wired or no session is cached.
+//
+// Safe to call from any goroutine: touches only the mu-protected
+// snapshot trio. The Run-goroutine's s.session accumulator is left
+// alone (see dropDeadSessionOnStart for the Run-side counterpart).
+func (s *Sessionizer) revalidateSnapshot(ctx context.Context) {
+	if s.opts.LivenessChecker == nil {
+		return
+	}
+	s.mu.Lock()
+	id := ""
+	if s.currentSessionStart != nil {
+		id = s.currentSessionStart.SessionID
+	}
+	s.mu.Unlock()
+	if id == "" {
+		return
+	}
+	switch s.opts.LivenessChecker.CheckSessionLiveness(ctx, id) {
+	case SessionStatusStaleOpen, SessionStatusEnded, SessionStatusMissing:
+		s.ClearActiveSession(id)
+	}
+}
+
+// dropDeadSessionOnStart is the Run-goroutine companion of
+// revalidateSnapshot. Called from the startC handler before deciding
+// whether to honour or drop a StartSession request. If the DB no
+// longer recognises s.session.id as live, the entire in-memory
+// accumulator is discarded — without this, the startC handler would
+// silently drop the new request via the IdleTimeout heuristic during
+// the drift window between "frames stopped" and the next janitor
+// sweep.
+//
+// Only safe from the Run goroutine: s.session is its exclusive
+// territory.
+func (s *Sessionizer) dropDeadSessionOnStart(ctx context.Context) {
+	if s.opts.LivenessChecker == nil || s.session == nil {
+		return
+	}
+	switch s.opts.LivenessChecker.CheckSessionLiveness(ctx, s.session.id) {
+	case SessionStatusStaleOpen, SessionStatusEnded, SessionStatusMissing:
+		id := s.session.id
+		s.session = nil
+		s.ClearActiveSession(id)
+	}
 }
 
 func (s *Sessionizer) closeIfOpen(ctx context.Context, out chan<- event.Event) {

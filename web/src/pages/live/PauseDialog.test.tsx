@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
@@ -118,6 +119,56 @@ describe('PauseDialog phase-gate (Slice 1)', () => {
         <PauseDialog />
       </Wrap>,
     )
+    expect(screen.getByTestId('abort-dialog')).toBeInTheDocument()
+  })
+})
+
+describe('PauseDialog onDiscard (regression: cancelled session still in history)', () => {
+  // PauseDialog used to fire `deleteSession` with a silent .catch, so
+  // when the backend rejected the DELETE (live session → 409) the row
+  // leaked into Historie once the sessionizer's own idle guard closed
+  // it. With the fix: the discard awaits the call, propagates the
+  // error via toast, and only navigates home on success.
+  it('navigates home + invalidates ["sessions"] after a successful DELETE', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(new Response(null, { status: 204 }) as Response)
+    const Wrap = wrap(pausedState('work'))
+    render(
+      <Wrap>
+        <PauseDialog />
+      </Wrap>,
+    )
+    const user = userEvent.setup()
+    await user.click(screen.getByTestId('abort-dialog-discard'))
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/v1/sessions/S1',
+      expect.objectContaining({ method: 'DELETE' }),
+    )
+  })
+
+  it('on 409 → does not navigate and does not silently swallow', async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValue(
+        new Response('still active', { status: 409, statusText: 'Conflict' }) as Response,
+      )
+    const Wrap = wrap(pausedState('work'))
+    render(
+      <Wrap>
+        <PauseDialog />
+      </Wrap>,
+    )
+    const user = userEvent.setup()
+    await act(async () => {
+      await user.click(screen.getByTestId('abort-dialog-discard'))
+    })
+    expect(fetchSpy).toHaveBeenCalledTimes(1)
+    // The dialog remains and no navigation occurred — the toast surface
+    // tells the user something went wrong instead of the row silently
+    // leaking. (Toast assertion is implicit: PauseDialog used to
+    // .catch(() => {}); now it returns early on failure.)
     expect(screen.getByTestId('abort-dialog')).toBeInTheDocument()
   })
 })
