@@ -1,5 +1,5 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process'
-import { existsSync, mkdtempSync, mkdirSync } from 'node:fs'
+import { mkdtempSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -8,16 +8,30 @@ import { pickFreePort } from './ports'
 // ESM helpers don't have __dirname.
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-// Cached path to a pre-built splits binary. The first test that needs
-// the binary builds it once; subsequent tests reuse. Keeps backend
-// spawn time per test under ~1s instead of ~30s recompile.
+// Path to the pre-built splits binary. The previous implementation
+// keyed reuse on file existence, which meant the cached binary was
+// kept indefinitely — every backend change after the cache was warmed
+// implicitly tested HEAD-of-cache, not the current working tree. See
+// .scratch/race-finish-cleanup/issues/11-e2e-binary-cache-staleness.md.
+//
+// New strategy: defer to `go build` on every fresh Node process.
+// Go's own build cache makes the rebuild a ~200 ms no-op when nothing
+// changed under backend/ — well under the previous "save 30 s" budget,
+// in exchange for correctness. In-process memoisation collapses the
+// per-test cost to "one `go build` per Playwright worker".
 const BIN_DIR = resolve(__dirname, '../../../node_modules/.cache/splits-e2e')
 const BIN_PATH = join(BIN_DIR, 'splits')
 
+let builtThisProcess: string | null = null
+
 export function ensureSplitsBinary(): string {
-  if (existsSync(BIN_PATH)) return BIN_PATH
+  if (builtThisProcess) return builtThisProcess
   mkdirSync(dirname(BIN_PATH), { recursive: true })
   const backendDir = resolve(__dirname, '../../../../backend')
+  // `go build -o` writes to a temp file in BIN_DIR and atomically
+  // renames into place, so concurrent calls from sibling Playwright
+  // workers are safe even though each rebuilds redundantly. Go's
+  // build cache handles the dedup at the toolchain layer.
   const r = spawnSync('go', ['build', '-o', BIN_PATH, './cmd/splits'], {
     cwd: backendDir,
     stdio: 'inherit',
@@ -25,6 +39,7 @@ export function ensureSplitsBinary(): string {
   if (r.status !== 0) {
     throw new Error(`go build splits failed: status ${r.status}`)
   }
+  builtThisProcess = BIN_PATH
   return BIN_PATH
 }
 
