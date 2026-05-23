@@ -56,6 +56,121 @@ describe('raceLifecycle reducer', () => {
     expect(s.race_t0).toBe(3000)
   })
 
+  it('Falschstart latch: `falschstartShownAtMs` set from event.nowMs on Ceremony(ATTENTION)→Live', () => {
+    let s = run([{ type: 'confirm' }, { type: 'bereitTap', t: 0 }])
+    expect(s.falschstartShownAtMs).toBeNull()
+    s = raceLifecycle(s, {
+      type: 'stroke',
+      t: 500,
+      dist: 1,
+      userDistance: 1,
+      nowMs: 84_123.5,
+    })
+    expect(s.falschstart).toBe(true)
+    expect(s.falschstartShownAtMs).toBe(84_123.5)
+  })
+
+  it('Falschstart latch: one-shot — subsequent strokes never overwrite it', () => {
+    let s = run([{ type: 'confirm' }, { type: 'bereitTap', t: 0 }])
+    // First stroke triggers Falschstart, latches the timestamp.
+    s = raceLifecycle(s, {
+      type: 'stroke',
+      t: 500,
+      dist: 1,
+      userDistance: 1,
+      nowMs: 100,
+    })
+    expect(s.falschstartShownAtMs).toBe(100)
+    // Subsequent strokes in Live — even with a different nowMs — must
+    // leave the latch alone. The toast lifetime is anchored to the
+    // first observation; no flicker if React re-renders.
+    s = raceLifecycle(s, {
+      type: 'stroke',
+      t: 600,
+      dist: 5,
+      userDistance: 5,
+      nowMs: 200,
+    })
+    expect(s.falschstartShownAtMs).toBe(100)
+    s = raceLifecycle(s, {
+      type: 'stroke',
+      t: 700,
+      dist: 12,
+      userDistance: 12,
+      total: 2000,
+      nowMs: 300,
+    })
+    expect(s.falschstartShownAtMs).toBe(100)
+  })
+
+  it('sessionEnd safeguard: late-latches a Finished if _prevStroke shows a completed cross', () => {
+    // Simulates the fast-fixture race condition: the dispatched stroke
+    // event reached the reducer with `event.total` missing or with the
+    // batched render losing the cross-stroke commit, so the reducer
+    // never transitioned Live → Finished — but _prevStroke shows the
+    // user did cross the line. Without the safeguard, sessionEnd
+    // would dump the rower onto Post with `latchedResult === null`.
+    let s = initialRaceLifecycle({ totalMeters: 500 })
+    s = raceLifecycle(s, { type: 'confirm' })
+    s = raceLifecycle(s, { type: 'bereitTap', t: 0 })
+    s = raceLifecycle(s, { type: 'tick', nowMs: 4500 })
+    expect(s.phase).toBe('Live')
+    expect(s.liveKind).toBe('NormalStart')
+    // Strokes processed without the cross-trigger firing (e.g. because
+    // event.total was missing). _prevStroke nonetheless reflects a
+    // post-finish-line distance.
+    s = raceLifecycle(s, {
+      type: 'stroke',
+      t: 100,
+      dist: 506,
+      userDistance: 506,
+      // total intentionally omitted — this is the bug we're guarding
+      // against. Without `total` the cross-check is skipped.
+    })
+    expect(s.phase).toBe('Live')
+    expect(s._prevStroke).toEqual({ t: 100, dist: 506 })
+    // sessionEnd arrives. Safeguard: detect crossed _prevStroke and
+    // transition to Finished + late-latch a result.
+    s = raceLifecycle(s, { type: 'sessionEnd' })
+    expect(s.phase).toBe('Finished')
+    expect(s.latchedResult).not.toBeNull()
+    expect(s.latchedResult?.finalTimeS).toBe(100)
+  })
+
+  it('sessionEnd from Live with no cross → Post (legacy behaviour preserved)', () => {
+    let s = initialRaceLifecycle({ totalMeters: 500 })
+    s = raceLifecycle(s, { type: 'confirm' })
+    s = raceLifecycle(s, { type: 'bereitTap', t: 0 })
+    s = raceLifecycle(s, { type: 'tick', nowMs: 4500 })
+    expect(s.phase).toBe('Live')
+    // Some pre-finish strokes only.
+    s = raceLifecycle(s, { type: 'stroke', t: 10, dist: 100, userDistance: 100, total: 500 })
+    s = raceLifecycle(s, { type: 'sessionEnd' })
+    expect(s.phase).toBe('Post')
+    expect(s.latchedResult).toBeNull()
+  })
+
+  it('Falschstart latch: NormalStart (Ceremony(GO!)→Live) never sets it', () => {
+    let s = run([
+      { type: 'confirm' },
+      { type: 'bereitTap', t: 0 },
+      { type: 'tick', nowMs: 1500 },
+      { type: 'tick', nowMs: 3000 },
+    ])
+    expect(s.ceremonyStep).toBe('GO')
+    s = raceLifecycle(s, {
+      type: 'stroke',
+      t: 3.5,
+      dist: 8,
+      userDistance: 8,
+      total: 2000,
+      nowMs: 99,
+    })
+    expect(s.liveKind).toBe('NormalStart')
+    expect(s.falschstart).toBe(false)
+    expect(s.falschstartShownAtMs).toBeNull()
+  })
+
   it('Stroke during SET → Live(Falschstart)', () => {
     let s = run([{ type: 'confirm' }, { type: 'bereitTap', t: 0 }])
     s = raceLifecycle(s, { type: 'tick', nowMs: 1500 })

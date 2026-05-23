@@ -44,6 +44,22 @@ export type RaceLifecycleState = {
   /** session_start in stroke-time seconds (caller's clock). */
   session_start: number | null
   falschstart: boolean
+  /**
+   * Wall-clock ms (caller's `performance.now()`) at the moment the
+   * reducer transitioned Ceremony(ATTENTION|SET) → Live(Falschstart).
+   * Null until the transition fires; one-shot — never overwritten by
+   * subsequent strokes or phase changes.
+   *
+   * Owned by the FalschstartToast container in RaceFlow.tsx: the
+   * toast renders while `Date.now()` (or `performance.now()`) is
+   * within FALSCHSTART_TOAST_MS of this latch, regardless of how
+   * fast the reducer subsequently transitions through Live →
+   * Finished → Post. Without this latch, under fast-fixture replay
+   * the entire race can complete inside one render frame and the
+   * toast flashes-and-vanishes before Playwright (or a human) can
+   * observe it. See `.scratch/race-finish-cleanup/issues/10-...md`.
+   */
+  falschstartShownAtMs: number | null
   /** Latched finish-cross result (0014-06); null until the user crosses. */
   latchedResult: RaceResultLatch | null
   /** Captured config + last stroke for latch derivation. Internal. */
@@ -72,6 +88,15 @@ export type RaceLifecycleEvent =
       watts?: number
       spm?: number
       split?: number
+      /**
+       * Wall-clock `performance.now()` at the moment this stroke
+       * event was dispatched. Used to latch `falschstartShownAtMs`
+       * for the Ceremony(ATTENTION|SET) → Live(Falschstart) toast
+       * lifetime guard. Optional — pre-existing call sites that
+       * omit it (older tests) get the legacy "no latch" behaviour
+       * and the toast simply won't auto-dismiss on time.
+       */
+      nowMs?: number
     }
   | { type: 'setConfig'; config: RaceLifecycleConfig }
   | { type: 'sessionEnd' }
@@ -88,6 +113,7 @@ export function initialRaceLifecycle(config?: RaceLifecycleConfig): RaceLifecycl
     race_t0: null,
     session_start: null,
     falschstart: false,
+    falschstartShownAtMs: null,
     latchedResult: null,
     _config: config ?? {},
     _prevStroke: null,
@@ -155,13 +181,19 @@ export function raceLifecycle(
       if (state.phase === 'Ceremony') {
         if (state.ceremonyStep === 'ATTENTION' || state.ceremonyStep === 'SET') {
           // Falschstart — session opens at this stroke but race_t0 stays
-          // at the pending GO moment.
+          // at the pending GO moment. `falschstartShownAtMs` is latched
+          // once here so the toast can stay visible for its full
+          // duration even if the next transition (Live → Finished)
+          // fires within the same render frame under fast-fixture
+          // replay. The check is one-shot: subsequent strokes hit the
+          // Live branch and leave this field alone.
           return {
             ...state,
             phase: 'Live',
             ceremonyStep: null,
             liveKind: 'Falschstart',
             falschstart: true,
+            falschstartShownAtMs: event.nowMs ?? null,
             session_start: event.t,
           }
         }
@@ -222,7 +254,26 @@ export function raceLifecycle(
       // freeze and the FinishOverlay are explicitly designed to stay
       // visible across the paddle-down. The Fertig handler (parent's
       // `onFinish`) is the only path that advances Finished → Post.
+      //
+      // Safeguard for fast-fixture replay: if a stroke at or past the
+      // finish line has already been recorded (`_prevStroke.dist >=
+      // totalMeters`) but the reducer is somehow still in Live —
+      // typically because the cross-stroke `userDistance >= total`
+      // path needed an `event.total` that the dispatcher hadn't
+      // supplied yet — late-latch the result here so the rower lands
+      // on the FinishOverlay instead of the deprecated Post screen.
       if (state.phase === 'Live') {
+        const total = state._config.totalMeters ?? null
+        const prev = state._prevStroke
+        if (total != null && prev != null && prev.dist >= total) {
+          const latched = computeRaceResultLatch({
+            cross: { t: prev.t, dist: prev.dist },
+            prev: null,
+            totalMeters: total,
+            opponents: state._config.opponents ?? {},
+          })
+          return { ...state, phase: 'Finished', latchedResult: latched }
+        }
         return { ...state, phase: 'Post' }
       }
       return state

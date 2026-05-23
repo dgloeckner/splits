@@ -160,10 +160,18 @@ test.describe('race-flow canonical happy path (0016-05)', () => {
     await expect(raceFlow.raceCanvas()).toBeVisible()
     await page.screenshot({ path: `${SCREENSHOT_DIR}/05-finish-overlay.png` })
 
-    // 9. Wait for session_end → Post screen transition.
-    await raceFlow.waitForPostScreen(30_000)
-    await expect(page.getByTestId('post-endzeit')).toBeVisible()
-    await page.screenshot({ path: `${SCREENSHOT_DIR}/06-post-screen.png` })
+    // 9. Tap Fertig → home. Race-mode finish flow updated in
+    //    race-finish-cleanup (commit f172549): FinishOverlay now
+    //    persists across session_end and IS the race's "post screen";
+    //    Fertig is the affordance that dismisses the overlay and
+    //    routes the rower back to Home (rather than the deprecated
+    //    `RacePostScreen` automatic transition). Mirrors fertig.spec.ts.
+    const fertig = page.getByTestId('finish-fertig')
+    await expect(fertig).toBeVisible()
+    await expect(fertig).toBeEnabled()
+    await fertig.click()
+    await expect(page.getByTestId('finish-overlay')).toBeHidden({ timeout: 5_000 })
+    await page.screenshot({ path: `${SCREENSHOT_DIR}/06-after-fertig.png` })
 
     // 10. Invoke the e2e-critic sub-agent with the screenshots + AC list.
     //     Mirrors the invocation in critic-regression.test.mjs. If the
@@ -183,8 +191,8 @@ test.describe('race-flow canonical happy path (0016-05)', () => {
           description: 'Post-GO!, ~2 s into the race. Strokes arriving; user boat advancing along the lane.' },
         { step_id: '05-finish-overlay', screenshot_path: `${SCREENSHOT_DIR}/05-finish-overlay.png`,
           description: 'FinishOverlay shown over the still-mounted canvas with latched final time and gaps.' },
-        { step_id: '06-post-screen', screenshot_path: `${SCREENSHOT_DIR}/06-post-screen.png`,
-          description: 'RacePostScreen — Endzeit + vs PB + vs Ghost cells visible; pace overlay chart drawn.' },
+        { step_id: '06-after-fertig', screenshot_path: `${SCREENSHOT_DIR}/06-after-fertig.png`,
+          description: 'Home screen after tapping Fertig on the FinishOverlay. Race surface dismissed; bottom-nav back in normal state.' },
       ],
     }
     invokeCriticAdvisory(criticInput)

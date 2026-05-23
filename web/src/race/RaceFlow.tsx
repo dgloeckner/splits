@@ -83,6 +83,10 @@ export function RaceFlow({ liveState, totalMeters, opponentsLabel, onRetry, onSh
       watts: stroke.power_w,
       spm: stroke.spm,
       split: stroke.pace_sec_per_500m,
+      // Wall-clock at dispatch — only used by the Ceremony→Live
+      // (Falschstart) transition to latch the toast's display
+      // anchor. See raceLifecycle.ts §falschstartShownAtMs.
+      nowMs: performance.now(),
     })
   }, [liveState.stroke, state.phase, totalMeters, send])
 
@@ -148,7 +152,15 @@ export function RaceFlow({ liveState, totalMeters, opponentsLabel, onRetry, onSh
       {state.phase === 'Ceremony' && (
         <RaceStartSequence enabled reducedMotion={reducedMotion} />
       )}
-      <FalschstartToast visible={state.falschstart && state.phase === 'Live'} />
+      {/*
+       * Toast lifetime is anchored to `state.falschstartShownAtMs`,
+       * not `state.phase`: under fast-fixture replay the reducer can
+       * transition Falschstart → Live → Finished in the same render
+       * frame, so a phase-gated visibility check would flash-and-
+       * vanish faster than any human (or Playwright poll) can see.
+       * See .scratch/race-finish-cleanup/issues/10-...md.
+       */}
+      <FalschstartToast triggeredAtMs={state.falschstartShownAtMs} />
       {(state.phase === 'Ceremony' || state.phase === 'Live') && (
         <AbortControl onConfirmAbort={handleConfirmAbort} />
       )}
