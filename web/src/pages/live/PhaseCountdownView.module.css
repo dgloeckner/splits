@@ -10,7 +10,7 @@
    * Size the wrap relative to the safe content area instead, so the
    * countdown vertically centres without overlapping the nav. */
   min-height: calc(
-    100dvh - 56px - var(--layout-bottom-nav-h, 76px) - 80px
+    100dvh - 56px - var(--layout-bottom-reserved, 76px) - 80px
   );
   text-align: center;
 }

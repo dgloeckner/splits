@@ -130,7 +130,7 @@ describe('RaceLiveView', () => {
     class RO {
       cb: any
       constructor(cb: any) { this.cb = cb }
-      observe(el: Element) {
+      observe(_el: Element) {
         // jsdom: synthesise a contentRect ≥ 768
         this.cb([{ contentRect: { width: 1024, height: 600 } }])
       }

@@ -1,8 +1,15 @@
 .overlay {
-  position: absolute;
+  position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
+  /* 0019-09: position:fixed anchors to the viewport (not AppLayout.main,
+   * which is a scroll container — its padding-bottom reserves scroll
+   * space, not viewport clearance). With fixed positioning, `bottom:
+   * var(--layout-bottom-reserved)` (nav height + iOS safe-area inset)
+   * clears the persistent BottomNav in the actual viewport. Verified no
+   * ancestor (shell, main, RaceFlow) sets transform/filter/perspective,
+   * which would otherwise create a containing block and break fixed. */
+  bottom: var(--layout-bottom-reserved);
   height: 40vh;
   background: rgba(15, 23, 42, 0.94);
   color: #f8fafc;
@@ -13,13 +20,18 @@
   grid-template-rows: auto 1fr auto;
   padding: 20px 24px;
   gap: 12px;
-  animation: slideUp 200ms ease-out;
+  animation: fadeIn 160ms ease-out;
   pointer-events: auto;
 }
 
-@keyframes slideUp {
-  from { transform: translateY(100%); }
-  to   { transform: translateY(0); }
+/* 0019-09: animate opacity rather than transform. A transform-based
+ * slide-up shifts the element's rendered bounding box during the
+ * 200ms window, so geometric assertions (e.g. "Fertig bottom must
+ * sit above the BottomNav") sampled before the animation settles
+ * would otherwise see the still-translated position and fail. */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 .header {

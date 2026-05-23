@@ -96,8 +96,8 @@ describe('useBootReconcile', () => {
       return null
     }
     render(<Inner />)
-    await waitFor(() => expect(observed?.session).toBeNull())
-    expect(observed?.summary).toEqual({
+    await waitFor(() => expect(observed!.session).toBeNull())
+    expect(observed!.summary).toEqual({
       total_distance_m: 2000,
       total_time_sec: 480,
       total_strokes: 200,

@@ -98,6 +98,31 @@ test.describe('stale-open recovery card (0019-05)', () => {
       'race-mode card must NOT render a Rejoin ("Weiter rudern") button (ADR-0012)',
     ).toBe(0)
 
+    // 0019-09 spot-check: Discard must sit fully above the BottomNav
+    // and fully within the viewport (no clipping). The card is the
+    // last child on Home and used to be partially occluded by the nav
+    // at 390x844 — the fix lives in StaleSessionCard.module.css
+    // (margin-bottom: var(--layout-bottom-nav-h)).
+    {
+      const discardBox = await discard.boundingBox()
+      const navBox = await page.getByTestId('bottom-nav-workout').boundingBox()
+      const viewport = page.viewportSize()
+      expect(discardBox, 'stale-recovery-discard must have a bounding box').not.toBeNull()
+      expect(navBox, 'bottom-nav-workout must have a bounding box').not.toBeNull()
+      expect(viewport, 'viewport size required for clipping check').not.toBeNull()
+      if (discardBox && navBox && viewport) {
+        expect(
+          discardBox.y + discardBox.height,
+          `Discard bottom (${discardBox.y + discardBox.height}) must be <= nav top (${navBox.y}) — 0019-09 reserved-zone`,
+        ).toBeLessThanOrEqual(navBox.y)
+        expect(
+          discardBox.y + discardBox.height,
+          `Discard bottom must be within viewport height (${viewport.height})`,
+        ).toBeLessThanOrEqual(viewport.height)
+        expect(discardBox.y, 'Discard top must be within viewport').toBeGreaterThanOrEqual(0)
+      }
+    }
+
     // ── AC4 + AC5: Finalize ────────────────────────────────────────
     await finalize.click()
 

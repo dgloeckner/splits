@@ -60,8 +60,18 @@
   --motion-view: 220ms;
   --motion-ease: cubic-bezier(0.2, 0.7, 0.2, 1); /* ease-out */
 
-  /* Layout — bottom nav */
+  /* Layout — bottom nav.
+   * --layout-bottom-nav-h: bare visual height of the BottomNav element
+   *   (matches BottomNav.module.css `height`). BottomNav itself adds
+   *   `padding-bottom: env(safe-area-inset-bottom)` to extend into the
+   *   iOS home-indicator safe area, so on iPhones the rendered box is
+   *   taller than this value.
+   * --layout-bottom-reserved: the reserved zone any content (in-flow or
+   *   absolutely-positioned) must clear so it isn't occluded by the nav.
+   *   Always prefer this token for content offsets; only use the bare
+   *   nav-h when sizing the nav element itself. 0019-09. */
   --layout-bottom-nav-h: 64px;
+  --layout-bottom-reserved: calc(var(--layout-bottom-nav-h) + env(safe-area-inset-bottom));
 
   /* Feature gates */
   --stroke-pulse-glow: 0 0 6px rgba(93, 215, 228, 0.3);

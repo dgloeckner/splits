@@ -7,15 +7,45 @@ const ghost = { tSec: [0, 60, 120, 240, 480], distM: [0, 250, 500, 1000, 2000] }
 const pb = { tSec: [0, 55, 110, 220, 440], distM: [0, 250, 500, 1000, 2000] }
 
 describe('computeRaceResultLatch', () => {
-  it('cross exactly at totalMeters: finalTimeS from cross stroke, split from last 2 strokes', () => {
+  // 0019-07: finalSplitS is now the race-average split (Schnitt):
+  // (500 × finalTimeS) / totalMeters — independent of the last-segment
+  // (prev → cross) pair. See CONTEXT.md §Race average split (Schnitt).
+  it('finalSplitS is race-average Schnitt: 500 m in 100 s → 100.0 s/500m', () => {
+    // Per CONTEXT.md §Race average split (Schnitt):
+    // Schnitt = (500 × race_time) / race_distance.
+    // For a 500 m race in 100 s: (500*100)/500 = 100.0 s/500m.
+    // (The issue text floated "250.0" but its own formula yields 100.0;
+    // we honour the formula — the universally-meaningful summary number.)
+    const r = computeRaceResultLatch({
+      cross: { t: 100, dist: 500 },
+      prev: { t: 95, dist: 480 },
+      totalMeters: 500,
+      opponents: {},
+    })
+    expect(r.finalSplitS).toBeCloseTo(100.0, 9)
+  })
+
+  it('finalSplitS is race-average Schnitt: 1000 m in 500 s → 250.0 s/500m', () => {
+    // Sanity case where Schnitt and race_time visibly differ.
+    const r = computeRaceResultLatch({
+      cross: { t: 500, dist: 1000 },
+      prev: { t: 495, dist: 992 },
+      totalMeters: 1000,
+      opponents: {},
+    })
+    expect(r.finalSplitS).toBeCloseTo(250.0, 9)
+  })
+
+  it('cross exactly at totalMeters: finalTimeS from cross stroke, split is race-average', () => {
     const r = computeRaceResultLatch({
       cross: { t: 470, dist: 2000 },
-      prev: { t: 460, dist: 1958 }, // last 42 m in 10 s → split = 10*500/42 ≈ 119.05
+      prev: { t: 460, dist: 1958 },
       totalMeters: 2000,
       opponents: { ghost, pb },
     })
     expect(r.finalTimeS).toBeCloseTo(470, 9)
-    expect(r.finalSplitS).toBeCloseTo((10 * 500) / 42, 6)
+    // Schnitt = 500 * 470 / 2000 = 117.5
+    expect(r.finalSplitS).toBeCloseTo((500 * 470) / 2000, 6)
     // Ghost finished at 480 → user at 470 is 10 s ahead → gap = -10
     expect(r.gaps.ghost).toBeCloseTo(-10, 6)
     // PB finished at 440 → user at 470 is 30 s behind → gap = +30
@@ -71,14 +101,14 @@ describe('computeRaceResultLatch', () => {
     expect(r.finalTimeS).toBe(470)
   })
 
-  it('without prev stroke, derives split from cross pair (dist, t)', () => {
-    // No previous stroke — fall back to overall pace 500*t/dist
+  it('without prev stroke, still race-average over totalMeters', () => {
     const r = computeRaceResultLatch({
       cross: { t: 470, dist: 2000 },
       prev: null,
       totalMeters: 2000,
       opponents: {},
     })
+    // Schnitt is invariant of prev: 500 * 470 / 2000
     expect(r.finalSplitS).toBeCloseTo((470 * 500) / 2000, 6)
   })
 })

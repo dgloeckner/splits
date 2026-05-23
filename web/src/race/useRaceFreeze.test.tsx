@@ -123,6 +123,7 @@ describe('useRaceFreeze', () => {
       type: 'event',
       event: {
         kind: 'stroke',
+        id: 1,
         data: { ...baseStroke, time_sec: 90, distance_m: 480, power_w: 290, spm: 28, pace_sec_per_500m: 115 },
       },
     })
@@ -145,6 +146,7 @@ describe('useRaceFreeze', () => {
       type: 'event',
       event: {
         kind: 'stroke',
+        id: 2,
         data: { ...baseStroke, time_sec: 100, distance_m: 510, power_w: 305, spm: 30, pace_sec_per_500m: 110 },
       },
     })
@@ -152,6 +154,7 @@ describe('useRaceFreeze', () => {
       type: 'event',
       event: {
         kind: 'stroke',
+        id: 3,
         data: { ...baseStroke, time_sec: 115, distance_m: 734, power_w: 120, spm: 18, pace_sec_per_500m: 145 },
       },
     })

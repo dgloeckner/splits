@@ -189,6 +189,13 @@ function LivePageContent() {
   const state = useLiveSession()
   const nav = useNavigate()
   const qc = useQueryClient()
+  // 0019-08: capture the active workout's mode at latch time so the
+  // session-end overlay choice can branch on it. CONTEXT.md §Finish
+  // horn: in race mode the FinishOverlay IS the post-session result
+  // surface; the generic SessionEndedOverlay ("Bestleistungen werden
+  // berechnet…") must NOT slide in over it.
+  const activeWorkout = useWorkoutProgress().workout
+  const activeWorkoutMode = activeWorkout?.mode ?? null
 
   // FEAT-0015 Slice 2 / ADR-0010: hold the screen awake for the
   // duration of every active session so the phone does not power-save
@@ -208,6 +215,10 @@ function LivePageContent() {
     summary: NonNullable<typeof state.summary>
     sessionId: string | null
     workoutId: string | null
+    // 0019-08: snapshot the workout mode at session-end so the
+    // post-session overlay choice is stable across re-renders, even
+    // after the session clears from live state.
+    workoutMode: string | null
   }
   const STORAGE_KEY = 'ruderergo:latched-summary'
   const [latched, setLatched] = useState<Latched | null>(() => {
@@ -231,6 +242,7 @@ function LivePageContent() {
         summary: incomingSummary,
         sessionId: incomingSessionId,
         workoutId: incomingWorkoutId,
+        workoutMode: activeWorkoutMode,
       }
       setLatched(next)
       try {
@@ -248,7 +260,7 @@ function LivePageContent() {
        qc.invalidateQueries({ queryKey: ['rower-trends'] })
     }
     prevSummaryRef.current = incomingSummary
-  }, [incomingSummary, incomingSessionId, incomingWorkoutId, qc])
+  }, [incomingSummary, incomingSessionId, incomingWorkoutId, activeWorkoutMode, qc])
 
   // FEAT-0009 acceptance: closing the tab does NOT end the session.
   // The backend's idle / inactivity timeouts, the workout-complete
@@ -377,7 +389,7 @@ function LivePageContent() {
           }}
         />
       )}
-      {showSummary && latched && latched.summary.race == null && (
+      {showSummary && latched && latched.summary.race == null && latched.workoutMode !== 'race' && (
         <SessionEndedOverlay
           summary={latched.summary}
           banners={banners}

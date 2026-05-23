@@ -72,5 +72,12 @@
 .main {
   min-height: 0;
   overflow-y: auto;
-  padding-bottom: var(--layout-bottom-nav-h);
+  /* 0019-09: `.main` is a scroll container, so this padding-bottom
+   * reserves *scroll* space at the end of the scrollable region —
+   * preventing content from being permanently occluded beneath the
+   * BottomNav when the user scrolls to the bottom. It does NOT push
+   * content into the viewport above the nav; per-consumer clearance
+   * (margin-bottom for in-flow content, position:fixed bottom for
+   * overlays) handles that. Token = nav height + iOS safe-area inset. */
+  padding-bottom: var(--layout-bottom-reserved);
 }

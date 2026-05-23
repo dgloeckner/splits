@@ -1,5 +1,11 @@
 .card {
   margin-top: var(--space-4);
+  /* 0019-09: AppLayout.main's padding-bottom reserves *scroll* space
+   * (preventing this card from being permanently scroll-occluded), but
+   * does not reserve *viewport* visibility above the persistent
+   * BottomNav. This margin-bottom adds the viewport clearance so the
+   * Discard button sits above the nav rather than under it. */
+  margin-bottom: var(--layout-bottom-reserved);
   background: var(--color-surface-container-high);
   border-radius: var(--radius-card);
   border: 1px solid var(--color-outline-variant, rgb(0 0 0 / 0.12));

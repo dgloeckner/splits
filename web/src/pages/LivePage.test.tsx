@@ -573,6 +573,103 @@ describe('LivePage phase-aware countdown (FEAT-0015 Slice 1)', () => {
   })
 })
 
+describe('LivePage SessionEndedOverlay race-mode gate (0019-08)', () => {
+  // CONTEXT.md §Finish horn: in race mode the FinishOverlay IS the
+  // post-session result surface. The generic SessionEndedOverlay
+  // ("Bestleistungen werden berechnet…") must NOT slide in over it
+  // when session_end fires. The gate keys off the active workout's
+  // mode snapshotted at latch time, so abort summaries
+  // (`summary.race == null`) also stay on the race surface rather
+  // than falling through to the generic overlay.
+  function renderWithMode(mode: 'race' | 'distance', summary: SessionEndSummary) {
+    mockWorkoutProgress.current = {
+      segments: [],
+      active: null,
+      workoutId: 'W-X',
+      isLoading: false,
+      workout: {
+        id: 'W-X',
+        mode,
+        params: mode === 'race' ? { meters: 500 } : { meters: 5000 },
+        intensity: null,
+        warmup_sec: 0,
+        cooldown_sec: 0,
+        created_at: '2026-04-27T12:00:00Z',
+      },
+    }
+    const baseSession = {
+      session_id: 'S1',
+      started_at: '2026-04-27T12:00:00Z',
+      rower_id: 'R1',
+      rower_name: 'Daniel',
+      initial_level: 5,
+      workout_id: 'W-X',
+    }
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const { rerender } = render(
+      <QueryClientProvider client={qc}>
+        <LiveSessionContext.Provider
+          value={{ ...initialLiveState, session: baseSession, summary: null }}
+        >
+          <MemoryRouter initialEntries={['/live']}>
+            <Routes>
+              <Route path="/live" element={<LivePage />} />
+              <Route path="/" element={<div>HOME</div>} />
+            </Routes>
+          </MemoryRouter>
+        </LiveSessionContext.Provider>
+      </QueryClientProvider>,
+    )
+    act(() => {
+      rerender(
+        <QueryClientProvider client={qc}>
+          <LiveSessionContext.Provider
+            value={{ ...initialLiveState, session: baseSession, summary }}
+          >
+            <MemoryRouter initialEntries={['/live']}>
+              <Routes>
+                <Route path="/live" element={<LivePage />} />
+                <Route path="/" element={<div>HOME</div>} />
+              </Routes>
+            </MemoryRouter>
+          </LiveSessionContext.Provider>
+        </QueryClientProvider>,
+      )
+    })
+  }
+
+  it('AC1: does NOT mount SessionEndedOverlay when session_end fires in race mode (summary.race == null, e.g. abort)', () => {
+    const summary: SessionEndSummary = {
+      total_distance_m: 312, total_time_sec: 80, total_strokes: 24,
+      avg_power_w: 160, peak_power_w: 200, avg_spm: 22, avg_dps: 9,
+      avg_pace_sec_per_500m: 128, session_calories: 18,
+    }
+    renderWithMode('race', summary)
+    expect(screen.queryByTestId('session-ended-overlay')).toBeNull()
+  })
+
+  it('AC2 regression: distance mode still mounts SessionEndedOverlay on session_end', () => {
+    const summary: SessionEndSummary = {
+      total_distance_m: 5000, total_time_sec: 1800, total_strokes: 540,
+      avg_power_w: 150, peak_power_w: 220, avg_spm: 26, avg_dps: 9.5,
+      avg_pace_sec_per_500m: 120, session_calories: 300,
+    }
+    renderWithMode('distance', summary)
+    expect(screen.getByTestId('session-ended-overlay')).toBeInTheDocument()
+  })
+
+  it('AC3: race-mode normal finish (summary.race != null) does not mount the generic SessionEndedOverlay', () => {
+    const summary: SessionEndSummary = {
+      total_distance_m: 500, total_time_sec: 98, total_strokes: 32,
+      avg_power_w: 220, peak_power_w: 280, avg_spm: 32, avg_dps: 9,
+      avg_pace_sec_per_500m: 98, session_calories: 25,
+      race: { vs_pb_sec: -1.2, vs_ghost_sec: -2.0, ghost_kind: 'session' },
+    }
+    renderWithMode('race', summary)
+    expect(screen.queryByTestId('session-ended-overlay')).toBeNull()
+  })
+})
+
 describe('LivePage Erneut rennen (0014-07)', () => {
   it('re-enters race flow with prior distance + opponents pre-filled (no full wizard)', async () => {
     // Prior selection lives in sessionStorage; the retry must NOT clear

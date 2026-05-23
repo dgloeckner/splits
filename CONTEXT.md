@@ -73,6 +73,22 @@ deterministic at this moment: the user's time and gaps are latched.
 The user typically continues rowing for a paddle-down; the result
 overlay appears immediately and does not wait for the rower to stop.
 
+**The race finish state is latched off the per-stroke reducer**,
+not off React's render loop. The finish horn fires inside the
+lifecycle reducer on the first stroke where `userDistanceM >=
+totalMeters`; the resulting `latchedResult` is then the single source
+of truth for both the FinishOverlay and the frozen StatBar/Canvas. A
+known residual: if multiple strokes ever collapse into one React
+commit (e.g. a backgrounded tab, severe back-pressure), only the
+final committed stroke drives the lifecycle dispatch and the latch
+could capture a post-horn stroke instead of the cross stroke. Under
+realistic SSE cadence (~10–60 strokes/min vs. 60 Hz commit nominal)
+this is essentially unreachable; the rower also isn't watching a
+backgrounded tab. Accepted residual; documented here so a future
+maintainer who hits the edge case knows where to look. The fully-
+correct fix is to pipe SSE strokes directly into the lifecycle
+reducer, bypassing the React render loop — out-of-scope today.
+
 **The entire race surface freezes at the finish horn**, not just the
 result overlay. StatBar values (elapsed, distance-to-go, split, watts,
 spm, vs.Ghost, vs.PB) and Canvas positions (user boat, ghost, PB) are
@@ -84,7 +100,18 @@ and audit) but are no longer routed into the race-view's render inputs.
 (working name **Fertig**). Tapping it fires `session_end` immediately,
 giving the rower a one-tap escape from the race surface. The idle-
 timeout `session_end` remains as a passive fallback for rowers who
-just walk away. Rationale: relying on idle-timeout alone leaves the
+just walk away.
+
+**In race mode, the FinishOverlay IS the post-session result surface.**
+The generic `SessionEndedOverlay` ("Session beendet / Bestleistungen
+werden berechnet…") that other modes show when `session_end` fires
+must NOT slide in over the FinishOverlay. The race result is the
+information the rower wants on screen at the end of a race; replacing
+it with a generic "computing PBs" message is a regression. The
+FinishOverlay persists until the rower navigates (Fertig tap, or
+nav-bar tap). No additional "Gespeichert" indicator is needed — the
+latched result on screen, plus the visible Fertig button, is the
+affirmation that the session is preserved. Rationale: relying on idle-timeout alone leaves the
 rower with no agency — low-amplitude paddle-down strokes, a screen
 lock, or a slow timer can trap them on the race surface with no exit.
 The label is intentionally not "Beenden" (which reads as Abort, and
@@ -223,6 +250,22 @@ hardware-display capture using the replay harness, and may change.
 When the window contains fewer than two completed strokes the tile
 **holds the previous value** rather than dropping to nonsense. See
 ADR-0011.
+
+### Race average split (Schnitt)
+
+The summary split for a completed race: `(500 × race_time) /
+race_distance`. Labeled **Schnitt** on the FinishOverlay and any
+post-race surface. Distinct from the windowed Live split: the
+Schnitt is a single number that summarises the rower's *whole race*
+("I rowed this 500 m at a 4:38 Schnitt"), while the Live split
+reflects the boat's pace in the last few seconds of motion.
+
+The two concepts can coexist on the same screen — the frozen
+StatBar shows the rower's Live split at the moment of the finish
+horn; the FinishOverlay shows the Schnitt for the race as a whole.
+They are intentionally different numbers and must be labeled
+distinctly so the rower is not confused by what looks like a
+contradiction.
 
 ### Pause-prompt suppression
 

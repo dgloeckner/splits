@@ -54,7 +54,7 @@ export function FinishOverlay({ result, onFinish }: Props) {
           <span className={styles.value} data-testid="finish-time">{fmtMmSs(finalTimeS)}</span>
         </div>
         <div className={styles.cell}>
-          <span className={styles.label}>Split</span>
+          <span className={styles.label}>Schnitt</span>
           <span className={styles.value} data-testid="finish-split">{fmtSplit(finalSplitS)}</span>
         </div>
         {gaps.ghost != null && (

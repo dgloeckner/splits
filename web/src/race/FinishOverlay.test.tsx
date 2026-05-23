@@ -16,6 +16,21 @@ describe('FinishOverlay', () => {
     expect(getByText(/1:58/)).toBeTruthy()
   })
 
+  it('labels the race-average split as "Schnitt" (not "Split") — 0019-07', () => {
+    const { getByTestId, queryByText } = render(
+      <FinishOverlay
+        result={{ finalTimeS: 470, finalSplitS: 117.5, gaps: {}, crossSnapshot: { userDistanceM: 2000, watts: 0, spm: 0, split: 117.5 } }}
+      />,
+    )
+    // The cell carrying the race-average value must be labeled Schnitt.
+    expect(queryByText('Schnitt')).toBeTruthy()
+    // And must NOT be labeled "Split" — that label belongs to the
+    // frozen StatBar's instantaneous cell (CONTEXT.md §Live split).
+    expect(queryByText('Split')).toBeNull()
+    // Sanity: value still renders under the testid.
+    expect(getByTestId('finish-split').textContent).toMatch(/1:57\.5/)
+  })
+
   it('does NOT render the ambient "Paddelst aus..." copy (0019-03)', () => {
     const { queryByText, getByTestId } = render(
       <FinishOverlay

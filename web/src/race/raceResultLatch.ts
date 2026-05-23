@@ -10,11 +10,14 @@
  *    `t` directly as `finalTimeS` (we do NOT interpolate down to
  *    exactly `totalMeters`; the stroke that crosses the line *is* the
  *    finish stroke for the user).
- *  - `prev` is the previous stroke if available. When present we
- *    derive the final split from the (prev → cross) pair:
- *    `500 * (t - prevT) / (dist - prevDist)`. When `prev` is null
- *    (first stroke happens to cross), we fall back to the overall
- *    average pace `500 * t / dist`.
+ *  - `finalSplitS` is the **race-average split (Schnitt)**:
+ *    `(500 × finalTimeS) / totalMeters`. This is the universally
+ *    meaningful summary number for a completed race — see
+ *    CONTEXT.md §Race average split (Schnitt). It is intentionally
+ *    *not* the last-segment (prev → cross) value, which is esoteric
+ *    and confusingly close to the StatBar's instantaneous Live split.
+ *    `prev` is accepted for backward-compatibility with callers but
+ *    is no longer used in the split derivation.
  *  - Opponent arrays follow `opponentLookup` conventions: monotone,
  *    `t_sec[0] === 0`. We compute the gap at `totalMeters` (the line),
  *    using the user's `finalTimeS` as the user-time.
@@ -54,15 +57,13 @@ export function computeRaceResultLatch(args: {
   totalMeters: number
   opponents: { ghost?: LatchOpponentCurve; pb?: LatchOpponentCurve }
 }): RaceResultLatch {
-  const { cross, prev, totalMeters, opponents } = args
+  const { cross, totalMeters, opponents } = args
   const finalTimeS = cross.t
 
-  let finalSplitS = 0
-  if (prev && cross.dist > prev.dist && cross.t > prev.t) {
-    finalSplitS = (500 * (cross.t - prev.t)) / (cross.dist - prev.dist)
-  } else if (cross.dist > 0 && cross.t > 0) {
-    finalSplitS = (500 * cross.t) / cross.dist
-  }
+  // Race-average split (Schnitt): (500 × race_time) / race_distance.
+  // Single source of truth for the FinishOverlay summary number.
+  const finalSplitS =
+    totalMeters > 0 && finalTimeS > 0 ? (500 * finalTimeS) / totalMeters : 0
 
   const gaps: { ghost?: number; pb?: number } = {}
   if (opponents.ghost) {
@@ -87,9 +88,11 @@ export function computeRaceResultLatch(args: {
     userDistanceM: totalMeters,
     watts: cross.watts ?? 0,
     spm: cross.spm ?? 0,
-    // Prefer the cross stroke's instantaneous split; fall back to the
-    // derived `finalSplitS` (prev → cross pair) so the StatBar never
-    // reads zero when the caller omits per-stroke split.
+    // WHY: prefer the cross stroke's instantaneous IPM split. The
+    // fallback is degenerate in practice — IPM strokes always carry
+    // `pace_sec_per_500m` — but if ever absent we'd rather show the
+    // race-average Schnitt than zero. The StatBar label still reads
+    // "Split"; the value just won't be instantaneous in that edge case.
     split: cross.split ?? finalSplitS,
   })
 

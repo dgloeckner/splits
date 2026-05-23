@@ -135,6 +135,31 @@ test.describe('FinishOverlay Fertig button (0019-03)', () => {
     const fertig = page.getByTestId('finish-fertig')
     await expect(fertig).toBeVisible()
     await expect(fertig).toBeEnabled()
+
+    // 0019-09 spot-check: Fertig must sit fully above the BottomNav and
+    // fully within the viewport (no clipping). Catches regressions of
+    // the "fixed/absolute bottom-anchored control escapes the nav
+    // reserved zone" class of bug.
+    {
+      const fertigBox = await fertig.boundingBox()
+      const navBox = await page.getByTestId('bottom-nav-workout').boundingBox()
+      const viewport = page.viewportSize()
+      expect(fertigBox, 'finish-fertig must have a bounding box').not.toBeNull()
+      expect(navBox, 'bottom-nav-workout must have a bounding box').not.toBeNull()
+      expect(viewport, 'viewport size required for clipping check').not.toBeNull()
+      if (fertigBox && navBox && viewport) {
+        expect(
+          fertigBox.y + fertigBox.height,
+          `Fertig bottom (${fertigBox.y + fertigBox.height}) must be <= nav top (${navBox.y}) — 0019-09 reserved-zone`,
+        ).toBeLessThanOrEqual(navBox.y)
+        expect(
+          fertigBox.y + fertigBox.height,
+          `Fertig bottom must be within viewport height (${viewport.height})`,
+        ).toBeLessThanOrEqual(viewport.height)
+        expect(fertigBox.y, 'Fertig top must be within viewport').toBeGreaterThanOrEqual(0)
+      }
+    }
+
     const accName = ((await fertig.textContent()) ?? '').trim()
     expect(accName, 'Fertig button accessible name should be "Fertig"').toBe('Fertig')
 
@@ -282,27 +307,26 @@ test.describe('FinishOverlay Fertig button (0019-03)', () => {
     // idle on its own. The backend's 3 s sessionizer idle timer must
     // then fire session_end without any user interaction.
     //
-    // The user-observable signal that session_end fired is LivePage's
-    // `SessionEndedOverlay` (or `RacePostScreen`): both render only
-    // once the SSE summary arrives. Either is fine for the AC — we
-    // just need to prove the backend finalised the session unprompted.
-    // In this test env the seedPriorRaceSession helper does not ingest
-    // strokes (see happy-path "Known limitations"), so the race result
-    // is null and SessionEndedOverlay is what renders.
-    const overlay = page.getByTestId('session-ended-overlay')
+    // 0019-08: in race mode `SessionEndedOverlay` is suppressed — the
+    // race surface (FinishOverlay → RacePostScreen) owns the
+    // post-session UI. When session_end arrives with the lifecycle
+    // still in Live (no line-cross latched), the reducer transitions
+    // Live → Post and `RaceFlow` renders `RacePostScreen` directly,
+    // even when `latchedResult` is null. That is the user-observable
+    // signal that the backend finalised the session unprompted.
+    const overlay = page.getByTestId('race-post-screen')
     await expect(
       overlay,
-      'idle timeout must finalise the session: SessionEndedOverlay should render once the backend publishes the session_end summary over SSE',
+      'idle timeout must finalise the session: RacePostScreen should render once the backend publishes the session_end summary over SSE (0019-08: race mode no longer uses SessionEndedOverlay)',
     ).toBeVisible({ timeout: 30_000 })
 
     await page.screenshot({ path: `${SCREENSHOT_DIR}/05-idle-fallback-finished.png` })
 
-    // Bonus assertion: the overlay also renders a Fertig button (in
-    // SessionEndedOverlay, not FinishOverlay — these are two distinct
-    // affordances). Tapping it lands the rower on Home, mirroring the
-    // happy-path UX even when they never tapped Fertig directly.
-    await page.getByTestId('session-ended-ok').first().click()
-    await page.waitForURL((url) => url.pathname === '/', { timeout: 5_000 })
+    // Bonus assertion: RacePostScreen exposes an "Erneut rennen" CTA
+    // that re-enters the race flow. The acknowledgement path on the
+    // race surface is "Detail" → history view, not Fertig → home, so
+    // we just confirm the post screen is interactive.
+    await expect(page.getByRole('button', { name: 'Erneut rennen' })).toBeVisible()
 
     const elapsedMs = Date.now() - startedAt
     test.info().annotations.push({
