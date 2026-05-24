@@ -14,7 +14,7 @@ import (
 
 func frame(timeSec float64, distanceM, spm, powerW, level int) ipm.Frame {
 	return ipm.Frame{
-		ReceivedAt: time.Unix(int64(timeSec), 0),
+		ReceivedAt: time.Unix(0, int64(timeSec*float64(time.Second))),
 		TimeSec:    timeSec,
 		DistanceM:  distanceM,
 		SPM:        spm,

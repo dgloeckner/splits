@@ -61,6 +61,12 @@ type WorkoutAttachedPayload struct {
 type StrokePayload struct {
 	StrokeNo    int
 	TimeSec     float64
+	// At is the host wall-clock time when the underlying IPM frame was
+	// parsed (= ipm.Frame.ReceivedAt). LivePace uses At, not TimeSec,
+	// because the device clock is integer-second quantized and produces
+	// visible split jitter when a stroke straddles a tick boundary.
+	// In-memory only — not part of the wire format.
+	At          time.Time
 	DistanceM   int
 	SPM         int
 	PowerW      int

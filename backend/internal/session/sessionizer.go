@@ -472,6 +472,7 @@ func (s *Sessionizer) enrich(f ipm.Frame) event.StrokePayload {
 	p := event.StrokePayload{
 		StrokeNo:   s.session.strokeSeq,
 		TimeSec:    f.TimeSec,
+		At:         f.ReceivedAt,
 		DistanceM:  f.DistanceM,
 		SPM:        f.SPM,
 		PowerW:     f.PowerW,
@@ -490,12 +491,12 @@ func (s *Sessionizer) enrich(f ipm.Frame) event.StrokePayload {
 		p.EnergyJoules = EnergyJoules(f.PowerW, p.StrokeCycleSec)
 	}
 
-	// N-stroke windowed live split (U3 fix — see livePace.go). The
-	// wire field pace_sec_per_500m carries the windowed result, not
-	// the per-stroke extrapolation. Keep the ring buffer trimmed to
-	// the active stroke window.
-	s.session.recentStrokes = appendAndTrimWindow(s.session.recentStrokes, p, LivePaceWindowStrokes)
-	pace, kind := LivePace(s.session.recentStrokes, LivePaceWindowStrokes, p.TimeSec)
+	// Host-time windowed live split (see livePace.go). The wire field
+	// pace_sec_per_500m carries the windowed result. The ring buffer
+	// is capped at recentStrokesCap, which comfortably exceeds the
+	// number of strokes that fit in LivePaceWindow even at high SPM.
+	s.session.recentStrokes = appendAndTrimWindow(s.session.recentStrokes, p, recentStrokesCap)
+	pace, kind := LivePace(s.session.recentStrokes, LivePaceWindow, LivePacePauseThreshold)
 	switch kind {
 	case LivePaceValue:
 		s.session.lastLivePace = pace
@@ -508,14 +509,20 @@ func (s *Sessionizer) enrich(f ipm.Frame) event.StrokePayload {
 	return p
 }
 
+// recentStrokesCap bounds the size of the in-memory ring buffer used
+// to compute LivePace. LivePace itself selects a sub-slice by host
+// time, so this only needs to be "≥ the most strokes that can fit in
+// LivePaceWindow at the highest realistic SPM." At 40 SPM (1.5 s /
+// stroke) a 10 s window holds 7 strokes; 20 is well clear of that and
+// also leaves room for tuning the window upwards.
+const recentStrokesCap = 20
+
 // appendAndTrimWindow appends p to buf and caps the buffer length at
-// windowStrokes. The N-stroke LivePace needs exactly the last N
-// strokes — no bracketing entry is required since the window endpoints
-// land on actual strokes (no interpolation).
-func appendAndTrimWindow(buf []event.StrokePayload, p event.StrokePayload, windowStrokes int) []event.StrokePayload {
+// maxLen. LivePace trims further by time inside this buffer.
+func appendAndTrimWindow(buf []event.StrokePayload, p event.StrokePayload, maxLen int) []event.StrokePayload {
 	buf = append(buf, p)
-	if len(buf) > windowStrokes {
-		drop := len(buf) - windowStrokes
+	if len(buf) > maxLen {
+		drop := len(buf) - maxLen
 		buf = append(buf[:0], buf[drop:]...)
 	}
 	return buf

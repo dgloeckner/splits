@@ -1,6 +1,8 @@
 package session
 
 import (
+	"time"
+
 	"github.com/gloeckner-daniel/splits/internal/event"
 )
 
@@ -12,74 +14,75 @@ const (
 	// LivePaceEmpty means the stroke buffer is empty; no value can be
 	// produced and the caller should not emit a pace yet.
 	LivePaceEmpty LivePaceKind = iota
-	// LivePaceHeld means the buffer holds fewer than two strokes; the
+	// LivePaceHeld means the trailing window holds fewer than two
+	// strokes (just after a session start or right after a pause); the
 	// previously-displayed value should be re-emitted.
 	LivePaceHeld
 	// LivePaceValue means the function produced a fresh windowed pace.
 	LivePaceValue
 )
 
-// DefaultLivePaceWindowStrokes is the trailing-stroke window selected
-// after the 5-second time window in the original ADR-0011 design
-// produced visible upward pace spikes (BUG U3 — see
-// docs/distance-flow-audit.md). The device emits stroke timestamps at
-// 1-second resolution, so a time-based window cuts unevenly across
-// stroke boundaries and amplifies quantization noise. A stroke-based
-// window samples at the device's natural unit and damps it.
+// Defaults chosen against the 24-May-2026 capture (session
+// 01KSD9BQZ758BQACNVG62WE6GB, see docs/livepace-host-time.md):
 //
-// 5 strokes was chosen from a real-session comparison (2/3/4/5/10)
-// where 5 was the smallest window whose upward-spike count
-// (split > 2:00 during steady 1:50 rowing) dropped sharply — 75 at
-// 4-stroke down to 23 at 5-stroke. 10-stroke was smoother still but
-// noticeably laggy on cadence changes. See docs/u3-stroke-windows.png.
-const DefaultLivePaceWindowStrokes = 5
+//   - 10 s host-time window keeps σ vs the rower console at ~2.3 s/500m
+//     across cadences (a 5-stroke window varies from 7–15 s as SPM swings
+//     and inflates after pauses).
+//   - 4 s pause threshold matches the dead-reckoning hint already in use
+//     for live-view smoothing (web/src/live/smoothing.ts).
+var (
+	LivePaceWindow         = 10 * time.Second
+	LivePacePauseThreshold = 4 * time.Second
+)
 
-// LivePaceWindowStrokes is the active window length. It is a var (not
-// a const) so a build-time -ldflags '-X' override or a test can swap
-// it without touching call sites. Defaults to
-// DefaultLivePaceWindowStrokes.
-var LivePaceWindowStrokes = DefaultLivePaceWindowStrokes
-
-// LivePace computes the trailing N-stroke pace in seconds per 500 m.
+// LivePace computes the trailing windowed pace in seconds per 500 m
+// using host wall-clock time (StrokePayload.At), not the device's
+// TimeSec field. The device stamps TimeSec at integer-second
+// resolution, which produces ±1 s of jitter on a ~7 s window — large
+// enough to swing a 1:40 split between 1:32 and 1:51 on a single
+// stroke. Host time is microsecond-precise and free of that artefact.
 //
-// strokes must be sorted by TimeSec ascending. N is taken from
-// LivePaceWindowStrokes; if the buffer holds fewer than N strokes, the
-// window shrinks to whatever is available (still ≥2 needed for a
-// fresh value).
+// strokes must be sorted by At ascending. The window is anchored on
+// the newest stroke and extended backwards through older strokes
+// until either:
 //
-// Algorithm:
+//  1. the window duration is exceeded — older strokes ignored;
+//  2. a gap larger than pauseThreshold is found between two consecutive
+//     strokes — the window stops there, so a long idle period inside
+//     the buffer cannot inflate the windowed split.
 //
-//  1. If the buffer is empty → (0, LivePaceEmpty).
-//  2. If fewer than 2 strokes inside the trailing-N window
-//     → (0, LivePaceHeld) — caller re-emits the last value.
-//  3. Let start = the oldest of the trailing N strokes, end = the
-//     newest. pace = 500 / (dEnd − dStart) × (tEnd − tStart),
-//     rounded to int.
-//
-// This is the simple stroke-anchored version: no sub-stroke
-// interpolation is needed because the window endpoints coincide with
-// actual stroke samples — eliminating the leading-edge interpolation
-// artifacts of the previous time-window implementation.
-func LivePace(strokes []event.StrokePayload, windowStrokes int, _ float64) (int, LivePaceKind) {
+// pace = 500 / Δd × Δt over the selected sub-slice. <2 strokes after
+// trimming → LivePaceHeld so the caller keeps showing the last value.
+func LivePace(strokes []event.StrokePayload, window, pauseThreshold time.Duration) (int, LivePaceKind) {
 	if len(strokes) == 0 {
 		return 0, LivePaceEmpty
 	}
-	if windowStrokes < 2 {
-		windowStrokes = 2
+	if window <= 0 {
+		window = LivePaceWindow
 	}
-	// Window covers the last windowStrokes entries (or all of them if
-	// the buffer is shorter).
-	startIdx := len(strokes) - windowStrokes
-	if startIdx < 0 {
-		startIdx = 0
+	if pauseThreshold <= 0 {
+		pauseThreshold = LivePacePauseThreshold
 	}
-	if len(strokes)-startIdx < 2 {
+	last := strokes[len(strokes)-1]
+	// Walk backwards. startIdx becomes the oldest stroke still inside
+	// the window and not separated from its successor by a pause.
+	startIdx := len(strokes) - 1
+	for i := len(strokes) - 2; i >= 0; i-- {
+		gap := strokes[i+1].At.Sub(strokes[i].At)
+		if gap > pauseThreshold {
+			break
+		}
+		if last.At.Sub(strokes[i].At) > window {
+			break
+		}
+		startIdx = i
+	}
+	if startIdx == len(strokes)-1 {
 		return 0, LivePaceHeld
 	}
 	first := strokes[startIdx]
-	last := strokes[len(strokes)-1]
 	dCovered := last.DistanceM - first.DistanceM
-	tElapsed := last.TimeSec - first.TimeSec
+	tElapsed := last.At.Sub(first.At).Seconds()
 	if dCovered <= 0 || tElapsed <= 0 {
 		return 0, LivePaceHeld
 	}
