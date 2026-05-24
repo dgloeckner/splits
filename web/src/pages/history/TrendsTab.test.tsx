@@ -127,3 +127,77 @@ describe('TrendsTab', () => {
     await waitFor(() => expect(screen.getByTestId('trends-empty')).toBeInTheDocument())
   })
 })
+
+describe('TrendsTab series threshold (ADR-0015)', () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('hides Leistung when no series has ≥3 completed sessions', async () => {
+    setupFetch((url) => {
+      if (url.includes('/api/v1/rowers/R1/trends')) {
+        const body = trendsBody()
+        body.series = [
+          {
+            key: { mode: 'distance', shape_hash: 'H' },
+            params: { meters: 5000 },
+            display_name: '5 k',
+            points: [
+              { t: '2026-05-09T08:35:00Z', session_id: 's1', total_distance_m: 5000, total_time_sec: 1100, avg_power_w: 374, avg_pace_sec_per_500m: 110, avg_dps: 9.6, avg_spi: 12, avg_spm: 28 },
+              { t: '2026-05-15T09:00:00Z', session_id: 's2', total_distance_m: 5000, total_time_sec: 1080, avg_power_w: 380, avg_pace_sec_per_500m: 108, avg_dps: 9.7, avg_spi: 12, avg_spm: 28 },
+            ], // 2 points — below threshold
+          },
+        ]
+        body.efficiency_series = []
+        return new Response(JSON.stringify(body), { status: 200 })
+      }
+      return null as unknown as Response
+    })
+    wrap()
+    expect(await screen.findByTestId('leistung-empty')).toBeInTheDocument()
+    expect(screen.getByTestId('effizienz-empty')).toBeInTheDocument()
+  })
+
+  it('renders Leistung when at least one series has ≥3 completed sessions', async () => {
+    const pts = (n: number) =>
+      Array.from({ length: n }, (_, i) => ({
+        t: `2026-05-${String(9 + i).padStart(2, '0')}T08:35:00Z`,
+        session_id: `s${i + 1}`,
+        total_distance_m: 5000,
+        total_time_sec: 1100 - i,
+        avg_power_w: 374 + i,
+        avg_pace_sec_per_500m: 110 - i,
+        avg_dps: 9.6,
+        avg_spi: 12,
+        avg_spm: 28,
+      }))
+    setupFetch((url) => {
+      if (url.includes('/api/v1/rowers/R1/trends')) {
+        const body = trendsBody()
+        body.series = [
+          {
+            key: { mode: 'distance', shape_hash: 'H' },
+            params: { meters: 5000 },
+            display_name: '5 k',
+            pb_pace_sec_per_500m: 108.2,
+            points: pts(4),
+          },
+        ]
+        body.efficiency_series = [
+          {
+            key: { mode: 'distance', shape_hash: 'H' },
+            params: { meters: 5000 },
+            display_name: '5 k',
+            points: pts(4),
+          },
+        ]
+        return new Response(JSON.stringify(body), { status: 200 })
+      }
+      return null as unknown as Response
+    })
+    wrap()
+    expect(await screen.findAllByTestId('dlc-primary')).not.toHaveLength(0)
+    expect(screen.getByTestId('pb-distance-H')).toBeInTheDocument()
+    expect(screen.queryByTestId('leistung-empty')).not.toBeInTheDocument()
+  })
+})
