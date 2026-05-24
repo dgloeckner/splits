@@ -4,8 +4,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { TrendsTab } from './TrendsTab'
+import type { TrendsRange, TrendsResponse } from '../../api/client'
 
-function trendsBody(over: Partial<{ sessions: number; range: string }> = {}) {
+function trendsBody(over: Partial<{ sessions: number; range: TrendsRange }> = {}): TrendsResponse {
   return {
     range: over.range ?? 'month',
     period: { label: 'Diesen Monat', from: '', to: '' },
@@ -49,7 +50,7 @@ function setupFetch(custom?: (url: string) => Response) {
     }
     if (url.includes('/api/v1/rowers/R1/trends')) {
       const u = new URL(url, 'http://x')
-      const range = u.searchParams.get('range') ?? 'month'
+      const range = (u.searchParams.get('range') ?? 'month') as TrendsRange
       return new Response(JSON.stringify(trendsBody({ range })), { status: 200 })
     }
     return new Response('{}', { status: 200 })
