@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -40,6 +41,38 @@ type effPoint struct {
 	AvgSPI  float64 `json:"avg_spi"`
 }
 
+// trendsSeriesKey identifies a comparable workout shape. ShapeHash
+// alone is insufficient because `race {meters:2000}` and
+// `distance {meters:2000}` share a hash by design (see
+// workout/hash_test.go TestShapeHashRaceEqualsDistance). ADR-0015
+// requires them to be distinct series, so we key on (mode, hash).
+type trendsSeriesKey struct {
+	Mode      string `json:"mode"`
+	ShapeHash string `json:"shape_hash"`
+}
+
+// trendsSeriesPoint is one completed session within a series.
+type trendsSeriesPoint struct {
+	T                 string  `json:"t"`
+	SessionID         string  `json:"session_id"`
+	TotalDistanceM    int     `json:"total_distance_m"`
+	TotalTimeSec      float64 `json:"total_time_sec"`
+	AvgPowerW         float64 `json:"avg_power_w"`
+	AvgPaceSecPer500m float64 `json:"avg_pace_sec_per_500m"`
+	AvgDPS            float64 `json:"avg_dps"`
+	AvgSPI            float64 `json:"avg_spi"`
+	AvgSPM            float64 `json:"avg_spm"`
+}
+
+// trendsSeries is one comparable-workout-shape group over time.
+type trendsSeries struct {
+	Key              trendsSeriesKey     `json:"key"`
+	ParamsJSON       json.RawMessage     `json:"params"`
+	DisplayName      string              `json:"display_name"`
+	PBPaceSecPer500m float64             `json:"pb_pace_sec_per_500m,omitempty"`
+	Points           []trendsSeriesPoint `json:"points"`
+}
+
 type performanceBlock struct {
 	Points            []perfPoint `json:"points"`
 	AvgPowerW         float64     `json:"avg_power_w"`
@@ -55,13 +88,15 @@ type efficiencyBlock struct {
 }
 
 type trendsResponse struct {
-	Range        string           `json:"range"`
-	Period       trendsPeriod     `json:"period"`
-	Totals       trendsTotals     `json:"totals"`
-	Prior        *trendsTotals    `json:"prior,omitempty"`
-	Performance  performanceBlock `json:"performance"`
-	Efficiency   efficiencyBlock  `json:"efficiency"`
-	StatsVersion int              `json:"stats_version"`
+	Range            string           `json:"range"`
+	Period           trendsPeriod     `json:"period"`
+	Totals           trendsTotals     `json:"totals"`
+	Prior            *trendsTotals    `json:"prior,omitempty"`
+	Performance      performanceBlock `json:"performance"`
+	Efficiency       efficiencyBlock  `json:"efficiency"`
+	Series           []trendsSeries   `json:"series"`
+	EfficiencySeries []trendsSeries   `json:"efficiency_series"`
+	StatsVersion     int              `json:"stats_version"`
 }
 
 // berlinLoc is the timezone period bounds operate in. session display
