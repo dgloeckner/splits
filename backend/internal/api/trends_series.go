@@ -1,6 +1,11 @@
 package api
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"sort"
+	"strconv"
+	"time"
+)
 
 // completionFraction is the floor for "completed": a session must
 // reach at least 80% of its workout target to count toward trend
@@ -31,4 +36,127 @@ func isCompletedSession(mode string, params json.RawMessage, totalDistanceM int,
 	}
 	// intervals, just_row, or unknown mode → not in trend series.
 	return false
+}
+
+// sessionRow is the row shape consumed by assembleSeries — one
+// completed session joined with its workout. ShapeHash is the
+// workout.shape_hash; Mode is workout.mode.
+type sessionRow struct {
+	ID        string
+	StartedAt time.Time
+	Mode      string
+	Params    json.RawMessage
+	ShapeHash string
+	DistM     int
+	TimeSec   float64
+	AvgPower  float64
+	AvgPace   float64
+	AvgDPS    float64
+	AvgSPI    float64
+	AvgSPM    float64
+}
+
+// assembleSeries groups completed sessions by (mode, shape_hash)
+// into series suitable for the multi-series chart. Caller is
+// responsible for filtering rows via isCompletedSession before
+// passing them in. Series are returned sorted descending by point
+// count (most-rowed first), points within each series ascending
+// by time. Sessions whose mode is "intervals" or "just_row" are
+// silently dropped (defensive — caller should have filtered).
+func assembleSeries(rows []sessionRow) []trendsSeries {
+	type bucket struct {
+		key    trendsSeriesKey
+		params json.RawMessage
+		points []trendsSeriesPoint
+	}
+	buckets := make(map[string]*bucket)
+	for _, r := range rows {
+		if r.Mode == "intervals" || r.Mode == "just_row" {
+			continue
+		}
+		k := r.Mode + "|" + r.ShapeHash
+		b, ok := buckets[k]
+		if !ok {
+			b = &bucket{
+				key:    trendsSeriesKey{Mode: r.Mode, ShapeHash: r.ShapeHash},
+				params: r.Params,
+			}
+			buckets[k] = b
+		}
+		b.points = append(b.points, trendsSeriesPoint{
+			T:                 r.StartedAt.UTC().Format(time.RFC3339),
+			SessionID:         r.ID,
+			TotalDistanceM:    r.DistM,
+			TotalTimeSec:      r.TimeSec,
+			AvgPowerW:         r.AvgPower,
+			AvgPaceSecPer500m: r.AvgPace,
+			AvgDPS:            r.AvgDPS,
+			AvgSPI:            r.AvgSPI,
+			AvgSPM:            r.AvgSPM,
+		})
+	}
+	out := make([]trendsSeries, 0, len(buckets))
+	for _, b := range buckets {
+		sort.Slice(b.points, func(i, j int) bool { return b.points[i].T < b.points[j].T })
+		out = append(out, trendsSeries{
+			Key:         b.key,
+			ParamsJSON:  b.params,
+			DisplayName: displayNameForShape(b.key.Mode, b.params),
+			Points:      b.points,
+		})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if len(out[i].Points) != len(out[j].Points) {
+			return len(out[i].Points) > len(out[j].Points)
+		}
+		return out[i].Key.Mode+out[i].Key.ShapeHash < out[j].Key.Mode+out[j].Key.ShapeHash
+	})
+	return out
+}
+
+// displayNameForShape returns a human-readable label like "5 k", "Race 2 k",
+// "20 min" for the chart legend / strip readout.
+func displayNameForShape(mode string, params json.RawMessage) string {
+	switch mode {
+	case "distance":
+		var p struct {
+			Meters int `json:"meters"`
+		}
+		_ = json.Unmarshal(params, &p)
+		return formatMeters(p.Meters)
+	case "race":
+		var p struct {
+			Meters int `json:"meters"`
+		}
+		_ = json.Unmarshal(params, &p)
+		return "Race " + formatMeters(p.Meters)
+	case "time":
+		var p struct {
+			Sec int `json:"sec"`
+		}
+		_ = json.Unmarshal(params, &p)
+		mins := p.Sec / 60
+		return strconv.Itoa(mins) + " min"
+	}
+	return mode
+}
+
+// formatMeters formats a meter count as the chart label. 5000 → "5 k",
+// 21097 → "21,1 k" (German decimal comma), 500 → "500 m".
+func formatMeters(m int) string {
+	if m >= 1000 && m%1000 == 0 {
+		return strconv.Itoa(m/1000) + " k"
+	}
+	if m >= 1000 {
+		// One decimal place, German comma separator.
+		whole := m / 1000
+		// Round to one decimal: tenths = round((m - whole*1000) / 100)
+		tenths := ((m - whole*1000) + 50) / 100
+		if tenths == 10 {
+			whole++
+			tenths = 0
+		}
+		return strconv.Itoa(whole) + "," + strconv.Itoa(tenths) + " k"
+	}
+	return strconv.Itoa(m) + " m"
 }
