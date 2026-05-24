@@ -296,3 +296,50 @@ auto-popped during Warmup/Cooldown.
   is therefore absent on Finished and Post — there is no in-progress
   race to wave off, only a latched result. Paddle-down ends via the
   normal idle-timeout `session_end` path.
+
+## Trends
+
+The Historie → Trends sub-tab aggregates per-rower performance
+across a selected range (Wochen · Monate · Jahr · Alles).
+
+### Comparable workout shape
+
+The grouping axis used by trend charts to make sessions comparable.
+A *shape* is the `(workout.mode, workout.params_json)` tuple the
+rower committed to at session start — captured directly by
+`workout.shape_hash`. Two sessions trend-compare iff they share a
+shape. Examples of shapes: `distance 5 k`, `distance 2 k`,
+`time 20 min`, `race 2 k`, `intervals 4×500 m / 60 s`.
+
+Trend charts group by intent, not by actual outcome. A free-row
+session that happened to stop near 5 k is **not** a 5 k piece for
+trend purposes — only a session whose workout target was 5 k is.
+This is a deliberate rejection of tolerance-based bucketing on
+`total_distance_m` (see ADR-0015).
+
+### Completion
+
+A session counts toward trend aggregates iff it reached **≥ 80 %**
+of its workout target — `total_distance_m ≥ 0.8 × target` for
+distance/race modes, `total_time_sec ≥ 0.8 × target_sec` for
+time mode. Sessions below this threshold are *abandoned* and
+excluded from every trend series. `just_row` sessions never appear
+in trend series (no target to complete). Intervals completion is
+deferred — intervals are out of scope for the v1 Leistung chart
+(see ADR-0015).
+
+### Series
+
+A line on a trend chart corresponds to one comparable workout
+shape over time. A series renders by default iff it has **≥ 3
+completed sessions in the current range**. Sub-threshold series
+do not render and are not surfaced in the chart UI; the existing
+"Zeitraum erweitern" affordance is the user's only escape hatch
+to a wider window.
+
+### Intensity bands (Effizienz)
+
+Efficiency metrics (DPS, SPI) are grouped not by shape but by
+the session's average SPM, since technique meaning depends on
+rate, not piece type: Paddle (≤ 20 spm), Steady (20–26), Hard
+(≥ 26). Used for per-dot color encoding on the Effizienz chart.
