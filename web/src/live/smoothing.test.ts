@@ -2,16 +2,19 @@ import { describe, it, expect } from 'vitest'
 import { smoothingConfig } from './smoothing'
 
 describe('smoothingConfig', () => {
-  it('exposes EMA alpha/hysteresis for each tracked metric', () => {
-    expect(smoothingConfig.ema.watts.alpha).toBe(0.5)
+  it('passes raw device values through; only SPI is EMA-smoothed', () => {
+    // Methodology (2026-05): every metric the device emits directly is
+    // pass-through to match the rower console exactly. Display-layer
+    // hysteresis still absorbs sub-unit wiggles.
+    expect(smoothingConfig.ema.watts.alpha).toBe(1.0)
     expect(smoothingConfig.ema.watts.hysteresis).toBe(3)
-    // Split EMA is pass-through (alpha=1.0): the backend now smooths
-    // via a 5 s window (ADR-0011 / FEAT-0015 Slice 5).
     expect(smoothingConfig.ema.split.alpha).toBe(1.0)
     expect(smoothingConfig.ema.split.hysteresis).toBeCloseTo(0.1)
-    expect(smoothingConfig.ema.spm.alpha).toBe(0.4)
+    expect(smoothingConfig.ema.spm.alpha).toBe(1.0)
     expect(smoothingConfig.ema.spm.hysteresis).toBe(0.5)
-    expect(smoothingConfig.ema.dps.alpha).toBe(0.3)
+    expect(smoothingConfig.ema.dps.alpha).toBe(1.0)
+    expect(smoothingConfig.ema.dps.hysteresis).toBeCloseTo(0.05)
+    // SPI keeps its EMA: derived (watts/SPM) so it inherits compound noise.
     expect(smoothingConfig.ema.spi.alpha).toBe(0.3)
   })
 

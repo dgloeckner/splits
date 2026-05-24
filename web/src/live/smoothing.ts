@@ -1,20 +1,26 @@
 /**
  * Single source of truth for all live-view smoothing parameters.
  *
- * See specs/feat/0001b-live-view-smoothing.md for the rationale behind
- * each constant. Any tuning should happen here, not in the consumers.
+ * Methodology (2026-05): every metric the device emits directly
+ * (watts, SPM, DPS, split-pace) is now pass-through. The rower's LCD
+ * already shows the values we receive, and stacking an EMA on top
+ * introduced 1–2 strokes of visible lag versus the console. Only SPI
+ * (derived = watts/SPM) keeps its EMA, since it inherits noise from
+ * two independent inputs. The `alpha` field is therefore unused for
+ * watts/SPM/DPS/split and kept only so the hysteresis values can sit
+ * next to the metric they belong to.
+ *
+ * Hysteresis remains active at the display layer (useLiveDisplay) —
+ * it's presentational, preventing ±1 W jitter from twitching the
+ * rendered integer between effectively-identical strokes.
  */
 export const smoothingConfig = {
   ema: {
-    watts: { alpha: 0.5, hysteresis: 3 }, // W
-    // Split EMA relaxed to 1.0 (pass-through) per ADR-0011 / FEAT-0015
-    // Slice 5: the backend now ships a 5-second windowed split, which
-    // is the smoother. Stacking an EMA on top adds lag without removing
-    // any meaningful noise. Sparkline buffer for split is unchanged.
-    split: { alpha: 1.0, hysteresis: 0.1 }, // seconds on pace_sec_per_500m
-    spm: { alpha: 0.4, hysteresis: 0.5 },
-    dps: { alpha: 0.3, hysteresis: 0.05 }, // m
-    spi: { alpha: 0.3, hysteresis: 0.05 }, // W/stroke
+    watts: { alpha: 1.0, hysteresis: 3 }, // W — pass-through; hysteresis only
+    split: { alpha: 1.0, hysteresis: 0.1 }, // s/500m — pass-through; device split is already smoothed
+    spm: { alpha: 1.0, hysteresis: 0.5 }, // pass-through; hysteresis only
+    dps: { alpha: 1.0, hysteresis: 0.05 }, // m — pass-through; hysteresis only
+    spi: { alpha: 0.3, hysteresis: 0.05 }, // W/stroke — derived; EMA dampens compound noise
   },
   deadReckoning: {
     pauseThresholdMs: 4000,

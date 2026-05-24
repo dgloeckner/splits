@@ -240,21 +240,28 @@ describe('liveReducer', () => {
       })
     })
 
-    it('applies EMA once cold-start window has elapsed', () => {
+    it('passes raw device values straight through once cold-start has elapsed', () => {
+      // Watts / SPM / DPS / split-pace are pass-through after the
+      // methodology change — they match the rower console exactly,
+      // no EMA lag. Only SPI keeps its EMA (it's derived).
       vi.setSystemTime(new Date('2026-04-20T10:00:00Z'))
       let s = liveReducer(initialLiveState, { type: 'event', event: start() })
       s = liveReducer(s, {
         type: 'event',
         event: stroke(1, { power_w: 200, spm: 30, dps: 8, pace_sec_per_500m: 130 }),
       })
-      // Advance past cold-start window.
       vi.advanceTimersByTime((smoothingConfig.coldStartSeconds + 1) * 1000)
       s = liveReducer(s, {
         type: 'event',
-        event: stroke(2, { power_w: 300, spm: 30, dps: 8, pace_sec_per_500m: 130 }),
+        event: stroke(2, { power_w: 300, spm: 32, dps: 9, pace_sec_per_500m: 125 }),
       })
-      // With alpha 0.5: 0.5*300 + 0.5*200 = 250
-      expect(s.smoothed!.power).toBeCloseTo(250)
+      expect(s.smoothed!.power).toBe(300)
+      expect(s.smoothed!.spm).toBe(32)
+      expect(s.smoothed!.dps).toBe(9)
+      expect(s.smoothed!.paceSecPer500m).toBe(125)
+      // SPI is still EMA'd: alpha 0.3 → 0.3 * (300/32) + 0.7 * (200/30)
+      const expectedSpi = 0.3 * (300 / 32) + 0.7 * (200 / 30)
+      expect(s.smoothed!.spi).toBeCloseTo(expectedSpi)
     })
 
     it('retains previous smoothed SPI when stroke is below threshold', () => {

@@ -112,15 +112,26 @@ function nextSmoothed(
     }
   }
 
+  // Pass-through for every metric the device emits directly: split-pace
+  // (the rower's own smoothed value), watts/SPM/DPS (per-stroke values
+  // the rower's LCD shows without further smoothing). Adding an EMA on
+  // top introduced visible lag versus the LCD — the iPad would trail
+  // the console's watt readout by 1–2 strokes on rapid changes — and
+  // is inconsistent with the methodology adopted for split when we
+  // started trusting the wire as ground truth.
+  //
+  // SPI keeps its EMA: it's derived (watts/spm) and inherits noise
+  // from both inputs, so smoothing reduces stroke-to-stroke twitchiness
+  // that doesn't reflect a real change in effort.
+  //
+  // The display-layer hysteresis (useLiveDisplay) continues to absorb
+  // ±1 W / ±0.1 m / etc. wiggles so the rendered integer doesn't
+  // flicker between effectively-identical strokes.
   return {
-    power: ema(prev.power, p.power_w, smoothingConfig.ema.watts.alpha),
-    paceSecPer500m: ema(
-      prev.paceSecPer500m,
-      p.pace_sec_per_500m,
-      smoothingConfig.ema.split.alpha,
-    ),
-    spm: ema(prev.spm, p.spm, smoothingConfig.ema.spm.alpha),
-    dps: ema(prev.dps, p.dps, smoothingConfig.ema.dps.alpha),
+    power: p.power_w,
+    paceSecPer500m: p.pace_sec_per_500m,
+    spm: p.spm,
+    dps: p.dps,
     spi:
       rawSpi === null
         ? prev.spi
