@@ -42,13 +42,15 @@ func isCompletedSession(mode string, params json.RawMessage, totalDistanceM int,
 
 // sessionRow is the row shape consumed by assembleSeries — one
 // completed session joined with its workout. ShapeHash is the
-// workout.shape_hash; Mode is workout.mode.
+// original workout.shape_hash, retained for diagnostics / future
+// use; it is NOT used for series keying (keying uses canonical
+// params — see canonicalParamsKey). Mode is workout.mode.
 type sessionRow struct {
 	ID        string
 	StartedAt time.Time
 	Mode      string
 	Params    json.RawMessage
-	ShapeHash string
+	ShapeHash string // original workout.shape_hash; not used for series keying
 	DistM     int
 	TimeSec   float64
 	AvgPower  float64
@@ -58,12 +60,33 @@ type sessionRow struct {
 	AvgSPM    float64
 }
 
-// assembleSeries groups completed sessions by (mode, shape_hash)
-// into series suitable for the multi-series chart. Caller is
-// responsible for filtering rows via isCompletedSession before
-// passing them in. Series are returned sorted descending by point
-// count (most-rowed first), points within each series ascending
-// by time. Sessions whose mode is "intervals" or "just_row" are
+// canonicalParamsKey re-marshals params with sorted keys (Go's
+// encoding/json writes map keys in sorted order) to produce a stable
+// string suitable for series grouping. Warmup/cooldown fields that
+// appear in workout.shape_hash but not in params_json are therefore
+// excluded, so a "5 k" piece is always "5 k" regardless of warmup
+// duration. On unmarshal error the raw bytes are returned as a
+// best-effort fallback.
+func canonicalParamsKey(params json.RawMessage) string {
+	var m map[string]any
+	if err := json.Unmarshal(params, &m); err != nil {
+		return string(params)
+	}
+	b, err := json.Marshal(m)
+	if err != nil {
+		return string(params)
+	}
+	return string(b)
+}
+
+// assembleSeries groups completed sessions by (mode, canonical(params))
+// into series suitable for the multi-series chart. The series key uses
+// canonicalParamsKey so that sessions with the same workout target but
+// different warmup/cooldown durations (which differ only in shape_hash)
+// collapse into one series. Caller is responsible for filtering rows via
+// isCompletedSession before passing them in. Series are returned sorted
+// descending by point count (most-rowed first), points within each series
+// ascending by time. Sessions whose mode is "intervals" or "just_row" are
 // silently dropped (defensive — caller should have filtered).
 func assembleSeries(rows []sessionRow) []trendsSeries {
 	type bucket struct {
@@ -76,11 +99,11 @@ func assembleSeries(rows []sessionRow) []trendsSeries {
 		if r.Mode == "intervals" || r.Mode == "just_row" {
 			continue
 		}
-		k := r.Mode + "|" + r.ShapeHash
+		k := r.Mode + "|" + canonicalParamsKey(r.Params)
 		b, ok := buckets[k]
 		if !ok {
 			b = &bucket{
-				key:    trendsSeriesKey{Mode: r.Mode, ShapeHash: r.ShapeHash},
+				key:    trendsSeriesKey{Mode: r.Mode, ShapeHash: canonicalParamsKey(r.Params)},
 				params: r.Params,
 			}
 			buckets[k] = b
