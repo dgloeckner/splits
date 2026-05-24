@@ -396,10 +396,13 @@ func TestTrendsHandlerReturnsSeriesByShape(t *testing.T) {
 		t.Fatalf("first series PB pace = %v, want ~108.2 s/500m", pb)
 	}
 
-	// 134m piece must NOT have created a distance|H_500 series.
+	// 134m piece must NOT have created a 500m distance series.
+	// Post-ADR-0015 amendment, series are keyed on canonical params,
+	// so the leakage check is against `{"meters":500}`, not the
+	// original workout.shape_hash "H_500".
 	for _, s := range got.Series {
 		key, _ := s["key"].(map[string]any)
-		if key != nil && key["shape_hash"] == "H_500" {
+		if key != nil && key["mode"] == "distance" && key["shape_hash"] == `{"meters":500}` {
 			t.Fatalf("abandoned 134m piece leaked into series: %v", s)
 		}
 	}
