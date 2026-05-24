@@ -195,7 +195,34 @@ export type TrendsResponse = {
     delta_dps: number
     delta_spi: number
   }
+  series: TrendsSeries[]
+  efficiency_series: TrendsSeries[]
   stats_version: number
+}
+
+export type TrendsSeriesKey = {
+  mode: string
+  shape_hash: string
+}
+
+export type TrendsSeriesPoint = {
+  t: string
+  session_id: string
+  total_distance_m: number
+  total_time_sec: number
+  avg_power_w: number
+  avg_pace_sec_per_500m: number
+  avg_dps: number
+  avg_spi: number
+  avg_spm: number
+}
+
+export type TrendsSeries = {
+  key: TrendsSeriesKey
+  params: unknown
+  display_name: string
+  pb_pace_sec_per_500m?: number
+  points: TrendsSeriesPoint[]
 }
 
 export async function getRowerTrends(rowerID: string, range: TrendsRange): Promise<TrendsResponse> {

@@ -10,6 +10,8 @@ const base: TrendsResponse = {
   prior: { distance_m: 10_000, active_sec: 4_000, sessions: 3 },
   performance: { points: [], avg_power_w: 0, avg_pace_sec_per_500m: 0 },
   efficiency: { points: [], avg_dps: 0, avg_spi: 0, delta_dps: 0, delta_spi: 0 },
+  series: [],
+  efficiency_series: [],
   stats_version: 1,
 }
 
