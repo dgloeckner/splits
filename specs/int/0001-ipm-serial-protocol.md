@@ -1,9 +1,13 @@
 # INT-0001: IPM Serial Protocol
 
-- **Status**: Draft — handshake + command catalogue + live-stream field
-  layout verified 2026-04-19 against four hardware captures. Two fields in
-  the A8 stream are still of unknown purpose but their positions/widths
-  are locked.
+- **Status**: Verified — handshake + command catalogue + live-stream
+  field layout. Initial decode 2026-04-19 against four hardware captures
+  left two fields tagged as "unknown"; a 2026-05-24 cross-check against
+  Stefan Jenkner's reference parser (see References) resolved both,
+  along with three field-width errors hiding in the leading zeros.
+  All A8 positions are now accounted for; one single-digit position
+  (`[10]` in the A8-stripped payload) is constant `1` on firmware V115
+  and has no published interpretation.
 - **External system**: First Degree Fitness IPM (Interactive Performance
   Monitor) — the console fitted to the Life Fitness Row GX Trainer
 
@@ -105,12 +109,19 @@ field until the units are confirmed.**
 
 ### Continuous stream while rowing (A8 messages)
 
-**Status**: Format **reverse-engineered and verified** 2026-04-19 against
-five captures (`session-short`, `session-m1`, `session-m2-highpower`,
-`session-m3-long`, `session-m4-level-changes`). Six of the nine fields are
-verified by cross-referencing the console display and a resistance-level
-sweep (L1 → L4); three fields are still of unknown meaning but their
-positions and widths are fixed.
+**Status**: Format **reverse-engineered and verified** 2026-04-19
+against five captures (`session-short`, `session-m1`,
+`session-m2-highpower`, `session-m3-long`, `session-m4-level-changes`),
+then **revised 2026-05-24** after cross-checking against Stefan
+Jenkner's `fdf-console-monitor` parser (see References). The original
+local decode was correct on the values used by downstream consumers
+(distance, SPM, watts, level) but mis-framed several fields by
+splitting at the wrong character boundaries — which hid the device's
+own **500 m split-pace** inside what we had called "marker" +
+"unknown 3-digit field", lost the units digit of `cal/hr`, and
+under-sized `SPM` and `distance` by one digit each. The corrected
+layout below has zero unknown fields apart from a single constant
+digit at `[10]`.
 
 #### Message envelope
 
@@ -136,46 +147,70 @@ positions and widths are fixed.
 - Idle behaviour: no A8 messages at all while the handle is parked. First
   A8 arrives seconds after rowing begins.
 
-#### Field layout (27-digit payload, indices are Python slice `[start:end)`)
+#### Field layout (27-digit payload, A8 prefix stripped; indices are Python slice `[start:end)`)
 
 ```
-A8 MMMSST DDDD KKK UUU SS PPP CCC X LL
-   ├────┤ ├──┤ ├─┤ ├─┤ ├┤ ├─┤ ├─┤ │ ├┤
-   [0:6] [6:10] [10:13] [13:16] [16:18] [18:21] [21:24] [24:25] [25:27]
-    time   dist  marker  ???    SPM   power  derived ? level
+A8 H MM SS DDDDD R MM SS SSS PPP CCCC LL
+   │ ├┤ ├┤ ├───┤ │ ├┤ ├┤ ├─┤ ├─┤ ├──┤ ├┤
+   [0]│  │  │   │  │  │  │   │   │    [25:27]
+      │  │  │   │  │  │  │   │   [21:25]
+      │  │  │   │  │  │  │   [18:21]
+      │  │  │   │  │  │  [15:18]
+      │  │  │   │  │  [13:15]
+      │  │  │   │  [11:13]
+      │  │  │   [10]
+      │  │  [5:10]
+      │  [3:5]
+      [1:3]
 ```
 
 | Slice     | Width | Meaning              | Units / format               | Status       |
 |-----------|-------|----------------------|------------------------------|--------------|
-| `[0:6]`   | 6     | Elapsed rowing time  | `MMMSST` = min·100 + sec·10 + tenths | ✓ verified |
-| `[6:10]`  | 4     | Cumulative distance  | integer metres (0–9999)      | ✓ verified   |
-| `[10:13]` | 3     | Marker / mode        | typically `102`, seen `101`/`103`/`104`/`110` | ✓ position, purpose not fully understood |
-| `[13:16]` | 3     | Unknown              | 3-digit integer, range 000–460 observed | ✗ unknown |
-| `[16:18]` | 2     | Stroke rate (SPM)    | integer strokes/min (0–99)   | ✓ verified   |
+| `[0]`     | 1     | High-order overflow digit for elapsed time | always `0` in captured sessions; would carry hundreds-of-minutes (or hours) on very long rows | ✓ inferred from reference parser, untested in practice |
+| `[1:3]`   | 2     | Elapsed minutes      | integer 00–99                | ✓ verified   |
+| `[3:5]`   | 2     | Elapsed seconds      | integer 00–59                | ✓ verified   |
+| `[5:10]`  | 5     | Cumulative distance  | integer metres (0–99999); leading digit is `0` until 10 km | ✓ verified for 0–1035 m; >9999 m untested |
+| `[10]`    | 1     | Device-class / rower-type byte | constant `1` on firmware V115; no published interpretation. Stefan Jenkner's parser ignores this position entirely. | ◑ constant in captures, meaning unverified |
+| `[11:13]` | 2     | **500 m split-pace minutes** as computed by the console | integer 00–99 (observed 01–10) | ✓ verified |
+| `[13:15]` | 2     | **500 m split-pace seconds** as computed by the console | integer 00–59 | ✓ verified |
+| `[15:18]` | 3     | Stroke rate (SPM)    | integer 000–999 (observed 00–37); hundreds digit always `0` in practice | ✓ verified |
 | `[18:21]` | 3     | Power                | integer watts (0–999 observed; 635 W peak) | ✓ verified |
-| `[21:24]` | 3     | Calories per hour ÷ 10 | integer; cal/hr = value × 10, computed from power and resistance level (L3 fit: cal/hr ≈ 3.43·W + 295, MAE 2.6 cal/hr) | ✓ verified |
-| `[24:25]` | 1     | Unknown single digit | 0–9, purpose unknown         | ✗ unknown |
+| `[21:25]` | 4     | Calories per hour    | integer 0–9999; matches the linear fit `cal/hr ≈ 3.43·W + 295` at level 3 (MAE 2.6 cal/hr across 167 active-rowing messages) | ✓ verified |
 | `[25:27]` | 2     | Resistance level     | integer 01–16, matches `L<n>` console response | ✓ verified |
 
-**Time decoding.** `MMMSST` is three digits of minutes, two digits of
-seconds, one digit of tenths-of-a-second. Seconds roll from `59` to `00`
-and increment the minute field — do **not** read the whole field as an
-integer counter. A naive integer read produces a gap at every minute
-rollover (e.g. `000570` → `001000`), which drove the initial misanalysis.
+**Time decoding.** `[1:3]` is integer minutes, `[3:5]` is integer
+seconds. Seconds roll from `59` to `00` and increment the minute
+field. The leading `[0]` digit is the high-order overflow nibble for
+elapsed time — `0` in all captured sessions. The earlier draft of
+this spec read `[0:6]` as `MMMSST` (three digits min, two sec, one
+tenths); under that framing the "tenths" digit was always `0`, which
+*looked* like a 1 Hz device tick but was actually the leading digit of
+the distance field. **The IPM does not transmit sub-second elapsed
+time.** Use host-side `ReceivedAt` if you need fractional resolution.
+
+**500 m split decoding.** The console publishes its **own smoothed
+500 m split-pace** in `[11:15]` (MM:SS) on every stroke. This is the
+value rendered on the rower's LCD — already-smoothed, already-paused
+correctly, identical to what the user sees on the hardware. Prefer
+this over any host-side derivation when available; the device split
+is `0:00` only before the first valid stroke and during long idle
+periods.
 
 Example decode of `004440103510222000249008303` (session-m3-long final message, level 3):
 
-| Field     | Raw     | Decoded   |
-|-----------|---------|-----------|
-| `[0:6]`   | `004440`| `4:44.0` (minutes) |
-| `[6:10]`  | `1035`  | `1035 m`  |
-| `[10:13]` | `102`   | marker    |
-| `[13:16]` | `220`   | unknown   |
-| `[16:18]` | `00`    | `0` SPM (handle parked at end) |
-| `[18:21]` | `249`   | `249 W`   |
-| `[21:24]` | `008`   | 80 cal/hr (handle parked; minimal burn) |
-| `[24:25]` | `3`     | unknown   |
-| `[25:27]` | `03`    | **Resistance level 3** |
+| Field     | Raw     | Decoded                                |
+|-----------|---------|----------------------------------------|
+| `[0]`     | `0`     | (overflow nibble, unused)              |
+| `[1:3]`   | `04`    | 4 minutes elapsed                      |
+| `[3:5]`   | `44`    | 44 seconds elapsed → 4:44              |
+| `[5:10]`  | `01035` | 1035 m                                 |
+| `[10]`    | `1`     | device-class byte (constant)           |
+| `[11:13]` | `02`    | split-pace minutes = 2                 |
+| `[13:15]` | `22`    | split-pace seconds = 22 → **2:22 /500m** |
+| `[15:18]` | `000`   | 0 SPM (handle parked at end)           |
+| `[18:21]` | `249`   | 249 W                                  |
+| `[21:25]` | `0083`  | 83 cal/hr (handle parked; minimal burn) |
+| `[25:27]` | `03`    | Resistance level 3                     |
 
 #### Verification evidence
 
@@ -208,51 +243,58 @@ Reference parser: [`traces/ipm_parser.py`](../../traces/ipm_parser.py). Run
 fixture; each CSV has one row per decoded A8 message with columns
 `capture_ts,time_sec,distance_m,spm,power_w,cal_per_hr,level,marker,unknown_13_16,footer_24_25,raw_payload`.
 
-#### Outstanding questions
+#### How earlier "unknowns" were resolved
 
-- **[10:13] marker** — almost always `102`. Observed deviations: `101`
-  (M2 high-power rows), `103` (first message of some sessions, plus a
-  few scattered), `104` (first message of M4). Not a stroke counter in
-  any slicing (full value nearly constant; last digit mostly `2`).
-  Purpose unknown; possibly a stroke-phase indicator, firmware-mode
-  flag, or state byte. Safe to pass through unchanged for now.
-- **[13:16] unknown 3-digit field** — not 500 m split time in `M:SS`
-  encoding (observed values like `380`, `460` have invalid seconds digit).
-  Not per-stroke drive time in centiseconds either (values too large in
-  M2). Not a stroke counter in any interpretation (full value, first
-  digit, or last two digits) — tested against the 171-message corpus.
-  **Side-finding**: across all 171 captured messages, the **last digit
-  is always 0** — i.e. values come in multiples of 10 (observed 000,
-  020, 030, 050, 060, 070, 080, 090, 100, 110, … 460). So the field
-  effectively encodes only 2 information-bearing digits plus a trailing
-  zero. Real meaning still open.
-- **[21:24] derived metric — calories per hour, divided by 10.** The
-  owner's manual lists cal/hr as a display field, and the value
-  reconstructs cleanly from power: a linear fit over all 167 active-rowing
-  messages gives `cal/hr ≈ 3.43·W + 294.5` (at the captured resistance
-  level 3) with mean absolute error **2.56 cal/hr**, essentially matching
-  perfectly. Example map: 41 W → 043 (430 cal/hr), 77 W → 056 (560), 131
-  W → 074 (740), 190 W → 095 (950), 290 W → 129 (1290), 404 W → 168
-  (1680), 635 W → 247 (2470). Per-level fits show the formula depends on
-  resistance level as the manual states — L1 slope 2.75, L2 3.41, L3
-  3.43, L4 3.61 (L1/L2/L4 each have ≤5 samples, so those coefficients
-  are indicative, not final). NOT a checksum: simple sum, XOR, weighted
-  sum, CRC-8 CCITT, and CRC-8 Maxim all failed to reproduce `[21:24]`
-  from the preceding bytes (0/171 or 1/171 matches).
-- **[24:25] single digit** — ruled out as a stroke counter (neither
-  strokes-per-interval nor cumulative-mod-10 match ΣSPM·Δt/60 across the
-  171-message corpus; see the stroke-count validation run documented in
-  FEAT-0007). Distribution is near-uniform over 0-9 across the large
-  M3-long sample. Likely a fractional part of an internal high-precision
-  metric (e.g. calories or a pace calculation) that the display rounds
-  off, or an unrelated state byte. Purpose remains unknown.
-- **Distance > 9999 m** — would require a 5-digit field. Untested; the
-  longest capture so far reached 1035 m.
+The original 2026-04-19 decode left three positions tagged uncertain
+(`[10:13]` marker, `[13:16]` unknown 3-digit, `[24:25]` unknown single
+digit) and gave `cal/hr` a `÷ 10` factor. Cross-checking against Stefan
+Jenkner's `fdf-console-monitor` parser in May 2026 showed the local
+decode had split several adjacent fields at the wrong boundary. Once
+re-aligned, three independent observations from the original analysis
+fall out as predictions of the corrected layout:
+
+1. **"`[13:16]` last digit is always 0"** — under the corrected
+   layout this position straddles `[13:15]` (split-pace seconds, 00–59)
+   and `[15:18]` (SPM, 000–999). The "trailing zero" we observed is
+   simply the hundreds digit of SPM, which is `0` for any human
+   stroke rate. The "47 distinct values 000–460 in multiples of 10"
+   is exactly what `split_seconds × 10 + 0` produces over the 60-value
+   range, minus values the rower never hit.
+2. **"`[24:25]` near-uniform 0-9 distribution"** — this is the units
+   digit of the 4-digit `cal/hr` field (0–9999). A slowly-varying
+   integer's LSB is by definition uniformly distributed across samples.
+3. **"Marker values `101 / 102 / 103 / 104 / 110`"** — the device-class
+   byte at `[10]` is constant `1`, and `[11:13]` holds split-pace
+   minutes. The five observed markers decompose as `1` + split-minutes
+   `01 / 02 / 03 / 04 / 10` — and the context the spec recorded for
+   each value matches: `101` (split-min 1) appeared in the M2 sprint
+   capture; `103` / `104` (split-min 3 / 4) appeared on session
+   openings; `110` (split-min 10) appeared on the first stroke of an
+   idle handle.
+
+The earlier `cal/hr ≈ 3.43·W + 295` linear fit (MAE 2.56 cal/hr)
+still holds — that work measured cal/hr accurately up to a factor-of-10
+ambiguity that the corrected 4-digit width pins down.
+
+#### Remaining open questions
+
+- **`[10]` device-class byte** — constant `1` on firmware V115. Stefan
+  Jenkner's parser ignores this position; the value's interpretation is
+  not published anywhere we found. Possibly a rower-class flag
+  (analogous to `5` in the older `A5` message family used on E316-era
+  consoles — see References). Safe to ignore unless a different unit
+  produces a different value.
 - **Session-end semantics** — in all captures the final A8 message has
-  `SPM=00` and the footer changes shape (more zeros). Whether the IPM
-  emits an explicit "session over" marker or simply stops is still
-  unclear. Idle-timeout detection in the host state machine is the safe
-  default regardless.
+  `SPM=00` and the level-trailing digits change. Whether the IPM emits
+  an explicit "session over" marker or simply stops is still unclear.
+  Idle-timeout detection in the host state machine is the safe default
+  regardless.
+- **Distance > 9999 m** — the field is now known to be 5 digits wide
+  (`[5:10]`), so the wraparound risk is past 100 km rather than 10 km;
+  still untested in practice.
+- **Sub-second timing** — confirmed *not* in the wire format. The
+  device clock is exposed only at 1 Hz. Host-side `ReceivedAt`
+  microsecond timestamps are the only way to recover finer resolution.
 
 ## State machine
 
@@ -372,9 +414,24 @@ Decision ADR to be written: ADR-0007 (Serial vs BLE FTMS).
 
 ## References
 
-- Golden Cheetah mailing list thread, "E316 Fluid Rower", 2016 — primary
-  source for the command catalogue above
-- First Degree Fitness FirstCoach (Windows) — behavioural reference; can
-  be USB-sniffed on Windows if the protocol capture on macOS is
-  inconclusive
-- Life Fitness Row GX / Row HX owner's manuals on manualslib
+- **Stefan Jenkner, `fdf-console-monitor`** —
+  <https://github.com/stefanjenkner/fdf-console-monitor>. Go parser for
+  the A8 message family, with field offsets verified against a
+  shipping FDF console. The 2026-05-24 revision of this spec adopts
+  its layout for `[5:10]` distance, `[11:15]` split-pace, `[15:18]`
+  SPM, and `[21:25]` cal/hr. The companion recorder
+  (<https://github.com/stefanjenkner/fdf-console-recorder>) captures
+  raw frames suitable for replay.
+- **`unrzn0/fdf`** — <https://github.com/unrzn0/fdf>. ESP32-based
+  alternative console. Less complete than Jenkner's but a useful
+  second opinion on field meanings.
+- **Golden Cheetah users list, "E316 Fluid Rower" thread (2016)** —
+  <https://groups.google.com/g/golden-cheetah-users/c/d1xGZZ68X1s>.
+  Primary source for the command catalogue and the older `A5`
+  message-family decode, where the device-class byte at `[10]` was
+  observed as `5` (16-level rower).
+- **First Degree Fitness FirstCoach (Windows)** — behavioural
+  reference; can be USB-sniffed on Windows if a future protocol
+  question can't be answered from captures.
+- **Life Fitness Row GX / Row HX owner's manuals** on manualslib —
+  product-level docs (no protocol detail).
