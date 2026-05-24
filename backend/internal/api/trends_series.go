@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"database/sql"
 	"encoding/json"
 	"sort"
 	"strconv"
@@ -159,4 +161,34 @@ func formatMeters(m int) string {
 		return strconv.Itoa(whole) + "," + strconv.Itoa(tenths) + " k"
 	}
 	return strconv.Itoa(m) + " m"
+}
+
+// attachPBs populates trendsSeries.PBPaceSecPer500m for distance/race
+// series by looking up the matching pb_distance row. Mutates series
+// in place. Best-effort: a missing PB leaves the field at zero, which
+// the client treats as "no PB to render."
+func attachPBs(ctx context.Context, db *sql.DB, rowerID string, series []trendsSeries) {
+	for i := range series {
+		mode := series[i].Key.Mode
+		if mode != "distance" && mode != "race" {
+			continue
+		}
+		var p struct {
+			Meters int `json:"meters"`
+		}
+		if err := json.Unmarshal(series[i].ParamsJSON, &p); err != nil || p.Meters <= 0 {
+			continue
+		}
+		var timeSec sql.NullFloat64
+		err := db.QueryRowContext(ctx, `
+			SELECT time_sec FROM pb_distance
+			WHERE rower_id = ? AND distance_m = ? AND invalidated_at IS NULL
+			LIMIT 1`,
+			rowerID, p.Meters).Scan(&timeSec)
+		if err != nil || !timeSec.Valid || timeSec.Float64 <= 0 {
+			continue
+		}
+		// pace per 500m = total_time / (meters / 500)
+		series[i].PBPaceSecPer500m = timeSec.Float64 / (float64(p.Meters) / 500.0)
+	}
 }
