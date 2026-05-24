@@ -39,8 +39,14 @@ test('live view: hero metrics match the fixture within EMA tolerances', async ({
   await home.open()
   await home.startFreeRow()
 
-  // Need ≥2 strokes to seed pace EMA. With realtime pacing strokes
-  // arrive every 2–3 s; allow up to 20 s for the first valid split.
-  await live.waitForLiveSplit(20_000)
+  // Wait past the device's warmup-period transients before asserting.
+  // The IPM ships its first frame with a sentinel split-pace (10:45
+  // /500 m on this fixture) until it has enough data to compute a
+  // real value. Holding for ~50 m of distance guarantees several
+  // strokes have arrived; the helper also asserts no hero metric is
+  // "—", which is the regression we're guarding against (a missing
+  // wire field renders as a perpetual em-dash even when the rest of
+  // the row is fine).
+  await live.waitForHeroSettled(50, 30_000)
   await live.expectHeroMatchesFixture(fx)
 })
