@@ -155,52 +155,26 @@ func (p *FixtureProducer) Run(ctx context.Context, out chan<- Frame) error {
 // parseRow decodes one CSV record into a Frame plus its capture_ts for
 // pacing. Returns a wrapped error identifying the offending column; the
 // caller adds the row number.
+// parseRow only needs the capture_ts (for pacing) and the raw_payload
+// (which it decodes through the live parser). Other CSV columns are
+// pre-decoded values from the original Python script — kept in the
+// fixtures for human readability but no longer trusted here, since
+// the May-2026 spec revision changed several field boundaries.
 func parseRow(rec []string, idx csvIndex) (float64, Frame, error) {
 	captureTS, err := parseFloat(rec[idx.captureTS], "capture_ts")
 	if err != nil {
 		return 0, Frame{}, err
 	}
-	timeSec, err := parseFloat(rec[idx.timeSec], "time_sec")
-	if err != nil {
-		return 0, Frame{}, err
+	payload := rec[idx.rawPayload]
+	frame, ok := decodeA8Line("A8" + payload)
+	if !ok {
+		return 0, Frame{}, fmt.Errorf("raw_payload %q: not a well-formed A8 message", payload)
 	}
-	distanceM, err := parseInt(rec[idx.distanceM], "distance_m")
-	if err != nil {
-		return 0, Frame{}, err
-	}
-	spm, err := parseInt(rec[idx.spm], "spm")
-	if err != nil {
-		return 0, Frame{}, err
-	}
-	powerW, err := parseInt(rec[idx.powerW], "power_w")
-	if err != nil {
-		return 0, Frame{}, err
-	}
-	calPerHr, err := parseInt(rec[idx.calPerHr], "cal_per_hr")
-	if err != nil {
-		return 0, Frame{}, err
-	}
-	level, err := parseInt(rec[idx.level], "level")
-	if err != nil {
-		return 0, Frame{}, err
-	}
-	return captureTS, Frame{
-		TimeSec:    timeSec,
-		DistanceM:  distanceM,
-		Marker:     rec[idx.marker],
-		Unknown:    rec[idx.unknown],
-		SPM:        spm,
-		PowerW:     powerW,
-		CalPerHr:   calPerHr,
-		Footer:     rec[idx.footer],
-		Level:      level,
-		RawPayload: rec[idx.rawPayload],
-	}, nil
+	return captureTS, frame, nil
 }
 
 type csvIndex struct {
-	captureTS, timeSec, distanceM, spm, powerW, calPerHr, level int
-	marker, unknown, footer, rawPayload                         int
+	captureTS, rawPayload int
 }
 
 func indexHeader(h []string) (csvIndex, error) {
@@ -214,26 +188,11 @@ func indexHeader(h []string) (csvIndex, error) {
 	}
 	var idx csvIndex
 	var err error
-	cols := []struct {
-		name string
-		dst  *int
-	}{
-		{"capture_ts", &idx.captureTS},
-		{"time_sec", &idx.timeSec},
-		{"distance_m", &idx.distanceM},
-		{"spm", &idx.spm},
-		{"power_w", &idx.powerW},
-		{"cal_per_hr", &idx.calPerHr},
-		{"level", &idx.level},
-		{"marker", &idx.marker},
-		{"unknown_13_16", &idx.unknown},
-		{"footer_24_25", &idx.footer},
-		{"raw_payload", &idx.rawPayload},
+	if idx.captureTS, err = find("capture_ts"); err != nil {
+		return csvIndex{}, err
 	}
-	for _, c := range cols {
-		if *c.dst, err = find(c.name); err != nil {
-			return csvIndex{}, err
-		}
+	if idx.rawPayload, err = find("raw_payload"); err != nil {
+		return csvIndex{}, err
 	}
 	return idx, nil
 }
@@ -246,10 +205,3 @@ func parseFloat(s, field string) (float64, error) {
 	return v, nil
 }
 
-func parseInt(s, field string) (int, error) {
-	v, err := strconv.Atoi(s)
-	if err != nil {
-		return 0, fmt.Errorf("%s %q: %w", field, s, err)
-	}
-	return v, nil
-}

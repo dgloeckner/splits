@@ -491,20 +491,27 @@ func (s *Sessionizer) enrich(f ipm.Frame) event.StrokePayload {
 		p.EnergyJoules = EnergyJoules(f.PowerW, p.StrokeCycleSec)
 	}
 
-	// Host-time windowed live split (see livePace.go). The wire field
-	// pace_sec_per_500m carries the windowed result. The ring buffer
-	// is capped at recentStrokesCap, which comfortably exceeds the
-	// number of strokes that fit in LivePaceWindow even at high SPM.
+	// Prefer the rower console's own smoothed 500 m split (wire field
+	// [11:15]). It matches the LCD readout exactly — same smoothing,
+	// same pause behaviour — and removes both the integer-second
+	// jitter and the post-pause inflation our host-side derivation
+	// suffered from. Falls back to host-time LivePace only when the
+	// device hasn't computed a value yet (cold start / mid-pause).
 	s.session.recentStrokes = appendAndTrimWindow(s.session.recentStrokes, p, recentStrokesCap)
-	pace, kind := LivePace(s.session.recentStrokes, LivePaceWindow, LivePacePauseThreshold)
-	switch kind {
-	case LivePaceValue:
-		s.session.lastLivePace = pace
-		p.PaceSecPer500m = pace
-	case LivePaceHeld:
-		p.PaceSecPer500m = s.session.lastLivePace
-	case LivePaceEmpty:
-		p.PaceSecPer500m = 0
+	if f.DeviceSplitPaceSec > 0 {
+		s.session.lastLivePace = f.DeviceSplitPaceSec
+		p.PaceSecPer500m = f.DeviceSplitPaceSec
+	} else {
+		pace, kind := LivePace(s.session.recentStrokes, LivePaceWindow, LivePacePauseThreshold)
+		switch kind {
+		case LivePaceValue:
+			s.session.lastLivePace = pace
+			p.PaceSecPer500m = pace
+		case LivePaceHeld:
+			p.PaceSecPer500m = s.session.lastLivePace
+		case LivePaceEmpty:
+			p.PaceSecPer500m = 0
+		}
 	}
 	return p
 }

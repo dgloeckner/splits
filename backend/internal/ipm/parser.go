@@ -80,22 +80,25 @@ func decodeA8Line(line string) (Frame, bool) {
 		}
 	}
 
-	// INT-0001 field layout.
-	minutes := mustAtoi(payload[0:3])
+	// INT-0001 field layout (revised May 2026 — see Frame doc comment).
+	// payload[0] is a high-order overflow nibble for elapsed time; in
+	// practice always '0' and not surfaced. Reading min from [1:3] and
+	// sec from [3:5] (no sub-second component on the wire).
+	minutes := mustAtoi(payload[1:3])
 	seconds := mustAtoi(payload[3:5])
-	tenths := mustAtoi(payload[5:6])
+	splitMin := mustAtoi(payload[11:13])
+	splitSec := mustAtoi(payload[13:15])
 
 	return Frame{
-		TimeSec:    float64(minutes)*60 + float64(seconds) + float64(tenths)/10,
-		DistanceM:  mustAtoi(payload[6:10]),
-		Marker:     payload[10:13],
-		Unknown:    payload[13:16],
-		SPM:        mustAtoi(payload[16:18]),
-		PowerW:     mustAtoi(payload[18:21]),
-		CalPerHr:   mustAtoi(payload[21:24]) * 10,
-		Footer:     payload[24:25],
-		Level:      mustAtoi(payload[25:27]),
-		RawPayload: payload,
+		TimeSec:            float64(minutes)*60 + float64(seconds),
+		DistanceM:          mustAtoi(payload[5:10]),
+		DeviceClass:        payload[10:11],
+		DeviceSplitPaceSec: splitMin*60 + splitSec,
+		SPM:                mustAtoi(payload[15:18]),
+		PowerW:             mustAtoi(payload[18:21]),
+		CalPerHr:           mustAtoi(payload[21:25]),
+		Level:              mustAtoi(payload[25:27]),
+		RawPayload:         payload,
 	}, true
 }
 

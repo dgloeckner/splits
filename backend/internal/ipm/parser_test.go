@@ -13,9 +13,16 @@ import (
 	"time"
 )
 
-// One valid A8 record from session-m1.csv row 1:
-//   time_sec=2.0, distance_m=8, spm=21, power_w=77, cal_per_hr=560,
-//   level=3, raw_payload=000020000810238021077056403
+// One valid A8 record from session-m1.csv row 1. Decoded under the
+// corrected May-2026 field layout:
+//   - elapsed = 2 s        ([1:5])
+//   - distance = 8 m       ([5:10])
+//   - device-class = "1"   ([10])
+//   - split = 2:38 /500m  ([11:15] = "0238" → 2 min 38 sec → 158 s)
+//   - SPM = 21             ([15:18])  (3 digits, was 2)
+//   - power = 77 W         ([18:21])
+//   - cal/hr = 564         ([21:25])  (4 digits — old parser read 560)
+//   - level = 3            ([25:27])
 const validA8Line = "A8000020000810238021077056403\r\n"
 
 func TestParse_SingleValidA8(t *testing.T) {
@@ -34,14 +41,20 @@ func TestParse_SingleValidA8(t *testing.T) {
 		if f.DistanceM != 8 {
 			t.Errorf("DistanceM = %d, want 8", f.DistanceM)
 		}
+		if f.DeviceClass != "1" {
+			t.Errorf("DeviceClass = %q, want \"1\"", f.DeviceClass)
+		}
+		if f.DeviceSplitPaceSec != 2*60+38 {
+			t.Errorf("DeviceSplitPaceSec = %d, want %d", f.DeviceSplitPaceSec, 2*60+38)
+		}
 		if f.SPM != 21 {
 			t.Errorf("SPM = %d, want 21", f.SPM)
 		}
 		if f.PowerW != 77 {
 			t.Errorf("PowerW = %d, want 77", f.PowerW)
 		}
-		if f.CalPerHr != 560 {
-			t.Errorf("CalPerHr = %d, want 560", f.CalPerHr)
+		if f.CalPerHr != 564 {
+			t.Errorf("CalPerHr = %d, want 564", f.CalPerHr)
 		}
 		if f.Level != 3 {
 			t.Errorf("Level = %d, want 3", f.Level)
@@ -220,16 +233,35 @@ func assertFrame(t *testing.T, i int, f Frame, row map[string]string) {
 			t.Errorf("row %d %s: got %v, want %v", i, field, got, want)
 		}
 	}
+	// Stable fields — unchanged by the May-2026 spec revision.
 	check("time_sec", f.TimeSec, atoF(t, row["time_sec"]))
 	check("distance_m", f.DistanceM, atoI(t, row["distance_m"]))
 	check("spm", f.SPM, atoI(t, row["spm"]))
 	check("power_w", f.PowerW, atoI(t, row["power_w"]))
-	check("cal_per_hr", f.CalPerHr, atoI(t, row["cal_per_hr"]))
 	check("level", f.Level, atoI(t, row["level"]))
-	check("marker", f.Marker, row["marker"])
-	check("unknown_13_16", f.Unknown, row["unknown_13_16"])
-	check("footer_24_25", f.Footer, row["footer_24_25"])
 	check("raw_payload", f.RawPayload, row["raw_payload"])
+
+	// cal_per_hr — the original CSV truncated the units digit
+	// (only the 3-digit [21:24] field was read, then ×10). The
+	// new parser reads the full 4-digit [21:25] field, so the
+	// expected value is (old × 10 cap) + the old "footer_24_25"
+	// digit. This is the cleanest proof that the units digit
+	// belongs to cal/hr.
+	oldCal := atoI(t, row["cal_per_hr"])
+	footer := atoI(t, row["footer_24_25"])
+	check("cal_per_hr (new = old + footer LSB)", f.CalPerHr, oldCal+footer)
+
+	// Device-class byte sits where the original "marker" field's
+	// first digit was. On firmware V115 this is constant "1".
+	check("device_class (first marker digit)", f.DeviceClass, row["marker"][0:1])
+
+	// Device split-pace: the original "marker" was 3 digits whose
+	// last two are split-minutes, and the original "unknown_13_16"
+	// was 3 digits whose first two are split-seconds. Reassemble
+	// to verify the new decoder agrees.
+	splitMin := atoI(t, row["marker"][1:3])
+	splitSec := atoI(t, row["unknown_13_16"][0:2])
+	check("device_split_pace_sec", f.DeviceSplitPaceSec, splitMin*60+splitSec)
 }
 
 func atoI(t *testing.T, s string) int {

@@ -205,11 +205,18 @@ func feedStrokes(ctx context.Context, strokes []event.StrokePayload, in chan<- i
 			ReceivedAt: next,
 			TimeSec:    p.TimeSec,
 			DistanceM:  p.DistanceM,
-			SPM:        p.SPM,
-			PowerW:     p.PowerW,
-			CalPerHr:   p.CalPerHr,
-			Level:      p.Level,
-			RawPayload: p.RawPayload,
+			// Replay strokes don't preserve the original
+			// DeviceSplitPaceSec separately from PaceSecPer500m
+			// (the persisted value is the chosen output). Feed it
+			// back as the device value so the sessionizer reproduces
+			// the same split per stroke instead of falling back to
+			// LivePace on every replayed frame.
+			DeviceSplitPaceSec: p.PaceSecPer500m,
+			SPM:                p.SPM,
+			PowerW:             p.PowerW,
+			CalPerHr:           p.CalPerHr,
+			Level:              p.Level,
+			RawPayload:         p.RawPayload,
 		}
 		select {
 		case in <- f:
