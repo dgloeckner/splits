@@ -104,3 +104,24 @@ degradation — and deserves a different chart).
 - The 0003a spec wording "one series per standard distance" is
   **narrower** than this ADR's "one series per workout shape" —
   this ADR supersedes that phrasing.
+
+## Amendment (2026-05-24): Series key uses canonical params, not shape_hash
+
+Smoke-testing against real production data revealed that `workout.shape_hash`
+includes `warmup_sec` and `cooldown_sec` (see `backend/internal/workout/hash.go`).
+For PB canonicalisation that distinction matters; for trend comparability it
+does not — a rower thinks of "5 k" as a single piece regardless of whether the
+session had a 60 s or 120 s warmup. Under the v1 ≥3-completed-sessions threshold,
+keying on `shape_hash` caused real rowers' 5 k pieces to split into multiple
+sub-threshold series, producing an empty chart where a clean 4-point series
+should have appeared.
+
+**Revised decision:** Trend series are keyed on `(mode, canonical(params))`,
+where `canonical(params)` is the workout's `params_json` re-marshaled with
+sorted keys. Warmup and cooldown durations are NOT part of the trend-series
+identity. The JSON wire field name remains `key.shape_hash` for backwards
+compatibility; its value is now the canonicalized-params string rather than
+the original `workout.shape_hash`.
+
+`workout.shape_hash` continues to be used by the PB pipeline. Only the trends
+API was wrong to inherit that hash for grouping.
