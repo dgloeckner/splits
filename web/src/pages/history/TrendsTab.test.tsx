@@ -29,6 +29,8 @@ function trendsBody(over: Partial<{ sessions: number; range: string }> = {}) {
       delta_dps: 0.4,
       delta_spi: 0.2,
     },
+    series: [],
+    efficiency_series: [],
     stats_version: 1,
   }
 }
