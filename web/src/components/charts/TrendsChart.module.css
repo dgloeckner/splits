@@ -1,0 +1,130 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.strip {
+  padding: 8px 12px;
+  font-family: var(--font-mono, 'SF Mono', monospace);
+  line-height: 1.4;
+  background: var(--surface-2, #111);
+  color: var(--text, #eee);
+}
+
+.stripDate {
+  font-size: 12px;
+  opacity: 0.6;
+  margin-bottom: 4px;
+}
+
+.stripRow {
+  display: grid;
+  grid-template-columns: 12px 1fr auto auto;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 14px;
+}
+
+.stripRowMuted {
+  opacity: 0.75;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent, #4ade80);
+}
+
+.dotNeutral {
+  background: transparent;
+  border: 1px solid var(--text-muted, #888);
+}
+
+.stripValue {
+  font-weight: 600;
+}
+
+.stripDelta {
+  font-size: 11px;
+}
+
+.stripDeltaImprovement {
+  color: var(--accent, #4ade80);
+}
+
+.stripDeltaRegression {
+  color: var(--text-muted, #888);
+}
+
+.svg {
+  display: block;
+  width: 100%;
+  background: var(--surface-1, #0a0a0a);
+}
+
+.grid {
+  stroke: var(--border-faint, #222);
+  stroke-width: 0.5;
+}
+
+.baseline {
+  stroke: var(--border, #333);
+  stroke-width: 0.5;
+}
+
+.axisLabel {
+  fill: var(--text-muted, #888);
+  font-size: 9px;
+  font-family: var(--font-mono, 'SF Mono', monospace);
+}
+
+.rollingPath {
+  fill: none;
+  stroke: var(--text-muted, #888);
+  stroke-width: 1.2;
+  stroke-dasharray: 3 3;
+}
+
+.seriesPathPrimary {
+  fill: none;
+  stroke: var(--accent, #4ade80);
+  stroke-width: 1.75;
+}
+
+.seriesPathNeutral {
+  fill: none;
+  stroke: var(--text-muted, #888);
+  stroke-width: 1.75;
+}
+
+.seriesPathDashed {
+  stroke-dasharray: 4 3;
+}
+
+.dotPrimary {
+  fill: var(--accent, #4ade80);
+}
+
+.dotNeutralFill {
+  fill: var(--text-muted, #888);
+}
+
+.guideline {
+  stroke: var(--accent, #4ade80);
+  stroke-width: 1;
+  stroke-opacity: 0.5;
+}
+
+.activeRing {
+  fill: none;
+  stroke: var(--accent, #4ade80);
+  stroke-width: 1.2;
+  stroke-opacity: 0.7;
+}
+
+.capture {
+  fill: transparent;
+  cursor: crosshair;
+  touch-action: none;
+}
