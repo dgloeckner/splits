@@ -201,7 +201,6 @@ export type TrendsResponse = {
 }
 
 export type TrendsSeriesKey = {
-  mode: string
   shape_hash: string
 }
 

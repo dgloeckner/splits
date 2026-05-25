@@ -152,13 +152,13 @@ function LeistungChart({ series }: { series: TrendsSeries[] }) {
         {series.slice(0, 2).map((s, i) => {
           const last = s.points[s.points.length - 1]
           return (
-            <div key={`${s.key.mode}|${s.key.shape_hash}`} className={styles.legendRow}>
+            <div key={s.key.shape_hash} className={styles.legendRow}>
               <span className={i === 1 ? `${styles.dot} ${styles.dotNeutral}` : styles.dot} />{' '}
               {s.display_name}: {pace500m(last.avg_pace_sec_per_500m) ?? '—'}
               {s.pb_pace_sec_per_500m ? (
                 <>
                   {' '}
-                  <small data-testid={`pb-${s.key.mode}-${s.key.shape_hash}`}>
+                  <small data-testid={`pb-${s.key.shape_hash}`}>
                     PB {pace500m(s.pb_pace_sec_per_500m) ?? '—'}
                   </small>
                 </>

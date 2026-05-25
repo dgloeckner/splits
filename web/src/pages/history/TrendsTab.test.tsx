@@ -140,7 +140,7 @@ describe('TrendsTab series threshold (ADR-0015)', () => {
         const body = trendsBody()
         body.series = [
           {
-            key: { mode: 'distance', shape_hash: 'H' },
+            key: { shape_hash: 'H' },
             params: { meters: 5000 },
             display_name: '5 k',
             points: [
@@ -177,7 +177,7 @@ describe('TrendsTab series threshold (ADR-0015)', () => {
         const body = trendsBody()
         body.series = [
           {
-            key: { mode: 'distance', shape_hash: 'H' },
+            key: { shape_hash: 'H' },
             params: { meters: 5000 },
             display_name: '5 k',
             pb_pace_sec_per_500m: 108.2,
@@ -186,7 +186,7 @@ describe('TrendsTab series threshold (ADR-0015)', () => {
         ]
         body.efficiency_series = [
           {
-            key: { mode: 'distance', shape_hash: 'H' },
+            key: { shape_hash: 'H' },
             params: { meters: 5000 },
             display_name: '5 k',
             points: pts(4),
@@ -198,7 +198,7 @@ describe('TrendsTab series threshold (ADR-0015)', () => {
     })
     wrap()
     expect(await screen.findAllByTestId('dlc-primary')).not.toHaveLength(0)
-    expect(screen.getByTestId('pb-distance-H')).toBeInTheDocument()
+    expect(screen.getByTestId('pb-H')).toBeInTheDocument()
     expect(screen.queryByTestId('leistung-empty')).not.toBeInTheDocument()
   })
 })
