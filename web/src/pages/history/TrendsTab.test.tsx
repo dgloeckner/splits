@@ -197,8 +197,8 @@ describe('TrendsTab series threshold (ADR-0015)', () => {
       return null as unknown as Response
     })
     wrap()
-    expect(await screen.findAllByTestId('dlc-primary')).not.toHaveLength(0)
-    expect(screen.getByTestId('pb-H')).toBeInTheDocument()
+    expect(await screen.findAllByTestId('trends-strip-date')).not.toHaveLength(0)
+    expect(screen.getAllByTestId('trends-chart-dot').length).toBeGreaterThan(0)
     expect(screen.queryByTestId('leistung-empty')).not.toBeInTheDocument()
   })
 })

@@ -1,8 +1,8 @@
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { getRowerTrends, type TrendsRange, type TrendsResponse, type TrendsSeries } from '../../api/client'
 import { useActiveRower } from '../../hooks/useActiveRower'
-import { DualLineChart, type Series } from '../../components/DualLineChart/DualLineChart'
+import { TrendsChart, type TrendsChartSeries } from '../../components/charts/TrendsChart'
 import { fmtFloat, pace500m } from '../../util/format'
 import { RangeTabs } from './RangeTabs'
 import { TrendsHeadlineCard } from './TrendsHeadlineCard'
@@ -87,7 +87,7 @@ export function TrendsTab() {
             </div>
           )
         }
-        return <TrendsContent data={data} />
+        return <TrendsContent data={data} range={range} />
       })()}
     </div>
   )
@@ -95,7 +95,7 @@ export function TrendsTab() {
 
 const SERIES_THRESHOLD = 3
 
-function TrendsContent({ data }: { data: TrendsResponse }) {
+function TrendsContent({ data, range }: { data: TrendsResponse; range: TrendsRange }) {
   const perfSeries = data.series.filter((s) => s.points.length >= SERIES_THRESHOLD)
   const effSeries = data.efficiency_series.filter((s) => s.points.length >= SERIES_THRESHOLD)
 
@@ -107,20 +107,21 @@ function TrendsContent({ data }: { data: TrendsResponse }) {
         <header className={styles.cardHead}>
           <span className={styles.cardTitle}>Leistung</span>
         </header>
-        <LeistungChart series={perfSeries} />
+        <LeistungChart series={perfSeries} range={range} />
       </section>
 
       <section className={styles.card} aria-label="Effizienz">
         <header className={styles.cardHead}>
           <span className={styles.cardTitle}>Effizienz</span>
         </header>
-        <EffizienzChart series={effSeries} />
+        <EffizienzChart series={effSeries} range={range} />
       </section>
     </>
   )
 }
 
-function LeistungChart({ series }: { series: TrendsSeries[] }) {
+function LeistungChart({ series, range }: { series: TrendsSeries[]; range: TrendsRange }) {
+  const navigate = useNavigate()
   if (series.length === 0) {
     return (
       <p className={styles.placeholder} data-testid="leistung-empty">
@@ -128,51 +129,31 @@ function LeistungChart({ series }: { series: TrendsSeries[] }) {
       </p>
     )
   }
-  // Primary = most-rowed series (API already sorts by point count desc).
-  const primary: Series = {
-    label: `${series[0].display_name} · Ø Split`,
-    variant: 'solid',
-    tone: 'primary',
+  const chartSeries: TrendsChartSeries[] = series.slice(0, 2).map((s, i) => ({
+    key: s.key.shape_hash,
+    label: s.display_name,
+    tone: i === 0 ? 'primary' : 'neutral',
+    variant: i === 0 ? 'solid' : 'dashed',
     fmt: (v) => pace500m(v) ?? '—',
-    points: series[0].points.map((p) => ({ x: tToX(p.t), y: p.avg_pace_sec_per_500m })),
-  }
-  const secondary: Series | undefined =
-    series.length >= 2
-      ? {
-          label: `${series[1].display_name} · Ø Split`,
-          variant: 'dashed',
-          tone: 'neutral',
-          fmt: (v) => pace500m(v) ?? '—',
-          points: series[1].points.map((p) => ({ x: tToX(p.t), y: p.avg_pace_sec_per_500m })),
-        }
-      : undefined
+    invertImprovement: true,
+    points: s.points.map((p) => ({
+      t: new Date(p.t).getTime(),
+      y: p.avg_pace_sec_per_500m,
+      sessionId: p.session_id,
+    })),
+  }))
   return (
-    <>
-      <div className={styles.legend}>
-        {series.slice(0, 2).map((s, i) => {
-          const last = s.points[s.points.length - 1]
-          return (
-            <div key={s.key.shape_hash} className={styles.legendRow}>
-              <span className={i === 1 ? `${styles.dot} ${styles.dotNeutral}` : styles.dot} />{' '}
-              {s.display_name}: {pace500m(last.avg_pace_sec_per_500m) ?? '—'}
-              {s.pb_pace_sec_per_500m ? (
-                <>
-                  {' '}
-                  <small data-testid={`pb-${s.key.shape_hash}`}>
-                    PB {pace500m(s.pb_pace_sec_per_500m) ?? '—'}
-                  </small>
-                </>
-              ) : null}
-            </div>
-          )
-        })}
-      </div>
-      <DualLineChart primary={primary} secondary={secondary} />
-    </>
+    <TrendsChart
+      series={chartSeries}
+      range={range}
+      rollingFor="primary-only"
+      onDotTap={(id) => navigate(`/historie/${id}`)}
+    />
   )
 }
 
-function EffizienzChart({ series }: { series: TrendsSeries[] }) {
+function EffizienzChart({ series, range }: { series: TrendsSeries[]; range: TrendsRange }) {
+  const navigate = useNavigate()
   if (series.length === 0) {
     return (
       <p className={styles.placeholder} data-testid="effizienz-empty">
@@ -180,41 +161,39 @@ function EffizienzChart({ series }: { series: TrendsSeries[] }) {
       </p>
     )
   }
-  // Use the most-rowed series; DPS solid, SPI dashed.
   const s0 = series[0]
-  const dps: Series = {
-    label: `${s0.display_name} · Ø DPS`,
-    variant: 'solid',
-    tone: 'primary',
-    fmt: (v) => fmtFloat(v, 1),
-    points: s0.points.map((p) => ({ x: tToX(p.t), y: p.avg_dps })),
-  }
-  const spi: Series = {
-    label: `${s0.display_name} · Ø SPI`,
-    variant: 'dashed',
-    tone: 'neutral',
-    fmt: (v) => fmtFloat(v, 1),
-    points: s0.points.map((p) => ({ x: tToX(p.t), y: p.avg_spi })),
-  }
-  const last = s0.points[s0.points.length - 1]
+  const chartSeries: TrendsChartSeries[] = [
+    {
+      key: `${s0.key.shape_hash}-dps`,
+      label: 'Ø DPS',
+      tone: 'primary',
+      variant: 'solid',
+      fmt: (v) => fmtFloat(v, 1),
+      points: s0.points.map((p) => ({
+        t: new Date(p.t).getTime(),
+        y: p.avg_dps,
+        sessionId: p.session_id,
+      })),
+    },
+    {
+      key: `${s0.key.shape_hash}-spi`,
+      label: 'Ø SPI',
+      tone: 'neutral',
+      variant: 'dashed',
+      fmt: (v) => fmtFloat(v, 1),
+      points: s0.points.map((p) => ({
+        t: new Date(p.t).getTime(),
+        y: p.avg_spi,
+        sessionId: p.session_id,
+      })),
+    },
+  ]
   return (
-    <>
-      <div className={styles.legend}>
-        <div className={styles.legendRow}>
-          <span className={styles.dot} /> Ø DPS: {fmtFloat(last.avg_dps, 1)}
-        </div>
-        <div className={styles.legendRow}>
-          <span className={`${styles.dot} ${styles.dotNeutral}`} /> Ø SPI:{' '}
-          {fmtFloat(last.avg_spi, 1)}
-        </div>
-      </div>
-      <DualLineChart primary={dps} secondary={spi} />
-    </>
+    <TrendsChart
+      series={chartSeries}
+      range={range}
+      rollingFor="none"
+      onDotTap={(id) => navigate(`/historie/${id}`)}
+    />
   )
-}
-
-function tToX(iso: string): number {
-  const d = new Date(iso)
-  const t = d.getTime()
-  return Number.isFinite(t) ? t : 0
 }
