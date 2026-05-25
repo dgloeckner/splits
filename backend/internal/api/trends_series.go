@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strconv"
 	"time"
+
+	"github.com/gloeckner-daniel/splits/internal/workout"
 )
 
 // completionFraction is the floor for "completed": a session must
@@ -14,29 +16,26 @@ import (
 // aggregates. See CONTEXT.md §Trends.
 const completionFraction = 0.8
 
-// isCompletedSession returns true iff the session reached the
-// completion threshold for its workout mode. Returns false for
-// intervals (deferred) and just_row (no target).
+// isCompletedSession returns true iff the session reached the completion
+// threshold for its workout mode. Routes through workout.DecodeParams so
+// the per-mode params schema is the single source of truth — eliminates
+// the class of bug where this helper and workout.Params disagree on a
+// field name. Returns false for intervals (deferred), just_row (no
+// target), and any malformed params.
 func isCompletedSession(mode string, params json.RawMessage, totalDistanceM int, totalTimeSec float64) bool {
-	switch mode {
-	case "distance", "race":
-		var p struct {
-			Meters int `json:"meters"`
-		}
-		if err := json.Unmarshal(params, &p); err != nil || p.Meters <= 0 {
-			return false
-		}
-		return float64(totalDistanceM) >= completionFraction*float64(p.Meters)
-	case "time":
-		var p struct {
-			Sec int `json:"sec"`
-		}
-		if err := json.Unmarshal(params, &p); err != nil || p.Sec <= 0 {
-			return false
-		}
-		return totalTimeSec >= completionFraction*float64(p.Sec)
+	p, err := workout.DecodeParams(workout.Mode(mode), params)
+	if err != nil {
+		return false
 	}
-	// intervals, just_row, or unknown mode → not in trend series.
+	switch {
+	case p.Distance != nil:
+		return float64(totalDistanceM) >= completionFraction*float64(p.Distance.Meters)
+	case p.Race != nil:
+		return float64(totalDistanceM) >= completionFraction*float64(p.Race.Meters)
+	case p.Time != nil:
+		return totalTimeSec >= completionFraction*float64(p.Time.Seconds)
+	}
+	// just_row, intervals, or unknown → not in trend series.
 	return false
 }
 
@@ -119,29 +118,22 @@ func assembleSeries(rows []sessionRow) []trendsSeries {
 	return out
 }
 
-// displayNameForShape returns a human-readable label like "5 k", "Race 2 k",
-// "20 min" for the chart legend / strip readout.
+// displayNameForShape returns the German chart label for a workout.
+// Race and distance with the same meters render identically (see
+// ADR-0015 2026-05-25 amendment — they share both PB row and trend
+// series). Best-effort: malformed params fall back to the mode string.
 func displayNameForShape(mode string, params json.RawMessage) string {
-	switch mode {
-	case "distance":
-		var p struct {
-			Meters int `json:"meters"`
-		}
-		_ = json.Unmarshal(params, &p)
-		return formatMeters(p.Meters)
-	case "race":
-		var p struct {
-			Meters int `json:"meters"`
-		}
-		_ = json.Unmarshal(params, &p)
-		return "Race " + formatMeters(p.Meters)
-	case "time":
-		var p struct {
-			Sec int `json:"sec"`
-		}
-		_ = json.Unmarshal(params, &p)
-		mins := p.Sec / 60
-		return strconv.Itoa(mins) + " min"
+	p, err := workout.DecodeParams(workout.Mode(mode), params)
+	if err != nil {
+		return mode
+	}
+	switch {
+	case p.Distance != nil:
+		return formatMeters(p.Distance.Meters)
+	case p.Race != nil:
+		return formatMeters(p.Race.Meters)
+	case p.Time != nil:
+		return strconv.Itoa(p.Time.Seconds/60) + " min"
 	}
 	return mode
 }
