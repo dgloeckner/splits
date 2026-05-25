@@ -104,3 +104,71 @@ degradation — and deserves a different chart).
 - The 0003a spec wording "one series per standard distance" is
   **narrower** than this ADR's "one series per workout shape" —
   this ADR supersedes that phrasing.
+
+## Amendment (2026-05-24): Series key uses canonical params, not shape_hash
+
+Smoke-testing against real production data revealed that `workout.shape_hash`
+includes `warmup_sec` and `cooldown_sec` (see `backend/internal/workout/hash.go`).
+For PB canonicalisation that distinction matters; for trend comparability it
+does not — a rower thinks of "5 k" as a single piece regardless of whether the
+session had a 60 s or 120 s warmup. Under the v1 ≥3-completed-sessions threshold,
+keying on `shape_hash` caused real rowers' 5 k pieces to split into multiple
+sub-threshold series, producing an empty chart where a clean 4-point series
+should have appeared.
+
+**Initial revised decision (superseded by the 2026-05-25 amendment below):**
+Trend series are keyed on `(mode, canonical(params))`, where `canonical(params)`
+is the workout's `params_json` re-marshaled with sorted keys. Warmup and cooldown
+durations are NOT part of the trend-series identity. The JSON wire field name
+remains `key.shape_hash` for backwards compatibility; its value is now the
+canonicalized-params string rather than the original `workout.shape_hash`.
+
+`workout.shape_hash` continues to be used by the PB pipeline. Only the trends
+API was wrong to inherit that hash for grouping.
+
+## Amendment (2026-05-25): Fix `ShapeHash` itself; collapse race ≡ distance
+
+A second grilling pass surfaced two further issues with the 2026-05-24 fix:
+
+1. **Bug**: the v1 `isCompletedSession` and `displayNameForShape` helpers
+   unmarshalled time-mode params under the field name `"sec"`, but
+   `workout.TimeParams` actually stores it as `"seconds"` (see
+   `backend/internal/workout/params.go`). Time-mode workouts were silently
+   filtered out of every series. Not caught by tests because the unit-test
+   fixtures used the wrong field name too.
+2. **Latent bug in `ShapeHash` itself**: every caller of `ShapeHash` — PB
+   pipeline (`pb_workout`), race ghost lookup, trends — wants warmup/cooldown
+   *out*. The `pb_workout` table would currently record two separate "5 k PBs"
+   for a rower who did one piece with a 120 s warmup and one with a 60 s
+   warmup. That's wrong; the user explicitly stated PB should be
+   warmup/cooldown-agnostic. The 2026-05-24 fix patched only trends, leaving
+   the PB pipeline buggy.
+
+**Final revised decision:**
+
+- **`ShapeHash(params)`**: drop both `mode` and `warmup/cooldown` arguments.
+  Workouts with the same `params` map to the same hash, regardless of mode,
+  warmup, cooldown, or intensity. This is the single, authoritative notion of
+  "comparable workout shape" across the codebase.
+- **Both PB and Trends use `ShapeHash` directly**. There is no separate
+  `ShapeKey` function and no `(mode, hash)` tuple. The wire field `key.shape_hash`
+  goes back to carrying an actual hash.
+- **Race ≡ distance for the same params** (reverses the original Q3 D
+  decision). A `race {meters:2000}` and a `distance {meters:2000}` share both
+  a PB row and a trends series. Rationale: the rower's "fastest 2 k effort"
+  is one number; trying to maintain race-2 k and tempo-2 k as separate trend
+  lines complicates the UI for marginal payoff. `displayNameForShape` drops
+  the `"Race "` prefix.
+- **Time-mode params**: trends helpers use `workout.DecodeParams` to obtain
+  the typed `*Params`, removing the `"sec"`/`"seconds"` typo class of bug
+  entirely. Test fixtures use the real production shape (`{"seconds":1800}`).
+- **Migration `0016_recompute_shape_hash`**: a Go-side one-shot startup pass
+  that (a) recomputes `workout.shape_hash` for every existing row under the
+  new function and (b) calls `stats.Recompute(ctx, db, rowerID)` for every
+  rower. The existing recompute pipeline invalidates and rebuilds `pb_workout`
+  rows under the new hashes automatically — no manual PB editing.
+
+Consequence: the 2026-05-24 `canonicalParamsKey` helper, the `sessionRow.Mode`
+component of the series-grouping key, and the `(mode, …)` tuple in
+`trendsSeriesKey` are all reverted. The `Race ` display-name branch in
+`displayNameForShape` is removed.

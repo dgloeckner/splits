@@ -1,9 +1,9 @@
 import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
-import { getRowerTrends, type TrendsRange, type TrendsResponse } from '../../api/client'
+import { getRowerTrends, type TrendsRange, type TrendsResponse, type TrendsSeries } from '../../api/client'
 import { useActiveRower } from '../../hooks/useActiveRower'
 import { DualLineChart, type Series } from '../../components/DualLineChart/DualLineChart'
-import { fmtFloat, fmtInt, pace500m, signedNum } from '../../util/format'
+import { fmtFloat, pace500m } from '../../util/format'
 import { RangeTabs } from './RangeTabs'
 import { TrendsHeadlineCard } from './TrendsHeadlineCard'
 import styles from './TrendsTab.module.css'
@@ -93,35 +93,11 @@ export function TrendsTab() {
   )
 }
 
+const SERIES_THRESHOLD = 3
+
 function TrendsContent({ data }: { data: TrendsResponse }) {
-  const perfPower: Series = {
-    label: 'Ø Watt',
-    variant: 'solid',
-    tone: 'primary',
-    fmt: (v) => `${fmtInt(Math.round(v))} W`,
-    points: data.performance.points.map((p) => ({ x: tToX(p.t), y: p.avg_power_w })),
-  }
-  const perfPace: Series = {
-    label: 'Ø Split',
-    variant: 'dashed',
-    tone: 'neutral',
-    fmt: (v) => pace500m(v) ?? '—',
-    points: data.performance.points.map((p) => ({ x: tToX(p.t), y: p.avg_pace_sec_per_500m })),
-  }
-  const effDPS: Series = {
-    label: 'Ø DPS',
-    variant: 'solid',
-    tone: 'primary',
-    fmt: (v) => fmtFloat(v, 1),
-    points: data.efficiency.points.map((p) => ({ x: tToX(p.t), y: p.avg_dps })),
-  }
-  const effSPI: Series = {
-    label: 'Ø SPI',
-    variant: 'dashed',
-    tone: 'neutral',
-    fmt: (v) => fmtFloat(v, 1),
-    points: data.efficiency.points.map((p) => ({ x: tToX(p.t), y: p.avg_spi })),
-  }
+  const perfSeries = data.series.filter((s) => s.points.length >= SERIES_THRESHOLD)
+  const effSeries = data.efficiency_series.filter((s) => s.points.length >= SERIES_THRESHOLD)
 
   return (
     <>
@@ -131,35 +107,108 @@ function TrendsContent({ data }: { data: TrendsResponse }) {
         <header className={styles.cardHead}>
           <span className={styles.cardTitle}>Leistung</span>
         </header>
-        <div className={styles.legend}>
-          <div className={styles.legendRow}>
-            <span className={styles.dot} /> Ø Watt: {fmtInt(Math.round(data.performance.avg_power_w))}
-          </div>
-          <div className={styles.legendRow}>
-            <span className={`${styles.dot} ${styles.dotNeutral}`} /> Ø Split:{' '}
-            {pace500m(data.performance.avg_pace_sec_per_500m || null)} /500m
-          </div>
-        </div>
-        <DualLineChart primary={perfPower} secondary={perfPace} />
+        <LeistungChart series={perfSeries} />
       </section>
 
       <section className={styles.card} aria-label="Effizienz">
         <header className={styles.cardHead}>
           <span className={styles.cardTitle}>Effizienz</span>
         </header>
-        <div className={styles.legend}>
-          <div className={styles.legendRow}>
-            <span className={styles.dot} /> Ø DPS: {fmtFloat(data.efficiency.avg_dps, 1)}{' '}
-            <small data-testid="dps-delta">{signedNum(data.efficiency.delta_dps, 1)}</small>
-          </div>
-          <div className={styles.legendRow}>
-            <span className={`${styles.dot} ${styles.dotNeutral}`} /> Ø SPI:{' '}
-            {fmtFloat(data.efficiency.avg_spi, 1)}{' '}
-            <small data-testid="spi-delta">{signedNum(data.efficiency.delta_spi, 1)}</small>
-          </div>
-        </div>
-        <DualLineChart primary={effDPS} secondary={effSPI} />
+        <EffizienzChart series={effSeries} />
       </section>
+    </>
+  )
+}
+
+function LeistungChart({ series }: { series: TrendsSeries[] }) {
+  if (series.length === 0) {
+    return (
+      <p className={styles.placeholder} data-testid="leistung-empty">
+        Noch keine Serie mit genug Sessions im Zeitraum.
+      </p>
+    )
+  }
+  // Primary = most-rowed series (API already sorts by point count desc).
+  const primary: Series = {
+    label: `${series[0].display_name} · Ø Split`,
+    variant: 'solid',
+    tone: 'primary',
+    fmt: (v) => pace500m(v) ?? '—',
+    points: series[0].points.map((p) => ({ x: tToX(p.t), y: p.avg_pace_sec_per_500m })),
+  }
+  const secondary: Series | undefined =
+    series.length >= 2
+      ? {
+          label: `${series[1].display_name} · Ø Split`,
+          variant: 'dashed',
+          tone: 'neutral',
+          fmt: (v) => pace500m(v) ?? '—',
+          points: series[1].points.map((p) => ({ x: tToX(p.t), y: p.avg_pace_sec_per_500m })),
+        }
+      : undefined
+  return (
+    <>
+      <div className={styles.legend}>
+        {series.slice(0, 2).map((s, i) => {
+          const last = s.points[s.points.length - 1]
+          return (
+            <div key={s.key.shape_hash} className={styles.legendRow}>
+              <span className={i === 1 ? `${styles.dot} ${styles.dotNeutral}` : styles.dot} />{' '}
+              {s.display_name}: {pace500m(last.avg_pace_sec_per_500m) ?? '—'}
+              {s.pb_pace_sec_per_500m ? (
+                <>
+                  {' '}
+                  <small data-testid={`pb-${s.key.shape_hash}`}>
+                    PB {pace500m(s.pb_pace_sec_per_500m) ?? '—'}
+                  </small>
+                </>
+              ) : null}
+            </div>
+          )
+        })}
+      </div>
+      <DualLineChart primary={primary} secondary={secondary} />
+    </>
+  )
+}
+
+function EffizienzChart({ series }: { series: TrendsSeries[] }) {
+  if (series.length === 0) {
+    return (
+      <p className={styles.placeholder} data-testid="effizienz-empty">
+        Noch keine Serie mit genug Sessions im Zeitraum.
+      </p>
+    )
+  }
+  // Use the most-rowed series; DPS solid, SPI dashed.
+  const s0 = series[0]
+  const dps: Series = {
+    label: `${s0.display_name} · Ø DPS`,
+    variant: 'solid',
+    tone: 'primary',
+    fmt: (v) => fmtFloat(v, 1),
+    points: s0.points.map((p) => ({ x: tToX(p.t), y: p.avg_dps })),
+  }
+  const spi: Series = {
+    label: `${s0.display_name} · Ø SPI`,
+    variant: 'dashed',
+    tone: 'neutral',
+    fmt: (v) => fmtFloat(v, 1),
+    points: s0.points.map((p) => ({ x: tToX(p.t), y: p.avg_spi })),
+  }
+  const last = s0.points[s0.points.length - 1]
+  return (
+    <>
+      <div className={styles.legend}>
+        <div className={styles.legendRow}>
+          <span className={styles.dot} /> Ø DPS: {fmtFloat(last.avg_dps, 1)}
+        </div>
+        <div className={styles.legendRow}>
+          <span className={`${styles.dot} ${styles.dotNeutral}`} /> Ø SPI:{' '}
+          {fmtFloat(last.avg_spi, 1)}
+        </div>
+      </div>
+      <DualLineChart primary={dps} secondary={spi} />
     </>
   )
 }

@@ -49,7 +49,7 @@ func (r *Repo) CreateWorkout(ctx context.Context, in CreateWorkoutInput) (*Worko
 	}
 	id := uuid.NewString()
 	now := time.Now().UTC()
-	hash, err := ShapeHash(in.Mode, in.ParamsJSON, in.WarmupSec, in.CooldownSec)
+	hash, err := ShapeHash(in.ParamsJSON)
 	if err != nil {
 		return nil, err
 	}

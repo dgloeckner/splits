@@ -23,7 +23,13 @@ type seedSession struct {
 	avgPace   float64
 	avgDPS    float64
 	avgSPI    float64
+	avgSPM    float64
 	deleted   bool
+	// optional workout assignment for series tests
+	workoutID string
+	mode      string
+	params    string
+	shapeHash string
 }
 
 func seedRower(t *testing.T, db *storage.DB, id string) {
@@ -38,22 +44,37 @@ func seedRower(t *testing.T, db *storage.DB, id string) {
 func seedSessions(t *testing.T, db *storage.DB, rowerID string, ss []seedSession) {
 	t.Helper()
 	for _, s := range ss {
+		if s.workoutID != "" {
+			if _, err := db.Handle().Exec(`
+				INSERT INTO workout(id, mode, params_json, intensity, warmup_sec, cooldown_sec, created_at, shape_hash)
+				VALUES(?, ?, ?, 'moderat', 0, 0, ?, ?)`,
+				s.workoutID, s.mode, s.params,
+				s.startedAt.UTC().Format(time.RFC3339Nano),
+				s.shapeHash,
+			); err != nil {
+				t.Fatalf("insert workout: %v", err)
+			}
+		}
 		var deletedAt any
 		if s.deleted {
 			deletedAt = s.endedAt.UTC().Format(time.RFC3339Nano)
 		}
+		var workoutID any
+		if s.workoutID != "" {
+			workoutID = s.workoutID
+		}
 		if _, err := db.Handle().Exec(`
 			INSERT INTO sessions(id, rower_id, started_at, ended_at, initial_level,
 				total_distance_m, total_time_sec, total_strokes,
-				avg_power_w, avg_pace_sec_per_500m, avg_dps, avg_spi,
-				deleted_at)
-			VALUES(?, ?, ?, ?, 3, ?, ?, 100, ?, ?, ?, ?, ?)`,
+				avg_power_w, avg_pace_sec_per_500m, avg_dps, avg_spi, avg_spm,
+				deleted_at, workout_id)
+			VALUES(?, ?, ?, ?, 3, ?, ?, 100, ?, ?, ?, ?, ?, ?, ?)`,
 			s.id, rowerID,
 			s.startedAt.UTC().Format(time.RFC3339Nano),
 			s.endedAt.UTC().Format(time.RFC3339Nano),
 			s.distM, s.timeSec,
-			s.avgPower, s.avgPace, s.avgDPS, s.avgSPI,
-			deletedAt,
+			s.avgPower, s.avgPace, s.avgDPS, s.avgSPI, s.avgSPM,
+			deletedAt, workoutID,
 		); err != nil {
 			t.Fatal(err)
 		}
@@ -309,4 +330,80 @@ func floatNear(a, b, tol float64) bool {
 		d = -d
 	}
 	return d <= tol
+}
+
+func TestTrendsHandlerReturnsSeriesByShape(t *testing.T) {
+	db, err := storage.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	rid := "r1"
+	seedRower(t, db, rid)
+
+	now := time.Now().UTC()
+	day := 24 * time.Hour
+	seedSessions(t, db, rid, []seedSession{
+		// 4 completed 5k pieces over the last 2 weeks
+		{id: "s1", startedAt: now.Add(-15 * day), endedAt: now.Add(-15 * day).Add(20 * time.Minute), distM: 5004, timeSec: 1138, avgPower: 374, avgPace: 110, avgDPS: 9.69, avgSPI: 12, avgSPM: 28.0, workoutID: "w-5k-1", mode: "distance", params: `{"meters":5000}`, shapeHash: "H_5K"},
+		{id: "s2", startedAt: now.Add(-9 * day), endedAt: now.Add(-9 * day).Add(19 * time.Minute), distM: 5005, timeSec: 1122, avgPower: 375, avgPace: 109, avgDPS: 9.62, avgSPI: 12, avgSPM: 28.4, workoutID: "w-5k-2", mode: "distance", params: `{"meters":5000}`, shapeHash: "H_5K"},
+		{id: "s3", startedAt: now.Add(-7 * day), endedAt: now.Add(-7 * day).Add(18 * time.Minute), distM: 5029, timeSec: 1102, avgPower: 379, avgPace: 107, avgDPS: 9.53, avgSPI: 12, avgSPM: 28.9, workoutID: "w-5k-3", mode: "distance", params: `{"meters":5000}`, shapeHash: "H_5K"},
+		{id: "s4", startedAt: now.Add(-1 * day), endedAt: now.Add(-1 * day).Add(18 * time.Minute), distM: 5008, timeSec: 1082, avgPower: 382, avgPace: 107, avgDPS: 9.59, avgSPI: 12, avgSPM: 28.7, workoutID: "w-5k-4", mode: "distance", params: `{"meters":5000}`, shapeHash: "H_5K"},
+		// 1 abandoned 500m (134m / 500m = 27%) — should NOT appear in any series
+		{id: "s5", startedAt: now.Add(-2 * day), endedAt: now.Add(-2 * day).Add(40 * time.Second), distM: 134, timeSec: 36, avgPower: 182, avgPace: 143, avgDPS: 8.4, avgSPI: 7, avgSPM: 24, workoutID: "w-500", mode: "distance", params: `{"meters":500}`, shapeHash: "H_500"},
+		// 1 completed race 2k
+		{id: "s6", startedAt: now.Add(-5 * day), endedAt: now.Add(-5 * day).Add(7 * time.Minute), distM: 2010, timeSec: 420, avgPower: 410, avgPace: 105, avgDPS: 9.0, avgSPI: 13, avgSPM: 32.0, workoutID: "w-r2k", mode: "race", params: `{"meters":2000}`, shapeHash: "H_2K"},
+	})
+
+	// PB for 5k = s4 (1082 sec → pace 1082/10 = 108.2 s/500m)
+	if _, err := db.Handle().Exec(`
+		INSERT INTO pb_distance(rower_id, distance_m, time_sec, source_session_id, source_session_started_at, achieved_at, window_start_stroke, window_end_stroke)
+		VALUES(?, 5000, 1082, 's4', ?, ?, 1, 480)`,
+		rid, now.Add(-1*day).UTC().Format(time.RFC3339Nano), now.Add(-1*day).UTC().Format(time.RFC3339Nano)); err != nil {
+		t.Fatalf("seed pb: %v", err)
+	}
+
+	repo := rower.NewRepo(db.Handle())
+	req := httptest.NewRequest("GET", "/api/v1/rowers/"+rid+"/trends?range=month", nil)
+	rec := httptest.NewRecorder()
+	api.TrendsHandler(db.Handle(), repo).ServeHTTP(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("status %d, body %s", rec.Code, rec.Body.String())
+	}
+
+	var got struct {
+		Series           []map[string]any `json:"series"`
+		EfficiencySeries []map[string]any `json:"efficiency_series"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v; body=%s", err, rec.Body.String())
+	}
+
+	if len(got.Series) != 2 {
+		t.Fatalf("got %d series, want 2 (distance 5k + race 2k); body=%s", len(got.Series), rec.Body.String())
+	}
+	// Most-rowed first.
+	first := got.Series[0]
+	if first["display_name"] != "5 k" {
+		t.Fatalf("first series display_name = %v, want \"5 k\"", first["display_name"])
+	}
+	pts, ok := first["points"].([]any)
+	if !ok || len(pts) != 4 {
+		t.Fatalf("first series points = %v, want 4 points", first["points"])
+	}
+	pb, _ := first["pb_pace_sec_per_500m"].(float64)
+	if pb < 108.0 || pb > 108.5 {
+		t.Fatalf("first series PB pace = %v, want ~108.2 s/500m", pb)
+	}
+
+	// 134m piece must NOT have created a 500m distance series.
+	// Post-ADR-0015 amendment, series are keyed on canonical params,
+	// so the leakage check is against `{"meters":500}`, not the
+	// original workout.shape_hash "H_500".
+	for _, s := range got.Series {
+		key, _ := s["key"].(map[string]any)
+		if key != nil && key["mode"] == "distance" && key["shape_hash"] == `{"meters":500}` {
+			t.Fatalf("abandoned 134m piece leaked into series: %v", s)
+		}
+	}
 }

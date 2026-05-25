@@ -2,6 +2,7 @@ package api
 
 import (
 	"database/sql"
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -40,6 +41,36 @@ type effPoint struct {
 	AvgSPI  float64 `json:"avg_spi"`
 }
 
+// trendsSeriesKey identifies a comparable workout shape. ShapeHash is
+// the canonical series key: same params → same hash → same series
+// (race-2k and distance-2k share a hash and collapse to one series per
+// ADR-0015 2026-05-25 amendment).
+type trendsSeriesKey struct {
+	ShapeHash string `json:"shape_hash"`
+}
+
+// trendsSeriesPoint is one completed session within a series.
+type trendsSeriesPoint struct {
+	T                 string  `json:"t"`
+	SessionID         string  `json:"session_id"`
+	TotalDistanceM    int     `json:"total_distance_m"`
+	TotalTimeSec      float64 `json:"total_time_sec"`
+	AvgPowerW         float64 `json:"avg_power_w"`
+	AvgPaceSecPer500m float64 `json:"avg_pace_sec_per_500m"`
+	AvgDPS            float64 `json:"avg_dps"`
+	AvgSPI            float64 `json:"avg_spi"`
+	AvgSPM            float64 `json:"avg_spm"`
+}
+
+// trendsSeries is one comparable-workout-shape group over time.
+type trendsSeries struct {
+	Key              trendsSeriesKey     `json:"key"`
+	ParamsJSON       json.RawMessage     `json:"params"`
+	DisplayName      string              `json:"display_name"`
+	PBPaceSecPer500m float64             `json:"pb_pace_sec_per_500m,omitempty"`
+	Points           []trendsSeriesPoint `json:"points"`
+}
+
 type performanceBlock struct {
 	Points            []perfPoint `json:"points"`
 	AvgPowerW         float64     `json:"avg_power_w"`
@@ -55,13 +86,15 @@ type efficiencyBlock struct {
 }
 
 type trendsResponse struct {
-	Range        string           `json:"range"`
-	Period       trendsPeriod     `json:"period"`
-	Totals       trendsTotals     `json:"totals"`
-	Prior        *trendsTotals    `json:"prior,omitempty"`
-	Performance  performanceBlock `json:"performance"`
-	Efficiency   efficiencyBlock  `json:"efficiency"`
-	StatsVersion int              `json:"stats_version"`
+	Range            string           `json:"range"`
+	Period           trendsPeriod     `json:"period"`
+	Totals           trendsTotals     `json:"totals"`
+	Prior            *trendsTotals    `json:"prior,omitempty"`
+	Performance      performanceBlock `json:"performance"`
+	Efficiency       efficiencyBlock  `json:"efficiency"`
+	Series           []trendsSeries   `json:"series"`
+	EfficiencySeries []trendsSeries   `json:"efficiency_series"`
+	StatsVersion     int              `json:"stats_version"`
 }
 
 // berlinLoc is the timezone period bounds operate in. session display
@@ -115,12 +148,14 @@ func getTrends(db *sql.DB) http.HandlerFunc {
 		}
 
 		rows, err := db.QueryContext(r.Context(), `
-			SELECT id, started_at, total_distance_m, total_time_sec,
-			       avg_power_w, avg_pace_sec_per_500m, avg_dps, avg_spi
-			FROM sessions
-			WHERE rower_id = ? AND deleted_at IS NULL AND ended_at IS NOT NULL
-			  AND started_at >= ?
-			ORDER BY started_at ASC`, rid, lowerArg)
+			SELECT s.id, s.started_at, s.total_distance_m, s.total_time_sec,
+			       s.avg_power_w, s.avg_pace_sec_per_500m, s.avg_dps, s.avg_spi, s.avg_spm,
+			       w.mode, w.params_json, w.shape_hash
+			FROM sessions s
+			LEFT JOIN workout w ON w.id = s.workout_id
+			WHERE s.rower_id = ? AND s.deleted_at IS NULL AND s.ended_at IS NOT NULL
+			  AND s.started_at >= ?
+			ORDER BY s.started_at ASC`, rid, lowerArg)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -142,16 +177,20 @@ func getTrends(db *sql.DB) http.HandlerFunc {
 		var recentDPSSum, recentSPISum, prevDPSSum, prevSPISum float64
 		var recentDPSN, recentSPIN, prevDPSN, prevSPIN int
 
+		var seriesRows []sessionRow
+
 		for rows.Next() {
 			var (
-				id                 string
-				startedStr         string
-				dist               sql.NullInt64
-				timeSec            sql.NullFloat64
-				avgPower, avgPace  sql.NullFloat64
-				avgDPS, avgSPI     sql.NullFloat64
+				id                         string
+				startedStr                 string
+				dist                       sql.NullInt64
+				timeSec                    sql.NullFloat64
+				avgPower, avgPace          sql.NullFloat64
+				avgDPS, avgSPI, avgSPM     sql.NullFloat64
+				wMode, wParams, wShapeHash sql.NullString
 			)
-			if err := rows.Scan(&id, &startedStr, &dist, &timeSec, &avgPower, &avgPace, &avgDPS, &avgSPI); err != nil {
+			if err := rows.Scan(&id, &startedStr, &dist, &timeSec, &avgPower, &avgPace, &avgDPS, &avgSPI, &avgSPM,
+				&wMode, &wParams, &wShapeHash); err != nil {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
@@ -225,11 +264,38 @@ func getTrends(db *sql.DB) http.HandlerFunc {
 					}
 				}
 			}
+			if inChart && wMode.Valid && wParams.Valid && wShapeHash.Valid {
+				params := json.RawMessage(wParams.String)
+				if isCompletedSession(wMode.String, params, distM, secs) {
+					seriesRows = append(seriesRows, sessionRow{
+						ID:        id,
+						StartedAt: tBerlin,
+						Mode:      wMode.String,
+						Params:    params,
+						ShapeHash: wShapeHash.String,
+						DistM:     distM,
+						TimeSec:   secs,
+						AvgPower:  avgPower.Float64,
+						AvgPace:   avgPace.Float64,
+						AvgDPS:    avgDPS.Float64,
+						AvgSPI:    avgSPI.Float64,
+						AvgSPM:    avgSPM.Float64,
+					})
+				}
+			}
 		}
 		if err := rows.Err(); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		series := assembleSeries(seriesRows)
+		attachPBs(r.Context(), db, rid, series)
+		// Both Leistung and Effizienz currently expose the same underlying
+		// series. Future ADR-0015 follow-up may split Effizienz off — but
+		// that grouping happens client-side, so the response shape stays
+		// symmetric.
+		effSeries := series
 
 		mean := func(sum float64, n int) float64 {
 			if n == 0 {
@@ -258,6 +324,8 @@ func getTrends(db *sql.DB) http.HandlerFunc {
 				DeltaDPS: mean(recentDPSSum, recentDPSN) - mean(prevDPSSum, prevDPSN),
 				DeltaSPI: mean(recentSPISum, recentSPIN) - mean(prevSPISum, prevSPIN),
 			},
+			Series:           series,
+			EfficiencySeries: effSeries,
 		}
 		if rng != "all" {
 			p := prior

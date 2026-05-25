@@ -304,12 +304,23 @@ across a selected range (Wochen · Monate · Jahr · Alles).
 
 ### Comparable workout shape
 
-The grouping axis used by trend charts to make sessions comparable.
-A *shape* is the `(workout.mode, workout.params_json)` tuple the
-rower committed to at session start — captured directly by
-`workout.shape_hash`. Two sessions trend-compare iff they share a
-shape. Examples of shapes: `distance 5 k`, `distance 2 k`,
-`time 20 min`, `race 2 k`, `intervals 4×500 m / 60 s`.
+The grouping axis used by **both** trend charts and PBs to make
+sessions comparable. A *shape* is the workout's `params_json` —
+e.g. `{"meters":5000}`, `{"seconds":1800}`,
+`{"reps":4,"length":{"unit":"m","value":500},"rest_sec":60}`.
+Captured by `workout.shape_hash`. Two sessions are comparable
+iff they share a shape.
+
+**Deliberate equivalences** (everything below merges into one
+shape):
+
+- `race {meters:N}` ≡ `distance {meters:N}` — a 2 k race and a 2 k
+  tempo piece share both their PB row and their trends series.
+  "Fastest 2 k effort" is one number, not two.
+- Different warmup/cooldown — a 5 k with 60 s warmup and a 5 k
+  with 120 s warmup are the same piece.
+- Different intensity (`locker`/`moderat`/`hart`/`allout`) — the
+  rower's chosen effort context doesn't fragment the series.
 
 Trend charts group by intent, not by actual outcome. A free-row
 session that happened to stop near 5 k is **not** a 5 k piece for
