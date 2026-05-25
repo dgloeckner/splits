@@ -41,13 +41,11 @@ type effPoint struct {
 	AvgSPI  float64 `json:"avg_spi"`
 }
 
-// trendsSeriesKey identifies a comparable workout shape. ShapeHash
-// alone is insufficient because `race {meters:2000}` and
-// `distance {meters:2000}` share a hash by design (see
-// workout/hash_test.go TestShapeHashRaceEqualsDistance). ADR-0015
-// requires them to be distinct series, so we key on (mode, hash).
+// trendsSeriesKey identifies a comparable workout shape. ShapeHash is
+// the canonical series key: same params → same hash → same series
+// (race-2k and distance-2k share a hash and collapse to one series per
+// ADR-0015 2026-05-25 amendment).
 type trendsSeriesKey struct {
-	Mode      string `json:"mode"`
 	ShapeHash string `json:"shape_hash"`
 }
 

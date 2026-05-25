@@ -38,103 +38,37 @@ func TestIsCompletedSession(t *testing.T) {
 	}
 }
 
-// TestAssembleSeriesGroupsByModeAndParams verifies that series grouping
-// uses (mode, canonical params), NOT shape_hash. Four distance-5k rows
-// with DIFFERENT shape_hashes (simulating real warmup/cooldown divergence)
-// must collapse into one series because their params_json is identical.
-func TestAssembleSeriesGroupsByModeAndParams(t *testing.T) {
+func TestAssembleSeriesGroupsByShapeHash(t *testing.T) {
 	t0 := time.Date(2026, 5, 9, 8, 35, 0, 0, time.UTC)
 	rows := []sessionRow{
-		// 4× distance 5k — DIFFERENT shape_hashes (warmup/cooldown divergence),
-		// same params → must collapse into ONE series.
-		{ID: "a", StartedAt: t0,                          Mode: "distance", Params: json.RawMessage(`{"meters":5000}`), ShapeHash: "H_5K_v1", DistM: 5004, TimeSec: 1138, AvgPower: 374, AvgPace: 110, AvgDPS: 9.69, AvgSPI: 12, AvgSPM: 28.0},
-		{ID: "b", StartedAt: t0.Add(6 * 24 * time.Hour),  Mode: "distance", Params: json.RawMessage(`{"meters":5000}`), ShapeHash: "H_5K_v2", DistM: 5005, TimeSec: 1122, AvgPower: 375, AvgPace: 109, AvgDPS: 9.62, AvgSPI: 12, AvgSPM: 28.4},
-		{ID: "c", StartedAt: t0.Add(8 * 24 * time.Hour),  Mode: "distance", Params: json.RawMessage(`{"meters":5000}`), ShapeHash: "H_5K_v3", DistM: 5029, TimeSec: 1102, AvgPower: 379, AvgPace: 107, AvgDPS: 9.53, AvgSPI: 12, AvgSPM: 28.9},
-		{ID: "d", StartedAt: t0.Add(14 * 24 * time.Hour), Mode: "distance", Params: json.RawMessage(`{"meters":5000}`), ShapeHash: "H_5K_v3", DistM: 5008, TimeSec: 1082, AvgPower: 382, AvgPace: 107, AvgDPS: 9.59, AvgSPI: 12, AvgSPM: 28.7},
-		// 1× race 2k — different mode from distance 2k → separate series
-		// (H_R2K hash differs from H_D2K, but mode is the real separator here)
-		{ID: "e", StartedAt: t0.Add(4 * 24 * time.Hour), Mode: "race",     Params: json.RawMessage(`{"meters":2000}`), ShapeHash: "H_R2K", DistM: 2010, TimeSec: 420, AvgPower: 410, AvgPace: 105, AvgDPS: 9.0, AvgSPI: 13, AvgSPM: 32.0},
-		// 1× distance 2k — different mode from race 2k → different series
-		{ID: "f", StartedAt: t0.Add(5 * 24 * time.Hour), Mode: "distance", Params: json.RawMessage(`{"meters":2000}`), ShapeHash: "H_D2K", DistM: 2020, TimeSec: 440, AvgPower: 390, AvgPace: 109, AvgDPS: 9.2, AvgSPI: 12, AvgSPM: 30.0},
-		// 1× just_row — never appears
-		{ID: "h", StartedAt: t0.Add(16 * 24 * time.Hour), Mode: "just_row", Params: json.RawMessage(`{}`), ShapeHash: "H_JUSTROW", DistM: 3000, TimeSec: 700, AvgPower: 200, AvgPace: 120, AvgDPS: 9.0, AvgSPI: 10, AvgSPM: 24.0},
+		// 4× distance 5k — all share hash H_5K (mode-agnostic, warmup-agnostic).
+		{ID: "a", StartedAt: t0,                          Mode: "distance", Params: json.RawMessage(`{"meters":5000}`), ShapeHash: "H_5K", DistM: 5004, TimeSec: 1138, AvgPower: 374, AvgPace: 110, AvgDPS: 9.69, AvgSPI: 12, AvgSPM: 28.0},
+		{ID: "b", StartedAt: t0.Add(6 * 24 * time.Hour),  Mode: "distance", Params: json.RawMessage(`{"meters":5000}`), ShapeHash: "H_5K", DistM: 5005, TimeSec: 1122, AvgPower: 375, AvgPace: 109, AvgDPS: 9.62, AvgSPI: 12, AvgSPM: 28.4},
+		{ID: "c", StartedAt: t0.Add(8 * 24 * time.Hour),  Mode: "distance", Params: json.RawMessage(`{"meters":5000}`), ShapeHash: "H_5K", DistM: 5029, TimeSec: 1102, AvgPower: 379, AvgPace: 107, AvgDPS: 9.53, AvgSPI: 12, AvgSPM: 28.9},
+		{ID: "d", StartedAt: t0.Add(14 * 24 * time.Hour), Mode: "distance", Params: json.RawMessage(`{"meters":5000}`), ShapeHash: "H_5K", DistM: 5008, TimeSec: 1082, AvgPower: 382, AvgPace: 107, AvgDPS: 9.59, AvgSPI: 12, AvgSPM: 28.7},
+		// 1× race 2k + 1× distance 2k — share hash H_2K, collapse to ONE series with 2 points.
+		{ID: "e", StartedAt: t0.Add(4 * 24 * time.Hour), Mode: "race",     Params: json.RawMessage(`{"meters":2000}`), ShapeHash: "H_2K", DistM: 2010, TimeSec: 420, AvgPower: 410, AvgPace: 105, AvgDPS: 9.0, AvgSPI: 13, AvgSPM: 32.0},
+		{ID: "f", StartedAt: t0.Add(5 * 24 * time.Hour), Mode: "distance", Params: json.RawMessage(`{"meters":2000}`), ShapeHash: "H_2K", DistM: 2020, TimeSec: 440, AvgPower: 390, AvgPace: 109, AvgDPS: 9.2, AvgSPI: 12, AvgSPM: 30.0},
+		// 1× just_row — excluded.
+		{ID: "h", StartedAt: t0.Add(16 * 24 * time.Hour), Mode: "just_row", Params: json.RawMessage(`{}`),             ShapeHash: "H_JR", DistM: 3000, TimeSec: 700, AvgPower: 200, AvgPace: 120, AvgDPS: 9.0, AvgSPI: 10, AvgSPM: 24.0},
 	}
 	series := assembleSeries(rows)
 
-	if len(series) != 3 {
-		t.Fatalf("got %d series, want 3 (distance 5k, race 2k, distance 2k); got keys %v", len(series), keysOf(series))
+	if len(series) != 2 {
+		t.Fatalf("got %d series, want 2 (5k + 2k); got hashes %v", len(series), hashesOf(series))
 	}
-	// indexByKey uses mode|Key.ShapeHash; Key.ShapeHash is now the canonical params string.
-	bySid := indexByKey(series)
-
-	// canonical params for {"meters":5000} → `{"meters":5000}` (single key, already sorted)
-	dist5k := bySid[`distance|{"meters":5000}`]
-	if dist5k == nil {
-		t.Fatalf("missing distance|{\"meters\":5000} series; got keys %v", keysOf(series))
+	if series[0].Key.ShapeHash != "H_5K" || len(series[0].Points) != 4 {
+		t.Fatalf("first series should be H_5K with 4 points, got %s with %d", series[0].Key.ShapeHash, len(series[0].Points))
 	}
-	if len(dist5k.Points) != 4 {
-		t.Fatalf("distance 5k: got %d points, want 4 (warmup-divergent hashes must collapse)", len(dist5k.Points))
-	}
-	// Series should be most-rowed first.
-	if series[0].Key.Mode != "distance" || series[0].Key.ShapeHash != `{"meters":5000}` {
-		t.Fatalf("expected distance|{\"meters\":5000} to be first series (most rowed), got %s|%s",
-			series[0].Key.Mode, series[0].Key.ShapeHash)
-	}
-	if dist5k.DisplayName != "5 k" {
-		t.Fatalf("distance 5k display_name = %q, want \"5 k\"", dist5k.DisplayName)
-	}
-
-	race2k := bySid[`race|{"meters":2000}`]
-	if race2k == nil {
-		t.Fatalf("missing race|{\"meters\":2000} series; got keys %v", keysOf(series))
-	}
-	if len(race2k.Points) != 1 {
-		t.Fatalf("race 2k: got %d points, want 1", len(race2k.Points))
-	}
-	if race2k.DisplayName != "Race 2 k" {
-		t.Fatalf("race 2k display_name = %q, want \"Race 2 k\"", race2k.DisplayName)
-	}
-
-	dist2k := bySid[`distance|{"meters":2000}`]
-	if dist2k == nil {
-		t.Fatalf("missing distance|{\"meters\":2000} series; got keys %v", keysOf(series))
-	}
-	if len(dist2k.Points) != 1 {
-		t.Fatalf("distance 2k: got %d points, want 1", len(dist2k.Points))
-	}
-	if dist2k.DisplayName != "2 k" {
-		t.Fatalf("distance 2k display_name = %q, want \"2 k\"", dist2k.DisplayName)
+	if series[1].Key.ShapeHash != "H_2K" || len(series[1].Points) != 2 {
+		t.Fatalf("second series should be H_2K with 2 points (race + distance collapsed), got %s with %d", series[1].Key.ShapeHash, len(series[1].Points))
 	}
 }
 
-// TestCanonicalParamsKeyIsKeyOrderStable asserts that canonicalParamsKey
-// produces the same output regardless of the key order in the input JSON.
-func TestCanonicalParamsKeyIsKeyOrderStable(t *testing.T) {
-	a := canonicalParamsKey(json.RawMessage(`{"meters":5000,"foo":1}`))
-	b := canonicalParamsKey(json.RawMessage(`{"foo":1,"meters":5000}`))
-	if a != b {
-		t.Fatalf("canonicalParamsKey is not key-order stable: %q != %q", a, b)
-	}
-	// Both should produce the alphabetically-sorted form.
-	want := `{"foo":1,"meters":5000}`
-	if a != want {
-		t.Fatalf("canonicalParamsKey = %q, want %q", a, want)
-	}
-}
-
-func keysOf(s []trendsSeries) []string {
+func hashesOf(s []trendsSeries) []string {
 	out := make([]string, len(s))
 	for i, sr := range s {
-		out[i] = sr.Key.Mode + "|" + sr.Key.ShapeHash
-	}
-	return out
-}
-
-func indexByKey(s []trendsSeries) map[string]*trendsSeries {
-	out := make(map[string]*trendsSeries, len(s))
-	for i := range s {
-		k := s[i].Key.Mode + "|" + s[i].Key.ShapeHash
-		out[k] = &s[i]
+		out[i] = sr.Key.ShapeHash
 	}
 	return out
 }

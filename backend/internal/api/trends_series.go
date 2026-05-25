@@ -42,15 +42,14 @@ func isCompletedSession(mode string, params json.RawMessage, totalDistanceM int,
 
 // sessionRow is the row shape consumed by assembleSeries — one
 // completed session joined with its workout. ShapeHash is the
-// original workout.shape_hash, retained for diagnostics / future
-// use; it is NOT used for series keying (keying uses canonical
-// params — see canonicalParamsKey). Mode is workout.mode.
+// workout.shape_hash and is used as the series key: same params →
+// same hash → same series bucket. Mode is workout.mode.
 type sessionRow struct {
 	ID        string
 	StartedAt time.Time
 	Mode      string
 	Params    json.RawMessage
-	ShapeHash string // original workout.shape_hash; not used for series keying
+	ShapeHash string // series key — workout.shape_hash (params-only, mode/warmup-agnostic)
 	DistM     int
 	TimeSec   float64
 	AvgPower  float64
@@ -60,37 +59,17 @@ type sessionRow struct {
 	AvgSPM    float64
 }
 
-// canonicalParamsKey re-marshals params with sorted keys (Go's
-// encoding/json writes map keys in sorted order) to produce a stable
-// string suitable for series grouping. Warmup/cooldown fields that
-// appear in workout.shape_hash but not in params_json are therefore
-// excluded, so a "5 k" piece is always "5 k" regardless of warmup
-// duration. On unmarshal error the raw bytes are returned as a
-// best-effort fallback.
-func canonicalParamsKey(params json.RawMessage) string {
-	var m map[string]any
-	if err := json.Unmarshal(params, &m); err != nil {
-		return string(params)
-	}
-	b, err := json.Marshal(m)
-	if err != nil {
-		return string(params)
-	}
-	return string(b)
-}
-
-// assembleSeries groups completed sessions by (mode, canonical(params))
-// into series suitable for the multi-series chart. The series key uses
-// canonicalParamsKey so that sessions with the same workout target but
-// different warmup/cooldown durations (which differ only in shape_hash)
-// collapse into one series. Caller is responsible for filtering rows via
-// isCompletedSession before passing them in. Series are returned sorted
-// descending by point count (most-rowed first), points within each series
-// ascending by time. Sessions whose mode is "intervals" or "just_row" are
-// silently dropped (defensive — caller should have filtered).
+// assembleSeries groups completed sessions by shape_hash into series
+// suitable for the multi-series chart. Same params → same hash → same
+// series bucket (race-2k and distance-2k collapse). Caller is responsible
+// for filtering rows via isCompletedSession before passing them in. Series
+// are returned sorted descending by point count (most-rowed first), points
+// within each series ascending by time. Sessions whose mode is "intervals"
+// or "just_row" are silently dropped (defensive — caller should have filtered).
 func assembleSeries(rows []sessionRow) []trendsSeries {
 	type bucket struct {
 		key    trendsSeriesKey
+		mode   string
 		params json.RawMessage
 		points []trendsSeriesPoint
 	}
@@ -99,11 +78,12 @@ func assembleSeries(rows []sessionRow) []trendsSeries {
 		if r.Mode == "intervals" || r.Mode == "just_row" {
 			continue
 		}
-		k := r.Mode + "|" + canonicalParamsKey(r.Params)
+		k := r.ShapeHash
 		b, ok := buckets[k]
 		if !ok {
 			b = &bucket{
-				key:    trendsSeriesKey{Mode: r.Mode, ShapeHash: canonicalParamsKey(r.Params)},
+				key:    trendsSeriesKey{ShapeHash: r.ShapeHash},
+				mode:   r.Mode,
 				params: r.Params,
 			}
 			buckets[k] = b
@@ -126,7 +106,7 @@ func assembleSeries(rows []sessionRow) []trendsSeries {
 		out = append(out, trendsSeries{
 			Key:         b.key,
 			ParamsJSON:  b.params,
-			DisplayName: displayNameForShape(b.key.Mode, b.params),
+			DisplayName: displayNameForShape(b.mode, b.params),
 			Points:      b.points,
 		})
 	}
@@ -134,7 +114,7 @@ func assembleSeries(rows []sessionRow) []trendsSeries {
 		if len(out[i].Points) != len(out[j].Points) {
 			return len(out[i].Points) > len(out[j].Points)
 		}
-		return out[i].Key.Mode+out[i].Key.ShapeHash < out[j].Key.Mode+out[j].Key.ShapeHash
+		return out[i].Key.ShapeHash < out[j].Key.ShapeHash
 	})
 	return out
 }
@@ -192,10 +172,6 @@ func formatMeters(m int) string {
 // the client treats as "no PB to render."
 func attachPBs(ctx context.Context, db *sql.DB, rowerID string, series []trendsSeries) {
 	for i := range series {
-		mode := series[i].Key.Mode
-		if mode != "distance" && mode != "race" {
-			continue
-		}
 		var p struct {
 			Meters int `json:"meters"`
 		}
