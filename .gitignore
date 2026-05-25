@@ -75,3 +75,5 @@ playwright-report/
 tmp.png
 tmp_bar.png
 dg@ergo
+.superpowers/
+.sdd/runtime/
