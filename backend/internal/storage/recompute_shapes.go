@@ -2,28 +2,28 @@ package storage
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"sort"
 )
+
+// ShapeHasher computes a workout's canonical comparability hash from
+// its params_json. Production callers pass workout.ShapeHash; tests can
+// pass an in-memory stub. Defining the type here keeps the storage
+// package free of an import on internal/workout (which would create a
+// cycle: workout_test.go is `package workout` and imports storage).
+type ShapeHasher func(params json.RawMessage) (string, error)
 
 // RecomputeShapes detects workout rows with a NULL shape_hash (the
 // post-migration state from 0016_invalidate_workout_shape_hash) and
-// repopulates them using the same canonical-params SHA-256 algorithm as
-// workout.ShapeHash. Idempotent: when no NULL rows remain, this is a
-// no-op.
+// repopulates them via the supplied hasher. Idempotent: when no NULL
+// rows remain, this is a no-op.
 //
-// Callers should invoke this once after migrations apply at boot, BEFORE
-// BootJanitor.Run fires (so when RecomputeStaleRowerStats kicks off the
-// PB rebuild, the workout.shape_hash values are already correct).
-//
-// Note: the hash algorithm is inlined here (rather than imported from
-// internal/workout) to avoid a test-binary import cycle: workout_test.go
-// (package workout) imports storage, so storage must not import workout.
-func RecomputeShapes(ctx context.Context, db *sql.DB) error {
+// Callers should invoke this once after migrations apply at boot,
+// BEFORE BootJanitor.Run fires (so when RecomputeStaleRowerStats kicks
+// off the PB rebuild, the workout.shape_hash values are already
+// correct).
+func RecomputeShapes(ctx context.Context, db *sql.DB, hash ShapeHasher) error {
 	rows, err := db.QueryContext(ctx,
 		`SELECT id, params_json FROM workout WHERE shape_hash IS NULL`)
 	if err != nil {
@@ -48,7 +48,7 @@ func RecomputeShapes(ctx context.Context, db *sql.DB) error {
 	}
 
 	for _, p := range todo {
-		h, err := shapeHash(p.params)
+		h, err := hash(p.params)
 		if err != nil {
 			// Skip malformed params rather than failing the whole boot.
 			continue
@@ -59,50 +59,4 @@ func RecomputeShapes(ctx context.Context, db *sql.DB) error {
 		}
 	}
 	return nil
-}
-
-// shapeHash is a local copy of workout.ShapeHash. Both must produce
-// identical output — the unit test in recompute_shapes_test.go verifies
-// this by comparing against workout.ShapeHash directly.
-func shapeHash(params json.RawMessage) (string, error) {
-	canon, err := canonicalJSONForHash(params)
-	if err != nil {
-		return "", err
-	}
-	sum := sha256.Sum256(canon)
-	return hex.EncodeToString(sum[:]), nil
-}
-
-func canonicalJSONForHash(in json.RawMessage) (json.RawMessage, error) {
-	if len(in) == 0 {
-		return json.RawMessage("{}"), nil
-	}
-	var asMap map[string]json.RawMessage
-	if err := json.Unmarshal(in, &asMap); err != nil {
-		return in, nil
-	}
-	keys := make([]string, 0, len(asMap))
-	for k := range asMap {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	buf := []byte{'{'}
-	for i, k := range keys {
-		if i > 0 {
-			buf = append(buf, ',')
-		}
-		kb, err := json.Marshal(k)
-		if err != nil {
-			return nil, err
-		}
-		buf = append(buf, kb...)
-		buf = append(buf, ':')
-		v, err := canonicalJSONForHash(asMap[k])
-		if err != nil {
-			return nil, err
-		}
-		buf = append(buf, v...)
-	}
-	buf = append(buf, '}')
-	return buf, nil
 }

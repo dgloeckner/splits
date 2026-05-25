@@ -154,7 +154,7 @@ func run() error {
 		Stamp: sessionizer.Stamp,
 	}
 
-	if err := storage.RecomputeShapes(ctx, db.Handle()); err != nil {
+	if err := storage.RecomputeShapes(ctx, db.Handle(), workout.ShapeHash); err != nil {
 		slog.Error("boot.recompute_shapes", "err", err)
 		// Don't fatal — API still works; affected workouts just won't
 		// join trend series until the next successful boot.

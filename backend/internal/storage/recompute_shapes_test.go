@@ -29,7 +29,7 @@ func TestRecomputeShapes_PopulatesNullHashes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := storage.RecomputeShapes(context.Background(), db.Handle()); err != nil {
+	if err := storage.RecomputeShapes(context.Background(), db.Handle(), workout.ShapeHash); err != nil {
 		t.Fatal(err)
 	}
 
@@ -72,7 +72,7 @@ func TestRecomputeShapes_Idempotent(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := storage.RecomputeShapes(context.Background(), db.Handle()); err != nil {
+	if err := storage.RecomputeShapes(context.Background(), db.Handle(), workout.ShapeHash); err != nil {
 		t.Fatal(err)
 	}
 	var hAfterFirst string
@@ -81,7 +81,7 @@ func TestRecomputeShapes_Idempotent(t *testing.T) {
 	}
 
 	// Re-run: must be a no-op (no NULL rows left).
-	if err := storage.RecomputeShapes(context.Background(), db.Handle()); err != nil {
+	if err := storage.RecomputeShapes(context.Background(), db.Handle(), workout.ShapeHash); err != nil {
 		t.Fatal(err)
 	}
 	var hAfterSecond string
