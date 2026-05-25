@@ -6,18 +6,29 @@ test.describe.configure({ mode: 'serial' })
 test.setTimeout(120_000)
 
 /**
- * Seed 3 completed distance-500m sessions directly via SQLite so the
+ * Seed `count` completed distance-N-m sessions directly via SQLite so the
  * Trends endpoint has enough data to cross the SERIES_THRESHOLD (≥3) and
- * render a TrendsChart. This bypasses the need to replay a fixture three
- * times, keeping the test fast and deterministic.
+ * render a TrendsChart. This bypasses the need to replay a fixture
+ * `count` times, keeping the test fast and deterministic.
  *
- * Shape hash format matches what the backend computes for a 500 m
- * distance workout (see backend/internal/api/trends_test.go).
+ * Sessions are time-staggered by `dayOffset0` so multiple seed batches
+ * (one per shape) interleave on the chart without colliding at the same x.
+ *
+ * Shape hash stored as the canonical-params string itself (matches what
+ * trends_test.go uses for fixture rows; the trends API serves it back
+ * verbatim as `key.shape_hash`).
  */
-function seedTrendsSessions(dbPath: string, rowerId: string): string[] {
+function seedTrendsSessions(
+  dbPath: string,
+  rowerId: string,
+  meters: number,
+  count: number,
+  dayOffset0: number,
+): string[] {
   const now = Date.now()
   const day = 24 * 60 * 60 * 1000
   const sessionIds: string[] = []
+  const shapeHash = `{"meters":${meters}}`
 
   const rows: Array<{
     sessionId: string
@@ -26,26 +37,30 @@ function seedTrendsSessions(dbPath: string, rowerId: string): string[] {
     endedAt: string
   }> = []
 
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < count; i++) {
     const sessionId = randomUUID()
     const workoutId = randomUUID()
-    const start = new Date(now - (15 - i * 5) * day).toISOString()
-    const end = new Date(now - (15 - i * 5) * day + 10 * 60 * 1000).toISOString()
+    const start = new Date(now - (dayOffset0 - i * 5) * day).toISOString()
+    const end = new Date(now - (dayOffset0 - i * 5) * day + 10 * 60 * 1000).toISOString()
     rows.push({ sessionId, workoutId, startedAt: start, endedAt: end })
     sessionIds.push(sessionId)
   }
 
-  // Insert workouts first (FK source for sessions.workout_id)
+  // pace_sec_per_500m varies a bit so the rolling-avg overlay has signal
+  // and the strip's value/delta has something non-trivial to render.
+  const basePace = meters >= 2000 ? 115 : 130
+  const baseDPS = meters >= 2000 ? 9.4 : 8.5
+  const baseSPI = meters >= 2000 ? 9.5 : 7.0
+
   const workoutInserts = rows
     .map(
       (r) =>
         `INSERT INTO workout(id, mode, params_json, intensity, warmup_sec, cooldown_sec, created_at, shape_hash)
-         VALUES('${r.workoutId}', 'distance', '{"meters":500}', 'moderat', 0, 0,
-                '${r.startedAt}', '{"meters":500}');`,
+         VALUES('${r.workoutId}', 'distance', '{"meters":${meters}}', 'moderat', 0, 0,
+                '${r.startedAt}', '${shapeHash}');`,
     )
     .join('\n')
 
-  // Insert sessions with realistic aggregate metrics
   const sessionInserts = rows
     .map(
       (r, i) =>
@@ -54,8 +69,8 @@ function seedTrendsSessions(dbPath: string, rowerId: string): string[] {
               avg_power_w, avg_pace_sec_per_500m, avg_dps, avg_spi, avg_spm,
               workout_id)
          VALUES('${r.sessionId}', '${rowerId}', '${r.startedAt}', '${r.endedAt}',
-                3, 500, ${550 - i * 10}, 100,
-                ${160 + i * 5}, ${130 - i * 2}, ${8.5 + i * 0.2}, ${7.0 + i * 0.1}, 24.0,
+                3, ${meters}, ${(meters / 500) * (basePace - i * 2)}, 100,
+                ${160 + i * 5}, ${basePace - i * 2}, ${baseDPS + i * 0.2}, ${baseSPI + i * 0.1}, 24.0,
                 '${r.workoutId}');`,
     )
     .join('\n')
@@ -73,84 +88,111 @@ test('trends scrubber: drag updates strip; dot tap opens session detail', async 
   seedActiveRower,
   page,
 }) => {
-  // No fixture needed — we seed sessions directly via SQLite.
+  // Single-shape seed: only 500 m, 3 sessions. One-line scrub drags the
+  // primary row from the newest (rightmost) point to the oldest, asserting
+  // the value text changes; tap on the middle dot navigates to its session.
   const handle = await startBackend({ idleTimeout: '2s' })
   const rower = await seedActiveRower()
-
-  // Seed 3 completed 500m sessions so SERIES_THRESHOLD (≥3) is met.
-  const sessionIds = seedTrendsSessions(handle.dbPath, rower.id)
+  const sessionIds = seedTrendsSessions(handle.dbPath, rower.id, 500, 3, 15)
   expect(sessionIds).toHaveLength(3)
 
-  // Navigate to Trends tab with month range (covers sessions up to 15 days ago).
   await page.goto('/historie/trends?range=month')
-
-  // Wait for at least one TrendsChart capture rect to appear.
-  // If the series threshold is not met the capture rect won't render.
   await expect(page.getByTestId('trends-chart-capture').first()).toBeVisible({
     timeout: 15_000,
   })
   await expect(page.getByTestId('trends-strip-date').first()).toBeVisible()
 
-  // Capture the idle strip text from the first strip row (primary series).
   const firstStripRow = page.getByTestId(/^trends-strip-row-/).first()
   const idleText = (await firstStripRow.textContent()) ?? ''
 
-  // --- Scrub test ---
-  // Pointer events fire from mouse drags and the chart's useChartScrubber
-  // treats them identically per ADR-0016 (PointerEvents only, no hover).
   const capture = page.getByTestId('trends-chart-capture').first()
   const box = await capture.boundingBox()
   if (!box) throw new Error('trends-chart-capture bounding box missing')
 
-  // Drag strategy: start near the RIGHT edge (most-recent / idle point) then
-  // move to the LEFT edge (oldest point). Once the cursor has moved ≥10 px
-  // (DRAG_THRESHOLD_PX), the hook enters scrubbing mode and snaps scrubX to
-  // the nearest dot — here the leftmost (oldest) dot. Sampling the strip at
-  // that point must differ from idle (the rightmost / newest point).
   const midY = box.y + box.height / 2
-  // Start near right edge.
+  // Drag right→left to land scrubX on the oldest dot (different pace from
+  // idle/newest). The hook enters scrubbing after ≥10 px movement.
   await page.mouse.move(box.x + box.width - 5, midY)
   await page.mouse.down()
-  // Move all the way to the left. After >10 px of horizontal travel the
-  // hook enters scrubbing mode and snaps to the leftmost dot.
   await page.mouse.move(box.x + 5, midY, { steps: 15 })
-  // Wait a render tick so React state update flushes to the DOM.
   await page.waitForTimeout(100)
   const scrubbedText = (await firstStripRow.textContent()) ?? ''
   await page.mouse.up()
 
-  // The strip at the left edge (oldest point, pace 2:10) should differ from
-  // the idle strip (newest point, pace 2:06).
   expect(scrubbedText).not.toBe(idleText)
 
-  // Wait for the 3 s post-release hold to expire so scrubX resets to null,
-  // returning the strip to idle state before the dot-tap test.
+  // Wait for the 3 s post-release to expire before tapping a dot.
   await page.waitForTimeout(3_500)
 
-  // --- Dot-tap test ---
-  // The useChartScrubber hook compares localX (= clientX - captureRect.left)
-  // against dots[i].x (viewBox coordinates from toX(), range PLOT_LEFT..PLOT_RIGHT).
-  // To trigger findDotNear, we must click at clientX = captureRect.left + dot.x.
-  // For the first dot: dot.x = PLOT_LEFT = 34 (viewBox units; the xMin point).
-  // The capture rect starts at viewBox x=PLOT_LEFT in screen-space. Clicking at
-  // captureRect.left + 34 gives localX=34 which matches dot0.x=34.
-  //
-  // Middle dot (dot1, fraction=0.5): dot.x = PLOT_LEFT + 0.5*PLOT_W = 34+131 = 165.
-  // Clicking at captureRect.left + 165 is a more central target with more tolerance.
-  const captureForTap = page.getByTestId('trends-chart-capture').first()
-  const captureForTapBox = await captureForTap.boundingBox()
+  // useChartScrubber compares localX (= clientX - captureRect.left) against
+  // dots[i].x (viewBox coordinates from toX()). Click at captureRect.left +
+  // 165 to target dot1 (middle, viewBox x = PLOT_LEFT + 0.5 * PLOT_W = 165).
+  const captureForTapBox = await capture.boundingBox()
   if (!captureForTapBox) throw new Error('capture bounding box missing for tap test')
-
-  // Click targeting dot1 (middle dot, localX=165). The middle dot is mid-range
-  // so it is unambiguously closer to x=165 than to x=34 or x=296.
-  const PLOT_LEFT_VB = 34
-  const PLOT_W_VB = 262 // PLOT_RIGHT (296) - PLOT_LEFT (34)
-  const dot1ViewBoxX = PLOT_LEFT_VB + 0.5 * PLOT_W_VB // = 165
-  const dot1ClickX = captureForTapBox.x + dot1ViewBoxX
+  const dot1ClickX = captureForTapBox.x + 34 + 0.5 * 262 // = captureForTapBox.x + 165
   const dot1ClickY = captureForTapBox.y + captureForTapBox.height / 2
 
   await page.mouse.click(dot1ClickX, dot1ClickY)
-
-  // onDotTap calls navigate(`/historie/${sessionId}`).
   await expect(page).toHaveURL(/\/historie\/[A-Za-z0-9_-]+$/, { timeout: 8_000 })
+})
+
+test('trends: multi-series Leistung + Effizienz card render', async ({
+  startBackend,
+  seedActiveRower,
+  page,
+}) => {
+  // Two-shape seed: 500 m × 4 (primary) + 2 k × 3 (secondary). Both clear
+  // SERIES_THRESHOLD=3. Verifies the chart renders two series on Leistung
+  // and that the Effizienz card mirrors the most-rowed shape with DPS + SPI
+  // metric rows and no drawn rolling-avg overlay (rollingFor="none").
+  //
+  // Does NOT exercise drag/tap (covered by the test above). Interaction +
+  // structural concerns are separated so a flake in one doesn't mask the
+  // other.
+  const handle = await startBackend({ idleTimeout: '2s' })
+  const rower = await seedActiveRower()
+  const ids500 = seedTrendsSessions(handle.dbPath, rower.id, 500, 4, 16)
+  const ids2k = seedTrendsSessions(handle.dbPath, rower.id, 2000, 3, 13)
+  expect(ids500).toHaveLength(4)
+  expect(ids2k).toHaveLength(3)
+
+  await page.goto('/historie/trends?range=month')
+
+  // Card sections wrap the charts. Scope by aria-label so the same testids
+  // (trends-strip-row-*, trends-chart-capture, trends-chart-rolling) don't
+  // collide between Leistung and Effizienz.
+  const leistung = page.getByRole('region', { name: 'Leistung' })
+  const effizienz = page.getByRole('region', { name: 'Effizienz' })
+
+  await expect(leistung.getByTestId('trends-chart-capture')).toBeVisible({
+    timeout: 15_000,
+  })
+
+  // --- Multi-series Leistung ---
+  // shape_hash values are the canonical-params strings we seeded.
+  await expect(
+    leistung.getByTestId('trends-strip-row-{"meters":500}'),
+  ).toBeVisible()
+  await expect(
+    leistung.getByTestId('trends-strip-row-{"meters":2000}'),
+  ).toBeVisible()
+  // 4 dots from 500m + 3 dots from 2k = 7 total on the Leistung chart.
+  await expect(leistung.getByTestId('trends-chart-dot')).toHaveCount(7)
+  // Rolling-avg overlay applies only to the primary series → exactly 1 path.
+  await expect(leistung.getByTestId('trends-chart-rolling')).toHaveCount(1)
+
+  // --- Effizienz card ---
+  // Effizienz takes the most-rowed shape and renders DPS + SPI as two
+  // metric "series" on shared y. Testids: `{shape_hash}-dps` / `-spi`.
+  // No rolling-avg path drawn (rollingFor="none").
+  await expect(effizienz.getByTestId('trends-chart-capture')).toBeVisible()
+  await expect(
+    effizienz.getByTestId('trends-strip-row-{"meters":500}-dps'),
+  ).toBeVisible()
+  await expect(
+    effizienz.getByTestId('trends-strip-row-{"meters":500}-spi'),
+  ).toBeVisible()
+  await expect(effizienz.getByTestId('trends-chart-rolling')).toHaveCount(0)
+  // Effizienz uses only the primary shape's points (4 dots) × 2 metrics = 8.
+  await expect(effizienz.getByTestId('trends-chart-dot')).toHaveCount(8)
 })
