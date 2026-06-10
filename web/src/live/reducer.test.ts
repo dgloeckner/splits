@@ -441,4 +441,32 @@ describe('liveReducer', () => {
     })
     expect(state.phase).toBe('warmup')
   })
+
+  it('applies session_end with no active session (cold reconnect)', () => {
+    // Cold reconnect: client has no tracked session, catches up on a just-ended session
+    const freshState = initialLiveState
+    const end = {
+      kind: 'session_end' as const,
+      id: 99,
+      data: {
+        session_id: 's1',
+        ended_at: '2026-06-10T10:00:00Z',
+        summary: {
+          total_distance_m: 2000,
+          total_time_sec: 480,
+          total_strokes: 200,
+          avg_power_w: 250,
+          peak_power_w: 320,
+          avg_spm: 30,
+          avg_dps: 8,
+          avg_pace_sec_per_500m: 120,
+          session_calories: 200,
+        },
+      },
+    }
+    const after = liveReducer(freshState, { type: 'event', event: end })
+    // Should apply: state.session is null so the guard doesn't fire
+    expect(after.summary).toEqual(end.data.summary)
+    expect(after.stroke).toBe(null)
+  })
 })
