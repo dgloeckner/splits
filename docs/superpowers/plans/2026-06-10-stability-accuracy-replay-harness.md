@@ -865,6 +865,16 @@ var update = flag.Bool("update", false, "rewrite golden JSONL files")
 const fixtureDir = "../../../specs/int/fixtures/ipm"
 const goldenDir = "../../../specs/int/fixtures/golden"
 
+// expectedWorkDistance pins capture truth per fixture: hand-derive as
+// lastCSVDistance − firstCSVDistance from the DECODED raw payloads
+// (INT-0001 documents session-m1 as 20 strokes / 163 m / 48 s; first
+// frame 8 m → expect 155). Fill the real values while writing this
+// test — never copy them from harness output (circular).
+var expectedWorkDistance = map[string]int{
+	"session-m1":    155, // verify by hand against the CSV before trusting
+	"session-short": 0,   // derive and fill in
+}
+
 func harnessOpts() session.Options {
 	return session.Options{
 		IdleTimeout:       60 * time.Second,
@@ -1440,7 +1450,7 @@ With (a) in place the pause/resume core (inserted after the rebase, before `enri
 	f.TimeSec -= s.session.pausedAccumSec
 ```
 
-`classifyIdle` runs the `Classify` + phase-change-emission + `if complete { closeSession }` portion of `onFrame` against an idle frame's values without producing a stroke (extract that portion into a helper both paths share). `enterPause` additionally must check `s.session.currentPhase != PhaseCooldown` per policy (b), and set `currentSessionPaused` per policy (f). Two accepted, documented residuals: the resume stroke's `StrokeCycleSec`/`EnergyJoules` are 0 (its adjusted time equals the pause-start time — ~2 s undercount per pause), and the frame-gap branch is robust whether the device timer ticks or freezes during the gap (gap computes ~0 if frozen).
+`classifyIdle` runs the `Classify` + phase-change-emission + `if complete { closeSession }` portion of `onFrame` against an idle frame's values without producing a stroke (extract that portion into a helper both paths share). `clearPausedSnapshot` is the mu-guarded setter pair for policy (f)'s quartet field (`s.mu.Lock(); s.currentSessionPaused = nil; s.mu.Unlock()` — mirror how `currentPhaseChange` is handled at `sessionizer.go:401-404`; `enterPause` sets it the same way). `enterPause` additionally must check `s.session.currentPhase != PhaseCooldown` per policy (b). Two accepted, documented residuals: the resume stroke's `StrokeCycleSec`/`EnergyJoules` are 0 (its adjusted time equals the pause-start time — ~2 s undercount per pause), and the frame-gap branch is robust whether the device timer ticks or freezes during the gap (gap computes ~0 if frozen).
 
 - [ ] **Step 4: Fix compilation fallout**
 
