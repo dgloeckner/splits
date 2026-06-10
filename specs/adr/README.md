@@ -10,6 +10,14 @@
 | ADR-0006 | TLS Strategy                            | Proposed  |
 | ADR-0007 | Lossless Event Ingestion Pipeline       | Accepted  |
 | ADR-0009 | Race Mode Excludes Warmup and Cooldown  | Proposed  |
+| ADR-0010 | Session Lifecycle and Resumability      | Accepted  |
+| ADR-0011 | Replay-Grade Persistence + Windowed Split | Accepted |
+| ADR-0012 | Race Mode Non-Resumable                 | Proposed  |
+| ADR-0013 | Race Canvas Mounts at ATTENTION         | Accepted  |
+| ADR-0014 | E2E Per-Slice Gate with LLM Critique    | Accepted  |
+| ADR-0015 | Trends Group by Workout Intent          | Accepted  |
+| ADR-0016 | Trends Charts Touch-Native Scrubber     | Accepted  |
+| ADR-0017 | Deterministic Replay Harness as CI Seam | Accepted  |
 
 Future candidates:
 - **ADR-0008** — Serial protocol vs BLE FTMS (depends on firmware check)

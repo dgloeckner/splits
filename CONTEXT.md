@@ -211,9 +211,10 @@ they confirm Save / Discard.
 
 ### Stale-open session
 
-A session whose backend row remains `ended_at IS NULL` for > 5 minutes
-with no new strokes. Caused most often by an iPhone screen-lock that
-killed the live connection mid-cooldown. The home page surfaces these
+A session whose backend row remains `ended_at IS NULL` with no new
+strokes for longer than the §Pause resume window (15 minutes — a
+merely-paused session is never stale-open). Caused most often by an
+iPhone screen-lock that killed the live connection mid-cooldown. The home page surfaces these
 on rower reconnect with a "Frühere Session abschließen?" card —
 finalize from last stroke, discard, or rejoin live. See ADR-0010.
 
@@ -281,6 +282,27 @@ auto-popped during Warmup/Cooldown.
 
 ## Pause / Abort
 
+- **Pause is a first-class session sub-state, not a session end.**
+  A session enters Pause when distance stops advancing past the
+  pause threshold and **auto-resumes on the next distance-advancing
+  frame** — no user interaction required. The hard close (idle
+  `session_end`) fires only after the **resume window** (15 minutes)
+  of continuous pause. A short interruption (phone call, doorbell)
+  must never end the session or drop resumed strokes.
+- **The work clock stops while paused.** Pause time is excluded
+  from `total_time_sec`, average pace/power, time-mode targets, and
+  PB windows. A 20-minute time-mode piece requires 20 minutes of
+  actual rowing. The IPM's own timer is assumed to keep running
+  while idle, so the host tracks accumulated pause time and all
+  phase/total computations run on pause-adjusted time, not raw
+  device time. (Device idle-broadcast timer behaviour still needs a
+  hardware capture to confirm.)
+- **Phase countdowns halt while paused.** A pause during Warmup or
+  Cooldown freezes the countdown; the rower resumes the phase where
+  they left it. This also prevents the phase flipping to Work while
+  the rower is away (which would auto-pop the pause dialog).
+- A session inside its resume window is **not** §Stale-open; the
+  stale-open threshold must not undercut the resume window.
 - **Pause** is disallowed during a race. The pause control is
   hidden in race mode.
 - **Abort** ends the session before the finish horn. Abort produces
