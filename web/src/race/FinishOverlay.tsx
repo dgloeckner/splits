@@ -1,5 +1,6 @@
 import type { RaceResultLatch } from './raceResultLatch'
 import { fmtGap } from './fmtGap'
+import { fmtMmSs, fmtMmSsTenths } from '../lib/formatDuration'
 import styles from './FinishOverlay.module.css'
 
 /**
@@ -26,21 +27,6 @@ type Props = {
   onFinish?: () => void
 }
 
-function fmtMmSs(s: number): string {
-  const sign = s < 0 ? '-' : ''
-  const abs = Math.abs(s)
-  const m = Math.floor(abs / 60)
-  const r = Math.round(abs - m * 60)
-  return `${sign}${m}:${String(r).padStart(2, '0')}`
-}
-
-function fmtSplit(s: number): string {
-  // mm:ss.t — one decimal of seconds.
-  const m = Math.floor(s / 60)
-  const r = s - m * 60
-  return `${m}:${r.toFixed(1).padStart(4, '0')}`
-}
-
 export function FinishOverlay({ result, onFinish }: Props) {
   const { finalTimeS, finalSplitS, gaps } = result
   return (
@@ -55,7 +41,7 @@ export function FinishOverlay({ result, onFinish }: Props) {
         </div>
         <div className={styles.cell}>
           <span className={styles.label}>Schnitt</span>
-          <span className={styles.value} data-testid="finish-split">{fmtSplit(finalSplitS)}</span>
+          <span className={styles.value} data-testid="finish-split">{fmtMmSsTenths(finalSplitS)}</span>
         </div>
         {gaps.ghost != null && (
           <div className={styles.cell}>

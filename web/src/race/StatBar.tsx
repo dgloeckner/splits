@@ -1,5 +1,6 @@
 import styles from './StatBar.module.css'
 import { fmtGap } from './fmtGap'
+import { fmtMmSs } from '../lib/formatDuration'
 
 type Variant = 'phone' | 'tablet'
 
@@ -12,12 +13,6 @@ type Props = {
   spm?: number
   vsPbSec: number | null
   vsGhostSec: number | null
-}
-
-function fmtSplit(s: number): string {
-  const m = Math.floor(s / 60)
-  const r = Math.round(s - m * 60)
-  return `${m}:${String(r).padStart(2, '0')}`
 }
 
 function fmtElapsed(s: number): string {
@@ -52,7 +47,7 @@ export function StatBar(p: Props) {
       <div className={styles.bar} data-variant="phone">
         <span className={styles.cell} data-testid="statbar-elapsed">{fmtElapsed(p.elapsedSec)}</span>
         <span className={styles.cell}>{p.distanceLeftM} m</span>
-        <span className={styles.cell} data-testid="statbar-split">{fmtSplit(p.splitSec)}</span>
+        <span className={styles.cell} data-testid="statbar-split">{fmtMmSs(p.splitSec)}</span>
         <span className={styles.cell}>{p.watts} W</span>
         {lead && (
           <span
@@ -69,7 +64,7 @@ export function StatBar(p: Props) {
     <div className={styles.bar} data-variant="tablet">
       <span className={styles.cell} data-testid="statbar-elapsed">{fmtElapsed(p.elapsedSec)}</span>
       <span className={styles.cell}>{p.distanceLeftM} m</span>
-      <span className={styles.cell} data-testid="statbar-split">{fmtSplit(p.splitSec)}</span>
+      <span className={styles.cell} data-testid="statbar-split">{fmtMmSs(p.splitSec)}</span>
       <span className={styles.cell}>{p.watts} W</span>
       {p.spm != null && <span className={styles.cell}>{p.spm}</span>}
       {p.vsPbSec != null && <span className={styles.cell} data-testid="statbar-vs-pb">PB {fmtGap(p.vsPbSec)}</span>}
