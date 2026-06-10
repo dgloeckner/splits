@@ -238,20 +238,21 @@ func (p *Persister) applySessionEnd(ctx context.Context, e event.Event) error {
 	// available as headroom for distance candidates (B1).
 	summary.PBCandidates = stats.ComputeCandidates(strokes)
 
-	// Pre-load workout mode + rower_id for insights eligibility.
-	var rowerID, workoutMode string
-	_ = p.DB.QueryRowContext(ctx, `
-		SELECT s.rower_id, COALESCE(w.mode, '')
+	// Pre-load rower + workout context for race result, insights, and
+	// the recompute trigger. NOTE: the table is `workout` (singular) —
+	// the previous LEFT JOIN to `workouts` failed to prepare and
+	// silently disabled all three consumers (2026-06-10 review).
+	var rowerID, workoutMode, workoutID string
+	if err := p.DB.QueryRowContext(ctx, `
+		SELECT s.rower_id, COALESCE(w.mode, ''), COALESCE(s.workout_id, '')
 		FROM sessions s
-		LEFT JOIN workouts w ON w.id = s.workout_id
-		WHERE s.id = ?`, e.SessionID).Scan(&rowerID, &workoutMode)
+		LEFT JOIN workout w ON w.id = s.workout_id
+		WHERE s.id = ?`, e.SessionID).Scan(&rowerID, &workoutMode, &workoutID); err != nil {
+		return err
+	}
 
-	// FEAT-0013: race result snapshot. Pulls workout details directly
-	// (the existing rowerID query above uses a LEFT JOIN to a non-existent
-	// `workouts` plural — keeping that as-is to avoid scope creep).
-	var raceWorkoutID string
-	_ = p.DB.QueryRowContext(ctx, `SELECT COALESCE(workout_id,'') FROM sessions WHERE id = ?`, e.SessionID).Scan(&raceWorkoutID)
-	if raceRes, raceErr := ComputeRaceResult(ctx, p.DB, raceWorkoutID, rowerID,
+	// FEAT-0013: race result snapshot.
+	if raceRes, raceErr := ComputeRaceResult(ctx, p.DB, workoutID, rowerID,
 		summary.TotalDistanceM, summary.TotalTimeSec); raceErr == nil {
 		summary.Race = raceRes
 	}

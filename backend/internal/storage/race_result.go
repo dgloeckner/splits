@@ -247,5 +247,20 @@ func samplesFromSummaryJSON(summary string) ([]float64, []float64, bool) {
 	if len(sp.Samples.TSec) == 0 {
 		return nil, nil, false
 	}
-	return sp.Samples.TSec, sp.Samples.Split, true
+	t := sp.Samples.TSec
+	// Normalise the time axis so both the user's and the opponent's clocks
+	// start at 0. Stored t_sec values are work-stroke absolute times (e.g.
+	// 60 s into a session when there's a 60-second warmup), while the user's
+	// race time is anchored at the first work stroke. Without this shift the
+	// opponent's time-to-distance is inflated by the warmup duration,
+	// flattering the user by that amount (2026-06-10 review).
+	if t[0] != 0 {
+		origin := t[0]
+		shifted := make([]float64, len(t))
+		for i, v := range t {
+			shifted[i] = v - origin
+		}
+		t = shifted
+	}
+	return t, sp.Samples.Split, true
 }
