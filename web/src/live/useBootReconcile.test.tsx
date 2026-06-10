@@ -266,6 +266,57 @@ describe('useBootReconcile', () => {
     expect(queryByTestId('stale-open-recovery-card')).toBeNull()
   })
 
+  // AC8: StrictMode regression — React 18 dev mode double-invokes effects
+  // (mount → cleanup → mount). The first run's cleanup sets cancelled=true,
+  // so dispatch from the first fetch is suppressed. If ran.current is not
+  // reset during cleanup, the second mount sees ran.current=true and
+  // early-returns — reconciliation silently no-ops in development.
+  it('dispatches exactly once under StrictMode double-effect behaviour', async () => {
+    const { StrictMode } = await import('react')
+    const { useReducer } = await import('react')
+    const { liveReducer } = await import('./reducer')
+
+    // Use a deferred promise so we control exactly when the fetch resolves,
+    // ensuring we can verify dispatch fires after the StrictMode double-mount.
+    let resolveRow!: (row: SessionRow) => void
+    const rowPromise = new Promise<SessionRow>((res) => { resolveRow = res })
+    const getSession = vi.fn().mockReturnValue(rowPromise)
+
+    const dispatchCalls: LiveAction[] = []
+    function Harness() {
+      const [state, dispatch] = useReducer(liveReducer, cachedActive)
+      const wrappedDispatch = (a: LiveAction) => {
+        dispatchCalls.push(a)
+        dispatch(a)
+      }
+      return (
+        <LiveSessionContext.Provider value={{ ...state, dispatch: wrappedDispatch }}>
+          <Probe />
+        </LiveSessionContext.Provider>
+      )
+    }
+    function Probe() {
+      useBootReconcile({ getSession })
+      return null
+    }
+
+    render(
+      <StrictMode>
+        <Harness />
+      </StrictMode>,
+    )
+
+    // Resolve the fetch after StrictMode's double-mount has settled.
+    await act(async () => {
+      resolveRow(sessionRow({ ended_at: '2026-05-17T10:30:00Z' }))
+    })
+
+    await waitFor(() => expect(dispatchCalls.length).toBeGreaterThan(0))
+    // Must fire exactly once — not zero (silent no-op) and not twice.
+    expect(dispatchCalls).toHaveLength(1)
+    expect(dispatchCalls[0]).toEqual({ type: 'reset', summary: null })
+  })
+
   // AC7: regression — when the BE confirms the cached session is still
   // active (ended_at IS NULL), the hook must NOT unlock BottomNav. The
   // §Stale-open recovery flow owns that surface; the boot hook stays

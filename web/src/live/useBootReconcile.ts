@@ -93,6 +93,10 @@ export function useBootReconcile(deps: UseBootReconcileDeps = {}): void {
     })()
     return () => {
       cancelled = true
+      // Reset so the second StrictMode mount (dev double-effect) can
+      // re-run reconciliation. In production there is no cleanup before
+      // unmount so this is a no-op there.
+      ran.current = false
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []) // run once at mount; intentionally no deps
