@@ -242,6 +242,9 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
                 lastStrokeReceivedAtMs: null,
                 smoothed: null,
                 sessionStartedAtMs: null,
+                phase: null,
+                phaseAnchor: null,
+                workStartDistanceM: null,
               }
             : state
           const prevMs = baseState.lastStrokeReceivedAtMs
