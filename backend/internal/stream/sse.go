@@ -83,6 +83,12 @@ func NewHandler(ring *pipeline.Ring, b *Broadcaster, snap Snapshotter, monitor *
 			}
 		}
 
+		// Subscribe BEFORE replaying the ring so that any event whose
+		// fanout lands in the replay window is buffered on ch rather than
+		// silently lost. The live-loop below deduplicates via the
+		// `e.ID <= afterID` guard.
+		ch := b.Subscribe(afterID)
+
 		for _, e := range ring.Since(afterID) {
 			if sentSnapshot[e.ID] {
 				continue
@@ -95,7 +101,6 @@ func NewHandler(ring *pipeline.Ring, b *Broadcaster, snap Snapshotter, monitor *
 			}
 		}
 
-		ch := b.Subscribe(afterID)
 		ticker := time.NewTicker(20 * time.Second)
 		defer ticker.Stop()
 
@@ -158,12 +163,16 @@ func writeDeviceSSE(w http.ResponseWriter, f http.Flusher, ds ipm.DeviceState) e
 }
 
 func parseAfterID(r *http.Request) uint64 {
-	if s := r.URL.Query().Get("since"); s != "" {
+	// Last-Event-ID is set by the browser's EventSource on reconnects and
+	// always reflects the last event the client actually received, making
+	// it more authoritative than ?since= which is a static URL parameter
+	// baked in at page load. Check the header first.
+	if s := r.Header.Get("Last-Event-ID"); s != "" {
 		if v, err := strconv.ParseUint(s, 10, 64); err == nil {
 			return v
 		}
 	}
-	if s := r.Header.Get("Last-Event-ID"); s != "" {
+	if s := r.URL.Query().Get("since"); s != "" {
 		if v, err := strconv.ParseUint(s, 10, 64); err == nil {
 			return v
 		}
