@@ -125,15 +125,9 @@ export function locateSegment(
     if (seg.durationSec != null) {
       if (workCompletedAt != null) {
         // Time-based segment following a distance segment.
-        // If a later distance segment has already been entered, this
-        // time-based segment (rest) is consumed — skip it.
-        const nextDistSeg = segments.slice(idx + 1).find((s) => s.distanceM != null)
-        const nextDistStarted = nextDistSeg != null && distanceM > nextDistSeg.startDistanceM
-        if (nextDistStarted) {
-          workCompletedAt += seg.durationSec
-          timeAnchor = workCompletedAt
-          continue
-        }
+        // Rest persists until durationSec elapses — no early-exit when the
+        // rower's distance enters the next interval. Matches backend
+        // phaseplan.go:204-225 which has no rest-skip rule.
         const consumed = Math.max(0, timeSec - workCompletedAt)
         if (consumed < seg.durationSec) {
           return {

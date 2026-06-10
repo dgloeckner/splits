@@ -207,3 +207,70 @@ describe('locateSegment with B5 workStartDistanceM offset', () => {
     expect(a?.remainingM).toBe(1500)
   })
 })
+
+// phaseplan.go:204-225 — backend has no rest-skip rule; rest persists until
+// durationSec elapses regardless of how far the rower has paddled.
+describe('rest segments match backend classification (phaseplan.go has no rest-skip)', () => {
+  function makeIntervalSegs(): import('./segments').Segment[] {
+    // work(0-500m) → rest(60s) → work(500-1000m)
+    return [
+      {
+        kind: 'work',
+        index: 0,
+        distanceM: 500,
+        durationSec: undefined,
+        targetSplit: undefined,
+        targetSPM: undefined,
+        startTimeSec: 0,
+        endTimeSec: 0,
+        startDistanceM: 0,
+        endDistanceM: 500,
+      },
+      {
+        kind: 'rest',
+        index: 1,
+        durationSec: 60,
+        distanceM: undefined,
+        targetSplit: undefined,
+        targetSPM: undefined,
+        startTimeSec: 0,
+        endTimeSec: 60,
+        startDistanceM: 500,
+        endDistanceM: 500,
+      },
+      {
+        kind: 'work',
+        index: 2,
+        distanceM: 500,
+        durationSec: undefined,
+        targetSplit: undefined,
+        targetSPM: undefined,
+        startTimeSec: 60,
+        endTimeSec: 60,
+        startDistanceM: 500,
+        endDistanceM: 1000,
+      },
+    ]
+  }
+
+  it('stays in rest while its duration has not elapsed, even when paddling past the next start', () => {
+    const segs = makeIntervalSegs()
+    // Latch the crossing at t=120 (work distance reached at 500m)
+    locateSegment(segs, 500, 120)
+    // 30s into rest; rower has paddled 30m during rest (distanceM=530)
+    // next work segment starts at 500m — rower is already past it, but rest (60s) not elapsed
+    const active = locateSegment(segs, 530, 150)
+    expect(active?.segment.kind).toBe('rest')
+    expect(active?.remainingSec).toBe(30)
+  })
+
+  it('with a warmup offset, rest is not skipped on entry', () => {
+    const segs = makeIntervalSegs()
+    const offset = 200 // warmup meters
+    // At t=120 the rower crosses 500m of work-relative distance (cumulative 700m)
+    locateSegment(segs, 700, 120, offset)
+    // 5s later, still in rest — 20m paddled during rest (cumulative 720m)
+    const active = locateSegment(segs, 720, 125, offset)
+    expect(active?.segment.kind).toBe('rest')
+  })
+})
