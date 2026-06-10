@@ -211,6 +211,60 @@ describe('liveReducer', () => {
     expect(s.summary?.total_strokes).toBe(124)
   })
 
+  it('ignores a redelivered session_end for a different session', () => {
+    // state tracking session S2, stale session_end for S1 arrives
+    let s = liveReducer(initialLiveState, { type: 'event', event: start({ session_id: 'S2' }) })
+    const baselineSummary = {
+      total_distance_m: 2000,
+      total_time_sec: 480,
+      total_strokes: 200,
+      avg_power_w: 250,
+      peak_power_w: 320,
+      avg_spm: 30,
+      avg_dps: 8,
+      avg_pace_sec_per_500m: 120,
+      session_calories: 200,
+    }
+    s = liveReducer(s, {
+      type: 'event',
+      event: {
+        kind: 'session_end',
+        id: 2,
+        data: {
+          session_id: 'S2',
+          ended_at: '2026-04-20T10:05:00Z',
+          summary: baselineSummary,
+        },
+      },
+    })
+    const before = s.summary
+    // Stale session_end for S1 arrives — must NOT overwrite
+    s = liveReducer(s, {
+      type: 'event',
+      event: {
+        kind: 'session_end',
+        id: 3,
+        data: {
+          session_id: 'S1',
+          ended_at: '2026-04-20T10:04:00Z',
+          summary: {
+            total_distance_m: 1000,
+            total_time_sec: 240,
+            total_strokes: 100,
+            avg_power_w: 200,
+            peak_power_w: 250,
+            avg_spm: 28,
+            avg_dps: 8,
+            avg_pace_sec_per_500m: 140,
+            session_calories: 100,
+          },
+        },
+      },
+    })
+    expect(s.summary).toBe(before)
+    expect(s.summary?.total_strokes).toBe(200)
+  })
+
   describe('smoothed values + cold-start', () => {
     beforeEach(() => vi.useFakeTimers())
     afterEach(() => vi.useRealTimers())

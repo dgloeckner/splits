@@ -284,6 +284,13 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
         }
 
         case 'session_end':
+          // Guard against SSE redelivery of a previous session's end
+          // (mirrors session_finalized): only apply when it matches
+          // the session we're tracking. With no tracked session, apply
+          // (cold reconnect catching up on a just-ended session).
+          if (state.session && ev.data.session_id !== state.session.session_id) {
+            return state
+          }
           return {
             ...state,
             stroke: null,
