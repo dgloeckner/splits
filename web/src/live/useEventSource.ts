@@ -58,7 +58,7 @@ export function useEventSource(channel: Channel): UseEventSourceResult {
 
   useEffect(() => {
     channel.subscribe({
-      onEvent: (event) => dispatch({ type: 'event', event }),
+      onEvent: (event) => dispatch({ type: 'event', event, nowMs: Date.now() }),
       onStatus: (status) => dispatch({ type: 'status', status }),
     })
     return () => channel.close()

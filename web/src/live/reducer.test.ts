@@ -485,4 +485,13 @@ describe('liveReducer', () => {
     expect(after.phaseAnchor).toBeNull()
     expect(after.workStartDistanceM).toBeNull()
   })
+
+  it('is a pure function of (state, action) when nowMs is supplied', () => {
+    const strokeEvent = { kind: 'stroke' as const, id: 3, data: { ...stroke(1, {}).data, session_id: 's1' } }
+    const a = liveReducer(initialLiveState, { type: 'event', event: strokeEvent, nowMs: 1_000_000 })
+    const b = liveReducer(initialLiveState, { type: 'event', event: strokeEvent, nowMs: 1_000_000 })
+    expect(a).toEqual(b)
+    expect(a.lastStrokeReceivedAtMs).toBe(1_000_000)
+    expect(a.sessionStartedAtMs).toBe(1_000_000)
+  })
 })

@@ -75,7 +75,13 @@ export const initialLiveState: LiveState = {
 
 export type LiveAction =
   | { type: 'status'; status: ChannelStatus }
-  | { type: 'event'; event: LiveEvent }
+  /**
+   * nowMs: wall-clock at event arrival, stamped by the dispatcher
+   * (useEventSource). Optional for legacy callers/tests; the golden
+   * replay harness (ADR-0017) always supplies it so the reducer is a
+   * pure fold over the event list.
+   */
+  | { type: 'event'; event: LiveEvent; nowMs?: number }
   | { type: 'tick'; nowMs: number }
   // Boot-time reconciliation (PRD-0019 / §Boot-time session reconciliation):
   // imperatively drop the cached session/summary/sparklines when the BE
@@ -208,7 +214,7 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
 
         case 'stroke': {
           const p = ev.data
-          const now = Date.now()
+          const now = action.nowMs ?? Date.now()
           // If the stroke belongs to a session we haven't observed a
           // session_start for (e.g. SSE replayed past the start, or the
           // backend dropped the early events while we were latched on
@@ -232,7 +238,7 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
                     }
                   : {
                       session_id: p.session_id,
-                      started_at: new Date().toISOString(),
+                      started_at: new Date(now).toISOString(),
                       rower_id: '',
                       rower_name: '',
                       initial_level: p.level,
