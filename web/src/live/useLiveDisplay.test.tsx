@@ -5,10 +5,30 @@ import {
   useDeadReckonedDistance,
   useSmoothed,
   useCountUp,
+  useIsLivePaused,
 } from './useLiveDisplay'
 import { liveReducer, initialLiveState, type LiveState } from './reducer'
 import type { LiveEvent, StrokePayload } from './events'
 import { smoothingConfig } from './smoothing'
+
+/** Override window.matchMedia so prefers-reduced-motion returns `matches`. */
+function mockReducedMotion(matches: boolean) {
+  Object.defineProperty(window, 'matchMedia', {
+    configurable: true,
+    value: (q: string) => ({
+      matches: matches && q.includes('reduce'),
+      media: q,
+      onchange: null,
+      addListener() {},
+      removeListener() {},
+      addEventListener() {},
+      removeEventListener() {},
+      dispatchEvent() {
+        return true
+      },
+    }),
+  })
+}
 
 function stroke(id: number, payload: Partial<StrokePayload>): LiveEvent {
   return {
@@ -134,6 +154,41 @@ describe('useSmoothed', () => {
     const s3: LiveState = { ...s1, smoothed: { ...s1.smoothed!, power: 207 } }
     rerender({ st: s3 })
     expect(result.current.watts).toBe('207')
+  })
+})
+
+describe('useIsLivePaused', () => {
+  afterEach(() => {
+    // Restore default matchMedia stub (always returns matches: false).
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: (query: string): MediaQueryList =>
+        ({
+          matches: false,
+          media: query,
+          onchange: null,
+          addListener: () => {},
+          removeListener: () => {},
+          addEventListener: () => {},
+          removeEventListener: () => {},
+          dispatchEvent: () => false,
+        }) as unknown as MediaQueryList,
+    })
+  })
+
+  it('detects a pause under prefers-reduced-motion via the interval fallback', () => {
+    mockReducedMotion(true)
+    const state: LiveState = {
+      ...initialLiveState,
+      lastStrokeReceivedAtMs: Date.now(),
+      stroke: stroke(1, { time_sec: 2, distance_m: 8 }).data as StrokePayload,
+    }
+    const { result } = renderHook(() => useIsLivePaused(state))
+    expect(result.current).toBe(false)
+    act(() => {
+      vi.advanceTimersByTime(smoothingConfig.deadReckoning.pauseThresholdMs + 100)
+    })
+    expect(result.current).toBe(true)
   })
 })
 

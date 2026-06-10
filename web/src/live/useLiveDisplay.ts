@@ -73,6 +73,16 @@ export function useIsLivePaused(state: LiveState): boolean {
   const reduced = usePrefersReducedMotion()
   const visible = usePageVisible()
   useFrameTick(!reduced && visible)
+  // The rAF tick is disabled under reduced-motion / hidden tab, and a
+  // pause by definition produces no new strokes — so nothing would
+  // ever re-render this hook to flip `paused`. A coarse 1 s interval
+  // keeps detection alive without re-enabling animation.
+  const [, bump] = useState(0)
+  useEffect(() => {
+    if (!reduced && visible) return
+    const id = setInterval(() => bump((n) => n + 1), 1000)
+    return () => clearInterval(id)
+  }, [reduced, visible])
   const last = state.lastStrokeReceivedAtMs
   if (last === null) return true
   return Date.now() - last >= smoothingConfig.deadReckoning.pauseThresholdMs
