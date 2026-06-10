@@ -342,6 +342,26 @@ describe('liveReducer', () => {
     expect(s.smoothed).toBeNull()
   })
 
+  it('redelivered phase_change (snapshot replay) does not wipe sparklines', () => {
+    function stateWithSparklines(): LiveState {
+      let s = liveReducer(initialLiveState, { type: 'event', event: start() })
+      s = liveReducer(s, { type: 'event', event: stroke(1, { power_w: 200 }) })
+      s = liveReducer(s, { type: 'event', event: stroke(2, { power_w: 210 }) })
+      return s
+    }
+    const pc = {
+      kind: 'phase_change' as const,
+      id: 10,
+      data: {
+        session_id: 's1', from: 'warmup', to: 'work',
+        at_stroke: 5, at_time_sec: 120, at_distance_m: 400,
+      },
+    }
+    const s = liveReducer(stateWithSparklines(), { type: 'event', event: pc })
+    const after = liveReducer(s, { type: 'event', event: pc })
+    expect(after).toBe(s) // object identity — no wipe, no new state
+  })
+
   it('stroke updates phase from payload', () => {
     const state = liveReducer(initialLiveState, {
       type: 'event',

@@ -189,3 +189,53 @@ describe('EventSourceChannel — reconnect', () => {
     expect(FakeEventSource.instances.length).toBe(created)
   })
 })
+
+describe('event kind registration', () => {
+  it('registers a listener for every wire event kind', () => {
+    const listeners = new Map<string, (ev: MessageEvent) => void>()
+    const fakeES = {
+      addEventListener: (kind: string, fn: (ev: MessageEvent) => void) => {
+        listeners.set(kind, fn)
+      },
+      close: () => {},
+      onopen: null as null | (() => void),
+      onerror: null as null | (() => void),
+    }
+    const ch = new EventSourceChannel({
+      factory: () => fakeES as unknown as EventSource,
+      random: () => 0,
+    })
+    const received: string[] = []
+    ch.subscribe({
+      onEvent: (e) => received.push(e.kind),
+      onStatus: () => {},
+    })
+
+    const wireKinds = [
+      'stroke',
+      'session_start',
+      'session_end',
+      'session_finalized',
+      'level_change',
+      'workout_attached',
+      'phase_change',
+    ]
+    for (const k of wireKinds) {
+      expect(listeners.has(k), `channel must listen for "${k}"`).toBe(true)
+    }
+
+    // Round-trip a phase_change payload through the registered listener.
+    listeners.get('phase_change')!({
+      data: JSON.stringify({
+        session_id: 's1',
+        from: 'warmup',
+        to: 'work',
+        at_stroke: 12,
+        at_time_sec: 120,
+        at_distance_m: 410,
+      }),
+      lastEventId: '42',
+    } as MessageEvent)
+    expect(received).toContain('phase_change')
+  })
+})

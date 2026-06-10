@@ -316,6 +316,16 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
 
         case 'phase_change': {
           const p = ev.data
+          // Snapshot redelivery after an SSE reconnect re-sends the
+          // latest phase_change. Don't wipe the live charts when the
+          // state already reflects this exact transition.
+          if (
+            state.phase === (p.to as LiveState['phase']) &&
+            state.phaseAnchor?.distanceM === p.at_distance_m &&
+            state.phaseAnchor?.timeSec === p.at_time_sec
+          ) {
+            return state
+          }
           // B5: latch the cumulative distance at the warmup → work
           // transition so the live workout-progress UI can evaluate
           // distance segments relative to it. Only set once; later
