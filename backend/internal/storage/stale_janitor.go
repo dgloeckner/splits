@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/gloeckner-daniel/splits/internal/event"
-	"github.com/gloeckner-daniel/splits/internal/stats"
 )
 
 // StaleOpenThreshold is the idle window after which an open session
@@ -195,23 +194,16 @@ func ListStaleOpenSessions(ctx context.Context, db *sql.DB, rowerID string) ([]S
 }
 
 // FinalizeStaleSession closes a `status='stale-open'` (or open) session
-// using the most recent stroke's timestamp as `ended_at`. Computes the
-// same summary the persister's applySessionEnd would: aggregates from
-// strokes, downsampled samples, PB candidates. Idempotent: callers must
-// guard against double-finalise; this function does not re-check
-// ended_at and will overwrite if called twice.
+// via FinaliseSession (FinaliseStale reason). Uses the most recent
+// stroke's wall-clock timestamp as ended_at. Idempotent: the
+// WHERE ended_at IS NULL guard in FinaliseSession prevents double-writes.
+// Returns ErrZeroStrokes if the session has no strokes (callers should
+// return 204).
 func FinalizeStaleSession(ctx context.Context, db *sql.DB, sessionID string) error {
-	strokes, err := LoadSessionStrokes(ctx, db, sessionID)
-	if err != nil {
-		return err
-	}
-
-	// Recover the last stroke's wall-clock `at` directly — strokes
-	// returned by LoadSessionStrokes don't carry it.
+	// Recover the last stroke's wall-clock `at` as ended_at.
 	var lastAtStr string
-	err = db.QueryRowContext(ctx,
-		`SELECT MAX(at) FROM strokes WHERE session_id = ?`, sessionID).Scan(&lastAtStr)
-	if err != nil {
+	if err := db.QueryRowContext(ctx,
+		`SELECT MAX(at) FROM strokes WHERE session_id = ?`, sessionID).Scan(&lastAtStr); err != nil {
 		return err
 	}
 	endedAt := time.Now().UTC()
@@ -221,50 +213,8 @@ func FinalizeStaleSession(ctx context.Context, db *sql.DB, sessionID string) err
 		}
 	}
 
-	summary := buildSummary(strokes)
-	summary.Flags = []string{"recovered"}
-	// samples + candidates: skip when there are no strokes — buildSummary
-	// already returned a zero summary in that case.
-	if len(strokes) > 0 {
-		work := filterWorkStrokesForFinalize(strokes)
-		summary.Samples = stats.ComputeSamples(work, stats.BucketStrokesFor(len(work)))
-		// ComputeCandidates filters phases internally (work-only for every
-		// candidate type; legacy untagged strokes pass). Full stroke list
-		// is passed so the function can select the relevant subset itself.
-		summary.PBCandidates = stats.ComputeCandidates(strokes)
-	}
-	// ADR-0012: race-mode sessions are non-resumable. An interrupted
-	// race always finalises with summary.race == null regardless of
-	// where the last stroke landed relative to the finish line. No
-	// stroke-history inspection is required — the simple two-button
-	// recovery flow (Finalize / Discard) guarantees this outcome by
-	// construction.
-	summary.Race = nil
-
-	tx, err := db.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	if err := UpdateSessionEnd(ctx, tx, sessionID, endedAt, summary); err != nil {
-		return err
-	}
-	// Strokes are intentionally NOT deleted here (FEAT-0015 Slice 4 /
-	// ADR-0011): ended sessions retain their strokes for replay; only
-	// the FEAT-0009 hard-delete endpoint removes them.
-	return tx.Commit()
-}
-
-// filterWorkStrokesForFinalize keeps only `phase=='work'` strokes (or
-// no-phase legacy strokes) — mirrors persister.filterWorkStrokes.
-func filterWorkStrokesForFinalize(in []event.StrokePayload) []event.StrokePayload {
-	out := make([]event.StrokePayload, 0, len(in))
-	for _, s := range in {
-		if s.Phase == "" || s.Phase == "work" {
-			out = append(out, s)
-		}
-	}
-	return out
+	_, err := FinaliseSession(ctx, db, sessionID, endedAt, event.SessionSummary{}, nil, 0, FinaliseStale, nil)
+	return err
 }
 
 // StartStaleJanitor launches a 1-minute sweep goroutine that runs

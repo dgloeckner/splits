@@ -133,32 +133,28 @@ func (j *BootJanitor) finaliseOrphans(ctx context.Context) error {
 			continue
 		}
 		slog.Info("janitor.recovered", "session_id", o.id)
-		if j.Scheduler != nil {
-			stats.OnSessionChange(j.Scheduler, o.rowerID, stats.SessionCreated)
-		}
+		// Recompute is triggered inside FinaliseSession when j.Scheduler is
+		// non-nil; the caller-side trigger here has been removed to avoid a
+		// double-trigger.
 	}
 	return nil
 }
 
 func (j *BootJanitor) finaliseOne(ctx context.Context, id string) error {
-	tx, err := j.DB.BeginTx(ctx, nil)
+	// B4: check for zero strokes first and hard-delete the row if so,
+	// rather than materialising a zero-totals "ghost" recovered session.
+	// This check runs outside FinaliseSession so we can delete before
+	// calling it (ErrZeroStrokes → delete; non-zero → finalise).
+	strokes, err := LoadSessionStrokes(ctx, j.DB, id)
 	if err != nil {
 		return err
 	}
-	defer func() { _ = tx.Rollback() }()
-
-	strokes, err := LoadSessionStrokes(ctx, tx, id)
-	if err != nil {
-		return err
-	}
-	// B4: a session opened but never rowed (StartSession with no
-	// subsequent strokes — e.g. user tapped Start, walked away) is
-	// not a "recoverable" workout; finalising it as one produced
-	// zero-totals "ghost" rows that polluted history and the
-	// trends/PB aggregates. Drop the row entirely. Domain rule:
-	// a rower has at most one open session at a time, and an
-	// open session without strokes carries no signal.
 	if len(strokes) == 0 {
+		tx, err := j.DB.BeginTx(ctx, nil)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = tx.Rollback() }()
 		if _, err := tx.ExecContext(ctx, `DELETE FROM sessions WHERE id = ?`, id); err != nil {
 			return err
 		}
@@ -166,19 +162,9 @@ func (j *BootJanitor) finaliseOne(ctx context.Context, id string) error {
 	}
 
 	endedAt := time.Now().UTC()
-	summary := buildSummary(strokes)
-	summary.Samples = stats.ComputeSamples(strokes, stats.BucketStrokesFor(len(strokes)))
-	summary.PBCandidates = stats.ComputeCandidates(strokes)
-	// Mark as recovered so the UI / history can flag it.
-	summary.Flags = []string{"recovered"}
-
-	if err := UpdateSessionEnd(ctx, tx, id, endedAt, summary); err != nil {
-		return err
-	}
-	// Strokes are intentionally NOT deleted here (FEAT-0015 Slice 4 /
-	// ADR-0011): ended sessions retain their strokes for replay; only
-	// the FEAT-0009 hard-delete endpoint removes them.
-	return tx.Commit()
+	// Pass the pre-loaded strokes so FinaliseSession skips the DB load.
+	_, err = FinaliseSession(ctx, j.DB, id, endedAt, event.SessionSummary{}, strokes, 0, FinaliseBoot, j.Scheduler)
+	return err
 }
 
 // buildSummary computes session totals + averages from strokes. Used

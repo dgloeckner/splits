@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/gloeckner-daniel/splits/internal/event"
-	"github.com/gloeckner-daniel/splits/internal/insights"
 	"github.com/gloeckner-daniel/splits/internal/stats"
 )
 
@@ -218,18 +217,15 @@ func (p *Persister) apply(ctx context.Context, e event.Event) error {
 	return nil
 }
 
-// applySessionEnd writes the enriched session summary at session_end:
-// read strokes, compute samples + PB candidates outside any txn, then
-// in a short transaction write the summary. Per FEAT-0015 Slice 4 /
-// ADR-0011 the strokes are retained (they are the canonical input for
-// the replay harness and any future stat-formula re-derivation); only
-// the FEAT-0009 hard-delete path (`DELETE /api/v1/sessions/{id}`)
-// removes them.
+// applySessionEnd writes the enriched session summary at session_end via
+// FinaliseSession. Per FEAT-0015 Slice 4 / ADR-0011 the strokes are
+// retained (canonical replay input); only FEAT-0009 hard-delete removes
+// them.
 func (p *Persister) applySessionEnd(ctx context.Context, e event.Event) error {
 	// §Falschstart: re-tag pre-GO strokes as warmup so every downstream
-	// consumer (filterWorkStrokes, ComputeCandidates, race result) sees
-	// only post-GO strokes as work-phase. Must run before LoadSessionStrokes
-	// so the in-DB phase tags are correct when we read them back.
+	// consumer (FilterWorkStrokes, ComputeCandidates, race result) sees
+	// only post-GO strokes as work-phase. Must run before FinaliseSession
+	// loads strokes so the in-DB phase tags are correct.
 	if e.SessionEnd != nil && e.SessionEnd.Summary.RaceGoStrokeNo > 1 {
 		if _, err := p.DB.ExecContext(ctx,
 			`UPDATE strokes SET phase = 'warmup' WHERE session_id = ? AND stroke_no < ?`,
@@ -238,64 +234,10 @@ func (p *Persister) applySessionEnd(ctx context.Context, e event.Event) error {
 		}
 	}
 
-	strokes, err := LoadSessionStrokes(ctx, p.DB, e.SessionID)
+	summary, err := FinaliseSession(ctx, p.DB, e.SessionID, e.SessionEnd.EndedAt,
+		e.SessionEnd.Summary, nil, e.ID, FinaliseEnded, p.Scheduler)
 	if err != nil {
 		return err
-	}
-	workStrokes := filterWorkStrokes(strokes)
-	summary := e.SessionEnd.Summary
-	summary.Samples = stats.ComputeSamples(workStrokes, stats.BucketStrokesFor(len(workStrokes)))
-	// ComputeCandidates filters phases internally (work-only for every
-	// candidate type; legacy untagged strokes pass). Full stroke list
-	// is passed so the function can select the relevant subset itself.
-	summary.PBCandidates = stats.ComputeCandidates(strokes)
-
-	// Pre-load rower + workout context for race result, insights, and
-	// the recompute trigger. NOTE: the table is `workout` (singular) —
-	// the previous LEFT JOIN to `workouts` failed to prepare and
-	// silently disabled all three consumers (2026-06-10 review).
-	var rowerID, workoutMode, workoutID string
-	if err := p.DB.QueryRowContext(ctx, `
-		SELECT s.rower_id, COALESCE(w.mode, ''), COALESCE(s.workout_id, '')
-		FROM sessions s
-		LEFT JOIN workout w ON w.id = s.workout_id
-		WHERE s.id = ?`, e.SessionID).Scan(&rowerID, &workoutMode, &workoutID); err != nil {
-		return err
-	}
-
-	// FEAT-0013: race result snapshot.
-	if raceRes, raceErr := ComputeRaceResult(ctx, p.DB, workoutID, rowerID,
-		summary.TotalDistanceM, summary.TotalTimeSec); raceErr == nil {
-		summary.Race = raceRes
-	}
-
-	insightsRes := computeInsightsSafely(insights.SessionMeta{
-		WorkoutMode: workoutMode,
-		DurationSec: summary.TotalTimeSec,
-		DistanceM:   summary.TotalDistanceM,
-	}, summary.Samples)
-
-	tx, err := p.DB.BeginTx(ctx, nil)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = tx.Rollback() }()
-	if err := UpdateSessionEndWithEventID(ctx, tx, e.SessionID, e.SessionEnd.EndedAt, summary, e.ID); err != nil {
-		return err
-	}
-	// Strokes are intentionally NOT deleted here (FEAT-0015 Slice 4 /
-	// ADR-0011). They remain the canonical replay input; only the
-	// FEAT-0009 hard-delete endpoint removes them.
-	if rowerID != "" {
-		if err := insights.ReplaceForSessionTx(ctx, tx, rowerID, e.SessionID, insightsRes.Findings); err != nil {
-			return err
-		}
-	}
-	if err := tx.Commit(); err != nil {
-		return err
-	}
-	if p.Scheduler != nil && rowerID != "" {
-		stats.OnSessionChange(p.Scheduler, rowerID, stats.SessionCreated)
 	}
 	p.emitSessionFinalized(ctx, e.SessionID, summary)
 	return nil
@@ -337,25 +279,4 @@ func (p *Persister) emitSessionFinalized(ctx context.Context, sessionID string, 
 	}
 }
 
-// computeInsightsSafely runs the insights pipeline with panic
-// recovery. A panic in a detector logs and returns an empty result;
-// the session_end commit still succeeds without insights.
-func computeInsightsSafely(meta insights.SessionMeta, samples *event.SessionSamples) (res insights.Result) {
-	defer func() {
-		if r := recover(); r != nil {
-			slog.Error("insights.compute panic", "err", r)
-			res = insights.Result{Eligible: false, Findings: []insights.Finding{}}
-		}
-	}()
-	return insights.Run(meta, samples)
-}
 
-func filterWorkStrokes(in []event.StrokePayload) []event.StrokePayload {
-	out := make([]event.StrokePayload, 0, len(in))
-	for _, s := range in {
-		if s.Phase == "" || s.Phase == "work" {
-			out = append(out, s)
-		}
-	}
-	return out
-}
