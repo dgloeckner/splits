@@ -29,19 +29,20 @@ var expectedWorkDistance = map[string]int{
 
 func harnessOpts() session.Options {
 	return session.Options{
-		IdleTimeout:       60 * time.Second,
-		InactivityTimeout: 60 * time.Second,
-		RowerID:           "golden-rower",
-		RowerName:         "Golden",
+		IdleTimeout:  60 * time.Second,
+		PauseTimeout: 10 * time.Second,
+		ResumeWindow: 15 * time.Minute,
+		RowerID:      "golden-rower",
+		RowerName:    "Golden",
 	}
 }
 
 func longHarnessOpts() session.Options {
 	return session.Options{
-		IdleTimeout:       10 * time.Minute,
-		InactivityTimeout: 0,
-		RowerID:           "golden-rower",
-		RowerName:         "Golden",
+		IdleTimeout:  10 * time.Minute,
+		PauseTimeout: 0, // no pause detection for long sessions
+		RowerID:      "golden-rower",
+		RowerName:    "Golden",
 	}
 }
 

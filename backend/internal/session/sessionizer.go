@@ -17,10 +17,18 @@ import (
 // is injectable for deterministic tests.
 type Options struct {
 	IdleTimeout time.Duration
-	// InactivityTimeout closes a session when frames keep arriving but
-	// distance has not advanced for this long — e.g. ergo idle-broadcast
-	// or a fixture replay with the user not actually rowing. Zero
-	// disables the check.
+	// PauseTimeout: distance frozen (or no frames) for this long puts
+	// the open session into Paused (CONTEXT.md §Pause / Abort) instead
+	// of closing it. Zero disables pause detection (legacy tests).
+	PauseTimeout time.Duration
+	// ResumeWindow: a session continuously paused for this long is
+	// closed for good. The stale-open threshold must not undercut it.
+	// When zero, IdleTimeout is used as the close threshold instead.
+	ResumeWindow time.Duration
+	// InactivityTimeout is kept for backwards compatibility with callers
+	// that have not yet migrated to PauseTimeout. When PauseTimeout is
+	// zero and InactivityTimeout is non-zero, the old close-on-inactivity
+	// behaviour is preserved. Deprecated: prefer PauseTimeout.
 	InactivityTimeout time.Duration
 	// ResolveRower returns the rower to attribute new sessions to at
 	// the moment a session opens. If nil, falls back to RowerID/Name.
@@ -115,6 +123,10 @@ type Sessionizer struct {
 	currentSessionStart    *event.Event
 	currentWorkoutAttached *event.Event
 	currentPhaseChange     *event.Event
+	// currentSessionPaused is non-nil while the session is in the
+	// Paused sub-state. Included in Snapshot() so reconnecting clients
+	// know the session is paused. Cleared on resume/close/ClearActiveSession.
+	currentSessionPaused *event.Event
 }
 
 type sessionState struct {
@@ -157,6 +169,11 @@ type sessionState struct {
 	workAnchorSet      bool
 	workAnchorDistance int
 	workAnchorTimeSec  float64
+	// Pause sub-state (CONTEXT.md §Pause / Abort).
+	pausedSinceWall time.Time // zero when not paused
+	pausedAtWorkSec float64   // work-clock TimeSec of last stroke before pause
+	pausedAccumSec  float64   // total device-time excluded from work clock
+
 	// recentStrokes is a small ring buffer of the most recent strokes
 	// used by LivePace for the windowed split. Trimmed to entries whose
 	// TimeSec is within the active window of the latest stroke (plus
@@ -252,16 +269,24 @@ func (s *Sessionizer) Run(ctx context.Context, in <-chan ipm.Frame, out chan<- e
 			// sweep that flips the row.
 			s.dropDeadSessionOnStart(ctx)
 			if s.session != nil {
-				// If the open session has been idle past IdleTimeout,
-				// close it first so the new start opens a fresh
-				// session. Otherwise a duplicate start is a no-op
-				// (idempotent).
-				now := s.opts.Now()
-				if now.Sub(s.session.lastSeen) < s.opts.IdleTimeout {
-					continue
-				}
-				if err := forward(ctx, out, s.closeSession()); err != nil {
-					return err
+				// Policy (e): a paused session must not block an explicit
+				// Start. Close it so the new session opens immediately.
+				if !s.session.pausedSinceWall.IsZero() {
+					if err := forward(ctx, out, s.closeSession()); err != nil {
+						return err
+					}
+				} else {
+					// If the open session has been idle past IdleTimeout,
+					// close it first so the new start opens a fresh
+					// session. Otherwise a duplicate start is a no-op
+					// (idempotent).
+					now := s.opts.Now()
+					if now.Sub(s.session.lastSeen) < s.opts.IdleTimeout {
+						continue
+					}
+					if err := forward(ctx, out, s.closeSession()); err != nil {
+						return err
+					}
 				}
 			}
 			// Only overwrite the pending workout if the caller
@@ -326,16 +351,68 @@ func (s *Sessionizer) handleAttach(id string) []event.Event {
 	return []event.Event{e}
 }
 
+// enterPause transitions the open session into the Paused sub-state and
+// returns a session_paused event. Policy (b): never arm during cooldown.
+func (s *Sessionizer) enterPause(now time.Time) []event.Event {
+	st := s.session
+	if st == nil {
+		return nil
+	}
+	// Policy (b): never arm pause during cooldown
+	if st.currentPhase == PhaseCooldown {
+		return nil
+	}
+	st.pausedSinceWall = now
+	if st.lastStroke != nil {
+		st.pausedAtWorkSec = st.lastStroke.TimeSec
+	}
+	e := event.Event{
+		Kind:         event.KindSessionPaused,
+		SessionID:    st.id,
+		SessionPause: &event.SessionPausePayload{AtTimeSec: st.pausedAtWorkSec},
+	}
+	s.mu.Lock()
+	snap := e
+	s.currentSessionPaused = &snap
+	s.mu.Unlock()
+	return s.appendEvent(nil, e)
+}
+
 func (s *Sessionizer) onFrame(f ipm.Frame) []event.Event {
 	var evs []event.Event
 	now := s.opts.Now()
 
-	if s.session != nil && now.Sub(s.session.lastSeen) >= s.opts.IdleTimeout {
-		evs = append(evs, s.closeSession()...)
-	}
-	if s.session != nil && s.opts.InactivityTimeout > 0 &&
-		now.Sub(s.session.lastActivity) >= s.opts.InactivityTimeout {
-		evs = append(evs, s.closeSession()...)
+	if s.session != nil {
+		// Determine the effective close threshold.
+		// When PauseTimeout is set, a paused session is closed only after
+		// ResumeWindow (or IdleTimeout as fallback). A session that was
+		// never paused uses IdleTimeout.
+		closeThreshold := s.opts.IdleTimeout
+		if s.opts.PauseTimeout > 0 {
+			if !s.session.pausedSinceWall.IsZero() {
+				// Session is paused; use ResumeWindow as the close threshold.
+				resumeWindow := s.opts.ResumeWindow
+				if resumeWindow <= 0 {
+					resumeWindow = s.opts.IdleTimeout
+				}
+				if now.Sub(s.session.pausedSinceWall) >= resumeWindow {
+					evs = append(evs, s.closeSession()...)
+				}
+			} else {
+				if now.Sub(s.session.lastSeen) >= closeThreshold {
+					evs = append(evs, s.closeSession()...)
+				}
+			}
+		} else {
+			// Legacy: no PauseTimeout. Use IdleTimeout + InactivityTimeout.
+			if now.Sub(s.session.lastSeen) >= s.opts.IdleTimeout {
+				evs = append(evs, s.closeSession()...)
+			}
+			if s.session != nil && s.opts.InactivityTimeout > 0 &&
+				now.Sub(s.session.lastActivity) >= s.opts.InactivityTimeout {
+				evs = append(evs, s.closeSession()...)
+			}
+		}
 	}
 	if s.session == nil {
 		// No active session — drain a pending Start request first
@@ -355,6 +432,108 @@ func (s *Sessionizer) onFrame(f ipm.Frame) []event.Event {
 		default:
 			return evs
 		}
+	}
+
+	// ---- Idle-frame detection ----
+	// An idle frame has the same (or lower) distance as the last stroke.
+	// Policy (a): idle frames update lastSeen but do NOT create stroke events.
+	prevDist := -1
+	if s.session.lastStroke != nil {
+		prevDist = s.session.lastStroke.DistanceM
+	}
+	// Rebase the incoming distance for comparison. Anchors may not be set yet
+	// on the very first frame; treat pre-anchor frames as non-idle.
+	rebasedDist := f.DistanceM
+	if s.session.storageAnchorSet {
+		rebasedDist = f.DistanceM - s.session.storageAnchorDistance
+	}
+	// Idle detection only applies when PauseTimeout is enabled. Legacy
+	// callers (PauseTimeout=0) keep the old behaviour where every frame
+	// produces a stroke event.
+	isIdle := s.opts.PauseTimeout > 0 &&
+		s.session.storageAnchorSet && prevDist >= 0 && rebasedDist <= prevDist
+
+	if isIdle {
+		s.session.lastSeen = now
+		if !s.session.pausedSinceWall.IsZero() {
+			// Already paused — just update lastSeen and return. The
+			// ResumeWindow check above handles the eventual close.
+			return evs
+		}
+		// Policy (b): never arm pause during cooldown. Instead, during
+		// cooldown check whether the phase plan has completed so we can
+		// auto-close via PhaseDone.
+		if s.session.currentPhase == PhaseCooldown && s.session.lastStroke != nil {
+			// Advance the adjusted time for classify using the idle frame's
+			// device time minus accumulated pauses.
+			adjustedTimeSec := f.TimeSec - s.session.storageAnchorTimeSec - s.session.pausedAccumSec
+			phaseOffsetTime := s.session.phaseAnchorTimeSec - s.session.storageAnchorTimeSec
+			_, complete := s.session.plan.Classify(
+				s.session.lastStroke.DistanceM-(s.session.phaseAnchorDistance-s.session.storageAnchorDistance),
+				adjustedTimeSec-phaseOffsetTime,
+			)
+			if complete {
+				evs = append(evs, s.closeSession()...)
+			}
+			return evs
+		}
+		// Not yet paused. Check if PauseTimeout has elapsed since
+		// the last distance-advancing activity.
+		if s.opts.PauseTimeout > 0 && !s.session.lastActivity.IsZero() &&
+			now.Sub(s.session.lastActivity) >= s.opts.PauseTimeout {
+			evs = append(evs, s.enterPause(now)...)
+		}
+		// Idle frames don't produce stroke events; return early.
+		return evs
+	}
+
+	// ---- Non-idle frame: distance advanced ----
+
+	// If previously paused (via idle-broadcast path), emit session_resumed
+	// and account for the device-clock gap during pause.
+	if !s.session.pausedSinceWall.IsZero() {
+		// The device clock kept ticking during the pause; subtract the
+		// accumulated pause seconds before rebasing so the work clock
+		// stops during pauses. Compute the gap as device-time since the
+		// last real stroke (minus already-accumulated pauses).
+		rawTimeSec := f.TimeSec - s.session.storageAnchorTimeSec
+		pausedDevice := rawTimeSec - s.session.pausedAccumSec - s.session.pausedAtWorkSec
+		if pausedDevice > 0 {
+			s.session.pausedAccumSec += pausedDevice
+		}
+		s.session.pausedSinceWall = time.Time{}
+		s.mu.Lock()
+		s.currentSessionPaused = nil
+		s.mu.Unlock()
+		resumeEv := event.Event{
+			Kind:         event.KindSessionResumed,
+			SessionID:    s.session.id,
+			SessionPause: &event.SessionPausePayload{AtTimeSec: s.session.pausedAtWorkSec},
+		}
+		evs = s.appendEvent(evs, resumeEv)
+	} else if s.opts.PauseTimeout > 0 && s.session.lastStroke != nil &&
+		now.Sub(s.session.lastSeen) >= s.opts.PauseTimeout {
+		// Frame-gap pause: no frames arrived for PauseTimeout (wall clock).
+		// The device clock advanced; absorb the device-time gap into
+		// pausedAccumSec so the work clock excludes the gap.
+		rawTimeSec := f.TimeSec - s.session.storageAnchorTimeSec
+		gapSec := rawTimeSec - s.session.pausedAccumSec - s.session.lastStroke.TimeSec
+		if gapSec > 0 {
+			s.session.pausedAccumSec += gapSec
+		}
+		at := s.session.lastStroke.TimeSec
+		pauseEv := event.Event{
+			Kind:         event.KindSessionPaused,
+			SessionID:    s.session.id,
+			SessionPause: &event.SessionPausePayload{AtTimeSec: at},
+		}
+		evs = s.appendEvent(evs, pauseEv)
+		resumeEv := event.Event{
+			Kind:         event.KindSessionResumed,
+			SessionID:    s.session.id,
+			SessionPause: &event.SessionPausePayload{AtTimeSec: at},
+		}
+		evs = s.appendEvent(evs, resumeEv)
 	}
 
 	// Capture absolute (PM5-cumulative) values before rebasing; they are
@@ -377,6 +556,10 @@ func (s *Sessionizer) onFrame(f ipm.Frame) []event.Event {
 	// session-relative values from t=0.
 	f.DistanceM -= s.session.storageAnchorDistance
 	f.TimeSec -= s.session.storageAnchorTimeSec
+
+	// Adjust the work clock: subtract accumulated pause time so the
+	// work clock stops while the session is paused.
+	f.TimeSec -= s.session.pausedAccumSec
 
 	stroke := s.enrich(f)
 
@@ -453,9 +636,7 @@ func (s *Sessionizer) onFrame(f ipm.Frame) []event.Event {
 	}
 	s.session.lastLevel = stroke.Level
 	s.session.lastSeen = now
-	// A frame counts as "activity" only if distance advanced. Idle
-	// broadcasts (same DistanceM repeated) leave lastActivity untouched
-	// so InactivityTimeout can fire.
+	// A frame counts as "activity" only if distance advanced.
 	if hadPrev && prevDistance != stroke.DistanceM {
 		s.session.lastActivity = now
 	} else if s.session.strokeSeq == 1 {
@@ -613,6 +794,7 @@ func (s *Sessionizer) openSessionInternal(initialLevel int) []event.Event {
 	s.currentSessionStart = &snap
 	s.currentWorkoutAttached = nil
 	s.currentPhaseChange = nil
+	s.currentSessionPaused = nil
 	s.mu.Unlock()
 	return []event.Event{e}
 }
@@ -668,6 +850,7 @@ func (s *Sessionizer) ClearActiveSession(id string) {
 	s.currentSessionStart = nil
 	s.currentWorkoutAttached = nil
 	s.currentPhaseChange = nil
+	s.currentSessionPaused = nil
 }
 
 // MaxEventID returns the highest event id this sessionizer has
@@ -764,6 +947,7 @@ func (s *Sessionizer) closeSession() []event.Event {
 	s.currentSessionStart = nil
 	s.currentWorkoutAttached = nil
 	s.currentPhaseChange = nil
+	s.currentSessionPaused = nil
 	s.mu.Unlock()
 	e := event.Event{
 		Kind:      event.KindSessionEnd,
@@ -800,6 +984,9 @@ func (s *Sessionizer) Snapshot() []event.Event {
 	}
 	if s.currentPhaseChange != nil {
 		out = append(out, *s.currentPhaseChange)
+	}
+	if s.currentSessionPaused != nil {
+		out = append(out, *s.currentSessionPaused)
 	}
 	return out
 }
@@ -867,14 +1054,20 @@ func (s *Sessionizer) closeIfOpenSync() []event.Event {
 // value. Must not be used concurrently with Run.
 
 // OpenSession opens a new session for the given workoutID (empty = free row)
-// and returns any emitted events (session_start).
+// and returns any emitted events (session_start). Policy (e): if a session
+// is already open (even paused), it is closed first.
 func (s *Sessionizer) OpenSession(workoutID string) []event.Event {
+	var evs []event.Event
+	if s.session != nil {
+		evs = append(evs, s.closeSession()...)
+	}
 	if workoutID != "" {
 		s.mu.Lock()
 		s.pendingWorkoutID = workoutID
 		s.mu.Unlock()
 	}
-	return s.openSessionPending()
+	evs = append(evs, s.openSessionPending()...)
+	return evs
 }
 
 // ProcessFrame processes one frame synchronously and returns the events

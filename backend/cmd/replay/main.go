@@ -118,8 +118,8 @@ func Replay(ctx context.Context, db *sql.DB, sessionID string, w io.Writer) erro
 	base := time.Unix(0, 0).UTC()
 	clock := &replayClock{now: base}
 	s := session.New(session.Options{
-		IdleTimeout:       1 * time.Hour,
-		InactivityTimeout: 0,
+		IdleTimeout:  1 * time.Hour,
+		PauseTimeout: 0, // replay: no pause detection
 		RowerID:           "replay",
 		RowerName:         "Replay",
 		Now:               clock.Now,

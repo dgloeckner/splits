@@ -124,10 +124,12 @@ func run() error {
 	bcast := stream.NewBroadcaster(broadcastCh)
 	sessionizer := session.New(session.Options{
 		IdleTimeout: cfg.IdleTimeout,
-		// Close sessions where frames keep arriving but distance is
-		// not advancing (idle ergo broadcast or fixture replay with
-		// the user not actually rowing).
-		InactivityTimeout: 60 * time.Second,
+		// PauseTimeout: distance frozen for this long triggers the
+		// Paused sub-state (idle ergo broadcast or user taking a break).
+		PauseTimeout: 10 * time.Second,
+		// ResumeWindow: a continuously paused session is closed for good
+		// after this duration.
+		ResumeWindow: 15 * time.Minute,
 		ResolveRower: func() (string, string) {
 			id, name := rowerHolder.Resolve()
 			if id == "" {
