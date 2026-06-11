@@ -272,8 +272,10 @@ func filterWorkStrokesForFinalize(in []event.StrokePayload) []event.StrokePayloa
 // janitor must not crash the process for a transient SQLite hiccup.
 // `clearer` may be nil (e.g. headless tooling); production wires it
 // to the live sessionizer so flipped sessions are also evicted from
-// memory.
-func StartStaleJanitor(ctx context.Context, db *sql.DB, clearer StaleSessionClearer) {
+// memory. `threshold` is the idle window after which an open session
+// is flagged stale-open; it should be ≥ the sessionizer's ResumeWindow
+// so that merely-paused sessions are never marked stale prematurely.
+func StartStaleJanitor(ctx context.Context, db *sql.DB, clearer StaleSessionClearer, threshold time.Duration) {
 	go func() {
 		t := time.NewTicker(StaleJanitorTick)
 		defer t.Stop()
@@ -282,7 +284,7 @@ func StartStaleJanitor(ctx context.Context, db *sql.DB, clearer StaleSessionClea
 			case <-ctx.Done():
 				return
 			case <-t.C:
-				if _, err := SweepStaleOpenWithClear(ctx, db, StaleOpenThreshold, clearer); err != nil {
+				if _, err := SweepStaleOpenWithClear(ctx, db, threshold, clearer); err != nil {
 					slog.Error("stale_janitor.sweep", "err", err)
 				}
 				// B6: self-heal rower stats every tick. If the async

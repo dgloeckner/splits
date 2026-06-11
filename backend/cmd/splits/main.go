@@ -128,8 +128,8 @@ func run() error {
 		// Paused sub-state (idle ergo broadcast or user taking a break).
 		PauseTimeout: 10 * time.Second,
 		// ResumeWindow: a continuously paused session is closed for good
-		// after this duration.
-		ResumeWindow: 15 * time.Minute,
+		// after this duration. Configured via SPLITS_RESUME_WINDOW.
+		ResumeWindow: cfg.ResumeWindow,
 		ResolveRower: func() (string, string) {
 			id, name := rowerHolder.Resolve()
 			if id == "" {
@@ -163,7 +163,9 @@ func run() error {
 	}
 	(&storage.BootJanitor{DB: db.Handle(), Scheduler: scheduler}).Run(ctx)
 	// FEAT-0015 Slice 3: stale-open janitor sweeps every minute.
-	storage.StartStaleJanitor(ctx, db.Handle(), sessionizer)
+	// Threshold is aligned to ResumeWindow so paused sessions are never
+	// flagged stale-open before the resume window expires (CONTEXT.md §Stale-open).
+	storage.StartStaleJanitor(ctx, db.Handle(), sessionizer, cfg.ResumeWindow)
 
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error { return producer.Run(gctx, frames) })

@@ -25,14 +25,15 @@ func TestLoad_AllDefaults(t *testing.T) {
 		t.Errorf("DBPath = %q, want ./splits.db or ./homeergo.db", wantDB)
 	}
 	want := &Config{
-		Addr:        ":8080",
-		SerialPort:  "",
-		SerialBaud:  9600,
-		DBPath:      wantDB,
-		Fixture:     "",
-		FixtureRate: "realtime",
-		LogLevel:    "info",
-		IdleTimeout: 60 * time.Second,
+		Addr:         ":8080",
+		SerialPort:   "",
+		SerialBaud:   9600,
+		DBPath:       wantDB,
+		Fixture:      "",
+		FixtureRate:  "realtime",
+		LogLevel:     "info",
+		IdleTimeout:  60 * time.Second,
+		ResumeWindow: 15 * time.Minute,
 	}
 	if *got != *want {
 		t.Errorf("Load() = %+v, want %+v", got, want)
@@ -116,14 +117,15 @@ func TestLoad_EnvOverrides(t *testing.T) {
 		t.Fatalf("Load() unexpected error: %v", err)
 	}
 	want := &Config{
-		Addr:        ":9090",
-		SerialPort:  "/dev/cu.usbserial-AB0JKG07",
-		SerialBaud:  19200,
-		DBPath:      "/var/lib/homeergo.db",
-		Fixture:     "./session-m1.csv",
-		FixtureRate: "fast",
-		LogLevel:    "debug",
-		IdleTimeout: 30 * time.Second,
+		Addr:         ":9090",
+		SerialPort:   "/dev/cu.usbserial-AB0JKG07",
+		SerialBaud:   19200,
+		DBPath:       "/var/lib/homeergo.db",
+		Fixture:      "./session-m1.csv",
+		FixtureRate:  "fast",
+		LogLevel:     "debug",
+		IdleTimeout:  30 * time.Second,
+		ResumeWindow: 15 * time.Minute,
 	}
 	if *got != *want {
 		t.Errorf("Load() = %+v, want %+v", got, want)
@@ -236,5 +238,31 @@ func TestLoad_FixturePausedDefaultFalse(t *testing.T) {
 func TestLoad_InvalidFixtureRate(t *testing.T) {
 	if _, err := Load(mapLookup(map[string]string{"HOMEERGO_FIXTURE_RATE": "hyperspeed"})); err == nil {
 		t.Fatal("Load() expected error for unknown fixture rate, got nil")
+	}
+}
+
+func TestLoad_ResumeWindow_Override(t *testing.T) {
+	cfg, err := Load(mapLookup(map[string]string{"SPLITS_RESUME_WINDOW": "20m"}))
+	if err != nil {
+		t.Fatalf("Load() unexpected error: %v", err)
+	}
+	if cfg.ResumeWindow != 20*time.Minute {
+		t.Errorf("ResumeWindow = %v, want 20m", cfg.ResumeWindow)
+	}
+}
+
+func TestLoad_ResumeWindow_Default(t *testing.T) {
+	cfg, err := Load(mapLookup(nil))
+	if err != nil {
+		t.Fatalf("Load() unexpected error: %v", err)
+	}
+	if cfg.ResumeWindow != 15*time.Minute {
+		t.Errorf("ResumeWindow default = %v, want 15m", cfg.ResumeWindow)
+	}
+}
+
+func TestLoad_InvalidResumeWindow(t *testing.T) {
+	if _, err := Load(mapLookup(map[string]string{"SPLITS_RESUME_WINDOW": "not-a-duration"})); err == nil {
+		t.Fatal("Load() expected error for bad resume window, got nil")
 	}
 }

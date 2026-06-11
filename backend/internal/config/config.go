@@ -21,7 +21,8 @@ type Config struct {
 	Fixture     string
 	FixtureRate string
 	LogLevel    string
-	IdleTimeout time.Duration // consumed by the sessionizer in M2
+	IdleTimeout  time.Duration // consumed by the sessionizer in M2
+	ResumeWindow time.Duration // max pause before a session is abandoned; consumed by the sessionizer
 	// FixtureDelay defers the FixtureProducer's first frame by this
 	// duration. Zero means "start immediately" (production / dev). E2E
 	// tests set it to a few seconds so the user-flow under test (rower
@@ -74,6 +75,13 @@ func Load(env Lookup) (*Config, error) {
 		return nil, fmt.Errorf("SPLITS_IDLE_TIMEOUT %q: %w", idleStr, err)
 	}
 	c.IdleTimeout = idle
+
+	resumeStr := get(env, "SPLITS_RESUME_WINDOW", "15m")
+	resume, err := time.ParseDuration(resumeStr)
+	if err != nil {
+		return nil, fmt.Errorf("SPLITS_RESUME_WINDOW %q: %w", resumeStr, err)
+	}
+	c.ResumeWindow = resume
 
 	if v, ok := env("SPLITS_FIXTURE_DELAY"); ok && v != "" {
 		d, err := time.ParseDuration(v)
