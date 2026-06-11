@@ -350,4 +350,32 @@ describe('raceLifecycle reducer', () => {
     s = raceLifecycle(s, { type: 'tick', nowMs: 9999 })
     expect(s.phase).toBe('Aborted')
   })
+
+  it('goFired flips when a tick reaches race_t0 during a Falschstart', () => {
+    let s = initialRaceLifecycle({ totalMeters: 500 })
+    s = raceLifecycle(s, { type: 'confirm' })
+    s = raceLifecycle(s, { type: 'bereitTap', t: 100_000 }) // race_t0 = 103_000 (2*1500ms countdown)
+    // Stroke before GO → Falschstart (nowMs is in ATTENTION window)
+    s = raceLifecycle(s, { type: 'stroke', t: 1, dist: 3, userDistance: 3, total: 500, nowMs: 101_000 })
+    expect(s.liveKind).toBe('Falschstart')
+    expect(s.goFired).toBe(false)
+    expect(s.goAnchor).toBeNull()
+    // Tick before GO → goFired still false
+    s = raceLifecycle(s, { type: 'tick', nowMs: 102_000 })
+    expect(s.goFired).toBe(false)
+    // Tick past race_t0 → GO fires
+    s = raceLifecycle(s, { type: 'tick', nowMs: 103_100 })
+    expect(s.goFired).toBe(true)
+    expect(s.goAnchor).toEqual({ t: 1, dist: 3 }) // last pre-GO stroke position
+  })
+
+  it('NormalStart sets goFired immediately on Live entry', () => {
+    let s = initialRaceLifecycle({ totalMeters: 500 })
+    s = raceLifecycle(s, { type: 'confirm' })
+    s = raceLifecycle(s, { type: 'bereitTap', t: 0 }) // race_t0 = 3_000
+    s = raceLifecycle(s, { type: 'tick', nowMs: 4_600 }) // POST_GO → Live(NormalStart)
+    expect(s.phase).toBe('Live')
+    expect(s.goFired).toBe(true)
+    expect(s.goAnchor).toBeNull()
+  })
 })

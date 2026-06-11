@@ -60,6 +60,10 @@ export type RaceLifecycleState = {
    * observe it. See `.scratch/race-finish-cleanup/issues/10-...md`.
    */
   falschstartShownAtMs: number | null
+  /** True once the GO! moment has passed (same clock domain as race_t0). */
+  goFired: boolean
+  /** Last pre-GO stroke position (Falschstart only); F2 subtracts this from race distance/time. */
+  goAnchor: { t: number; dist: number } | null
   /** Latched finish-cross result (0014-06); null until the user crosses. */
   latchedResult: RaceResultLatch | null
   /** Captured config + last stroke for latch derivation. Internal. */
@@ -114,6 +118,8 @@ export function initialRaceLifecycle(config?: RaceLifecycleConfig): RaceLifecycl
     session_start: null,
     falschstart: false,
     falschstartShownAtMs: null,
+    goFired: false,
+    goAnchor: null,
     latchedResult: null,
     _config: config ?? {},
     _prevStroke: null,
@@ -159,6 +165,20 @@ export function raceLifecycle(
       return state
 
     case 'tick': {
+      // Falschstart GO detection: the pre-GO Live phase ticks through here.
+      // useRaceLifecycle drives ticks during Ceremony; the Falschstart branch
+      // below is reached when the caller also ticks during Live(Falschstart)
+      // (useRaceLifecycle is responsible for extending the tick loop).
+      if (
+        state.phase === 'Live' &&
+        state.falschstart &&
+        !state.goFired &&
+        state.race_t0 != null &&
+        event.nowMs >= state.race_t0
+      ) {
+        return { ...state, goFired: true, goAnchor: state._prevStroke ?? null }
+      }
+
       if (state.phase !== 'Ceremony' || state.bereitTapAtMs == null) return state
       const elapsed = event.nowMs - state.bereitTapAtMs
       const step = ceremonyStepFor(elapsed)
@@ -168,6 +188,8 @@ export function raceLifecycle(
           phase: 'Live',
           ceremonyStep: null,
           liveKind: 'NormalStart',
+          goFired: true,
+          goAnchor: null,
           // race_t0 was set at bereitTap to bereitTap + 2*STEP (the GO moment)
         }
       }
@@ -195,6 +217,7 @@ export function raceLifecycle(
             falschstart: true,
             falschstartShownAtMs: event.nowMs ?? null,
             session_start: event.t,
+            _prevStroke: { t: event.t, dist: event.dist },
           }
         }
         // Stroke during GO! is the race-start signal: transition to

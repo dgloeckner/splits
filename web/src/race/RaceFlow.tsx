@@ -240,11 +240,7 @@ function RaceLiveStage({
   const stroke = liveState.stroke
   const inCeremony = lifecycle.phase === 'Ceremony'
   const preGoFalschstart =
-    lifecycle.phase === 'Live' &&
-    lifecycle.falschstart &&
-    lifecycle.race_t0 != null &&
-    stroke != null &&
-    stroke.time_sec * 1000 < lifecycle.race_t0
+    lifecycle.phase === 'Live' && lifecycle.falschstart && !lifecycle.goFired
   const clampVisualToZero = inCeremony || preGoFalschstart
   const visualLiveState: LiveState =
     clampVisualToZero && stroke

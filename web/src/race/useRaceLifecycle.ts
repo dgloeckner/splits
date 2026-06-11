@@ -21,17 +21,23 @@ export function useRaceLifecycle(config?: RaceLifecycleConfig) {
   stateRef.current = state
 
   useEffect(() => {
-    if (state.phase !== 'Ceremony') return
+    const needsTick =
+      state.phase === 'Ceremony' ||
+      (state.phase === 'Live' && state.falschstart && !state.goFired)
+    if (!needsTick) return
     let raf = 0
     const loop = () => {
       dispatch({ type: 'tick', nowMs: performance.now() })
-      if (stateRef.current.phase === 'Ceremony') raf = requestAnimationFrame(loop)
+      const s = stateRef.current
+      const keepTicking =
+        s.phase === 'Ceremony' || (s.phase === 'Live' && s.falschstart && !s.goFired)
+      if (keepTicking) raf = requestAnimationFrame(loop)
     }
     raf = requestAnimationFrame(loop)
     return () => {
       if (typeof cancelAnimationFrame === 'function') cancelAnimationFrame(raf)
     }
-  }, [state.phase])
+  }, [state.phase, state.falschstart, state.goFired])
 
   const send = useCallback((e: RaceLifecycleEvent) => dispatch(e), [])
 
