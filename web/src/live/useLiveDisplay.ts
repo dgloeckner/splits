@@ -83,6 +83,7 @@ export function useIsLivePaused(state: LiveState): boolean {
     const id = setInterval(() => bump((n) => n + 1), 1000)
     return () => clearInterval(id)
   }, [reduced, visible])
+  if (state.serverPaused) return true
   const last = state.lastStrokeReceivedAtMs
   if (last === null) return true
   return Date.now() - last >= smoothingConfig.deadReckoning.pauseThresholdMs

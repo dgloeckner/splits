@@ -177,6 +177,17 @@ describe('useIsLivePaused', () => {
     })
   })
 
+  it('returns true when serverPaused is set, even with a fresh lastStrokeReceivedAtMs', () => {
+    const state: LiveState = {
+      ...initialLiveState,
+      lastStrokeReceivedAtMs: Date.now(),
+      stroke: stroke(1, { time_sec: 2, distance_m: 8 }).data as StrokePayload,
+      serverPaused: true,
+    }
+    const { result } = renderHook(() => useIsLivePaused(state))
+    expect(result.current).toBe(true)
+  })
+
   it('detects a pause under prefers-reduced-motion via the interval fallback', () => {
     mockReducedMotion(true)
     const state: LiveState = {

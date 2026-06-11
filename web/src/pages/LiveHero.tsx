@@ -91,6 +91,11 @@ export function LiveHero({ state, target }: Props) {
           >
             {splitText}
           </span>
+          {paused && (
+            <span className={styles.pausedChip} data-testid="paused-chip">
+              Pausiert
+            </span>
+          )}
         </div>
         {target?.split && (
           <span

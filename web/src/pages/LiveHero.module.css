@@ -95,3 +95,16 @@
 .splitValue[data-target-status='under'] {
   color: var(--color-primary);
 }
+
+.pausedChip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 99px;
+  background: var(--color-surface-container-high);
+  color: var(--color-on-surface-variant);
+  font-size: var(--text-label-sm, 11px);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  align-self: center;
+}
