@@ -2,7 +2,9 @@ import type { LiveState } from './reducer'
 
 // Frame-arrival gap treated as a pause; use for reducer gap detection and
 // also hero dead-reckoning freezes.
-export const PAUSE_GAP_MS = 5000
+// Must match smoothingConfig.deadReckoning.pauseThresholdMs (smoothing.ts)
+// and LivePacePauseThreshold on the backend (livePace.go).
+export const PAUSE_GAP_MS = 4_000
 
 // Per-metric plausible ranges. Samples outside these are dropped before
 // they can corrupt sparklines, axis bounds, or the running average.
