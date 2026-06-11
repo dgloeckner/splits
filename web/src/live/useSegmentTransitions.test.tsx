@@ -43,7 +43,7 @@ function stateFor(distanceM: number, timeSec: number): LiveState {
   return {
     ...initialLiveState,
     session: { session_id: 'S1', started_at: '', rower_id: 'R', rower_name: 'A', initial_level: 3, workout_id: 'W1' },
-    stroke: { session_id: 'S1', stroke: 1, time_sec: timeSec, distance_m: distanceM, spm: 20, power_w: 100, cal_per_hr: 500, level: 3, dps: 8, stroke_cycle_sec: 3, pace_sec_per_500m: 150, energy_joules: 300 },
+    stroke: { session_id: 'S1', stroke: 1, time_sec: timeSec, distance_m: distanceM, spm: 20, power_w: 100, cal_per_hr: 500, level: 3, dps: 8, stroke_cycle_sec: 3, pace_sec_per_500m: 150, energy_joules: 300, work_distance_m: distanceM, work_time_sec: timeSec, phase_distance_m: distanceM, phase_time_sec: timeSec },
   }
 }
 

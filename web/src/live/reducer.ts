@@ -39,17 +39,6 @@ export type LiveState = {
   /** Wall-clock ms at first stroke after session_start. Used to gate cold-start. */
   sessionStartedAtMs: number | null
   phase: 'warmup' | 'work' | 'rest' | 'cooldown' | null
-  phaseAnchor: { distanceM: number; timeSec: number } | null
-  /**
-   * Cumulative distance at the moment the first work stroke arrived
-   * (B5). For workouts with a warmup, this is the warmup-end
-   * distance; distance segments must be evaluated relative to this
-   * anchor so a 5 km work goal really means 5 km of post-warmup
-   * rowing, not 5 km of session-cumulative distance. `null` until
-   * the first phase_change into work (or session_start when there
-   * is no warmup — see session_start handling).
-   */
-  workStartDistanceM: number | null
   /**
    * IPM serial connectivity, pushed via the `device` SSE event. `null`
    * = unknown (no event yet — assume connected so the UI doesn't flash
@@ -69,9 +58,7 @@ export const initialLiveState: LiveState = {
   lastStrokeReceivedAtMs: null,
   smoothed: null,
   sessionStartedAtMs: null,
-  workStartDistanceM: null,
   phase: null,
-  phaseAnchor: null,
   deviceConnected: null,
   serverPaused: false,
 }
@@ -211,8 +198,6 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
             smoothed: null,
             sessionStartedAtMs: null,
             phase: null,
-            phaseAnchor: null,
-            workStartDistanceM: null,
             serverPaused: false,
           }
 
@@ -253,8 +238,6 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
                 smoothed: null,
                 sessionStartedAtMs: null,
                 phase: null,
-                phaseAnchor: null,
-                workStartDistanceM: null,
                 serverPaused: false,
               }
             : state
@@ -341,25 +324,13 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
           // latest phase_change. Don't wipe the live charts when the
           // state already reflects this exact transition.
           if (
-            state.phase === (p.to as LiveState['phase']) &&
-            state.phaseAnchor?.distanceM === p.at_distance_m &&
-            state.phaseAnchor?.timeSec === p.at_time_sec
+            state.phase === (p.to as LiveState['phase'])
           ) {
             return state
           }
-          // B5: latch the cumulative distance at the warmup → work
-          // transition so the live workout-progress UI can evaluate
-          // distance segments relative to it. Only set once; later
-          // phase changes (work → cooldown, etc.) must not overwrite.
-          const workStartDistanceM =
-            state.workStartDistanceM == null && p.from === 'warmup' && p.to === 'work'
-              ? p.at_distance_m
-              : state.workStartDistanceM
           return {
             ...state,
             phase: p.to as LiveState['phase'],
-            phaseAnchor: { distanceM: p.at_distance_m, timeSec: p.at_time_sec },
-            workStartDistanceM,
             // Re-calibrate the live charts at every phase boundary so a
             // slow warmup doesn't leave the work-phase y-axis squashed
             // (and vice versa for cooldown).

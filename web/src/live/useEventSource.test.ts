@@ -65,7 +65,6 @@ describe('useEventSource', () => {
       smoothed: null,
       sessionStartedAtMs: null,
       phase: null,
-      phaseAnchor: null,
     }
     sessionStorage.setItem('splits:live-state', JSON.stringify(persisted))
 

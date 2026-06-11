@@ -30,6 +30,10 @@ export type StrokePayload = {
   pace_sec_per_500m: number
   energy_joules: number
   phase?: string
+  work_distance_m: number
+  work_time_sec: number
+  phase_distance_m: number
+  phase_time_sec: number
 }
 
 export type SessionStartPayload = {

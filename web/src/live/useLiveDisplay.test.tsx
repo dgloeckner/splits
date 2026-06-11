@@ -6,7 +6,8 @@ import {
   useSmoothed,
   useCountUp,
   useIsLivePaused,
-  phaseRelative,
+  usePhasedDistance,
+  usePhasedTime,
 } from './useLiveDisplay'
 import { liveReducer, initialLiveState, type LiveState } from './reducer'
 import type { LiveEvent, StrokePayload } from './events'
@@ -48,6 +49,10 @@ function stroke(id: number, payload: Partial<StrokePayload>): LiveEvent {
       stroke_cycle_sec: 2.2,
       pace_sec_per_500m: 132,
       energy_joules: 500,
+      work_distance_m: 0,
+      work_time_sec: 0,
+      phase_distance_m: 0,
+      phase_time_sec: 0,
       ...payload,
     },
   }
@@ -204,18 +209,109 @@ describe('useIsLivePaused', () => {
   })
 })
 
-describe('phaseRelative', () => {
-  it('falls back to absolute without an anchor', () => {
-    expect(phaseRelative(1500, 'work', null, 'distanceM')).toBe(1500)
+describe('usePhasedDistance', () => {
+  it('returns placeholder when no stroke', () => {
+    const { result } = renderHook(() => usePhasedDistance(initialLiveState))
+    expect(result.current.text).toBe('—')
   })
-  it('subtracts the anchor and clamps at zero', () => {
-    expect(phaseRelative(1500, 'work', { distanceM: 400, timeSec: 120 }, 'distanceM')).toBe(1100)
-    expect(phaseRelative(390, 'work', { distanceM: 400, timeSec: 120 }, 'distanceM')).toBe(0)
+
+  it('returns phase_distance_m from the stamped stroke field (no extrapolation at t=0)', () => {
+    const s = liveReducer(initialLiveState, {
+      type: 'event',
+      event: stroke(1, { phase_distance_m: 50, distance_m: 450, time_sec: 10 }),
+      nowMs: Date.now(),
+    })
+    const { result } = renderHook(() => usePhasedDistance(s))
+    // At t=0 sinceFrame the result is exactly phase_distance_m (fmtInt truncates)
+    expect(result.current.text).toBe('50')
   })
-  it('returns absolute value when phase is null', () => {
-    expect(phaseRelative(1500, null, { distanceM: 400, timeSec: 120 }, 'distanceM')).toBe(1500)
+
+  it('adds dead-reckoning delta on top of phase_distance_m as time passes', () => {
+    const s = liveReducer(initialLiveState, {
+      type: 'event',
+      event: stroke(1, {
+        phase_distance_m: 50,
+        distance_m: 450,
+        time_sec: 10,
+        pace_sec_per_500m: 100,
+      }),
+      nowMs: Date.now(),
+    })
+    vi.advanceTimersByTime(1000)
+    const { result } = renderHook(() => usePhasedDistance(s))
+    // speed = 500/100 = 5 m/s; 1s elapsed → ≥ 55
+    const parsed = parseInt(result.current.text, 10)
+    expect(parsed).toBeGreaterThanOrEqual(55)
+  })
+
+  it('shows 0 when phase_distance_m is 0 (warmup/no work yet)', () => {
+    const s = liveReducer(initialLiveState, {
+      type: 'event',
+      event: stroke(1, { phase_distance_m: 0, work_distance_m: 0, phase: 'warmup' }),
+      nowMs: Date.now(),
+    })
+    const { result } = renderHook(() => usePhasedDistance(s))
+    expect(result.current.text).toBe('0')
+  })
+
+  it('freezes extrapolation after pause threshold elapses', () => {
+    const s = liveReducer(initialLiveState, {
+      type: 'event',
+      event: stroke(1, { phase_distance_m: 100, distance_m: 500, time_sec: 20, pace_sec_per_500m: 100 }),
+      nowMs: Date.now(),
+    })
+    vi.advanceTimersByTime(smoothingConfig.deadReckoning.pauseThresholdMs + 100)
+    const { result } = renderHook(() => usePhasedDistance(s))
+    // Paused → frozen at stamped phase_distance_m (delta = max(0, distance_m - distance_m) = 0)
+    expect(result.current.text).toBe('100')
+    expect(result.current.paused).toBe(true)
   })
 })
+
+describe('usePhasedTime', () => {
+  it('returns placeholder when no stroke', () => {
+    const { result } = renderHook(() => usePhasedTime(initialLiveState))
+    expect(result.current.text).toBe('—')
+  })
+
+  it('returns phase_time_sec formatted as mm:ss', () => {
+    const s = liveReducer(initialLiveState, {
+      type: 'event',
+      event: stroke(1, { phase_time_sec: 75, time_sec: 200, distance_m: 800 }),
+      nowMs: Date.now(),
+    })
+    const { result } = renderHook(() => usePhasedTime(s))
+    expect(result.current.text).toBe('1:15')
+  })
+
+  it('extrapolates phase_time_sec upward between strokes', () => {
+    const s = liveReducer(initialLiveState, {
+      type: 'event',
+      event: stroke(1, { phase_time_sec: 30, time_sec: 100, distance_m: 400 }),
+      nowMs: Date.now(),
+    })
+    vi.advanceTimersByTime(3000)
+    const { result } = renderHook(() => usePhasedTime(s))
+    // 30 + 3 = 33s displayed
+    const [minStr, secStr] = result.current.text.split(':')
+    const displayed = parseInt(minStr, 10) * 60 + parseInt(secStr, 10)
+    expect(displayed).toBeGreaterThanOrEqual(33)
+  })
+
+  it('freezes after pause threshold elapses', () => {
+    const s = liveReducer(initialLiveState, {
+      type: 'event',
+      event: stroke(1, { phase_time_sec: 60, time_sec: 200 }),
+      nowMs: Date.now(),
+    })
+    vi.advanceTimersByTime(smoothingConfig.deadReckoning.pauseThresholdMs + 100)
+    const { result } = renderHook(() => usePhasedTime(s))
+    // Paused → frozen at phase_time_sec (delta = max(0, time_sec - time_sec) = 0)
+    expect(result.current.text).toBe('1:00')
+    expect(result.current.paused).toBe(true)
+  })
+})
+
 
 describe('useCountUp', () => {
   it('returns null when target is null', () => {

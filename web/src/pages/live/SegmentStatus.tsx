@@ -82,18 +82,20 @@ export function useExtrapolatedActiveSegment(active: ActiveSegment | null): Acti
   const extD = useExtrapolatedDistanceM(state)
   if (!active) return null
   const seg = active.segment
-  const anchor = state.phaseAnchor
-  if (seg.durationSec != null && extT.value != null) {
-    const origin = anchor?.timeSec ?? seg.startTimeSec
-    const elapsed = Math.max(0, extT.value - origin)
-    const remaining = Math.max(0, seg.durationSec - elapsed)
-    return { ...active, remainingSec: remaining, progressRatio: elapsed / seg.durationSec }
+  const stroke = state.stroke
+  if (seg.durationSec != null && extT.value != null && stroke != null) {
+    // Subtract elapsed time since last stroke from the stamped remaining.
+    const extraDelta = Math.max(0, extT.value - stroke.time_sec)
+    const remaining = Math.max(0, (active.remainingSec ?? 0) - extraDelta)
+    const elapsed = seg.durationSec - remaining
+    return { ...active, remainingSec: remaining, progressRatio: Math.min(1, elapsed / seg.durationSec) }
   }
-  if (seg.distanceM != null && extD.value != null) {
-    const origin = anchor?.distanceM ?? seg.startDistanceM
-    const consumed = Math.max(0, extD.value - origin)
+  if (seg.distanceM != null && extD.value != null && stroke != null) {
+    // Dead-reckon phase_distance_m: add the distance-extrapolation delta on top.
+    const phaseDistM = stroke.phase_distance_m + Math.max(0, extD.value - stroke.distance_m)
+    const consumed = Math.max(0, phaseDistM - seg.startDistanceM)
     const remaining = Math.max(0, seg.distanceM - consumed)
-    return { ...active, remainingM: remaining, progressRatio: consumed / seg.distanceM }
+    return { ...active, remainingM: remaining, progressRatio: Math.min(1, consumed / seg.distanceM) }
   }
   return active
 }

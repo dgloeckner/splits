@@ -161,10 +161,9 @@ describe('locateSegment cooldown after distance work', () => {
   })
 })
 
-// B5: when a warmup precedes the distance work, the work segment must
-// measure metres relative to the warmup-end distance rather than 0.
-// Otherwise distance rowed during warmup silently shortens the goal.
-describe('locateSegment with B5 workStartDistanceM offset', () => {
+// B5: work_distance_m is already offset by the backend (warmup distance
+// subtracted). locateSegment receives the pre-offset value directly.
+describe('locateSegment with B5 work_distance_m (backend-stamped)', () => {
   function makeSegs() {
     return expandWorkout({
       id: 'w1',
@@ -175,36 +174,25 @@ describe('locateSegment with B5 workStartDistanceM offset', () => {
       intensity: undefined,
     } as unknown as Workout)
   }
-  const WARMUP_END = 50 // cumulative metres at warmup-end
 
-  it('inside work: remainingM reflects metres remaining of the 2000m goal, not cum-distance to 2000', () => {
+  it('inside work: remainingM reflects metres remaining of the 2000m goal', () => {
     const segs = makeSegs()
-    // 500m of post-warmup work done → 1500m remaining. Cumulative is
-    // WARMUP_END+500 = 550m, but the goal is "2000m post-warmup".
-    const a = locateSegment(segs, WARMUP_END + 500, 200, WARMUP_END)
+    // 500m of post-warmup work done → 1500m remaining.
+    const a = locateSegment(segs, 500, 200)
     expect(a?.segment.kind).toBe('work')
     expect(a?.remainingM).toBe(1500)
   })
 
-  it('crossing fires only when 2000m of post-warmup work is completed', () => {
+  it('crossing fires when 2000m of post-warmup work is completed', () => {
     const segs = makeSegs()
-    // Cumulative 2000m would have completed work under the OLD rule;
-    // with B5 it is still 1950m into the goal → work continues.
-    const stillWork = locateSegment(segs, 2000, 600, WARMUP_END)
+    // 1950m of work → still in work segment.
+    const stillWork = locateSegment(segs, 1950, 600)
     expect(stillWork?.segment.kind).toBe('work')
     expect(stillWork?.remainingM).toBe(50)
-    // Cumulative 2050m = exactly 2000m post-warmup → crossing.
-    const done = locateSegment(segs, WARMUP_END + 2000, 700, WARMUP_END)
+    // Exactly 2000m of work → completion.
+    const done = locateSegment(segs, 2000, 700)
     // No cooldown in this fixture → null is returned at completion.
     expect(done).toBeNull()
-  })
-
-  it('without offset (no warmup or warmup not yet ended) behaves as before', () => {
-    const segs = makeSegs()
-    const a = locateSegment(segs, 500, 200, null)
-    // Before B5 the cumulative 500m was treated as 500m of work.
-    expect(a?.segment.kind).toBe('work')
-    expect(a?.remainingM).toBe(1500)
   })
 })
 
@@ -255,22 +243,21 @@ describe('rest segments match backend classification (phaseplan.go has no rest-s
 
   it('stays in rest while its duration has not elapsed, even when paddling past the next start', () => {
     const segs = makeIntervalSegs()
-    // Latch the crossing at t=120 (work distance reached at 500m)
+    // Latch the crossing at workTimeSec=120 (work_distance_m=500)
     locateSegment(segs, 500, 120)
-    // 30s into rest; rower has paddled 30m during rest (distanceM=530)
+    // 30s into rest; rower has paddled 30m during rest (work_distance_m=530)
     // next work segment starts at 500m — rower is already past it, but rest (60s) not elapsed
     const active = locateSegment(segs, 530, 150)
     expect(active?.segment.kind).toBe('rest')
     expect(active?.remainingSec).toBe(30)
   })
 
-  it('with a warmup offset, rest is not skipped on entry', () => {
+  it('rest is not skipped on entry (work_distance_m is already offset by backend)', () => {
     const segs = makeIntervalSegs()
-    const offset = 200 // warmup meters
-    // At t=120 the rower crosses 500m of work-relative distance (cumulative 700m)
-    locateSegment(segs, 700, 120, offset)
-    // 5s later, still in rest — 20m paddled during rest (cumulative 720m)
-    const active = locateSegment(segs, 720, 125, offset)
+    // At workTimeSec=120 the rower crosses 500m of work_distance_m
+    locateSegment(segs, 500, 120)
+    // 5s later, still in rest — 20m paddled during rest (work_distance_m=520)
+    const active = locateSegment(segs, 520, 125)
     expect(active?.segment.kind).toBe('rest')
   })
 })

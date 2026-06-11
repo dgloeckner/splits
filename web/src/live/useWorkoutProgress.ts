@@ -36,11 +36,10 @@ export function useWorkoutProgress(): WorkoutProgress {
     if (!state.stroke || segments.length === 0) return null
     return locateSegment(
       segments,
-      state.stroke.distance_m,
-      state.stroke.time_sec,
-      state.workStartDistanceM,
+      state.stroke.work_distance_m,
+      state.stroke.work_time_sec,
     )
-  }, [state.stroke, segments, state.workStartDistanceM])
+  }, [state.stroke, segments])
 
   if (aborted) {
     return { segments: [], active: null, workoutId: null, isLoading: false, workout: null, remainingAnchorMs: null }

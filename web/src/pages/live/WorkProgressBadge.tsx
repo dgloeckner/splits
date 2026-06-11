@@ -12,10 +12,7 @@ import styles from './WorkProgressBadge.module.css'
  * workout is in Distance mode. Hidden during warmup and cooldown,
  * and for non-Distance modes.
  *
- * work-distance = stroke.distance_m − phaseAnchor.distanceM
- *               (distance accumulated since the warmup→work
- *               transition; falls back to 0 when there was no
- *               warmup phase and thus no anchor).
+ * work-distance = stroke.work_distance_m (backend-stamped).
  */
 export function WorkProgressBadge() {
   const state = useLiveSession()
@@ -30,9 +27,7 @@ export function WorkProgressBadgeView({ state, workout }: ViewProps) {
   if (!workout || workout.mode !== 'distance') return null
   const target = (workout.params as { meters: number }).meters
   if (!target || !Number.isFinite(target)) return null
-  const total = state.stroke?.distance_m ?? 0
-  const anchor = state.phaseAnchor?.distanceM ?? 0
-  const work = Math.max(0, Math.round(total - anchor))
+  const work = Math.max(0, Math.round(state.stroke?.work_distance_m ?? 0))
   return (
     <div className={styles.badge} data-testid="work-progress-badge">
       <span className="tnum">

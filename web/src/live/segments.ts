@@ -18,10 +18,6 @@ export type Segment = {
   endDistanceM: number
 }
 
-/** Tracks the timeSec at which each distance segment was first crossed.
- *  WeakMap ensures entries are GC'd when the segment array is recreated
- *  (e.g. after expandWorkout is called again), preventing stale anchors. */
-const crossedAtByDistanceSeg = new WeakMap<Segment, number>()
 
 export type ActiveSegment = {
   segment: Segment
@@ -101,23 +97,28 @@ function workSeg(
   }
 }
 
+/** Tracks the workTimeSec at which each distance segment was first crossed.
+ *  WeakMap ensures entries are GC'd when the segment array is recreated
+ *  (e.g. after expandWorkout is called again), preventing stale anchors.
+ *  Keyed on the segment object from the current expandWorkout call. */
+const crossedAtByDistanceSeg = new WeakMap<Segment, number>()
+
 export function locateSegment(
   segments: Segment[],
-  distanceM: number,
-  timeSec: number,
-  /** B5: cumulative distance at the warmup → work transition.
-   *  Distance segments evaluate `consumed = distanceM - startDistanceM
-   *  - workStartDistanceM`. Pass null when no warmup was used (or
-   *  before warmup has ended); 0 is also fine. */
-  workStartDistanceM: number | null = null,
+  /** Backend-stamped `work_distance_m`: metres rowed since the work phase
+   *  started. Already offset by warmup distance; distance segments are
+   *  evaluated relative to this value directly. */
+  workDistanceM: number,
+  /** Backend-stamped `work_time_sec`: seconds elapsed since the work phase
+   *  started. Used to count down time-based segments (rest, cooldown). */
+  workTimeSec: number,
 ): ActiveSegment | null {
   if (segments.length === 0) return null
-  const distOffset = workStartDistanceM ?? 0
   let timeAnchor = 0
-  // workCompletedAt: timeSec at which the most recently completed
+  // workCompletedAt: workTimeSec at which the most recently completed
   // distance segment's target distance was crossed. Tracked so that
   // a following time-based segment (rest or cooldown) can anchor its
-  // countdown to that moment instead of session start.
+  // countdown to that moment instead of work-phase start.
   let workCompletedAt: number | null = null
 
   for (let idx = 0; idx < segments.length; idx++) {
@@ -128,7 +129,7 @@ export function locateSegment(
         // Rest persists until durationSec elapses — no early-exit when the
         // rower's distance enters the next interval. Matches backend
         // phaseplan.go:204-225 which has no rest-skip rule.
-        const consumed = Math.max(0, timeSec - workCompletedAt)
+        const consumed = Math.max(0, workTimeSec - workCompletedAt)
         if (consumed < seg.durationSec) {
           return {
             segment: seg,
@@ -141,7 +142,7 @@ export function locateSegment(
         workCompletedAt += seg.durationSec
         timeAnchor = workCompletedAt
       } else {
-        const consumed = Math.max(0, timeSec - timeAnchor)
+        const consumed = Math.max(0, workTimeSec - timeAnchor)
         if (consumed < seg.durationSec) {
           return {
             segment: seg,
@@ -154,7 +155,7 @@ export function locateSegment(
         timeAnchor += seg.durationSec
       }
     } else if (seg.distanceM != null) {
-      const consumed = Math.max(0, distanceM - seg.startDistanceM - distOffset)
+      const consumed = Math.max(0, workDistanceM - seg.startDistanceM)
       if (consumed < seg.distanceM) {
         return {
           segment: seg,
@@ -164,13 +165,12 @@ export function locateSegment(
           activeIndexOneBased: seg.index + 1,
         }
       }
-      // Record the timeSec at which this distance target was first crossed.
-      // Subsequent calls with the same segments object (same distance) will
-      // reuse this anchor so the following time-based segment (rest or
-      // cooldown) counts down correctly even when the rower has stopped and
-      // the caller advances timeSec without new strokes.
+      // Record the workTimeSec at which this distance target was first
+      // crossed. Subsequent calls with the same segments object will reuse
+      // this anchor so the following time-based segment (rest or cooldown)
+      // counts down correctly even when the rower has stopped.
       if (!crossedAtByDistanceSeg.has(seg)) {
-        crossedAtByDistanceSeg.set(seg, timeSec)
+        crossedAtByDistanceSeg.set(seg, workTimeSec)
       }
       workCompletedAt = crossedAtByDistanceSeg.get(seg)!
     }

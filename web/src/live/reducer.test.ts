@@ -361,7 +361,7 @@ describe('liveReducer', () => {
     expect(after).toBe(before)
   })
 
-  it('phase_change updates phase and phaseAnchor', () => {
+  it('phase_change updates phase', () => {
     const state = liveReducer(initialLiveState, {
       type: 'event',
       event: {
@@ -378,7 +378,6 @@ describe('liveReducer', () => {
       },
     })
     expect(state.phase).toBe('work')
-    expect(state.phaseAnchor).toEqual({ distanceM: 10, timeSec: 30.5 })
   })
 
   it('workout_attached resets sparklines and smoothed (drops free-row prelude)', () => {
@@ -470,20 +469,17 @@ describe('liveReducer', () => {
     expect(after.stroke).toBe(null)
   })
 
-  it('implicit new session from stroke clears phase anchors', () => {
-    // Previous session ended with a work anchor latched.
+  it('implicit new session from stroke clears phase', () => {
+    // Previous session ended with a work phase.
     let s = liveReducer(initialLiveState, { type: 'event', event: start({ session_id: 's1' }) })
     s = liveReducer(s, { type: 'event', event: stroke(1, { session_id: 's1' }) })
     s = {
       ...s,
       phase: 'work',
-      phaseAnchor: { distanceM: 400, timeSec: 120 },
-      workStartDistanceM: 400,
     }
     const strokeNewSession = stroke(200, { session_id: 's2', distance_m: 5 })
     const after = liveReducer(s, { type: 'event', event: strokeNewSession })
-    expect(after.phaseAnchor).toBeNull()
-    expect(after.workStartDistanceM).toBeNull()
+    expect(after.phase).toBeNull()
   })
 
   it('is a pure function of (state, action) when nowMs is supplied', () => {
