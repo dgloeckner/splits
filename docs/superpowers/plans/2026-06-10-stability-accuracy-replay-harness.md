@@ -41,7 +41,7 @@ The backend emits `event: phase_change` (`backend/internal/event/wire.go:24`) bu
 - Modify: `web/src/live/reducer.ts:317-338` (idempotency guard — snapshot replay re-sends the latest `phase_change`)
 - Test: `web/src/live/channel.eventsource.test.ts`
 
-- [ ] **Step 1: Write the failing per-kind round-trip test**
+- [x] **Step 1: Write the failing per-kind round-trip test**
 
 Add to `web/src/live/channel.eventsource.test.ts` (follow the file's existing fake-EventSource pattern for constructing the channel; the test below is self-contained if none fits):
 
@@ -99,12 +99,12 @@ describe('event kind registration', () => {
 
 Adapt the `EventSourceChannel` constructor call to the actual constructor signature in `channel.ts` (it takes a factory and an injected random; check lines 100–125).
 
-- [ ] **Step 2: Run it to make sure it fails**
+- [x] **Step 2: Run it to make sure it fails**
 
 Run: `cd web && npx vitest run src/live/channel.eventsource.test.ts`
 Expected: FAIL — `channel must listen for "phase_change"`.
 
-- [ ] **Step 3: Register the listener**
+- [x] **Step 3: Register the listener**
 
 In `web/src/live/channel.ts`, after `handle('workout_attached')` (line 200):
 
@@ -112,7 +112,7 @@ In `web/src/live/channel.ts`, after `handle('workout_attached')` (line 200):
     handle('phase_change')
 ```
 
-- [ ] **Step 4: Add the snapshot-redelivery idempotency guard to the reducer**
+- [x] **Step 4: Add the snapshot-redelivery idempotency guard to the reducer**
 
 The SSE snapshot re-sends the latest `phase_change` on reconnect (`sessionizer.go Snapshot()`); without a guard the handler wipes sparklines/smoothed on every redelivery. In `web/src/live/reducer.ts`, at the top of `case 'phase_change': {`:
 
@@ -133,7 +133,7 @@ The SSE snapshot re-sends the latest `phase_change` on reconnect (`sessionizer.g
 
 (rest of the case unchanged)
 
-- [ ] **Step 5: Add a reducer test for the idempotency guard**
+- [x] **Step 5: Add a reducer test for the idempotency guard**
 
 In `web/src/live/reducer.test.ts`:
 
@@ -157,7 +157,7 @@ Use the file's existing helpers to build `stateWithSparklines()` (a state with a
 
 - [ ] **Step 6: E2E evidence — the user-visible symptom must be pinned.** A warmup-workout e2e already exists (commit `334567d` waits past the warmup split before asserting hero metrics — locate it via `grep -rln "warmup" web/e2e`). Extend it with the assertion that would have caught this bug: after the warmup→work transition, the hero distance tile shows **work-relative** distance (strictly less than the cumulative meters rowed; concretely, near 0 just after the transition), not session-cumulative.
 
-- [ ] **Step 7: Run web suite + e2e, commit**
+- [x] **Step 7: Run web suite + e2e, commit**
 
 Run: `cd web && npx vitest run` (and the e2e suite per repo convention)
 Expected: PASS.
@@ -173,7 +173,7 @@ git commit -m "fix(live): wire phase_change into SSE channel; idempotent on snap
 - Modify: `web/src/live/reducer.ts:286-291`
 - Test: `web/src/live/reducer.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 it('ignores a redelivered session_end for a different session', () => {
@@ -189,12 +189,12 @@ it('ignores a redelivered session_end for a different session', () => {
 })
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cd web && npx vitest run src/live/reducer.test.ts`
 Expected: FAIL — summary applied despite mismatched id.
 
-- [ ] **Step 3: Implement the guard (mirrors `session_finalized`)**
+- [x] **Step 3: Implement the guard (mirrors `session_finalized`)**
 
 ```ts
         case 'session_end':
@@ -212,7 +212,7 @@ Expected: FAIL — summary applied despite mismatched id.
           }
 ```
 
-- [ ] **Step 4: Run + commit**
+- [x] **Step 4: Run + commit**
 
 Run: `cd web && npx vitest run src/live/reducer.test.ts`
 
@@ -229,7 +229,7 @@ The implicit new-session-from-stroke branch (reducer.ts:218-245) resets sparklin
 - Modify: `web/src/live/reducer.ts:240-245`
 - Test: `web/src/live/reducer.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 it('implicit new session from stroke clears phase anchors', () => {
@@ -249,7 +249,7 @@ it('implicit new session from stroke clears phase anchors', () => {
 
 (`baseStroke()` per the file's existing stroke-builder helper. Note `after.phase` will be the stroke's own `phase` field via line 273 — assert anchors only.)
 
-- [ ] **Step 2: Run to verify failure, then fix**
+- [x] **Step 2: Run to verify failure, then fix**
 
 In the `newSession` baseState object (after `sessionStartedAtMs: null,` at line 244):
 
@@ -261,7 +261,7 @@ In the `newSession` baseState object (after `sessionStartedAtMs: null,` at line 
                 workStartDistanceM: null,
 ```
 
-- [ ] **Step 3: Run + commit**
+- [x] **Step 3: Run + commit**
 
 Run: `cd web && npx vitest run src/live/reducer.test.ts`
 
@@ -278,7 +278,7 @@ git commit -m "fix(live): implicit new session resets phase anchors (no B5 leak 
 - Modify: `web/src/live/segments.ts:126-136`
 - Test: `web/src/live/segments.test.ts`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 describe('rest segments match backend classification (phaseplan.go has no rest-skip)', () => {
@@ -306,12 +306,12 @@ describe('rest segments match backend classification (phaseplan.go has no rest-s
 
 Build the `Segment` literals to match the actual `Segment` type fields in `segments.ts` (check the type at the top of the file; add `targetSplit`/`targetSPM` as `undefined` if required).
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `cd web && npx vitest run src/live/segments.test.ts`
 Expected: the first case FAILS — returns work segment index 2.
 
-- [ ] **Step 3: Delete the skip block**
+- [x] **Step 3: Delete the skip block**
 
 In `locateSegment`, remove lines 128–136:
 
@@ -329,12 +329,12 @@ In `locateSegment`, remove lines 128–136:
 
 so the `workCompletedAt != null` branch goes straight to `const consumed = Math.max(0, timeSec - workCompletedAt)`.
 
-- [ ] **Step 4: Run the segments suite; update any test asserting the old skip**
+- [x] **Step 4: Run the segments suite; update any test asserting the old skip**
 
 Run: `cd web && npx vitest run src/live/segments.test.ts`
 If an existing case asserts the skip behaviour, rewrite it to backend semantics (rest until elapsed), citing `phaseplan.go:204-225` in a comment.
 
-- [ ] **Step 5: Full web suite + commit**
+- [x] **Step 5: Full web suite + commit**
 
 ```bash
 cd web && npx vitest run
@@ -350,7 +350,7 @@ git commit -m "fix(live): rest segments persist until elapsed, matching backend 
 - Modify: `web/src/live/useLiveDisplay.ts:72-79`
 - Test: `web/src/live/useLiveDisplay.test.tsx`
 
-- [ ] **Step 1: Write the failing test** (fake timers; mock `matchMedia` for reduced motion per the file's existing pattern, or stub `usePrefersReducedMotion` if the suite already does so)
+- [x] **Step 1: Write the failing test** (fake timers; mock `matchMedia` for reduced motion per the file's existing pattern, or stub `usePrefersReducedMotion` if the suite already does so)
 
 ```ts
 it('detects a pause under prefers-reduced-motion via the interval fallback', () => {
@@ -365,7 +365,7 @@ it('detects a pause under prefers-reduced-motion via the interval fallback', () 
 })
 ```
 
-- [ ] **Step 2: Run to verify failure, then implement**
+- [x] **Step 2: Run to verify failure, then implement**
 
 ```ts
 export function useIsLivePaused(state: LiveState): boolean {
@@ -388,7 +388,7 @@ export function useIsLivePaused(state: LiveState): boolean {
 }
 ```
 
-- [ ] **Step 3: Run + commit**
+- [x] **Step 3: Run + commit**
 
 ```bash
 cd web && npx vitest run src/live/useLiveDisplay.test.tsx
@@ -405,7 +405,7 @@ Three local formatters (`StatBar.tsx:17-21`, `FinishOverlay.tsx:29-35`, `FinishO
 - Create: `web/src/lib/formatDuration.test.ts`
 - Modify: `web/src/race/StatBar.tsx`, `web/src/race/FinishOverlay.tsx`
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 ```ts
 import { fmtMmSs, fmtMmSsTenths } from './formatDuration'
@@ -427,7 +427,7 @@ describe('fmtMmSsTenths', () => {
 })
 ```
 
-- [ ] **Step 2: Implement `web/src/lib/formatDuration.ts`**
+- [x] **Step 2: Implement `web/src/lib/formatDuration.ts`**
 
 ```ts
 /** mm:ss with carry-safe rounding (119.6 → "2:00", never "1:60"). */
@@ -449,13 +449,13 @@ export function fmtMmSsTenths(seconds: number): string {
 }
 ```
 
-- [ ] **Step 3: Replace the three local formatters**
+- [x] **Step 3: Replace the three local formatters**
 
 - `StatBar.tsx`: delete local `fmtSplit`, import `fmtMmSs` from `../lib/formatDuration`, use it where `fmtSplit` was called.
 - `FinishOverlay.tsx`: delete local `fmtMmSs` (signed) and `fmtSplit` (tenths); import and substitute `fmtMmSs` / `fmtMmSsTenths`.
 - Check `fmtElapsed` in StatBar — leave it (floor semantics are intentional for a running clock).
 
-- [ ] **Step 4: Run web suite + commit**
+- [x] **Step 4: Run web suite + commit**
 
 ```bash
 cd web && npx vitest run
@@ -467,12 +467,12 @@ git commit -m "fix(race): carry-safe mm:ss formatters shared; no more 1:60 rende
 
 `web/src/live/usePhaseBaseline.ts` has zero production consumers (only its own test imports it) and mutates refs during render (StrictMode-unsafe).
 
-- [ ] **Step 1: Verify it is unused**
+- [x] **Step 1: Verify it is unused**
 
 Run: `cd web && grep -rn "usePhaseBaseline" src --include="*.ts*" | grep -v test | grep -v "usePhaseBaseline.ts"`
 Expected: no output.
 
-- [ ] **Step 2: Delete + commit**
+- [x] **Step 2: Delete + commit**
 
 ```bash
 git rm web/src/live/usePhaseBaseline.ts web/src/live/usePhaseBaseline.test.tsx
@@ -488,11 +488,11 @@ git commit -m "chore(live): delete dead usePhaseBaseline hook"
 - Modify: `web/src/live/useBootReconcile.ts`
 - Test: `web/src/live/useBootReconcile.test.tsx`
 
-- [ ] **Step 1: Write the failing test** — render the hook, unmount + remount the same component synchronously (StrictMode simulation, or wrap the harness in `<StrictMode>`), resolve the mocked `getSession`, assert `dispatch` was called.
+- [x] **Step 1: Write the failing test** — render the hook, unmount + remount the same component synchronously (StrictMode simulation, or wrap the harness in `<StrictMode>`), resolve the mocked `getSession`, assert `dispatch` was called.
 
-- [ ] **Step 2: Fix** — drop the `cancelled` guard around the dispatch (React 18+ dispatch is safe post-unmount and the reducer's `reset` is idempotent), or reset `ran.current = false` in the effect cleanup so the second StrictMode run re-fetches. Prefer the first (one deletion); keep the `ran` guard so production still fetches once.
+- [x] **Step 2: Fix** — drop the `cancelled` guard around the dispatch (React 18+ dispatch is safe post-unmount and the reducer's `reset` is idempotent), or reset `ran.current = false` in the effect cleanup so the second StrictMode run re-fetches. Prefer the first (one deletion); keep the `ran` guard so production still fetches once.
 
-- [ ] **Step 3: Run + commit**
+- [x] **Step 3: Run + commit**
 
 ```bash
 cd web && npx vitest run src/live/useBootReconcile.test.tsx
@@ -509,9 +509,9 @@ git commit -m "fix(live): boot reconciliation dispatches under StrictMode"
 - Modify: `backend/internal/storage/race_result.go` (opponent time-base — see Step 3)
 - Test: `backend/internal/storage/persister_test.go`
 
-- [ ] **Step 1: Write the failing test** — end a session for a rower with a workout attached; assert the scheduler receives a Trigger (inject a fake scheduler or assert via `Wait` + recompute side effects, following `persister_test.go` patterns) and that `session_insights` rows exist after `applySessionEnd`.
+- [x] **Step 1: Write the failing test** — end a session for a rower with a workout attached; assert the scheduler receives a Trigger (inject a fake scheduler or assert via `Wait` + recompute side effects, following `persister_test.go` patterns) and that `session_insights` rows exist after `applySessionEnd`.
 
-- [ ] **Step 2: Fix — one query, correct table**
+- [x] **Step 2: Fix — one query, correct table**
 
 ```go
 	// Pre-load rower + workout context for race result, insights, and
@@ -530,9 +530,9 @@ git commit -m "fix(live): boot reconciliation dispatches under StrictMode"
 
 Delete the second `raceWorkoutID` query (line 252-253); pass `workoutID` to `ComputeRaceResult`.
 
-- [ ] **Step 3: Fix the opponent time-base BEFORE session-ghosts go live.** Fixing `rowerID` activates session-sourced ghost/PB curves, which exposes a latent bug: opponent `t_sec` comes from `summary_json.samples` in raw storage-rebased time (warmup seconds included), while the user's race time is work-anchored — `gapAtDistance` (`race_result.go:~196-233`) would flatter the user by the opponent's warmup duration. Normalize: in the opponent-curve load (or `gapAtDistance` input prep), subtract the curve's first sample time so both clocks start at 0. Add a test: ghost source session with 60 s warmup → gap unchanged vs the same source without warmup.
+- [x] **Step 3: Fix the opponent time-base BEFORE session-ghosts go live.** Fixing `rowerID` activates session-sourced ghost/PB curves, which exposes a latent bug: opponent `t_sec` comes from `summary_json.samples` in raw storage-rebased time (warmup seconds included), while the user's race time is work-anchored — `gapAtDistance` (`race_result.go:~196-233`) would flatter the user by the opponent's warmup duration. Normalize: in the opponent-curve load (or `gapAtDistance` input prep), subtract the curve's first sample time so both clocks start at 0. Add a test: ghost source session with 60 s warmup → gap unchanged vs the same source without warmup.
 
-- [ ] **Step 4: Run, then note the backfill**
+- [x] **Step 4: Run, then note the backfill**
 
 ```bash
 cd backend && go test ./internal/storage/...
@@ -553,13 +553,13 @@ git commit -m "fix(storage): rowerID query joined non-existent table — recompu
 - Modify: `backend/internal/stream/sse.go`
 - Test: `backend/internal/stream/sse_test.go`
 
-- [ ] **Step 1: Failing test** — subscribe a test client, interleave a broadcast between the ring read and subscription (inject via the existing test seams in `sse_test.go`; if no seam exists, restructure the handler so replay/subscribe order is testable), assert no event is lost.
+- [x] **Step 1: Failing test** — subscribe a test client, interleave a broadcast between the ring read and subscription (inject via the existing test seams in `sse_test.go`; if no seam exists, restructure the handler so replay/subscribe order is testable), assert no event is lost.
 
-- [ ] **Step 2: Reorder** — `ch := b.Subscribe(afterID)` BEFORE the ring replay; events arriving on `ch` during replay are buffered (64-slot client buffer) and deduped after replay by the existing `e.ID <= afterID` skip in the live loop. Mind the buffer: drain `ch` into a local pending slice if replay is long (ring cap 10000 vs 64-slot buffer — interleave or extend the local buffer during replay).
+- [x] **Step 2: Reorder** — `ch := b.Subscribe(afterID)` BEFORE the ring replay; events arriving on `ch` during replay are buffered (64-slot client buffer) and deduped after replay by the existing `e.ID <= afterID` skip in the live loop. Mind the buffer: drain `ch` into a local pending slice if replay is long (ring cap 10000 vs 64-slot buffer — interleave or extend the local buffer during replay).
 
-- [ ] **Step 3: Header precedence** — in `parseAfterID`, prefer the `Last-Event-ID` header over the `?since=` query param when both are present.
+- [x] **Step 3: Header precedence** — in `parseAfterID`, prefer the `Last-Event-ID` header over the `?since=` query param when both are present.
 
-- [ ] **Step 4: Run + commit**
+- [x] **Step 4: Run + commit**
 
 ```bash
 cd backend && go test ./internal/stream/...
@@ -582,7 +582,7 @@ git commit -m "fix(sse): subscribe before ring replay (no event-loss window); La
 - Modify: `web/src/live/useEventSource.ts:61`
 - Test: `web/src/live/reducer.test.ts`
 
-- [ ] **Step 1: Write the failing determinism test**
+- [x] **Step 1: Write the failing determinism test**
 
 ```ts
 it('is a pure function of (state, action) when nowMs is supplied', () => {
@@ -595,7 +595,7 @@ it('is a pure function of (state, action) when nowMs is supplied', () => {
 })
 ```
 
-- [ ] **Step 2: Run to verify failure** (type error on `nowMs` — that counts), **then implement**
+- [x] **Step 2: Run to verify failure** (type error on `nowMs` — that counts), **then implement**
 
 In `reducer.ts`:
 
@@ -631,7 +631,7 @@ In `useEventSource.ts:61`:
       onEvent: (event) => dispatch({ type: 'event', event, nowMs: Date.now() }),
 ```
 
-- [ ] **Step 3: Run web suite + commit**
+- [x] **Step 3: Run web suite + commit**
 
 ```bash
 cd web && npx vitest run
