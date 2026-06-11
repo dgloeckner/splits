@@ -83,6 +83,16 @@ type StrokePayload struct {
 	StrokeCycleSec  float64
 	PaceSecPer500m  int
 	EnergyJoules    int
+
+	// Work-relative values (CONTEXT.md §Workout phases): distance/time
+	// since the first work stroke; 0 during warmup/rest/cooldown.
+	// Stamped by the sessionizer so clients never re-derive phase offsets
+	// (ADR-0017: the frontend's derived copy failed silently for weeks).
+	WorkDistanceM int
+	WorkTimeSec   float64
+	// Phase-relative values: distance/time since the current phase began.
+	PhaseDistanceM int
+	PhaseTimeSec   float64
 }
 
 type SessionStartPayload struct {

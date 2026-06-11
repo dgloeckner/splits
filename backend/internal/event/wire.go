@@ -53,6 +53,10 @@ func Marshal(e Event) ([]byte, error) {
 			PaceSecPer500m: p.PaceSecPer500m,
 			EnergyJoules:   p.EnergyJoules,
 			Phase:          p.Phase,
+			WorkDistanceM:  p.WorkDistanceM,
+			WorkTimeSec:    p.WorkTimeSec,
+			PhaseDistanceM: p.PhaseDistanceM,
+			PhaseTimeSec:   p.PhaseTimeSec,
 		})
 	case KindSessionStart:
 		p := e.SessionStart
@@ -138,6 +142,10 @@ type strokeWire struct {
 	PaceSecPer500m int     `json:"pace_sec_per_500m"`
 	EnergyJoules   int     `json:"energy_joules"`
 	Phase          string  `json:"phase,omitempty"`
+	WorkDistanceM  int     `json:"work_distance_m"`
+	WorkTimeSec    float64 `json:"work_time_sec"`
+	PhaseDistanceM int     `json:"phase_distance_m"`
+	PhaseTimeSec   float64 `json:"phase_time_sec"`
 }
 
 type phaseChangeWire struct {

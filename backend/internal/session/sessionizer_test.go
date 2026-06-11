@@ -1706,6 +1706,189 @@ func TestSessionizer_ConcurrentSnapshotDuringStart(t *testing.T) {
 	<-out
 }
 
+// TestStampWorkAndPhaseRelative_WarmupThenWork verifies that the four new
+// work- and phase-relative fields are stamped correctly across a warmup→work
+// phase transition.
+//
+// Fixture: distance workout, 100m work goal, warmup=60s, no cooldown.
+// Frames (PM5-cumulative):
+//   - t=10, d=0:  anchor, rebased (0,0); classified warmup (0s < 60s)
+//   - t=20, d=10: rebased (10,10); still warmup
+//   - t=70, d=20: rebased (60,20); warmup→work boundary (60s elapsed)
+//   - t=80, d=30: rebased (70,30); work stroke
+//   - t=90, d=40: rebased (80,40); work stroke
+//
+// Assertions:
+//   - warmup strokes: WorkDistanceM==0, WorkTimeSec==0
+//   - first work stroke (rebased d=20): WorkDistanceM==0, WorkTimeSec==0 (anchor)
+//   - second work stroke (rebased d=30): WorkDistanceM==10, WorkTimeSec~=10
+//   - warmup PhaseDistanceM increments from 0
+//   - first work stroke: PhaseDistanceM==0 (new phase origin)
+func TestStampWorkAndPhaseRelative_WarmupThenWork(t *testing.T) {
+	w := makeDistanceWorkout(100, 60, 0)
+	s := New(Options{
+		IdleTimeout: time.Minute * 5,
+		Now:         func() time.Time { return time.Unix(1_700_000_000, 0) },
+		LoadWorkout: func(id string) (*workout.Workout, error) { return w, nil },
+	})
+
+	var all []event.Event
+	all = append(all, s.OpenSession("test-workout")...)
+
+	// anchor: rebased (0, 0) — warmup
+	es, _ := s.ProcessFrame(context.Background(), frame(10, 0, 25, 200, 3))
+	all = append(all, es...)
+	// second warmup: rebased (10, 10)
+	es, _ = s.ProcessFrame(context.Background(), frame(20, 10, 25, 200, 3))
+	all = append(all, es...)
+	// warmup→work boundary: rebased (60, 20)
+	es, _ = s.ProcessFrame(context.Background(), frame(70, 20, 25, 200, 3))
+	all = append(all, es...)
+	// second work stroke: rebased (70, 30)
+	es, _ = s.ProcessFrame(context.Background(), frame(80, 30, 25, 200, 3))
+	all = append(all, es...)
+	// third work stroke: rebased (80, 40)
+	es, _ = s.ProcessFrame(context.Background(), frame(90, 40, 25, 200, 3))
+	all = append(all, es...)
+
+	strokes := collectKind(all, event.KindStroke)
+	if len(strokes) != 5 {
+		t.Fatalf("expected 5 stroke events, got %d", len(strokes))
+	}
+
+	// Stroke 0 and 1: warmup — WorkDistanceM and WorkTimeSec must be zero
+	for i := 0; i < 2; i++ {
+		st := strokes[i].Stroke
+		if st.WorkDistanceM != 0 {
+			t.Errorf("warmup stroke[%d] WorkDistanceM = %d, want 0", i, st.WorkDistanceM)
+		}
+		if st.WorkTimeSec != 0 {
+			t.Errorf("warmup stroke[%d] WorkTimeSec = %v, want 0", i, st.WorkTimeSec)
+		}
+	}
+
+	// Warmup phase-relative values: first stroke PhaseDistanceM==0, second increments
+	wu0 := strokes[0].Stroke
+	wu1 := strokes[1].Stroke
+	if wu0.PhaseDistanceM != 0 {
+		t.Errorf("warmup stroke[0] PhaseDistanceM = %d, want 0", wu0.PhaseDistanceM)
+	}
+	if wu0.PhaseTimeSec != 0 {
+		t.Errorf("warmup stroke[0] PhaseTimeSec = %v, want 0", wu0.PhaseTimeSec)
+	}
+	if wu1.PhaseDistanceM != 10 {
+		t.Errorf("warmup stroke[1] PhaseDistanceM = %d, want 10", wu1.PhaseDistanceM)
+	}
+	if wu1.PhaseTimeSec < 9.9 || wu1.PhaseTimeSec > 10.1 {
+		t.Errorf("warmup stroke[1] PhaseTimeSec = %v, want ~10", wu1.PhaseTimeSec)
+	}
+
+	// Stroke 2: first work stroke — WorkDistanceM==0, PhaseDistanceM==0
+	w0 := strokes[2].Stroke
+	if w0.Phase != "work" {
+		t.Fatalf("stroke[2] phase = %q, want work", w0.Phase)
+	}
+	if w0.WorkDistanceM != 0 {
+		t.Errorf("first work stroke WorkDistanceM = %d, want 0 (work anchor)", w0.WorkDistanceM)
+	}
+	if w0.WorkTimeSec != 0 {
+		t.Errorf("first work stroke WorkTimeSec = %v, want 0 (work anchor)", w0.WorkTimeSec)
+	}
+	if w0.PhaseDistanceM != 0 {
+		t.Errorf("first work stroke PhaseDistanceM = %d, want 0 (new phase)", w0.PhaseDistanceM)
+	}
+	if w0.PhaseTimeSec != 0 {
+		t.Errorf("first work stroke PhaseTimeSec = %v, want 0 (new phase)", w0.PhaseTimeSec)
+	}
+
+	// Stroke 3: second work stroke — WorkDistanceM==10, WorkTimeSec~=10
+	w1 := strokes[3].Stroke
+	if w1.WorkDistanceM != 10 {
+		t.Errorf("second work stroke WorkDistanceM = %d, want 10", w1.WorkDistanceM)
+	}
+	if w1.WorkTimeSec < 9.9 || w1.WorkTimeSec > 10.1 {
+		t.Errorf("second work stroke WorkTimeSec = %v, want ~10", w1.WorkTimeSec)
+	}
+	if w1.PhaseDistanceM != 10 {
+		t.Errorf("second work stroke PhaseDistanceM = %d, want 10", w1.PhaseDistanceM)
+	}
+
+	// Stroke 4: third work stroke — WorkDistanceM==20
+	w2 := strokes[4].Stroke
+	if w2.WorkDistanceM != 20 {
+		t.Errorf("third work stroke WorkDistanceM = %d, want 20", w2.WorkDistanceM)
+	}
+}
+
+// TestStampPhaseRelative_ResetOnAttach verifies that phase-relative values
+// reset to 0 on the first stroke after AttachWorkout (no-warmup workout).
+// This pins that phaseStartDistance/Time update on the re-latch path
+// (phaseAnchorSet=false), not only inside the phase_change block.
+func TestStampPhaseRelative_ResetOnAttach(t *testing.T) {
+	// No-warmup workout: work starts immediately (no warmup/cooldown).
+	w := makeDistanceWorkout(200, 0, 0)
+	s := New(Options{
+		IdleTimeout: time.Minute * 5,
+		Now:         func() time.Time { return time.Unix(1_700_000_000, 0) },
+		LoadWorkout: func(id string) (*workout.Workout, error) { return w, nil },
+	})
+
+	var all []event.Event
+	all = append(all, s.OpenSession("")...) // free row
+
+	// 3 free-row strokes
+	for i := 0; i < 3; i++ {
+		tSec := float64(i+1) * 2
+		dist := (i + 1) * 10
+		es, _ := s.ProcessFrame(context.Background(), frame(tSec, dist, 25, 200, 3))
+		all = append(all, es...)
+	}
+
+	// Attach a no-warmup workout mid-session (synchronous equivalent of handleAttach).
+	// We call handleAttach directly via the exported AttachWorkout-then-drain
+	// pattern: set pendingWorkoutID + reset phaseAnchorSet as handleAttach does.
+	if s.session != nil {
+		s.mu.Lock()
+		s.pendingWorkoutID = ""
+		s.mu.Unlock()
+		if pp, perr := BuildPhasePlan(w); perr == nil {
+			s.session.plan = pp
+		}
+		s.session.phaseAnchorSet = false
+		s.session.currentPhase = PhaseWork
+		s.session.phaseLastTime = 0
+		s.mu.Lock()
+		s.currentPhaseChange = nil
+		s.mu.Unlock()
+	}
+
+	// First post-attach stroke
+	es, _ := s.ProcessFrame(context.Background(), frame(10, 40, 25, 200, 3))
+	all = append(all, es...)
+	// Second post-attach stroke
+	es, _ = s.ProcessFrame(context.Background(), frame(12, 50, 25, 200, 3))
+	all = append(all, es...)
+
+	strokes := collectKind(all, event.KindStroke)
+	// Should have 3 free-row strokes + 2 post-attach strokes
+	if len(strokes) < 5 {
+		t.Fatalf("expected at least 5 stroke events, got %d", len(strokes))
+	}
+
+	firstPostAttach := strokes[3].Stroke
+	if firstPostAttach.PhaseDistanceM != 0 {
+		t.Errorf("first post-attach stroke PhaseDistanceM = %d, want 0 (new phase origin)", firstPostAttach.PhaseDistanceM)
+	}
+	if firstPostAttach.PhaseTimeSec != 0 {
+		t.Errorf("first post-attach stroke PhaseTimeSec = %v, want 0 (new phase origin)", firstPostAttach.PhaseTimeSec)
+	}
+
+	secondPostAttach := strokes[4].Stroke
+	if secondPostAttach.PhaseDistanceM != 10 {
+		t.Errorf("second post-attach stroke PhaseDistanceM = %d, want 10", secondPostAttach.PhaseDistanceM)
+	}
+}
+
 // TestRaceGo_ReanchorsWorkTotals verifies that calling RaceGoSync() re-latches
 // the work anchors and zeroes accumulated totals, so pre-GO strokes are
 // excluded from the session summary (§Falschstart).

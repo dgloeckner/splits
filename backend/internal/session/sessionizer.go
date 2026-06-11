@@ -173,6 +173,11 @@ type sessionState struct {
 	workAnchorSet      bool
 	workAnchorDistance int
 	workAnchorTimeSec  float64
+	// phaseStart tracks the (distance, time) of the first stroke of the
+	// current phase, for stamping phase-relative values on every stroke
+	// (ADR-0017).
+	phaseStartDistance int
+	phaseStartTimeSec  float64
 	// raceGoStrokeNo is the first post-GO stroke number (1-based, same
 	// space as strokeSeq). When > 0, pre-GO strokes (stroke_no <
 	// raceGoStrokeNo) are re-tagged as warmup by the persister before
@@ -606,6 +611,13 @@ func (s *Sessionizer) onFrame(f ipm.Frame) []event.Event {
 		if s.session.plan != nil {
 			s.session.plan.Reset()
 		}
+		// Phase starts fresh on re-latch (attach/RaceGo re-anchor path).
+		// We don't know the rebased values yet (rebasing happens below),
+		// so set a sentinel (0,0) and overwrite after the first stroke
+		// is classified. The first stroke of the new phase is always the
+		// origin, so its PhaseDistanceM/PhaseTimeSec must be 0.
+		s.session.phaseStartDistance = f.DistanceM - s.session.storageAnchorDistance
+		s.session.phaseStartTimeSec = f.TimeSec - s.session.storageAnchorTimeSec - s.session.pausedAccumSec
 	}
 	// Rebase the frame in place so every downstream consumer sees
 	// session-relative values from t=0.
@@ -653,6 +665,19 @@ func (s *Sessionizer) onFrame(f ipm.Frame) []event.Event {
 		evs = append(evs, pc)
 		s.session.currentPhase = phase
 		s.session.phaseLastTime = stroke.TimeSec
+		s.session.phaseStartDistance = stroke.DistanceM
+		s.session.phaseStartTimeSec = stroke.TimeSec
+	}
+
+	// Stamp work- and phase-relative values on every stroke.
+	stroke.PhaseDistanceM = stroke.DistanceM - s.session.phaseStartDistance
+	stroke.PhaseTimeSec = stroke.TimeSec - s.session.phaseStartTimeSec
+	if s.session.workAnchorSet {
+		stroke.WorkDistanceM = stroke.DistanceM - s.session.workAnchorDistance
+		stroke.WorkTimeSec = stroke.TimeSec - s.session.workAnchorTimeSec
+	} else if phase == PhaseWork {
+		stroke.WorkDistanceM = 0
+		stroke.WorkTimeSec = 0
 	}
 
 	evs = s.appendEvent(evs, event.Event{
