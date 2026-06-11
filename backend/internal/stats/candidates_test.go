@@ -132,19 +132,20 @@ func TestComputeCandidatesProduces2kForExactWorkout(t *testing.T) {
 	}
 }
 
-// TestComputeCandidatesB1 reproduces the real-data scenario where a
-// 5K distance workout with a 2-minute warmup ate the headroom that
-// distanceCandidates needed and no PB-5000 candidate could ever be
-// produced — observed on splits-raspi.db session 01KRNGHFXX...
-// (warmup ended at cum-distance 407m, work ended at 5005m → work-only
-// span = 4598m < 5000m). Fix: ComputeCandidates uses warmup+work
-// strokes for distance candidates so the warmup contributes headroom
-// but cannot win the fastest-window race.
-func TestComputeCandidatesB1_FivekGoalReachableAcrossWarmupBoundary(t *testing.T) {
+// TestComputeCandidates_PreB5SessionsYieldNoOversizedCandidate covers
+// the pre-B5 scenario (session 01KRNGHFXX...) where a 5K distance
+// workout had a warmup eating into the cumulative distance: warmup
+// ended at ~410m, work ended at ~5110m → work-only span = ~4700m.
+// Since B5, the work phase always contains the full goal distance, so
+// this shape no longer occurs in new sessions. With warmup excluded,
+// no 5000m candidate must be produced when work-only span < 5000m.
+//
+// Pre-B5 DB sessions affected by this lose synthetic 5km PBs on the
+// next recompute by design (accuracy over retention, decision
+// 2026-06-10).
+func TestComputeCandidates_PreB5SessionsYieldNoOversizedCandidate(t *testing.T) {
 	// 40 slow warmup strokes covering ~410m, then 470 work strokes at
-	// 10m/2s covering 4700m → total span 5110m. Work-only span = 4700m,
-	// which would have prevented any 5000m candidate before the fix
-	// (matches the real-data shape from session 01KRNGHFXX...).
+	// 10m/2s covering 4700m → work-only span = 4700m < 5000m.
 	var in []event.StrokePayload
 	cumD := 0
 	cumT := 0.0
@@ -163,23 +164,57 @@ func TestComputeCandidatesB1_FivekGoalReachableAcrossWarmupBoundary(t *testing.T
 		})
 	}
 	c := ComputeCandidates(in)
-	var got *DistanceCandidate
 	for i := range c.Distance {
 		if c.Distance[i].DistanceM == 5000 {
-			got = &c.Distance[i]
+			t.Errorf("unexpected 5000m candidate with work-only span <5000m: %+v — warmup must not contribute headroom", c.Distance[i])
 		}
 	}
-	if got == nil {
-		t.Fatalf("expected 5000m candidate; got distances %v", distancesOf(c.Distance))
+}
+
+// TestComputeCandidates_DistanceExcludesWarmup: a fast 500m warmup
+// followed by slower 500m of work must produce a 500m candidate from
+// the WORK strokes only — the warmup sprint must not become the PB.
+func TestComputeCandidates_DistanceExcludesWarmup(t *testing.T) {
+	// Build strokes: warmup 0-500m at ~2s/stroke (fast), work 500-1000m at ~2.6s/stroke (slower)
+	var strokes []event.StrokePayload
+	// Warmup: 50 strokes of 10m each, 2s per stroke, fast (~100s for 500m)
+	for i := 0; i < 50; i++ {
+		strokes = append(strokes, event.StrokePayload{
+			StrokeNo:  i + 1,
+			Phase:     "warmup",
+			DistanceM: (i + 1) * 10,
+			TimeSec:   float64(i+1) * 2.0,
+			PowerW:    300,
+			SPM:       26,
+		})
 	}
-	// The fastest 5000m window must include some warmup tail because
-	// work-only span (4700m) is too short. Best window: drop the
-	// slowest warmup strokes, keep 300m of late warmup + all 4700m of
-	// work ≈ 30 strokes × 3s + 470 strokes × 2s ≈ 1030 s. Generous
-	// bracket: anything reasonable but distinctly better than 1500 s
-	// (which would mean all warmup strokes leaked in).
-	if got.TimeSec > 1100 || got.TimeSec < 950 {
-		t.Errorf("5000m candidate time = %v, expected ~1030 s", got.TimeSec)
+	// Work: 51 strokes of 10m each, 2.6s per stroke, slower (~130s for 500m).
+	// DistanceM starts at 500 (first work stroke) and ends at 1000 (51st),
+	// giving the window algorithm a 500m span to work with.
+	for i := 0; i <= 50; i++ {
+		strokes = append(strokes, event.StrokePayload{
+			StrokeNo:  51 + i,
+			Phase:     "work",
+			DistanceM: 500 + i*10,
+			TimeSec:   100.0 + float64(i)*2.6,
+			PowerW:    200,
+			SPM:       22,
+		})
+	}
+	candidates := ComputeCandidates(strokes)
+	var found *DistanceCandidate
+	for i := range candidates.Distance {
+		if candidates.Distance[i].DistanceM == 500 {
+			found = &candidates.Distance[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("no 500m candidate produced — work phase spans exactly 500m and should yield one")
+	}
+	// The 500m candidate must come from work strokes (time ~130s), not warmup (time ~100s).
+	if found.TimeSec < 120 {
+		t.Errorf("500m candidate TimeSec=%f looks like warmup pace (~100s) — warmup must be excluded; expected ~130s from work strokes", found.TimeSec)
 	}
 }
 

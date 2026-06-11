@@ -228,9 +228,9 @@ func FinalizeStaleSession(ctx context.Context, db *sql.DB, sessionID string) err
 	if len(strokes) > 0 {
 		work := filterWorkStrokesForFinalize(strokes)
 		summary.Samples = stats.ComputeSamples(work, stats.BucketStrokesFor(len(work)))
-		// Pass the full stroke list — ComputeCandidates filters phases
-		// per candidate type (B1: warmup strokes are needed as headroom
-		// for distance candidates).
+		// ComputeCandidates filters phases internally (work-only for every
+		// candidate type; legacy untagged strokes pass). Full stroke list
+		// is passed so the function can select the relevant subset itself.
 		summary.PBCandidates = stats.ComputeCandidates(strokes)
 	}
 	// ADR-0012: race-mode sessions are non-resumable. An interrupted

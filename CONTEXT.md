@@ -198,6 +198,9 @@ Two invariants follow from this:
 - **Only Work-phase strokes count toward PBs.** `filterWorkStrokes`
   in `storage/persister.go` strips warmup/cooldown strokes before
   `ComputeCandidates` runs. A "5000 m PB" is 5000 m of *work*.
+  Distance PB candidates are work-only (B1's warmup-headroom
+  workaround retired 2026-06-10; B5 guarantees the goal fits inside
+  the work phase).
 
 ### Session end
 

@@ -98,14 +98,12 @@ type WindowDef struct {
 //
 // Phase filtering happens here, per-candidate-type:
 //
-//   - Distance candidates use warmup + work strokes (no rest, no
-//     cool-down). The window-finder picks the FASTEST d-metre stretch,
-//     so warmup is self-deselecting unless the user's distance goal
-//     was so short that the only d-metre window has to span the
-//     warmup-to-work transition — which is exactly the case we want
-//     to enable (BUG B1: a 5-km goal whose warmup already burned ~400 m
-//     of cumulative distance left work-phase strokes with <5 km of
-//     headroom and no 5-km candidate could be produced at all).
+//   - Distance candidates use work strokes only (plus legacy untagged
+//     strokes from pre-phase-tagging sessions). The B1-era warmup
+//     inclusion (warmup as headroom) is retired: since B5, distance
+//     goals are measured post-warmup, so the work phase always contains
+//     the full goal distance. Including warmup was a correctness bug —
+//     a fast warmup sprint could donate metres and inflate a PB.
 //   - Window and consistency candidates use work-phase strokes only —
 //     warmup/cool-down would dilute "best 60 s of power" etc.
 //
@@ -113,7 +111,13 @@ type WindowDef struct {
 // (rest intervals whose strokes were filtered out). The best value
 // across runs wins.
 func ComputeCandidates(strokes []event.StrokePayload) *PBCandidates {
-	distanceStrokes := keepPhases(strokes, "", "warmup", "work")
+	// Distance candidates are work-only. The B1-era warmup inclusion
+	// (warmup as headroom) is retired: since B5, distance goals are
+	// measured post-warmup, so the work phase always contains the full
+	// goal distance. CONTEXT.md §Workout phases: "Only Work-phase
+	// strokes count toward PBs." Empty-string phase keeps legacy
+	// pre-phase-tagging strokes eligible (free-row sessions).
+	distanceStrokes := keepPhases(strokes, "", "work")
 	workStrokes := keepPhases(strokes, "", "work")
 	out := &PBCandidates{}
 	for _, run := range splitByStrokeNoGap(distanceStrokes) {
