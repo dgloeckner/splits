@@ -563,9 +563,6 @@ func (s *Sessionizer) accumulate(p *event.StrokePayload) {
 	st.lastStroke = &p2
 }
 
-func (s *Sessionizer) openSession(f ipm.Frame) []event.Event {
-	return s.openSessionInternal(f.Level)
-}
 
 // openSessionPending opens a session triggered by an explicit Start
 // request (no frame yet). Initial level defaults to 0 and is updated
@@ -881,7 +878,7 @@ func (s *Sessionizer) OpenSession(workoutID string) []event.Event {
 }
 
 // ProcessFrame processes one frame synchronously and returns the events
-// it produces. ctx is used only for the workout-load side-effect path.
+// it produces. ctx is reserved for future cancellation support.
 func (s *Sessionizer) ProcessFrame(ctx context.Context, f ipm.Frame) ([]event.Event, error) {
 	return s.onFrame(f), nil
 }
