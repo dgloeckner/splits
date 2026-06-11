@@ -189,4 +189,65 @@ func TestGoldenFixtures(t *testing.T) {
 
 		runAndAssertGolden(t, "session-m3-long-w700", evs)
 	})
+
+	t.Run("session-synth-pause", func(t *testing.T) {
+		opts := session.Options{
+			PauseTimeout: 10 * time.Second,
+			ResumeWindow: 15 * time.Minute,
+			IdleTimeout:  15 * time.Minute,
+			RowerID:      "golden-rower",
+			RowerName:    "Golden",
+		}
+		evs, err := run(synthPauseFrames(), opts, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Exact assertions (derived analytically, not from harness output):
+		// Stroke 1 (10m, devT 2s) = storage anchor → rebased to 0m / 0s work-time.
+		// Stroke 20 = 190m / 38s work-clock (strokes 1..20, 10m each after rebase).
+		// 45 idle broadcasts swallowed (policy a); pause arises at +10s.
+		// Resume stroke lands at work-second 38 (stop-the-clock).
+		// Stroke 40 = 390m / 76s work-clock.
+		var pauseCount, resumeCount int
+		var sessionEndCount int
+		var finalDistM int
+		var finalTimeSec float64
+		for _, e := range evs {
+			switch e.Event {
+			case "session_paused":
+				pauseCount++
+			case "session_resumed":
+				resumeCount++
+			case "session_end":
+				sessionEndCount++
+				var p struct {
+					Summary struct {
+						TotalDistanceM int     `json:"total_distance_m"`
+						TotalTimeSec   float64 `json:"total_time_sec"`
+					} `json:"summary"`
+				}
+				_ = json.Unmarshal(e.Data, &p)
+				finalDistM = p.Summary.TotalDistanceM
+				finalTimeSec = p.Summary.TotalTimeSec
+			}
+		}
+		if pauseCount != 1 {
+			t.Errorf("want 1 session_paused, got %d", pauseCount)
+		}
+		if resumeCount != 1 {
+			t.Errorf("want 1 session_resumed, got %d", resumeCount)
+		}
+		if sessionEndCount != 1 {
+			t.Errorf("want exactly 1 session_end, got %d", sessionEndCount)
+		}
+		if finalDistM != 390 {
+			t.Errorf("total_distance_m: want 390, got %d", finalDistM)
+		}
+		if finalTimeSec < 74 || finalTimeSec > 78 {
+			t.Errorf("total_time_sec: want ~76, got %f", finalTimeSec)
+		}
+
+		runAndAssertGolden(t, "session-synth-pause", evs)
+	})
 }

@@ -74,6 +74,40 @@ func loadFixtureFrames(path string) ([]timedFrame, error) {
 	return out, nil
 }
 
+// synthPauseFrames models the CONTEXT.md §Pause scenario:
+// 20 strokes @ 2 s / 10 m, then 45 idle broadcasts every 2 s
+// (90 s, distance frozen), then 20 more strokes.
+func synthPauseFrames() []timedFrame {
+	var out []timedFrame
+	at := 0.0
+	dist := 0
+	devT := 0.0
+	stroke := func() {
+		at += 2; devT += 2; dist += 10
+		out = append(out, timedFrame{
+			Offset: time.Duration(at * float64(time.Second)),
+			Frame:  ipm.Frame{TimeSec: devT, DistanceM: dist, SPM: 24, PowerW: 150, CalPerHr: 800, Level: 3},
+		})
+	}
+	idle := func() {
+		at += 2; devT += 2
+		out = append(out, timedFrame{
+			Offset: time.Duration(at * float64(time.Second)),
+			Frame:  ipm.Frame{TimeSec: devT, DistanceM: dist, SPM: 0, PowerW: 0, CalPerHr: 0, Level: 3},
+		})
+	}
+	for i := 0; i < 20; i++ {
+		stroke()
+	}
+	for i := 0; i < 45; i++ {
+		idle()
+	}
+	for i := 0; i < 20; i++ {
+		stroke()
+	}
+	return out
+}
+
 // run replays frames through a fresh Sessionizer via the synchronous
 // step seam (C0): no goroutines, no channels, no handshakes.
 func run(frames []timedFrame, opts session.Options, workoutID string) ([]timedEvent, error) {
