@@ -88,7 +88,7 @@ function mockWorkout() {
 const stateWithWorkout: LiveState = {
   ...initialLiveState,
   session: { session_id: 'S1', started_at: '', rower_id: 'R', rower_name: 'A', initial_level: 3, workout_id: 'W1' },
-  stroke: { session_id: 'S1', stroke: 1, time_sec: 60, distance_m: 100, spm: 22, power_w: 120, cal_per_hr: 500, level: 3, dps: 9, stroke_cycle_sec: 3, pace_sec_per_500m: 135, energy_joules: 300 },
+  stroke: { session_id: 'S1', stroke: 1, time_sec: 60, distance_m: 100, spm: 22, power_w: 120, cal_per_hr: 500, level: 3, dps: 9, stroke_cycle_sec: 3, pace_sec_per_500m: 135, energy_joules: 300, work_distance_m: 0, work_time_sec: 0, phase_distance_m: 0, phase_time_sec: 0 },
 }
 
 function wrap(state: LiveState) {

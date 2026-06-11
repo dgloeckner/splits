@@ -465,6 +465,7 @@ describe('LivePage phase-aware countdown (FEAT-0015 Slice 1)', () => {
         session_id: 'S1', stroke: 1, time_sec: 30, distance_m: 0,
         spm: 22, power_w: 120, cal_per_hr: 500, level: 3,
         dps: 9, stroke_cycle_sec: 3, pace_sec_per_500m: 135, energy_joules: 300,
+        work_distance_m: 0, work_time_sec: 0, phase_distance_m: 0, phase_time_sec: 0,
       },
     }
   }

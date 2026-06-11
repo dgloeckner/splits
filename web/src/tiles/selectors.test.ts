@@ -20,6 +20,10 @@ function pushStroke(state: LiveState, overrides: Partial<StrokePayload> = {}): L
       stroke_cycle_sec: 2.22,
       pace_sec_per_500m: 132,
       energy_joules: 544,
+      work_distance_m: 0,
+      work_time_sec: 0,
+      phase_distance_m: 0,
+      phase_time_sec: 0,
       ...overrides,
     },
   }

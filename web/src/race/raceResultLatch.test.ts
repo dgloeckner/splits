@@ -18,7 +18,6 @@ describe('computeRaceResultLatch', () => {
     // we honour the formula — the universally-meaningful summary number.)
     const r = computeRaceResultLatch({
       cross: { t: 100, dist: 500 },
-      prev: { t: 95, dist: 480 },
       totalMeters: 500,
       opponents: {},
     })
@@ -29,7 +28,6 @@ describe('computeRaceResultLatch', () => {
     // Sanity case where Schnitt and race_time visibly differ.
     const r = computeRaceResultLatch({
       cross: { t: 500, dist: 1000 },
-      prev: { t: 495, dist: 992 },
       totalMeters: 1000,
       opponents: {},
     })
@@ -39,7 +37,6 @@ describe('computeRaceResultLatch', () => {
   it('cross exactly at totalMeters: finalTimeS from cross stroke, split is race-average', () => {
     const r = computeRaceResultLatch({
       cross: { t: 470, dist: 2000 },
-      prev: { t: 460, dist: 1958 },
       totalMeters: 2000,
       opponents: { ghost, pb },
     })
@@ -56,7 +53,6 @@ describe('computeRaceResultLatch', () => {
     // user crosses 1500m at t=350
     const r = computeRaceResultLatch({
       cross: { t: 350, dist: 1500 },
-      prev: { t: 340, dist: 1460 },
       totalMeters: 1500,
       opponents: { ghost },
     })
@@ -70,7 +66,6 @@ describe('computeRaceResultLatch', () => {
   it('ghost-only present', () => {
     const r = computeRaceResultLatch({
       cross: { t: 470, dist: 2000 },
-      prev: { t: 460, dist: 1958 },
       totalMeters: 2000,
       opponents: { ghost },
     })
@@ -81,7 +76,6 @@ describe('computeRaceResultLatch', () => {
   it('pb-only present', () => {
     const r = computeRaceResultLatch({
       cross: { t: 470, dist: 2000 },
-      prev: { t: 460, dist: 1958 },
       totalMeters: 2000,
       opponents: { pb },
     })
@@ -92,7 +86,6 @@ describe('computeRaceResultLatch', () => {
   it('neither opponent present', () => {
     const r = computeRaceResultLatch({
       cross: { t: 470, dist: 2000 },
-      prev: { t: 460, dist: 1958 },
       totalMeters: 2000,
       opponents: {},
     })
@@ -104,7 +97,6 @@ describe('computeRaceResultLatch', () => {
   it('without prev stroke, still race-average over totalMeters', () => {
     const r = computeRaceResultLatch({
       cross: { t: 470, dist: 2000 },
-      prev: null,
       totalMeters: 2000,
       opponents: {},
     })

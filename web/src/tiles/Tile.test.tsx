@@ -36,6 +36,10 @@ function stateWithStroke(): LiveState {
         stroke_cycle_sec: 2.4,
         pace_sec_per_500m: 125,
         energy_joules: 500,
+        work_distance_m: 0,
+        work_time_sec: 0,
+        phase_distance_m: 0,
+        phase_time_sec: 0,
       },
     },
   })

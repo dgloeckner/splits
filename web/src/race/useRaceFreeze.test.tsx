@@ -18,6 +18,10 @@ const baseStroke = {
   stroke_cycle_sec: 0,
   pace_sec_per_500m: 0,
   energy_joules: 0,
+  work_distance_m: 0,
+  work_time_sec: 0,
+  phase_distance_m: 0,
+  phase_time_sec: 0,
 }
 
 function makeState(stroke: Partial<typeof baseStroke>): LiveState {
@@ -57,7 +61,6 @@ describe('useRaceFreeze', () => {
   it('sources every field from latchedResult when present', () => {
     const latch = computeRaceResultLatch({
       cross: { t: 470, dist: 2000, watts: 310, spm: 30, split: 118 },
-      prev: { t: 460, dist: 1970 },
       totalMeters: 2000,
       opponents: { ghost, pb },
     })
@@ -89,7 +92,6 @@ describe('useRaceFreeze', () => {
   it('returns the same frozen values across re-renders while latch is held', () => {
     const latch = computeRaceResultLatch({
       cross: { t: 470, dist: 2000, watts: 310, spm: 30, split: 118 },
-      prev: { t: 460, dist: 1970 },
       totalMeters: 2000,
       opponents: { ghost, pb },
     })
@@ -258,7 +260,6 @@ describe('useRaceFreeze', () => {
 
     const latch = computeRaceResultLatch({
       cross: { t: 470, dist: 2000 },
-      prev: { t: 460, dist: 1970 },
       totalMeters: 2000,
       opponents: {},
     })

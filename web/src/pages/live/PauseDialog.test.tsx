@@ -52,6 +52,10 @@ function pausedState(phase: LiveState['phase']): LiveState {
       stroke_cycle_sec: 3,
       pace_sec_per_500m: 135,
       energy_joules: 300,
+      work_distance_m: 0,
+      work_time_sec: 0,
+      phase_distance_m: 0,
+      phase_time_sec: 0,
     },
     // Last stroke received well past pause threshold (4000ms) → paused.
     lastStrokeReceivedAtMs: 0,

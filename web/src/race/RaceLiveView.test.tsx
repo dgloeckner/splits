@@ -39,7 +39,7 @@ describe('RaceLiveView', () => {
     const baseStroke = {
       session_id: 's1', stroke: 1, time_sec: 0, distance_m: 0, spm: 0, power_w: 0,
       cal_per_hr: 0, level: 0, dps: 0, stroke_cycle_sec: 0, pace_sec_per_500m: 0,
-      energy_joules: 0,
+      energy_joules: 0, work_distance_m: 0, work_time_sec: 0, phase_distance_m: 0, phase_time_sec: 0,
     }
     const makeState = (s: Partial<typeof baseStroke>): LiveState => ({
       ...initialLiveState,
@@ -81,7 +81,7 @@ describe('RaceLiveView', () => {
     const baseStroke = {
       session_id: 's1', stroke: 1, time_sec: 0, distance_m: 0, spm: 0, power_w: 0,
       cal_per_hr: 0, level: 0, dps: 0, stroke_cycle_sec: 0, pace_sec_per_500m: 0,
-      energy_joules: 0,
+      energy_joules: 0, work_distance_m: 0, work_time_sec: 0, phase_distance_m: 0, phase_time_sec: 0,
     }
     const makeState = (s: Partial<typeof baseStroke>): LiveState => ({
       ...initialLiveState,
@@ -141,7 +141,7 @@ describe('RaceLiveView', () => {
     const baseStroke = {
       session_id: 's1', stroke: 1, time_sec: 0, distance_m: 0, spm: 0, power_w: 0,
       cal_per_hr: 0, level: 0, dps: 0, stroke_cycle_sec: 0, pace_sec_per_500m: 0,
-      energy_joules: 0,
+      energy_joules: 0, work_distance_m: 0, work_time_sec: 0, phase_distance_m: 0, phase_time_sec: 0,
     }
     const state: LiveState = {
       ...initialLiveState,

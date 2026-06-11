@@ -20,6 +20,10 @@ function stroke(id: number, payload: Partial<StrokePayload>): LiveEvent {
       stroke_cycle_sec: 2.2,
       pace_sec_per_500m: 132,
       energy_joules: 500,
+      work_distance_m: 0,
+      work_time_sec: 0,
+      phase_distance_m: 0,
+      phase_time_sec: 0,
       ...payload,
     },
   }
@@ -435,6 +439,10 @@ describe('liveReducer', () => {
           pace_sec_per_500m: 150,
           energy_joules: 100,
           phase: 'warmup',
+          work_distance_m: 0,
+          work_time_sec: 0,
+          phase_distance_m: 0,
+          phase_time_sec: 0,
         },
       },
     })
@@ -545,6 +553,7 @@ describe('liveReducer', () => {
       // and session_paused will still set it to true.
       expect(initialLiveState.serverPaused).toBe(false)
       const staleState = { ...initialLiveState } as LiveState & { serverPaused?: boolean }
+      // @ts-expect-error testing hydration of old serialised state without this key
       delete staleState.serverPaused
       expect(staleState.serverPaused).toBeUndefined()
       // Falsy guard means session_paused still activates correctly
