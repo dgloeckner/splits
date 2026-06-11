@@ -90,38 +90,53 @@ describe('locateSegment', () => {
   } as Workout)
   // segments: warmup(0-120s), work(0-500m), rest(120-180s), work(500-1000m)
 
-  it('returns first segment at zero metrics', () => {
-    const a = locateSegment(segs, 0, 0)
+  it('warmup active at zero metrics, full remaining', () => {
+    const a = locateSegment(segs, 0, 0, 0)
     expect(a?.segment.kind).toBe('warmup')
-    expect(a?.progressRatio).toBe(0)
     expect(a?.remainingSec).toBe(120)
+    expect(a?.progressRatio).toBe(0)
   })
 
-  it('advances to work after warmup time consumed', () => {
-    const a = locateSegment(segs, 0, 120)
+  // REGRESSION (2026-06-11): during warmup work_time_sec is pinned at 0;
+  // the countdown must advance against phase_time_sec, not freeze.
+  it('warmup counts down against phase time while work time is 0', () => {
+    const a = locateSegment(segs, 0, 0, 60)
+    expect(a?.segment.kind).toBe('warmup')
+    expect(a?.remainingSec).toBe(60)
+    expect(a?.progressRatio).toBeCloseTo(0.5)
+  })
+
+  it('advances past warmup once the work phase begins', () => {
+    // First work strokes: work distance advancing, phase time reset to 0.
+    const a = locateSegment(segs, 10, 4, 0)
     expect(a?.segment.kind).toBe('work')
     expect(a?.segment.distanceM).toBe(500)
   })
 
+  it('advances past warmup when phase time exceeds warmup duration', () => {
+    const a = locateSegment(segs, 0, 0, 125)
+    expect(a?.segment.kind).toBe('work')
+  })
+
   it('remainingM decreases inside distance segment', () => {
-    const a = locateSegment(segs, 300, 200)
+    const a = locateSegment(segs, 300, 200, 0)
     expect(a?.segment.kind).toBe('work')
     expect(a?.remainingM).toBe(200)
   })
 
   it('transitions to rest once work distance consumed', () => {
-    const a = locateSegment(segs, 500, 200)
+    const a = locateSegment(segs, 500, 200, 0)
     expect(a?.segment.kind).toBe('rest')
   })
 
   it('returns null after all segments consumed', () => {
-    const a = locateSegment(segs, 1000, 400)
+    const a = locateSegment(segs, 1000, 400, 0)
     expect(a).toBeNull()
   })
+})
 
-  it('empty segments → null', () => {
-    expect(locateSegment([], 100, 100)).toBeNull()
-  })
+it('empty segments → null', () => {
+  expect(locateSegment([], 100, 100, 0)).toBeNull()
 })
 
 describe('locateSegment cooldown after distance work', () => {
@@ -138,7 +153,7 @@ describe('locateSegment cooldown after distance work', () => {
 
   it('returns full cooldown remaining at the moment work distance is reached', () => {
     const segs = makeSegs()
-    const active = locateSegment(segs, 2000, 600)
+    const active = locateSegment(segs, 2000, 600, 0)
     expect(active?.segment.kind).toBe('cooldown')
     expect(active?.remainingSec).toBe(120)
   })
@@ -146,8 +161,8 @@ describe('locateSegment cooldown after distance work', () => {
   it('decrements cooldown remaining as time advances after work completion', () => {
     const segs = makeSegs()
     // Prime the anchor at t=600 (work crossed), then observe t=660 (60s later)
-    locateSegment(segs, 2000, 600)
-    const active = locateSegment(segs, 2000, 660)
+    locateSegment(segs, 2000, 600, 0)
+    const active = locateSegment(segs, 2000, 660, 0)
     expect(active?.segment.kind).toBe('cooldown')
     expect(active?.remainingSec).toBe(60)
   })
@@ -155,8 +170,8 @@ describe('locateSegment cooldown after distance work', () => {
   it('returns null after cooldown elapsed', () => {
     const segs = makeSegs()
     // Prime the anchor at t=600 (work crossed), then observe t=721 (121s later)
-    locateSegment(segs, 2000, 600)
-    const active = locateSegment(segs, 2000, 721)
+    locateSegment(segs, 2000, 600, 0)
+    const active = locateSegment(segs, 2000, 721, 0)
     expect(active).toBeNull()
   })
 })
@@ -178,7 +193,7 @@ describe('locateSegment with B5 work_distance_m (backend-stamped)', () => {
   it('inside work: remainingM reflects metres remaining of the 2000m goal', () => {
     const segs = makeSegs()
     // 500m of post-warmup work done → 1500m remaining.
-    const a = locateSegment(segs, 500, 200)
+    const a = locateSegment(segs, 500, 200, 0)
     expect(a?.segment.kind).toBe('work')
     expect(a?.remainingM).toBe(1500)
   })
@@ -186,11 +201,11 @@ describe('locateSegment with B5 work_distance_m (backend-stamped)', () => {
   it('crossing fires when 2000m of post-warmup work is completed', () => {
     const segs = makeSegs()
     // 1950m of work → still in work segment.
-    const stillWork = locateSegment(segs, 1950, 600)
+    const stillWork = locateSegment(segs, 1950, 600, 0)
     expect(stillWork?.segment.kind).toBe('work')
     expect(stillWork?.remainingM).toBe(50)
     // Exactly 2000m of work → completion.
-    const done = locateSegment(segs, 2000, 700)
+    const done = locateSegment(segs, 2000, 700, 0)
     // No cooldown in this fixture → null is returned at completion.
     expect(done).toBeNull()
   })
@@ -244,10 +259,10 @@ describe('rest segments match backend classification (phaseplan.go has no rest-s
   it('stays in rest while its duration has not elapsed, even when paddling past the next start', () => {
     const segs = makeIntervalSegs()
     // Latch the crossing at workTimeSec=120 (work_distance_m=500)
-    locateSegment(segs, 500, 120)
+    locateSegment(segs, 500, 120, 0)
     // 30s into rest; rower has paddled 30m during rest (work_distance_m=530)
     // next work segment starts at 500m — rower is already past it, but rest (60s) not elapsed
-    const active = locateSegment(segs, 530, 150)
+    const active = locateSegment(segs, 530, 150, 0)
     expect(active?.segment.kind).toBe('rest')
     expect(active?.remainingSec).toBe(30)
   })
@@ -255,9 +270,9 @@ describe('rest segments match backend classification (phaseplan.go has no rest-s
   it('rest is not skipped on entry (work_distance_m is already offset by backend)', () => {
     const segs = makeIntervalSegs()
     // At workTimeSec=120 the rower crosses 500m of work_distance_m
-    locateSegment(segs, 500, 120)
+    locateSegment(segs, 500, 120, 0)
     // 5s later, still in rest — 20m paddled during rest (work_distance_m=520)
-    const active = locateSegment(segs, 520, 125)
+    const active = locateSegment(segs, 520, 125, 0)
     expect(active?.segment.kind).toBe('rest')
   })
 })

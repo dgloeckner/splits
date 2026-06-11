@@ -110,8 +110,11 @@ export function locateSegment(
    *  evaluated relative to this value directly. */
   workDistanceM: number,
   /** Backend-stamped `work_time_sec`: seconds elapsed since the work phase
-   *  started. Used to count down time-based segments (rest, cooldown). */
+   *  started. Pinned at 0 throughout warmup (ADR-0017). */
   workTimeSec: number,
+  /** Backend-stamped `phase_time_sec`: seconds since the current phase started.
+   *  Used for the leading warmup countdown, which precedes work. */
+  phaseTimeSec: number,
 ): ActiveSegment | null {
   if (segments.length === 0) return null
   let timeAnchor = 0
@@ -123,6 +126,30 @@ export function locateSegment(
 
   for (let idx = 0; idx < segments.length; idx++) {
     const seg = segments[idx]
+
+    // Leading warmup: precedes the work phase, so work_time_sec is pinned
+    // at 0 throughout it (ADR-0017). Counting against workTimeSec would
+    // freeze the countdown — the 2026-06-11 regression. Count against
+    // phase_time_sec instead. Once the work phase begins (work distance
+    // or time advances) the warmup is complete and is skipped.
+    if (seg.kind === 'warmup' && seg.durationSec != null) {
+      const workStarted = workDistanceM > 0 || workTimeSec > 0
+      if (!workStarted) {
+        const consumed = Math.max(0, phaseTimeSec)
+        if (consumed < seg.durationSec) {
+          return {
+            segment: seg,
+            remainingSec: Math.max(0, seg.durationSec - consumed),
+            progressRatio: consumed / seg.durationSec,
+            totalSegments: segments.length,
+            activeIndexOneBased: seg.index + 1,
+          }
+        }
+      }
+      timeAnchor += seg.durationSec
+      continue
+    }
+
     if (seg.durationSec != null) {
       if (workCompletedAt != null) {
         // Time-based segment following a distance segment.

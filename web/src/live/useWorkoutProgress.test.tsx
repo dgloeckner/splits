@@ -60,7 +60,7 @@ describe('useWorkoutProgress', () => {
       wrapper: wrap({
         ...initialLiveState,
         session: { session_id: 'S1', started_at: '', rower_id: 'R1', rower_name: 'A', initial_level: 3, workout_id: 'W1' },
-        stroke: { session_id: 'S1', stroke: 1, time_sec: 60, distance_m: 0, spm: 20, power_w: 100, cal_per_hr: 500, level: 3, dps: 8, stroke_cycle_sec: 3, pace_sec_per_500m: 150, energy_joules: 300, work_distance_m: 0, work_time_sec: 60, phase_distance_m: 0, phase_time_sec: 60 },
+        stroke: { session_id: 'S1', stroke: 1, time_sec: 60, distance_m: 0, spm: 20, power_w: 100, cal_per_hr: 500, level: 3, dps: 8, stroke_cycle_sec: 3, pace_sec_per_500m: 150, energy_joules: 300, work_distance_m: 0, work_time_sec: 0, phase_distance_m: 0, phase_time_sec: 60 },
       }),
     })
     await waitFor(() => expect(result.current.segments.length).toBeGreaterThan(0))
@@ -85,7 +85,7 @@ describe('useWorkoutProgress', () => {
       wrapper: wrap({
         ...initialLiveState,
         session: { session_id: 'S1', started_at: '', rower_id: 'R1', rower_name: 'A', initial_level: 3, workout_id: 'W1' },
-        stroke: { session_id: 'S1', stroke: 1, time_sec: 60, distance_m: 30, spm: 20, power_w: 100, cal_per_hr: 500, level: 3, dps: 8, stroke_cycle_sec: 3, pace_sec_per_500m: 150, energy_joules: 300, work_distance_m: 30, work_time_sec: 60, phase_distance_m: 30, phase_time_sec: 60 },
+        stroke: { session_id: 'S1', stroke: 1, time_sec: 60, distance_m: 30, spm: 20, power_w: 100, cal_per_hr: 500, level: 3, dps: 8, stroke_cycle_sec: 3, pace_sec_per_500m: 150, energy_joules: 300, work_distance_m: 0, work_time_sec: 0, phase_distance_m: 0, phase_time_sec: 60 },
         lastStrokeReceivedAtMs: anchor,
       }),
     })

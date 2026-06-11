@@ -38,6 +38,7 @@ export function useWorkoutProgress(): WorkoutProgress {
       segments,
       state.stroke.work_distance_m,
       state.stroke.work_time_sec,
+      state.stroke.phase_time_sec,
     )
   }, [state.stroke, segments])
 
