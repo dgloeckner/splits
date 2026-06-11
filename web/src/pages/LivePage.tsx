@@ -232,12 +232,23 @@ function LivePageContent() {
   })
   const prevSummaryRef = useRef(state.summary)
 
+  const { wasDiscarded } = useWorkoutOverlay()
   const incomingSummary = state.summary
   const incomingSessionId = state.session?.session_id ?? null
   const incomingWorkoutId = state.session?.workout_id ?? null
   useEffect(() => {
     const prev = prevSummaryRef.current
     if (!prev && incomingSummary) {
+      if (wasDiscarded(incomingSessionId)) {
+        // Discarded session: never latch, never show the save-overlay.
+        // Clear any stale latch and refresh the list so the row is gone.
+        try {
+          window.sessionStorage.removeItem(STORAGE_KEY)
+        } catch {}
+        qc.invalidateQueries({ queryKey: ['sessions'] })
+        prevSummaryRef.current = incomingSummary
+        return
+      }
       const next: Latched = {
         summary: incomingSummary,
         sessionId: incomingSessionId,
@@ -260,7 +271,7 @@ function LivePageContent() {
        qc.invalidateQueries({ queryKey: ['rower-trends'] })
     }
     prevSummaryRef.current = incomingSummary
-  }, [incomingSummary, incomingSessionId, incomingWorkoutId, activeWorkoutMode, qc])
+  }, [incomingSummary, incomingSessionId, incomingWorkoutId, activeWorkoutMode, qc, wasDiscarded])
 
   // FEAT-0009 acceptance: closing the tab does NOT end the session.
   // The backend's idle / inactivity timeouts, the workout-complete

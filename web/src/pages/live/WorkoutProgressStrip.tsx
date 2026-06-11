@@ -1,13 +1,11 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
-import { deleteSession } from '../../api/client'
-import { showToast } from '../../app/Toast'
 import { enqueueEndSession, processPendingEndSessions } from '../../live/endSessionQueue'
 import { useLiveSession } from '../../live/LiveSessionContext'
 import { useWorkoutProgress } from '../../live/useWorkoutProgress'
 import type { ActiveSegment, Segment } from '../../live/segments'
 import { useWorkoutOverlay } from './WorkoutOverlayContext'
+import { useDiscardSession } from './useDiscardSession'
 import { AbortWorkoutDialog } from './AbortWorkoutDialog'
 import { useExtrapolatedActiveSegment } from './SegmentStatus'
 import { WorkProgressBadge } from './WorkProgressBadge'
@@ -18,8 +16,8 @@ export function WorkoutProgressStrip() {
   const active = useExtrapolatedActiveSegment(activeRaw)
   const { abort } = useWorkoutOverlay()
   const state = useLiveSession()
-  const qc = useQueryClient()
   const nav = useNavigate()
+  const discard = useDiscardSession()
   const [open, setOpen] = useState(false)
   const sessionId = state.session?.session_id ?? null
   if (segments.length === 0) return null
@@ -48,18 +46,8 @@ export function WorkoutProgressStrip() {
         }}
         onContinue={() => setOpen(false)}
         onDiscard={async () => {
-          if (sessionId) {
-            try {
-              await deleteSession(sessionId)
-              qc.invalidateQueries({ queryKey: ['sessions'] })
-            } catch {
-              showToast('Verwerfen fehlgeschlagen — bitte erneut versuchen.', 'warn')
-              return
-            }
-          }
-          abort()
-          setOpen(false)
-          nav('/')
+          const ok = await discard(sessionId)
+          if (ok) setOpen(false)
         }}
       />
     </>
