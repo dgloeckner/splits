@@ -6,6 +6,7 @@ import {
   useSmoothed,
   useCountUp,
   useIsLivePaused,
+  phaseRelative,
 } from './useLiveDisplay'
 import { liveReducer, initialLiveState, type LiveState } from './reducer'
 import type { LiveEvent, StrokePayload } from './events'
@@ -189,6 +190,19 @@ describe('useIsLivePaused', () => {
       vi.advanceTimersByTime(smoothingConfig.deadReckoning.pauseThresholdMs + 100)
     })
     expect(result.current).toBe(true)
+  })
+})
+
+describe('phaseRelative', () => {
+  it('falls back to absolute without an anchor', () => {
+    expect(phaseRelative(1500, 'work', null, 'distanceM')).toBe(1500)
+  })
+  it('subtracts the anchor and clamps at zero', () => {
+    expect(phaseRelative(1500, 'work', { distanceM: 400, timeSec: 120 }, 'distanceM')).toBe(1100)
+    expect(phaseRelative(390, 'work', { distanceM: 400, timeSec: 120 }, 'distanceM')).toBe(0)
+  })
+  it('returns absolute value when phase is null', () => {
+    expect(phaseRelative(1500, null, { distanceM: 400, timeSec: 120 }, 'distanceM')).toBe(1500)
   })
 })
 

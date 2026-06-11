@@ -175,6 +175,21 @@ import { useContext } from 'react'
 import { LiveSessionContext } from './LiveSessionContext'
 
 /**
+ * Pure core of usePhasedDistance / usePhasedTime: the phase-relative
+ * value, or the absolute value when no phase context exists (free row,
+ * or anchor not yet latched). Exported for the golden replay suite.
+ */
+export function phaseRelative(
+  value: number,
+  phase: LiveState['phase'],
+  anchor: LiveState['phaseAnchor'],
+  key: 'distanceM' | 'timeSec',
+): number {
+  if (phase === null || anchor === null) return value
+  return Math.max(0, value - anchor[key])
+}
+
+/**
  * Phase-aware distance display. Counts up smoothly from 0 inside every
  * phase (warmup, work, rest, cooldown) by subtracting the active phase
  * anchor from the dead-reckoned absolute distance. Falls back to raw
@@ -187,10 +202,7 @@ export function usePhasedDistance(state: LiveState): DeadReckoned {
   const phase = live?.phase ?? null
   const anchor = live?.phaseAnchor ?? null
   if (e.value === null) return { text: fmtInt(null), paused: e.paused }
-  if (phase === null || anchor === null) {
-    return { text: fmtInt(e.value), paused: e.paused }
-  }
-  return { text: fmtInt(Math.max(0, e.value - anchor.distanceM)), paused: e.paused }
+  return { text: fmtInt(phaseRelative(e.value, phase, anchor, 'distanceM')), paused: e.paused }
 }
 
 /**
@@ -205,10 +217,7 @@ export function usePhasedTime(state: LiveState): DeadReckoned {
   const phase = live?.phase ?? null
   const anchor = live?.phaseAnchor ?? null
   if (e.value === null) return { text: mmssWhole(null), paused: e.paused }
-  if (phase === null || anchor === null) {
-    return { text: mmssWhole(e.value), paused: e.paused }
-  }
-  return { text: mmssWhole(Math.max(0, e.value - anchor.timeSec)), paused: e.paused }
+  return { text: mmssWhole(phaseRelative(e.value, phase, anchor, 'timeSec')), paused: e.paused }
 }
 
 export type SmoothedDisplay = {
