@@ -15,6 +15,9 @@ type SessionAttacher interface {
 	AttachWorkout(id string)
 	StartSession(workoutID string)
 	EndSession()
+	// RaceGo signals the GO! moment of a race so pre-GO strokes are
+	// excluded from totals, results, and PB candidates (§Falschstart).
+	RaceGo()
 }
 
 func WorkoutAttachHandler(repo *workout.Repo, att SessionAttacher) http.Handler {

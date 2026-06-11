@@ -111,6 +111,13 @@ export async function endSession(): Promise<void> {
   if (!r.ok) throw new ApiError(r.status, `${r.status} ${r.statusText}`)
 }
 
+// raceGo signals the GO! moment of a race so the backend re-latches
+// work anchors and excludes pre-GO strokes from totals and PB candidates
+// (§Falschstart). Fire-and-forget — always resolves.
+export async function raceGo(): Promise<void> {
+  await fetch('/api/v1/session/race-go', { method: 'POST' })
+}
+
 // startSession opens a new session on the backend with an optional
 // workout id. Idempotent on the server: if a session is already open
 // and not idle, the call is a no-op. Strokes arriving before this is

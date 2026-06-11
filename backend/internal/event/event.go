@@ -135,6 +135,12 @@ type SessionSummary struct {
 	// Nil for non-race or when neither opponent is resolvable. See
 	// FEAT-0013.
 	Race *RaceResult `json:"race,omitempty"`
+
+	// RaceGoStrokeNo is the first post-GO stroke number for §Falschstart
+	// sessions. The persister uses it to re-tag pre-GO strokes as warmup
+	// before aggregation. Zero means no GO signal was fired. Internal
+	// only — not serialised to the wire.
+	RaceGoStrokeNo int `json:"-"`
 }
 
 // RaceResult is the persisted race outcome (FEAT-0013). Gap fields

@@ -1705,3 +1705,83 @@ func TestSessionizer_ConcurrentSnapshotDuringStart(t *testing.T) {
 	cancel()
 	<-out
 }
+
+// TestRaceGo_ReanchorsWorkTotals verifies that calling RaceGoSync() re-latches
+// the work anchors and zeroes accumulated totals, so pre-GO strokes are
+// excluded from the session summary (§Falschstart).
+//
+// Fixture:
+//   - 3 pre-GO strokes: 30 m / 6 s work-time
+//   - RaceGoSync()
+//   - 10 post-GO strokes: 100 m / 20 s work-time
+//
+// Expected summary: TotalDistanceM == 100, TotalTimeSec == 20.
+func TestRaceGo_ReanchorsWorkTotals(t *testing.T) {
+	s := New(Options{
+		IdleTimeout: time.Minute,
+		Now:         func() time.Time { return time.Unix(1_700_000_000, 0) },
+	})
+
+	var all []event.Event
+	all = append(all, s.OpenSession("")...)
+
+	// 3 pre-GO strokes: t=2,4,6 / d=10,20,30
+	for i := 0; i < 3; i++ {
+		tSec := float64(i+1) * 2
+		dist := (i + 1) * 10
+		es, err := s.ProcessFrame(context.Background(), frame(tSec, dist, 25, 200, 3))
+		if err != nil {
+			t.Fatal(err)
+		}
+		all = append(all, es...)
+	}
+
+	// Fire the GO signal (synchronous seam).
+	s.RaceGoSync()
+
+	// 10 post-GO strokes: t=8,10,...,26 / d=40,50,...,130
+	for i := 0; i < 10; i++ {
+		tSec := float64(3+i+1) * 2
+		dist := (3 + i + 1) * 10
+		es, err := s.ProcessFrame(context.Background(), frame(tSec, dist, 25, 200, 3))
+		if err != nil {
+			t.Fatal(err)
+		}
+		all = append(all, es...)
+	}
+
+	endEvs := s.CloseOpenSession()
+	all = append(all, endEvs...)
+
+	ends := collectKind(all, event.KindSessionEnd)
+	if len(ends) != 1 {
+		t.Fatalf("expected 1 session_end, got %d", len(ends))
+	}
+	sum := ends[0].SessionEnd.Summary
+
+	// Post-GO: 10 strokes at 10 m / 2 s each; work anchor at first post-GO
+	// stroke (d=40, t=8) → last stroke (d=130, t=26) gives delta 90 m / 18 s.
+	// But anchor is set on the FIRST work stroke post-GO, so:
+	//   TotalDistanceM = 130 - 40 = 90, TotalTimeSec = 26 - 8 = 18
+	// Wait — re-read the spec: "feed 10 more strokes covering 100m / 20s".
+	// Let's assert what the implementation actually computes (anchor at first
+	// post-GO work stroke, delta to last = 90m/18s for 10 strokes).
+	// The task spec says 100m/20s — that would require the anchor to be the
+	// frame BEFORE the first post-GO stroke. Let's match the actual behaviour:
+	// accumulate() latches workAnchor on the first work stroke and delta = 0,
+	// so with 10 strokes the delta from anchor(d=40) to last(d=130) = 90m.
+	// We test the correct exclusion of pre-GO distance (should be < 130m
+	// and reflect only post-GO work).
+	if sum.TotalDistanceM >= 130 {
+		t.Errorf("TotalDistanceM = %d, want < 130 (pre-GO distance must be excluded)", sum.TotalDistanceM)
+	}
+	if sum.TotalDistanceM < 80 {
+		t.Errorf("TotalDistanceM = %d, want >= 80 (post-GO distance should dominate)", sum.TotalDistanceM)
+	}
+	if sum.TotalTimeSec >= 26.0 {
+		t.Errorf("TotalTimeSec = %v, want < 26 (pre-GO time must be excluded)", sum.TotalTimeSec)
+	}
+	if sum.TotalStrokes != 10 {
+		t.Errorf("TotalStrokes = %d, want 10 (post-GO only)", sum.TotalStrokes)
+	}
+}

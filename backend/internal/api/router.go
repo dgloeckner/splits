@@ -129,6 +129,7 @@ func NewRouter(in Inputs) http.Handler {
 			gate(WorkoutAttachHandler(in.WorkoutRepo, in.Sessionizer)))
 		mux.Handle("POST /api/v1/session/start", gate(SessionStartHandler(in.Sessionizer)))
 		mux.Handle("POST /api/v1/session/end", gate(SessionEndHandler(in.Sessionizer)))
+		mux.Handle("POST /api/v1/session/race-go", gate(RaceGoHandler(in.Sessionizer)))
 	}
 	if in.SessionSnapshot != nil {
 		if p, ok := in.SessionSnapshot.(SessionActiveProvider); ok {

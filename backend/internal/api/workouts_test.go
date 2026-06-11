@@ -291,6 +291,7 @@ type fakeAttacher struct {
 
 func (f *fakeAttacher) AttachWorkout(id string)    { f.got = id }
 func (f *fakeAttacher) EndSession()                { f.ended++ }
+func (f *fakeAttacher) RaceGo()                    {}
 func (f *fakeAttacher) StartSession(workoutID string) {
 	f.startedWith = workoutID
 	f.started++

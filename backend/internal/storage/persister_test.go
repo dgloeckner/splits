@@ -514,3 +514,85 @@ func TestPersister_DeadLettersAfterMaxRetries(t *testing.T) {
 		t.Fatalf("want 1, got %d", p.DeadLettered)
 	}
 }
+
+// TestApplySessionEnd_RaceGoRetagsPreGoStrokes verifies that when
+// RaceGoStrokeNo > 1, pre-GO strokes are re-tagged as warmup before
+// aggregation, so they cannot become PB candidates.
+func TestApplySessionEnd_RaceGoRetagsPreGoStrokes(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	if err := InsertSession(ctx, db.Handle(), "sg1", "r1", time.Unix(0, 0).UTC(), 5, ""); err != nil {
+		t.Fatal(err)
+	}
+	// 3 pre-GO strokes tagged as "work" (will be re-tagged to warmup).
+	// 2 post-GO strokes tagged as "work".
+	strokes := []event.StrokePayload{
+		{StrokeNo: 1, TimeSec: 2, DistanceM: 10, PowerW: 300, SPM: 25, Phase: "work"},
+		{StrokeNo: 2, TimeSec: 4, DistanceM: 20, PowerW: 310, SPM: 25, Phase: "work"},
+		{StrokeNo: 3, TimeSec: 6, DistanceM: 30, PowerW: 320, SPM: 25, Phase: "work"},
+		{StrokeNo: 4, TimeSec: 8, DistanceM: 40, PowerW: 200, SPM: 24, Phase: "work"},
+		{StrokeNo: 5, TimeSec: 10, DistanceM: 50, PowerW: 210, SPM: 24, Phase: "work"},
+	}
+	for i, r := range strokes {
+		if err := InsertStroke(ctx, db.Handle(), uint64(i+1), "sg1", time.Unix(0, 0).UTC(), r); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	p := &Persister{DB: db.Handle()}
+	// RaceGoStrokeNo=4 → strokes 1,2,3 should be re-tagged to warmup.
+	end := event.Event{
+		Kind: event.KindSessionEnd, SessionID: "sg1",
+		SessionEnd: &event.SessionEndPayload{
+			EndedAt: time.Unix(12, 0).UTC(),
+			Summary: event.SessionSummary{
+				TotalDistanceM: 20, TotalTimeSec: 4, TotalStrokes: 2,
+				RaceGoStrokeNo: 4,
+			},
+		},
+	}
+	if err := p.apply(ctx, end); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify pre-GO strokes are now tagged as warmup in the DB.
+	rows, err := db.Handle().QueryContext(ctx,
+		`SELECT stroke_no, phase FROM strokes WHERE session_id = 'sg1' ORDER BY stroke_no`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	type row struct {
+		no    int
+		phase string
+	}
+	var got []row
+	for rows.Next() {
+		var r row
+		if err := rows.Scan(&r.no, &r.phase); err != nil {
+			t.Fatal(err)
+		}
+		got = append(got, r)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range got {
+		if r.no < 4 && r.phase != "warmup" {
+			t.Errorf("stroke %d: phase = %q, want warmup (pre-GO re-tag)", r.no, r.phase)
+		}
+		if r.no >= 4 && r.phase != "work" {
+			t.Errorf("stroke %d: phase = %q, want work (post-GO unchanged)", r.no, r.phase)
+		}
+	}
+
+	// Verify the summary was written.
+	var summaryJSON string
+	if err := db.Handle().QueryRowContext(ctx,
+		`SELECT COALESCE(summary_json,'') FROM sessions WHERE id = 'sg1'`).Scan(&summaryJSON); err != nil {
+		t.Fatal(err)
+	}
+	if summaryJSON == "" {
+		t.Error("summary_json is empty after applySessionEnd")
+	}
+}

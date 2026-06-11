@@ -226,6 +226,18 @@ func (p *Persister) apply(ctx context.Context, e event.Event) error {
 // the FEAT-0009 hard-delete path (`DELETE /api/v1/sessions/{id}`)
 // removes them.
 func (p *Persister) applySessionEnd(ctx context.Context, e event.Event) error {
+	// §Falschstart: re-tag pre-GO strokes as warmup so every downstream
+	// consumer (filterWorkStrokes, ComputeCandidates, race result) sees
+	// only post-GO strokes as work-phase. Must run before LoadSessionStrokes
+	// so the in-DB phase tags are correct when we read them back.
+	if e.SessionEnd != nil && e.SessionEnd.Summary.RaceGoStrokeNo > 1 {
+		if _, err := p.DB.ExecContext(ctx,
+			`UPDATE strokes SET phase = 'warmup' WHERE session_id = ? AND stroke_no < ?`,
+			e.SessionID, e.SessionEnd.Summary.RaceGoStrokeNo); err != nil {
+			return err
+		}
+	}
+
 	strokes, err := LoadSessionStrokes(ctx, p.DB, e.SessionID)
 	if err != nil {
 		return err

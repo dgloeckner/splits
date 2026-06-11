@@ -113,6 +113,10 @@ type Sessionizer struct {
 	// endC carries explicit end requests (POST /api/v1/session/end).
 	// Buffered so the HTTP handler doesn't block.
 	endC chan struct{}
+	// raceGoC carries GO! signal requests (POST /api/v1/session/race-go).
+	// Buffered 1 so the HTTP handler doesn't block; extras are dropped
+	// (idempotent — two GO signals in quick succession change nothing).
+	raceGoC chan struct{}
 	// startC carries explicit start requests (POST /api/v1/session/start)
 	// with the workout id (or "" for a free row). Buffered so the HTTP
 	// handler doesn't block.
@@ -169,6 +173,12 @@ type sessionState struct {
 	workAnchorSet      bool
 	workAnchorDistance int
 	workAnchorTimeSec  float64
+	// raceGoStrokeNo is the first post-GO stroke number (1-based, same
+	// space as strokeSeq). When > 0, pre-GO strokes (stroke_no <
+	// raceGoStrokeNo) are re-tagged as warmup by the persister before
+	// loading session strokes for aggregation.
+	raceGoStrokeNo int
+
 	// Pause sub-state (CONTEXT.md §Pause / Abort).
 	pausedSinceWall time.Time // zero when not paused
 	pausedAtWorkSec float64   // work-clock TimeSec of last stroke before pause
@@ -199,6 +209,7 @@ func New(o Options) *Sessionizer {
 		attachC: make(chan string, 8),
 		endC:    make(chan struct{}, 4),
 		startC:  make(chan string, 4),
+		raceGoC: make(chan struct{}, 1),
 	}
 }
 
@@ -267,6 +278,8 @@ func (s *Sessionizer) Run(ctx context.Context, in <-chan ipm.Frame, out chan<- e
 					return err
 				}
 			}
+		case <-s.raceGoC:
+			s.raceGoReset()
 		case wid := <-s.startC:
 			// Single-source-of-truth: before deciding "session already
 			// open, ignore start", confirm with the DB. If the row is
@@ -928,6 +941,42 @@ func (s *Sessionizer) EndSession() {
 	}
 }
 
+// RaceGo marks the GO! moment of a race (CONTEXT.md §Falschstart):
+// work anchors and accumulated totals re-latch on the next frame so
+// pre-GO strokes are excluded from race totals, the persisted race
+// result, and PB candidates. No-op without an open session. Safe from
+// any goroutine.
+func (s *Sessionizer) RaceGo() {
+	select {
+	case s.raceGoC <- struct{}{}:
+	default:
+		// Already queued; one signal is enough.
+	}
+}
+
+// raceGoReset applies the GO! re-anchor to the session state directly.
+// Shared between the async (Run/raceGoC) and synchronous (RaceGoSync)
+// paths so the logic is defined exactly once.
+func (s *Sessionizer) raceGoReset() {
+	st := s.session
+	if st == nil {
+		return
+	}
+	st.phaseAnchorSet = false
+	st.workAnchorSet = false
+	st.acc = accumulator{}
+	st.warmupSec, st.restSec, st.cooldownSec = 0, 0, 0
+	if st.lastStroke != nil {
+		st.raceGoStrokeNo = st.strokeSeq + 1 // first post-GO stroke
+	}
+}
+
+// RaceGoSync is the synchronous-seam equivalent of RaceGo (for the golden
+// harness and unit tests). Must not be called concurrently with Run.
+func (s *Sessionizer) RaceGoSync() {
+	s.raceGoReset()
+}
+
 func (s *Sessionizer) AttachWorkout(id string) {
 	s.mu.Lock()
 	s.pendingWorkoutID = id
@@ -974,6 +1023,7 @@ func (s *Sessionizer) closeSession() []event.Event {
 		WarmupSec:      st.warmupSec,
 		RestSec:        st.restSec,
 		CooldownSec:    st.cooldownSec,
+		RaceGoStrokeNo: st.raceGoStrokeNo,
 	}
 	if st.acc.strokes > 0 {
 		summary.AvgPowerW = st.acc.powerSum / st.acc.strokes

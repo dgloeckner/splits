@@ -11,6 +11,7 @@ import { useRaceLifecycle } from './useRaceLifecycle'
 import { useReducedMotion } from './reducedMotion'
 import { useRaceData } from './useRaceData'
 import type { RaceLifecycleEvent, RaceLifecycleState } from './raceLifecycle'
+import { raceGo } from '../api/client'
 
 /**
  * Top-level race-mode flow. Owns the lifecycle reducer and routes
@@ -97,6 +98,16 @@ export function RaceFlow({ liveState, totalMeters, opponentsLabel, onRetry, onSh
       send({ type: 'sessionEnd' })
     }
   }, [liveState.summary, state.phase, send])
+
+  // §Falschstart: notify the backend when the GO! signal fires so it
+  // re-latches work anchors and excludes pre-GO strokes from totals,
+  // the persisted race result, and PB candidates. Fire-and-forget.
+  const goFired = state.goFired
+  useEffect(() => {
+    if (goFired) {
+      raceGo().catch(() => {}) // fire-and-forget
+    }
+  }, [goFired])
 
   const handleConfirmAbort = () => {
     send({ type: 'abort' })
