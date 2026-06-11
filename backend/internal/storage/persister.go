@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -222,11 +223,13 @@ func (p *Persister) apply(ctx context.Context, e event.Event) error {
 // retained (canonical replay input); only FEAT-0009 hard-delete removes
 // them.
 func (p *Persister) applySessionEnd(ctx context.Context, e event.Event) error {
+	if e.SessionEnd == nil {
+		return fmt.Errorf("applySessionEnd: event %d has nil SessionEnd", e.ID)
+	}
 	// §Falschstart: re-tag pre-GO strokes as warmup so every downstream
-	// consumer (FilterWorkStrokes, ComputeCandidates, race result) sees
-	// only post-GO strokes as work-phase. Must run before FinaliseSession
-	// loads strokes so the in-DB phase tags are correct.
-	if e.SessionEnd != nil && e.SessionEnd.Summary.RaceGoStrokeNo > 1 {
+	// consumer sees only post-GO strokes as work-phase. Must run before
+	// strokes are loaded so the in-DB phase tags are correct.
+	if e.SessionEnd.Summary.RaceGoStrokeNo > 1 {
 		if _, err := p.DB.ExecContext(ctx,
 			`UPDATE strokes SET phase = 'warmup' WHERE session_id = ? AND stroke_no < ?`,
 			e.SessionID, e.SessionEnd.Summary.RaceGoStrokeNo); err != nil {
@@ -234,8 +237,27 @@ func (p *Persister) applySessionEnd(ctx context.Context, e event.Event) error {
 		}
 	}
 
+	// Empty-session prune: a session_end with no persisted strokes AND an
+	// empty authoritative summary is a phantom (a POST /session/start that
+	// never received a frame). Delete the row rather than persist a
+	// zero-totals ghost that pollutes Verlauf, the trends totals, and the
+	// Rekorde grid. A zero-stroke end with a non-empty summary (strokes
+	// broadcast but not yet persisted) is still finalised — the sessionizer
+	// summary is authoritative (see finalise.go:87-89).
+	strokes, err := LoadSessionStrokes(ctx, p.DB, e.SessionID)
+	if err != nil {
+		return err
+	}
+	if len(strokes) == 0 && e.SessionEnd.Summary.TotalStrokes == 0 {
+		if err := DeleteEmptySession(ctx, p.DB, e.SessionID); err != nil {
+			return err
+		}
+		slog.Info("storage.persister.prune_empty_session", "session_id", e.SessionID)
+		return nil
+	}
+
 	summary, err := FinaliseSession(ctx, p.DB, e.SessionID, e.SessionEnd.EndedAt,
-		e.SessionEnd.Summary, nil, e.ID, FinaliseEnded, p.Scheduler)
+		e.SessionEnd.Summary, strokes, e.ID, FinaliseEnded, p.Scheduler)
 	if err != nil {
 		return err
 	}

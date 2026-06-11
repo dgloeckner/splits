@@ -244,3 +244,20 @@ func InsertStrokesBatch(ctx context.Context, db *sql.DB, rows []StrokeRow) error
 	}
 	return tx.Commit()
 }
+
+// DeleteEmptySession removes a session row that finalised with no
+// strokes and no real totals — a phantom from a POST /session/start
+// that never received a frame. Runs in its own transaction. FK
+// enforcement (DSN _pragma=foreign_keys(on)) guarantees no orphan
+// strokes can survive; for a truly empty session there are none.
+func DeleteEmptySession(ctx context.Context, db *sql.DB, id string) error {
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `DELETE FROM sessions WHERE id = ?`, id); err != nil {
+		return err
+	}
+	return tx.Commit()
+}

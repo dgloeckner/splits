@@ -596,3 +596,72 @@ func TestApplySessionEnd_RaceGoRetagsPreGoStrokes(t *testing.T) {
 		t.Error("summary_json is empty after applySessionEnd")
 	}
 }
+
+// A session_end with no persisted strokes AND an empty summary is a
+// phantom (POST /session/start that never received a frame). It must be
+// pruned, not persisted as a zero-totals ghost.
+func TestApplySessionEnd_PrunesEmptyPhantom(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	started := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	if err := InsertSession(ctx, db.Handle(), "ph1", "r1", started, 3, ""); err != nil {
+		t.Fatalf("InsertSession: %v", err)
+	}
+
+	p := &Persister{DB: db.Handle()}
+	e := event.Event{
+		ID:        7,
+		Kind:      event.KindSessionEnd,
+		SessionID: "ph1",
+		SessionEnd: &event.SessionEndPayload{
+			EndedAt: started.Add(15 * time.Minute),
+			Summary: event.SessionSummary{}, // empty: TotalStrokes == 0
+		},
+	}
+	if err := p.applySessionEnd(ctx, e); err != nil {
+		t.Fatalf("applySessionEnd: %v", err)
+	}
+
+	var n int
+	if err := db.Handle().QueryRowContext(ctx,
+		`SELECT COUNT(*) FROM sessions WHERE id='ph1'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Errorf("phantom session not pruned: %d rows remain", n)
+	}
+}
+
+// A zero-stroke end whose summary carries real totals (strokes were
+// broadcast but not yet persisted) is authoritative and must be kept.
+func TestApplySessionEnd_KeepsAuthoritativeSummary(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	started := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	if err := InsertSession(ctx, db.Handle(), "au1", "r1", started, 3, ""); err != nil {
+		t.Fatalf("InsertSession: %v", err)
+	}
+
+	p := &Persister{DB: db.Handle()}
+	e := event.Event{
+		ID:        9,
+		Kind:      event.KindSessionEnd,
+		SessionID: "au1",
+		SessionEnd: &event.SessionEndPayload{
+			EndedAt: started.Add(5 * time.Minute),
+			Summary: event.SessionSummary{TotalStrokes: 120, TotalDistanceM: 1000, TotalTimeSec: 300},
+		},
+	}
+	if err := p.applySessionEnd(ctx, e); err != nil {
+		t.Fatalf("applySessionEnd: %v", err)
+	}
+
+	var ended string
+	if err := db.Handle().QueryRowContext(ctx,
+		`SELECT COALESCE(ended_at,'') FROM sessions WHERE id='au1'`).Scan(&ended); err != nil {
+		t.Fatalf("session missing (wrongly pruned): %v", err)
+	}
+	if ended == "" {
+		t.Error("authoritative session not finalised (ended_at empty)")
+	}
+}
