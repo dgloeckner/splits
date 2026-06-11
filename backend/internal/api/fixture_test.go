@@ -13,6 +13,7 @@ import (
 type stubFixtureControl struct {
 	mu      sync.Mutex
 	running bool
+	paused  bool
 }
 
 func (s *stubFixtureControl) Resume() (bool, string) {
@@ -22,6 +23,18 @@ func (s *stubFixtureControl) Resume() (bool, string) {
 		return false, "already_running"
 	}
 	s.running = true
+	s.paused = false
+	return true, ""
+}
+
+func (s *stubFixtureControl) Pause() (bool, string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.paused {
+		return false, "already_paused"
+	}
+	s.paused = true
+	s.running = false
 	return true, ""
 }
 

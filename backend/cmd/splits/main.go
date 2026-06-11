@@ -126,7 +126,8 @@ func run() error {
 		IdleTimeout: cfg.IdleTimeout,
 		// PauseTimeout: distance frozen for this long triggers the
 		// Paused sub-state (idle ergo broadcast or user taking a break).
-		PauseTimeout: 10 * time.Second,
+		// Configured via SPLITS_PAUSE_TIMEOUT (default 10s).
+		PauseTimeout: cfg.PauseTimeout,
 		// ResumeWindow: a continuously paused session is closed for good
 		// after this duration. Configured via SPLITS_RESUME_WINDOW.
 		ResumeWindow: cfg.ResumeWindow,
@@ -287,9 +288,8 @@ func unwrapFixture(p ipm.Producer) (*ipm.FixtureProducer, bool) {
 }
 
 // fixtureResumeAdapter bridges *ipm.FixtureProducer (which returns
-// only wasPaused) to api.FixtureResumer (which speaks the wire-level
-// {started, reason} vocabulary). "already_running" is the only reason
-// surfaced for now; future producers may add more.
+// only wasPaused/wasPaused booleans) to api.FixtureResumer (which
+// speaks the wire-level {started/paused, reason} vocabulary).
 // storageLivenessAdapter bridges storage.CheckSessionLiveness to
 // session.SessionLivenessChecker. Owned by main so storage stays free
 // of a `session` import.
@@ -317,6 +317,14 @@ func (a *fixtureResumeAdapter) Resume() (bool, string) {
 		return true, ""
 	}
 	return false, "already_running"
+}
+
+func (a *fixtureResumeAdapter) Pause() (bool, string) {
+	a.fp.Pause()
+	// FixtureProducer.Pause() is idempotent. We optimistically report
+	// paused=true since the gate is now set; the caller only needs to
+	// know the fixture will stop emitting frames.
+	return true, ""
 }
 
 // enforceTLSPolicy refuses to start in production-like configurations

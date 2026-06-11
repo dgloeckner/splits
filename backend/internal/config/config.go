@@ -22,6 +22,7 @@ type Config struct {
 	FixtureRate string
 	LogLevel    string
 	IdleTimeout  time.Duration // consumed by the sessionizer in M2
+	PauseTimeout time.Duration // how long distance must be frozen before Paused sub-state; consumed by sessionizer
 	ResumeWindow time.Duration // max pause before a session is abandoned; consumed by the sessionizer
 	// FixtureDelay defers the FixtureProducer's first frame by this
 	// duration. Zero means "start immediately" (production / dev). E2E
@@ -75,6 +76,13 @@ func Load(env Lookup) (*Config, error) {
 		return nil, fmt.Errorf("SPLITS_IDLE_TIMEOUT %q: %w", idleStr, err)
 	}
 	c.IdleTimeout = idle
+
+	pauseStr := get(env, "SPLITS_PAUSE_TIMEOUT", "10s")
+	pause, err := time.ParseDuration(pauseStr)
+	if err != nil {
+		return nil, fmt.Errorf("SPLITS_PAUSE_TIMEOUT %q: %w", pauseStr, err)
+	}
+	c.PauseTimeout = pause
 
 	resumeStr := get(env, "SPLITS_RESUME_WINDOW", "15m")
 	resume, err := time.ParseDuration(resumeStr)

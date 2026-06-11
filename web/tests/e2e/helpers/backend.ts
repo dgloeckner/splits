@@ -58,6 +58,18 @@ export type BackendOptions = {
   fixturePaused?: boolean
   /** Sessionizer idle timeout. Default 2s for snappy session_end. */
   idleTimeout?: string
+  /**
+   * How long distance must be frozen before the sessionizer enters the
+   * Paused sub-state. Defaults to 10s; pass a shorter value (e.g.
+   * '3s') to make pause-detection fast in E2E tests.
+   */
+  pauseTimeout?: string
+  /**
+   * How long a paused session is allowed to linger before it is
+   * force-closed. Defaults to 15m; pass a shorter value (e.g. '15s')
+   * to test the auto-close path without a long wait.
+   */
+  resumeWindow?: string
   /** TCP address. Optional — defaults to a dynamically picked free port on 127.0.0.1. */
   addr?: string
 }
@@ -92,6 +104,12 @@ export async function spawnBackend(opts: BackendOptions = {}): Promise<BackendHa
     SPLITS_DB_PATH: dbPath,
     SPLITS_IDLE_TIMEOUT: opts.idleTimeout ?? '2s',
     SPLITS_DEV_MODE: '1',
+  }
+  if (opts.pauseTimeout) {
+    env.SPLITS_PAUSE_TIMEOUT = opts.pauseTimeout
+  }
+  if (opts.resumeWindow) {
+    env.SPLITS_RESUME_WINDOW = opts.resumeWindow
   }
   if (opts.fixture) {
     env.SPLITS_FIXTURE = opts.fixture
@@ -183,6 +201,20 @@ export type ResumeFixtureResponse = {
 }
 
 /**
+ * Response shape from POST /test/fixture/pause.
+ */
+export type PauseFixtureResponse = {
+  paused: boolean
+  reason?: 'already_paused' | 'no_fixture'
+}
+
+function backendBaseUrl(handle: BackendHandle): string {
+  return handle.addr.startsWith(':')
+    ? `http://127.0.0.1${handle.addr}`
+    : `http://${handle.addr}`
+}
+
+/**
  * POST /test/fixture/resume on the given backend. The endpoint is
  * only mounted when SPLITS_DEV_MODE=1, which spawnBackend always sets.
  * Returns the parsed JSON body; throws on non-2xx so race specs fail
@@ -191,15 +223,29 @@ export type ResumeFixtureResponse = {
 export async function resumeFixture(
   handle: BackendHandle,
 ): Promise<ResumeFixtureResponse> {
-  const hostPort = handle.addr.startsWith(':')
-    ? '127.0.0.1' + handle.addr
-    : handle.addr
-  const url = `http://${hostPort}/test/fixture/resume`
+  const url = `${backendBaseUrl(handle)}/test/fixture/resume`
   const r = await fetch(url, { method: 'POST' })
   if (!r.ok) {
     throw new Error(`resumeFixture: ${url} returned ${r.status}`)
   }
   return (await r.json()) as ResumeFixtureResponse
+}
+
+/**
+ * POST /test/fixture/pause on the given backend. Stops the fixture
+ * replayer mid-stream so the sessionizer stops seeing new distance
+ * values, which after PauseTimeout triggers the Paused sub-state.
+ * Returns the parsed JSON body; throws on non-2xx.
+ */
+export async function pauseFixture(
+  handle: BackendHandle,
+): Promise<PauseFixtureResponse> {
+  const url = `${backendBaseUrl(handle)}/test/fixture/pause`
+  const r = await fetch(url, { method: 'POST' })
+  if (!r.ok) {
+    throw new Error(`pauseFixture: ${url} returned ${r.status}`)
+  }
+  return (await r.json()) as PauseFixtureResponse
 }
 
 /**

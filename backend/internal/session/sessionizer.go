@@ -242,8 +242,16 @@ func forward(ctx context.Context, out chan<- event.Event, evs []event.Event) err
 // Run drains frames until ctx is done or in is closed. When in closes
 // cleanly and a session is still open, Run synthesises a final
 // session_end so consumers see a closed session.
+//
+// A 1-second ticker fires while a paused session is open so that
+// ResumeWindow expiry is detected even when the frame source has gone
+// completely silent (e.g. ergo powered off, or FixtureProducer paused
+// mid-stream in E2E tests). Without the ticker the check only fires
+// inside onFrame; a truly silent device would never trigger a close.
 func (s *Sessionizer) Run(ctx context.Context, in <-chan ipm.Frame, out chan<- event.Event) error {
 	defer close(out)
+	tick := time.NewTicker(time.Second)
+	defer tick.Stop()
 	for {
 		select {
 		case <-ctx.Done():
@@ -306,6 +314,40 @@ func (s *Sessionizer) Run(ctx context.Context, in <-chan ipm.Frame, out chan<- e
 			}
 			if err := forward(ctx, out, s.onFrame(f)); err != nil {
 				return err
+			}
+		case <-tick.C:
+			// Periodic check fired when no frames are arriving (e.g.
+			// the ergo is silent or the fixture is paused mid-stream).
+			// Two responsibilities:
+			//   1. If a session is already paused and ResumeWindow has
+			//      elapsed, force-close it.
+			//   2. If a session is open, PauseTimeout > 0, and we
+			//      haven't seen lastActivity advance for >= PauseTimeout,
+			//      enter the Paused sub-state (same logic as onFrame but
+			//      driven by wall-clock when frames stop arriving).
+			if s.opts.PauseTimeout <= 0 || s.session == nil {
+				break
+			}
+			now := s.opts.Now()
+			if !s.session.pausedSinceWall.IsZero() {
+				// Already paused — check ResumeWindow.
+				resumeWindow := s.opts.ResumeWindow
+				if resumeWindow <= 0 {
+					resumeWindow = s.opts.IdleTimeout
+				}
+				if now.Sub(s.session.pausedSinceWall) >= resumeWindow {
+					if err := forward(ctx, out, s.closeSession()); err != nil {
+						return err
+					}
+				}
+			} else if !s.session.lastActivity.IsZero() &&
+				now.Sub(s.session.lastActivity) >= s.opts.PauseTimeout &&
+				s.session.currentPhase != PhaseCooldown {
+				// Not yet paused, but activity has been silent for
+				// PauseTimeout. Enter the Paused sub-state.
+				if err := forward(ctx, out, s.enterPause(now)); err != nil {
+					return err
+				}
 			}
 		}
 	}

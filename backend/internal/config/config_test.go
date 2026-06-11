@@ -33,6 +33,7 @@ func TestLoad_AllDefaults(t *testing.T) {
 		FixtureRate:  "realtime",
 		LogLevel:     "info",
 		IdleTimeout:  60 * time.Second,
+		PauseTimeout: 10 * time.Second,
 		ResumeWindow: 15 * time.Minute,
 	}
 	if *got != *want {
@@ -125,6 +126,7 @@ func TestLoad_EnvOverrides(t *testing.T) {
 		FixtureRate:  "fast",
 		LogLevel:     "debug",
 		IdleTimeout:  30 * time.Second,
+		PauseTimeout: 10 * time.Second,
 		ResumeWindow: 15 * time.Minute,
 	}
 	if *got != *want {

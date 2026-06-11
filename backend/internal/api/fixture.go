@@ -14,19 +14,24 @@ type FixtureResumer interface {
 	// call actually transitioned paused→running, or (false, reason)
 	// when no transition occurred (reason="already_running" etc.).
 	Resume() (started bool, reason string)
+	// Pause halts the producer mid-stream. Returns (true, "") when the
+	// call actually transitioned running→paused, or (false, reason)
+	// when no transition occurred (reason="already_paused" etc.).
+	Pause() (paused bool, reason string)
 }
 
 // registerFixtureRoutes mounts dev-only test affordances on mux. The
-// endpoint is registered only when devMode is true; in production
-// builds the route table omits it entirely so chi/mux returns 404 by
+// endpoints are registered only when devMode is true; in production
+// builds the route table omits them entirely so mux returns 404 by
 // default. ctl may be nil in dev mode when no fixture is configured —
-// the handler then reports "no_fixture" so e2e helpers can distinguish
+// the handlers then report "no_fixture" so e2e helpers can distinguish
 // "wrong endpoint" (404) from "endpoint present but inert" (200).
 func registerFixtureRoutes(mux *http.ServeMux, devMode bool, ctl FixtureResumer) {
 	if !devMode {
 		return
 	}
 	mux.HandleFunc("POST /test/fixture/resume", fixtureResumeHandler(ctl))
+	mux.HandleFunc("POST /test/fixture/pause", fixturePauseHandler(ctl))
 }
 
 func fixtureResumeHandler(ctl FixtureResumer) http.HandlerFunc {
@@ -39,6 +44,22 @@ func fixtureResumeHandler(ctl FixtureResumer) http.HandlerFunc {
 		started, reason := ctl.Resume()
 		body := map[string]any{"started": started}
 		if !started && reason != "" {
+			body["reason"] = reason
+		}
+		writeFixtureJSON(w, body)
+	}
+}
+
+func fixturePauseHandler(ctl FixtureResumer) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if ctl == nil {
+			writeFixtureJSON(w, map[string]any{"paused": false, "reason": "no_fixture"})
+			return
+		}
+		paused, reason := ctl.Pause()
+		body := map[string]any{"paused": paused}
+		if !paused && reason != "" {
 			body["reason"] = reason
 		}
 		writeFixtureJSON(w, body)

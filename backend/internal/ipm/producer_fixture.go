@@ -8,7 +8,6 @@ import (
 	"os"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 )
 
@@ -26,28 +25,28 @@ const (
 // Pause/Resume allows E2E tests to start the producer in a held state
 // and release it at a precise moment (e.g. during the ATTENTION phase
 // of race mode) so stroke arrival aligns with a deterministic UI event.
+// Multiple pause/resume cycles are supported so tests can simulate a
+// mid-workout phone call (pause → assert Pausiert chip → resume →
+// assert chip gone + distance continues).
 type FixtureProducer struct {
 	Path   string
 	Pacing Pacing
 
-	// paused, when true, blocks Run from emitting frames. Set via
-	// Pause() before Run() starts; cleared by Resume(). An atomic.Bool
-	// keeps the read in the hot loop lock-free.
-	paused atomic.Bool
-	// resumeOnce releases goroutines parked in Run() waiting for the
-	// paused→running transition. Lazily initialised by Pause() so
-	// callers don't have to remember a constructor.
-	resumeMu   sync.Mutex
-	resumeCh   chan struct{}
-	resumeOnce sync.Once
+	// mu protects pauseCh. pauseCh is non-nil when the producer is
+	// paused; Run() blocks on it until Resume() closes it.
+	mu      sync.Mutex
+	pauseCh chan struct{} // non-nil iff currently paused
 }
 
-// Pause flips the producer into the paused state. Must be called
-// before Run(); calling Pause() on an already-running producer has no
-// effect on frames already in flight.
+// Pause flips the producer into the paused state. Safe to call before
+// or during Run(). Idempotent: a second consecutive Pause() is a no-op.
 func (p *FixtureProducer) Pause() {
-	p.paused.Store(true)
-	p.ensureResumeCh()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.pauseCh == nil {
+		p.pauseCh = make(chan struct{})
+	}
+	// else: already paused, no-op
 }
 
 // Resume releases a paused producer so Run() can begin (or continue)
@@ -55,18 +54,24 @@ func (p *FixtureProducer) Pause() {
 // Returns the previous paused state so callers can detect idempotent
 // re-invocations.
 func (p *FixtureProducer) Resume() (wasPaused bool) {
-	wasPaused = p.paused.Swap(false)
-	p.ensureResumeCh()
-	p.resumeOnce.Do(func() { close(p.resumeCh) })
-	return wasPaused
+	p.mu.Lock()
+	ch := p.pauseCh
+	p.pauseCh = nil
+	p.mu.Unlock()
+	if ch != nil {
+		close(ch)
+		return true
+	}
+	return false
 }
 
-func (p *FixtureProducer) ensureResumeCh() {
-	p.resumeMu.Lock()
-	defer p.resumeMu.Unlock()
-	if p.resumeCh == nil {
-		p.resumeCh = make(chan struct{})
-	}
+// pauseGate returns the current pause channel under the lock. A nil
+// return means the producer is not paused. Run() calls this before
+// emitting each frame so the pause takes effect within one frame.
+func (p *FixtureProducer) pauseGate() chan struct{} {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.pauseCh
 }
 
 // Run replays the CSV at the configured pacing. out is closed on
@@ -74,15 +79,27 @@ func (p *FixtureProducer) ensureResumeCh() {
 func (p *FixtureProducer) Run(ctx context.Context, out chan<- Frame) error {
 	defer close(out)
 
-	// Block until Resume() if the producer was paused. Cancellation
-	// still unblocks promptly so test teardown stays fast.
-	if p.paused.Load() {
-		p.ensureResumeCh()
-		select {
-		case <-p.resumeCh:
-		case <-ctx.Done():
-			return ctx.Err()
+	// waitIfPaused blocks until Resume() is called (or ctx is done).
+	// Called before the file is opened so an initial Pause() holds the
+	// producer before any frame is emitted, and again before each frame
+	// so a mid-stream Pause() takes effect within one frame boundary.
+	waitIfPaused := func() error {
+		for {
+			ch := p.pauseGate()
+			if ch == nil {
+				return nil
+			}
+			select {
+			case <-ch:
+				// Unblocked; loop to check for a re-pause.
+			case <-ctx.Done():
+				return ctx.Err()
+			}
 		}
+	}
+
+	if err := waitIfPaused(); err != nil {
+		return err
 	}
 
 	f, err := os.Open(p.Path)
@@ -110,6 +127,11 @@ func (p *FixtureProducer) Run(ctx context.Context, out chan<- Frame) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
+		}
+
+		// Check for a mid-stream pause before each frame.
+		if err := waitIfPaused(); err != nil {
+			return err
 		}
 
 		rec, err := r.Read()
