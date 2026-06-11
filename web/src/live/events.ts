@@ -9,6 +9,8 @@ export type LiveEventKind =
   | 'level_change'
   | 'workout_attached'
   | 'phase_change'
+  | 'session_paused'
+  | 'session_resumed'
   | 'device'
   | 'ping'
   | 'eof'
@@ -115,6 +117,11 @@ export type PhaseChangePayload = {
   at_distance_m: number
 }
 
+export type SessionPausePayload = {
+  session_id: string
+  at_time_sec: number
+}
+
 export type LiveEvent =
   | { kind: 'stroke'; id: number; data: StrokePayload }
   | { kind: 'session_start'; id: number; data: SessionStartPayload }
@@ -123,6 +130,8 @@ export type LiveEvent =
   | { kind: 'level_change'; id: number; data: LevelChangePayload }
   | { kind: 'workout_attached'; id: number; data: WorkoutAttachedPayload }
   | { kind: 'phase_change'; id: number; data: PhaseChangePayload }
+  | { kind: 'session_paused'; id: number; data: SessionPausePayload }
+  | { kind: 'session_resumed'; id: number; data: SessionPausePayload }
   | { kind: 'device'; id: number | null; data: DevicePayload }
   | { kind: 'ping'; id: number | null; data: Record<string, never> }
   | { kind: 'eof'; id: number | null; data: EofPayload }

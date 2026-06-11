@@ -20,6 +20,8 @@ const (
 	// so SSE clients can replace their latched session_end summary with
 	// the post-persist version. See PRD-0017 / 0017-03.
 	KindSessionFinalized
+	KindSessionPaused
+	KindSessionResumed
 )
 
 // Event is the internal envelope handed from the sessionizer to every
@@ -38,6 +40,7 @@ type Event struct {
 	WorkoutAttached   *WorkoutAttachedPayload
 	PhaseChange       *PhaseChangePayload
 	SessionFinalized  *SessionFinalizedPayload
+	SessionPause      *SessionPausePayload
 }
 
 // SessionFinalizedPayload carries the enriched session summary written
@@ -171,4 +174,11 @@ type PhaseChangePayload struct {
 	AtStroke    int     `json:"at_stroke"`
 	AtTimeSec   float64 `json:"at_time_sec"`
 	AtDistanceM int     `json:"at_distance_m"`
+}
+
+// SessionPausePayload carries the work-clock time at pause/resume.
+// CONTEXT.md §Pause / Abort: the work clock stops while paused, so
+// session_resumed carries the same at_time_sec as session_paused.
+type SessionPausePayload struct {
+	AtTimeSec float64
 }

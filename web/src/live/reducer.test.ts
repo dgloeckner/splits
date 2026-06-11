@@ -494,4 +494,69 @@ describe('liveReducer', () => {
     expect(a.lastStrokeReceivedAtMs).toBe(1_000_000)
     expect(a.sessionStartedAtMs).toBe(1_000_000)
   })
+
+  describe('session_paused / session_resumed', () => {
+    function stateWithSession(): LiveState {
+      return liveReducer(initialLiveState, { type: 'event', event: start() })
+    }
+
+    it('session_paused sets serverPaused to true', () => {
+      const s = liveReducer(stateWithSession(), {
+        type: 'event',
+        event: { kind: 'session_paused', id: 10, data: { session_id: 'S1', at_time_sec: 42.5 } },
+      })
+      expect(s.serverPaused).toBe(true)
+    })
+
+    it('session_resumed after pause clears serverPaused', () => {
+      let s = liveReducer(stateWithSession(), {
+        type: 'event',
+        event: { kind: 'session_paused', id: 10, data: { session_id: 'S1', at_time_sec: 42.5 } },
+      })
+      s = liveReducer(s, {
+        type: 'event',
+        event: { kind: 'session_resumed', id: 11, data: { session_id: 'S1', at_time_sec: 42.5 } },
+      })
+      expect(s.serverPaused).toBe(false)
+    })
+
+    it('session_paused with mismatched session_id leaves state unchanged', () => {
+      const before = stateWithSession()
+      const after = liveReducer(before, {
+        type: 'event',
+        event: { kind: 'session_paused', id: 10, data: { session_id: 'S_OTHER', at_time_sec: 10 } },
+      })
+      expect(after).toBe(before)
+    })
+
+    it('session_resumed with mismatched session_id leaves state unchanged', () => {
+      let s = liveReducer(stateWithSession(), {
+        type: 'event',
+        event: { kind: 'session_paused', id: 10, data: { session_id: 'S1', at_time_sec: 42.5 } },
+      })
+      const before = s
+      s = liveReducer(s, {
+        type: 'event',
+        event: { kind: 'session_resumed', id: 11, data: { session_id: 'S_OTHER', at_time_sec: 42.5 } },
+      })
+      expect(s).toBe(before)
+    })
+
+    it('serverPaused is false in initialLiveState (hydration-compat: undefined is falsy)', () => {
+      // A LiveState serialised before serverPaused was added will have
+      // the key missing (undefined). Boolean(undefined) === false, so
+      // the reducer's `state.serverPaused ?` guard treats it as false
+      // and session_paused will still set it to true.
+      expect(initialLiveState.serverPaused).toBe(false)
+      const staleState = { ...initialLiveState } as LiveState & { serverPaused?: boolean }
+      delete staleState.serverPaused
+      expect(staleState.serverPaused).toBeUndefined()
+      // Falsy guard means session_paused still activates correctly
+      const after = liveReducer(staleState as LiveState, {
+        type: 'event',
+        event: { kind: 'session_paused', id: 1, data: { session_id: 'S1', at_time_sec: 5 } },
+      })
+      expect(after.serverPaused).toBe(true)
+    })
+  })
 })

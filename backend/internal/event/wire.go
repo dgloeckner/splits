@@ -24,6 +24,10 @@ func EventName(k Kind) string {
 		return "phase_change"
 	case KindSessionFinalized:
 		return "session_finalized"
+	case KindSessionPaused:
+		return "session_paused"
+	case KindSessionResumed:
+		return "session_resumed"
 	}
 	return ""
 }
@@ -110,6 +114,12 @@ func Marshal(e Event) ([]byte, error) {
 			SessionID: e.SessionID,
 			Summary:   p.Summary,
 		})
+	case KindSessionPaused, KindSessionResumed:
+		p := e.SessionPause
+		return json.Marshal(sessionPauseWire{
+			SessionID: e.SessionID,
+			AtTimeSec: p.AtTimeSec,
+		})
 	}
 	return nil, nil
 }
@@ -182,4 +192,9 @@ type workoutAttachedWire struct {
 type sessionFinalizedWire struct {
 	SessionID string         `json:"session_id"`
 	Summary   SessionSummary `json:"summary"`
+}
+
+type sessionPauseWire struct {
+	SessionID string  `json:"session_id"`
+	AtTimeSec float64 `json:"at_time_sec"`
 }

@@ -56,6 +56,8 @@ export type LiveState = {
    * a yellow banner during initial load).
    */
   deviceConnected: boolean | null
+  /** True while the device reports the session is paused (work clock stopped). */
+  serverPaused: boolean
 }
 
 export const initialLiveState: LiveState = {
@@ -71,6 +73,7 @@ export const initialLiveState: LiveState = {
   phase: null,
   phaseAnchor: null,
   deviceConnected: null,
+  serverPaused: false,
 }
 
 export type LiveAction =
@@ -210,6 +213,7 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
             phase: null,
             phaseAnchor: null,
             workStartDistanceM: null,
+            serverPaused: false,
           }
 
         case 'stroke': {
@@ -251,6 +255,7 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
                 phase: null,
                 phaseAnchor: null,
                 workStartDistanceM: null,
+                serverPaused: false,
               }
             : state
           const prevMs = baseState.lastStrokeReceivedAtMs
@@ -362,6 +367,14 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
             smoothed: null,
           }
         }
+
+        case 'session_paused':
+          if (state.session && ev.data.session_id !== state.session.session_id) return state
+          return state.serverPaused ? state : { ...state, serverPaused: true }
+
+        case 'session_resumed':
+          if (state.session && ev.data.session_id !== state.session.session_id) return state
+          return state.serverPaused ? { ...state, serverPaused: false } : state
       }
     }
   }

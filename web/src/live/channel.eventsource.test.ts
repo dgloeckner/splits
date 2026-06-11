@@ -219,6 +219,8 @@ describe('event kind registration', () => {
       'level_change',
       'workout_attached',
       'phase_change',
+      'session_paused',
+      'session_resumed',
     ]
     for (const k of wireKinds) {
       expect(listeners.has(k), `channel must listen for "${k}"`).toBe(true)

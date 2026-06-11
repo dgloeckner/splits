@@ -199,6 +199,8 @@ export class EventSourceChannel implements Channel {
     handle('level_change')
     handle('workout_attached')
     handle('phase_change')
+    handle('session_paused')
+    handle('session_resumed')
 
     es.addEventListener('device', (raw) => {
       this.armWatchdog()
