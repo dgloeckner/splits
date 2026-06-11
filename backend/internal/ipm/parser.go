@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"strconv"
@@ -100,6 +101,16 @@ func decodeA8Line(line string) (Frame, bool) {
 		Level:              mustAtoi(payload[25:27]),
 		RawPayload:         payload,
 	}, true
+}
+
+// DecodeA8 decodes one raw A8 payload (the 27-digit string WITHOUT the
+// "A8" prefix) into a Frame. Exported for the ADR-0017 golden harness.
+func DecodeA8(raw string) (Frame, error) {
+	f, ok := decodeA8Line("A8" + raw)
+	if !ok {
+		return Frame{}, fmt.Errorf("ipm: invalid A8 payload: %q", raw)
+	}
+	return f, nil
 }
 
 // mustAtoi assumes the caller validated the input is all ASCII digits.

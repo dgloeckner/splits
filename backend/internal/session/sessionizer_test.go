@@ -3,6 +3,7 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -1095,6 +1096,41 @@ func TestPhasePlanReset(t *testing.T) {
 	plan.Reset()
 	if p, complete := plan.Classify(100, 20); p != PhaseWork || complete {
 		t.Fatalf("after reset: got (%v,%v), want (PhaseWork,false) — crossedAt cleared", p, complete)
+	}
+}
+
+func TestSynchronousSeam_Determinism(t *testing.T) {
+	// Two runs with identical inputs must produce identical event sequences.
+	run := func(seed int) []event.Event {
+		seq := seed * 100
+		sz := New(Options{
+			IdleTimeout: time.Minute,
+			Now:         func() time.Time { return time.Unix(1_700_000_000+int64(seq), 0) },
+			NewSessionID: func() string {
+				seq++
+				return fmt.Sprintf("TEST-%04d", seq)
+			},
+		})
+		var evs []event.Event
+		evs = append(evs, sz.OpenSession("")...)
+		for i := 0; i < 5; i++ {
+			f := frame(float64(i+1)*2, (i+1)*10, 24, 150, 3)
+			es, _ := sz.ProcessFrame(context.Background(), f)
+			evs = append(evs, es...)
+		}
+		evs = append(evs, sz.CloseOpenSession()...)
+		return evs
+	}
+	a, b := run(0), run(0)
+	if len(a) != len(b) {
+		t.Fatalf("len mismatch: %d vs %d", len(a), len(b))
+	}
+	for i := range a {
+		aj, _ := json.Marshal(a[i])
+		bj, _ := json.Marshal(b[i])
+		if string(aj) != string(bj) {
+			t.Errorf("event %d differs:\n  a: %s\n  b: %s", i, aj, bj)
+		}
 	}
 }
 

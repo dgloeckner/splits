@@ -42,6 +42,10 @@ type Options struct {
 	// is ended / stale-open / missing. May be nil in tests; without it,
 	// the sessionizer trusts its in-memory state (legacy behaviour).
 	LivenessChecker SessionLivenessChecker
+	// NewSessionID overrides session-id generation. Defaults to
+	// ulid.Make().String(). The golden harness (ADR-0017) injects a
+	// deterministic counter so golden JSONL is byte-stable run-to-run.
+	NewSessionID func() string
 }
 
 // SessionStatus is the DB-side verdict on whether a cached
@@ -69,6 +73,23 @@ const (
 // authoritative according to the database. See SessionStatus.
 type SessionLivenessChecker interface {
 	CheckSessionLiveness(ctx context.Context, id string) SessionStatus
+}
+
+// accumulator holds the work-phase counters that feed the session
+// summary. Extracted from sessionState so it can be zero-valued as a
+// struct (F3 resets it cleanly with acc = accumulator{}).
+type accumulator struct {
+	strokes       int
+	totalDistance int
+	totalTime     float64
+	powerSum      int
+	peakPower     int
+	spmSum        int
+	dpsSum        float64
+	spiSum        int
+	spiCount      int
+	paceSum       int
+	calSum        int
 }
 
 // Sessionizer is the pipeline stage that turns a stream of ipm.Frame
@@ -100,21 +121,10 @@ type sessionState struct {
 	id        string
 	startedAt time.Time
 	// strokeSeq counts every stroke (all phases) for StrokeNo assignment.
-	strokeSeq int
-	// strokes counts work-phase strokes only (used for summary averages).
-	strokes       int
-	totalDistance int
-	totalTime     float64
-	powerSum      int
-	peakPower     int
-	spmSum        int
-	dpsSum        float64
-	spiSum        int
-	spiCount      int
-	paceSum       int
-	calSum        int
-	lastStroke    *event.StrokePayload
-	lastSeen      time.Time
+	strokeSeq  int
+	acc        accumulator
+	lastStroke *event.StrokePayload
+	lastSeen   time.Time
 	// lastActivity is the wall-clock time of the last frame that made
 	// real progress (distance increased). Used by InactivityTimeout to
 	// close sessions where frames keep flowing but the user isn't
@@ -164,6 +174,9 @@ func New(o Options) *Sessionizer {
 	if o.Now == nil {
 		o.Now = time.Now
 	}
+	if o.NewSessionID == nil {
+		o.NewSessionID = func() string { return ulid.Make().String() }
+	}
 	return &Sessionizer{
 		opts: o, nextID: o.StartID,
 		attachC: make(chan string, 8),
@@ -191,14 +204,22 @@ func (s *Sessionizer) Stamp(e *event.Event) {
 	s.stamp(e)
 }
 
-func (s *Sessionizer) emit(ctx context.Context, out chan<- event.Event, e event.Event) error {
+// appendEvent stamps e and appends it to evs, returning the extended slice.
+func (s *Sessionizer) appendEvent(evs []event.Event, e event.Event) []event.Event {
 	s.stamp(&e)
-	select {
-	case out <- e:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
+	return append(evs, e)
+}
+
+// forward sends each event in evs to out, returning an error if ctx is cancelled.
+func forward(ctx context.Context, out chan<- event.Event, evs []event.Event) error {
+	for _, e := range evs {
+		select {
+		case out <- e:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
 	}
+	return nil
 }
 
 // Run drains frames until ctx is done or in is closed. When in closes
@@ -209,15 +230,15 @@ func (s *Sessionizer) Run(ctx context.Context, in <-chan ipm.Frame, out chan<- e
 	for {
 		select {
 		case <-ctx.Done():
-			s.closeIfOpen(ctx, out)
+			_ = forward(ctx, out, s.closeIfOpenSync())
 			return ctx.Err()
 		case id := <-s.attachC:
-			if err := s.handleAttach(ctx, id, out); err != nil {
+			if err := forward(ctx, out, s.handleAttach(id)); err != nil {
 				return err
 			}
 		case <-s.endC:
 			if s.session != nil {
-				if err := s.closeSession(ctx, out); err != nil {
+				if err := forward(ctx, out, s.closeSession()); err != nil {
 					return err
 				}
 			}
@@ -239,7 +260,7 @@ func (s *Sessionizer) Run(ctx context.Context, in <-chan ipm.Frame, out chan<- e
 				if now.Sub(s.session.lastSeen) < s.opts.IdleTimeout {
 					continue
 				}
-				if err := s.closeSession(ctx, out); err != nil {
+				if err := forward(ctx, out, s.closeSession()); err != nil {
 					return err
 				}
 			}
@@ -251,15 +272,14 @@ func (s *Sessionizer) Run(ctx context.Context, in <-chan ipm.Frame, out chan<- e
 				s.pendingWorkoutID = wid
 				s.mu.Unlock()
 			}
-			if err := s.openSessionPending(ctx, out); err != nil {
+			if err := forward(ctx, out, s.openSessionPending()); err != nil {
 				return err
 			}
 		case f, ok := <-in:
 			if !ok {
-				s.closeIfOpen(ctx, out)
-				return nil
+				return forward(ctx, out, s.closeIfOpenSync())
 			}
-			if err := s.onFrame(ctx, f, out); err != nil {
+			if err := forward(ctx, out, s.onFrame(f)); err != nil {
 				return err
 			}
 		}
@@ -271,7 +291,7 @@ func (s *Sessionizer) Run(ctx context.Context, in <-chan ipm.Frame, out chan<- e
 // clears pendingWorkoutID so the next session open doesn't re-carry
 // the same workout. If no session is open, leaves pendingWorkoutID set
 // by AttachWorkout untouched (next openSession will consume it).
-func (s *Sessionizer) handleAttach(ctx context.Context, id string, out chan<- event.Event) error {
+func (s *Sessionizer) handleAttach(id string) []event.Event {
 	if s.session == nil {
 		return nil
 	}
@@ -303,27 +323,19 @@ func (s *Sessionizer) handleAttach(ctx context.Context, id string, out chan<- ev
 	snap := e
 	s.currentWorkoutAttached = &snap
 	s.mu.Unlock()
-	select {
-	case out <- e:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return []event.Event{e}
 }
 
-func (s *Sessionizer) onFrame(ctx context.Context, f ipm.Frame, out chan<- event.Event) error {
+func (s *Sessionizer) onFrame(f ipm.Frame) []event.Event {
+	var evs []event.Event
 	now := s.opts.Now()
 
 	if s.session != nil && now.Sub(s.session.lastSeen) >= s.opts.IdleTimeout {
-		if err := s.closeSession(ctx, out); err != nil {
-			return err
-		}
+		evs = append(evs, s.closeSession()...)
 	}
 	if s.session != nil && s.opts.InactivityTimeout > 0 &&
 		now.Sub(s.session.lastActivity) >= s.opts.InactivityTimeout {
-		if err := s.closeSession(ctx, out); err != nil {
-			return err
-		}
+		evs = append(evs, s.closeSession()...)
 	}
 	if s.session == nil {
 		// No active session — drain a pending Start request first
@@ -339,11 +351,9 @@ func (s *Sessionizer) onFrame(ctx context.Context, f ipm.Frame, out chan<- event
 				s.pendingWorkoutID = wid
 				s.mu.Unlock()
 			}
-			if err := s.openSessionPending(ctx, out); err != nil {
-				return err
-			}
+			evs = append(evs, s.openSessionPending()...)
 		default:
-			return nil
+			return evs
 		}
 	}
 
@@ -402,22 +412,16 @@ func (s *Sessionizer) onFrame(ctx context.Context, f ipm.Frame, out chan<- event
 		snap := pc
 		s.currentPhaseChange = &snap
 		s.mu.Unlock()
-		select {
-		case out <- pc:
-		case <-ctx.Done():
-			return ctx.Err()
-		}
+		evs = append(evs, pc)
 		s.session.currentPhase = phase
 		s.session.phaseLastTime = stroke.TimeSec
 	}
 
-	if err := s.emit(ctx, out, event.Event{
+	evs = s.appendEvent(evs, event.Event{
 		Kind:      event.KindStroke,
 		SessionID: s.session.id,
 		Stroke:    &stroke,
-	}); err != nil {
-		return err
-	}
+	})
 	// Capture the previous-stroke distance BEFORE accumulate, since
 	// accumulate overwrites s.session.lastStroke with the current
 	// stroke (so the post-accumulate comparison would always be
@@ -438,16 +442,14 @@ func (s *Sessionizer) onFrame(ctx context.Context, f ipm.Frame, out chan<- event
 	}
 
 	if s.session.lastLevel != 0 && stroke.Level != s.session.lastLevel {
-		if err := s.emit(ctx, out, event.Event{
+		evs = s.appendEvent(evs, event.Event{
 			Kind:      event.KindLevelChange,
 			SessionID: s.session.id,
 			LevelChange: &event.LevelChangePayload{
 				From: s.session.lastLevel, To: stroke.Level,
 				AtStroke: stroke.StrokeNo, AtTimeSec: stroke.TimeSec,
 			},
-		}); err != nil {
-			return err
-		}
+		})
 	}
 	s.session.lastLevel = stroke.Level
 	s.session.lastSeen = now
@@ -462,9 +464,9 @@ func (s *Sessionizer) onFrame(ctx context.Context, f ipm.Frame, out chan<- event
 		s.session.lastActivity = now
 	}
 	if complete {
-		return s.closeSession(ctx, out)
+		evs = append(evs, s.closeSession()...)
 	}
-	return nil
+	return evs
 }
 
 func (s *Sessionizer) enrich(f ipm.Frame) event.StrokePayload {
@@ -536,43 +538,44 @@ func appendAndTrimWindow(buf []event.StrokePayload, p event.StrokePayload, maxLe
 }
 
 func (s *Sessionizer) accumulate(p *event.StrokePayload) {
-	s.session.strokes++
-	if !s.session.workAnchorSet {
-		s.session.workAnchorSet = true
-		s.session.workAnchorDistance = p.DistanceM
-		s.session.workAnchorTimeSec = p.TimeSec
+	st := s.session
+	st.acc.strokes++
+	if !st.workAnchorSet {
+		st.workAnchorSet = true
+		st.workAnchorDistance = p.DistanceM
+		st.workAnchorTimeSec = p.TimeSec
 	}
-	s.session.totalDistance = p.DistanceM - s.session.workAnchorDistance
-	s.session.totalTime = p.TimeSec - s.session.workAnchorTimeSec
-	s.session.powerSum += p.PowerW
-	if p.PowerW > s.session.peakPower {
-		s.session.peakPower = p.PowerW
+	st.acc.totalDistance = p.DistanceM - st.workAnchorDistance
+	st.acc.totalTime = p.TimeSec - st.workAnchorTimeSec
+	st.acc.powerSum += p.PowerW
+	if p.PowerW > st.acc.peakPower {
+		st.acc.peakPower = p.PowerW
 	}
-	s.session.spmSum += p.SPM
-	s.session.dpsSum += p.DPS
+	st.acc.spmSum += p.SPM
+	st.acc.dpsSum += p.DPS
 	if p.SPM > 0 && p.PowerW >= 20 {
-		s.session.spiSum += p.PowerW / p.SPM
-		s.session.spiCount++
+		st.acc.spiSum += p.PowerW / p.SPM
+		st.acc.spiCount++
 	}
-	s.session.paceSum += p.PaceSecPer500m
-	s.session.calSum += p.EnergyJoules
+	st.acc.paceSum += p.PaceSecPer500m
+	st.acc.calSum += p.EnergyJoules
 	p2 := *p
-	s.session.lastStroke = &p2
+	st.lastStroke = &p2
 }
 
-func (s *Sessionizer) openSession(ctx context.Context, out chan<- event.Event, f ipm.Frame) error {
-	return s.openSessionInternal(ctx, out, f.Level)
+func (s *Sessionizer) openSession(f ipm.Frame) []event.Event {
+	return s.openSessionInternal(f.Level)
 }
 
 // openSessionPending opens a session triggered by an explicit Start
 // request (no frame yet). Initial level defaults to 0 and is updated
 // by the first incoming stroke.
-func (s *Sessionizer) openSessionPending(ctx context.Context, out chan<- event.Event) error {
-	return s.openSessionInternal(ctx, out, 0)
+func (s *Sessionizer) openSessionPending() []event.Event {
+	return s.openSessionInternal(0)
 }
 
-func (s *Sessionizer) openSessionInternal(ctx context.Context, out chan<- event.Event, initialLevel int) error {
-	id := ulid.Make().String()
+func (s *Sessionizer) openSessionInternal(initialLevel int) []event.Event {
+	id := s.opts.NewSessionID()
 	now := s.opts.Now()
 	s.session = &sessionState{
 		id:           id,
@@ -614,12 +617,7 @@ func (s *Sessionizer) openSessionInternal(ctx context.Context, out chan<- event.
 	s.currentWorkoutAttached = nil
 	s.currentPhaseChange = nil
 	s.mu.Unlock()
-	select {
-	case out <- e:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
-	}
+	return []event.Event{e}
 }
 
 // AttachWorkout tags the currently open session with the given workout
@@ -729,7 +727,7 @@ func (s *Sessionizer) resolveRower() (string, string) {
 	return s.opts.RowerID, s.opts.RowerName
 }
 
-func (s *Sessionizer) closeSession(ctx context.Context, out chan<- event.Event) error {
+func (s *Sessionizer) closeSession() []event.Event {
 	st := s.session
 	s.session = nil
 
@@ -747,22 +745,22 @@ func (s *Sessionizer) closeSession(ctx context.Context, out chan<- event.Event) 
 	}
 
 	summary := event.SessionSummary{
-		TotalDistanceM: st.totalDistance,
-		TotalTimeSec:   st.totalTime,
-		TotalStrokes:   st.strokes,
-		PeakPowerW:     st.peakPower,
+		TotalDistanceM: st.acc.totalDistance,
+		TotalTimeSec:   st.acc.totalTime,
+		TotalStrokes:   st.acc.strokes,
+		PeakPowerW:     st.acc.peakPower,
 		WarmupSec:      st.warmupSec,
 		RestSec:        st.restSec,
 		CooldownSec:    st.cooldownSec,
 	}
-	if st.strokes > 0 {
-		summary.AvgPowerW = st.powerSum / st.strokes
-		summary.AvgSPM = float64(st.spmSum) / float64(st.strokes)
-		summary.AvgDPS = st.dpsSum / float64(st.strokes)
-		summary.AvgPaceSecPer500m = st.paceSum / st.strokes
-		summary.SessionCalories = st.calSum / 1000 // joules → kcal
-		if st.spiCount > 0 {
-			summary.AvgSPI = st.spiSum / st.spiCount
+	if st.acc.strokes > 0 {
+		summary.AvgPowerW = st.acc.powerSum / st.acc.strokes
+		summary.AvgSPM = float64(st.acc.spmSum) / float64(st.acc.strokes)
+		summary.AvgDPS = st.acc.dpsSum / float64(st.acc.strokes)
+		summary.AvgPaceSecPer500m = st.acc.paceSum / st.acc.strokes
+		summary.SessionCalories = st.acc.calSum / 1000 // joules → kcal
+		if st.acc.spiCount > 0 {
+			summary.AvgSPI = st.acc.spiSum / st.acc.spiCount
 		}
 	}
 	s.mu.Lock()
@@ -770,14 +768,16 @@ func (s *Sessionizer) closeSession(ctx context.Context, out chan<- event.Event) 
 	s.currentWorkoutAttached = nil
 	s.currentPhaseChange = nil
 	s.mu.Unlock()
-	return s.emit(ctx, out, event.Event{
+	e := event.Event{
 		Kind:      event.KindSessionEnd,
 		SessionID: st.id,
 		SessionEnd: &event.SessionEndPayload{
 			EndedAt: s.opts.Now(),
 			Summary: summary,
 		},
-	})
+	}
+	s.stamp(&e)
+	return []event.Event{e}
 }
 
 // Snapshot returns a slice of synthetic "current state" events (the
@@ -857,9 +857,37 @@ func (s *Sessionizer) dropDeadSessionOnStart(ctx context.Context) {
 	}
 }
 
-func (s *Sessionizer) closeIfOpen(ctx context.Context, out chan<- event.Event) {
+func (s *Sessionizer) closeIfOpenSync() []event.Event {
 	if s.session == nil {
-		return
+		return nil
 	}
-	_ = s.closeSession(ctx, out)
+	return s.closeSession()
+}
+
+// OpenSession / ProcessFrame / CloseOpenSession form the synchronous
+// driver used by the golden harness (ADR-0017) and unit tests: no
+// goroutines, no channels, no sleeps — events come back as the return
+// value. Must not be used concurrently with Run.
+
+// OpenSession opens a new session for the given workoutID (empty = free row)
+// and returns any emitted events (session_start).
+func (s *Sessionizer) OpenSession(workoutID string) []event.Event {
+	if workoutID != "" {
+		s.mu.Lock()
+		s.pendingWorkoutID = workoutID
+		s.mu.Unlock()
+	}
+	return s.openSessionPending()
+}
+
+// ProcessFrame processes one frame synchronously and returns the events
+// it produces. ctx is used only for the workout-load side-effect path.
+func (s *Sessionizer) ProcessFrame(ctx context.Context, f ipm.Frame) ([]event.Event, error) {
+	return s.onFrame(f), nil
+}
+
+// CloseOpenSession closes the currently open session (if any) and returns
+// the events it produces (session_end).
+func (s *Sessionizer) CloseOpenSession() []event.Event {
+	return s.closeIfOpenSync()
 }
