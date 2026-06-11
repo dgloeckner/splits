@@ -151,15 +151,28 @@ Targets: iPhone (~390 pt) and iPad (~768 pt+).
 - **Distance-PB grid**: layout unchanged; the displayed date becomes
   `source_session_started_at` (fixes every card reading the recompute
   date, e.g. "11.06.26" on all PBs). Deep-link flash stays.
-- **Window-PBs**: keep `Beste 60 s Ø Power` and
-  `Beste 30 Schläge Ø DPS`. The SPI window-PB definition is deleted;
-  existing spi `pb_window` rows are invalidated by migration and drop
-  out of cards, hero, and timeline.
+- **Window-PBs**: only `Beste 60 s Ø Power` survives — an honest
+  sprint benchmark that gives short hard sessions a record to aim at.
+  The SPI *and* DPS window-PB definitions are deleted (`WindowDefs`
+  shrinks to power/seconds/60): SPI is retired entirely; DPS as a
+  trophy rewards low-rate hauling, not progress — it stays first-class
+  in the Verlauf metric toggle and the planned Auswertung detector,
+  where it compares like with like. Existing spi/dps `pb_window` rows
+  are invalidated by migration and drop out of cards, hero, timeline,
+  and session-detail PB banners.
+- **Workout-PBs become time-mode only, with the duration named.**
+  Distance-mode workout-PBs are dropped (redundant with the Distanz
+  grid — best 5 km workout ≈ 5 km PB) and their `pb_workout` rows
+  invalidated. Time-mode cards render as
+  `Beste Distanz · 20 min: 4.812 m` — fixing the current label that
+  shows only the bare mode ("Distanz · 18:00" without the distance).
+  This section is the natural home of classic 20/30/60-min tests.
 - **Konstanz-Bestleistungen: section deleted.** Consistency
   achievements (`consistency_intra`) are invalidated by migration and
   no longer produced by recompute.
 - Hero ("Neuester Erfolg"), Meilensteine, and the achievement
-  timeline stay, minus SPI/Konstanz entries.
+  timeline stay, minus SPI/DPS-window/Konstanz/distance-workout
+  entries.
 
 ## Session detail
 
@@ -189,9 +202,11 @@ Targets: iPhone (~390 pt) and iPad (~768 pt+).
   all SPI fields are removed from the response.
 - **SPI removal end-to-end** (task #2): sessionizer accumulator,
   sample buckets, summary field, `WindowDefs` entry, API types.
-  Migration invalidates spi `pb_window` rows and `consistency_intra`
-  achievements. The FEAT-0010 "locked WindowDefs" note gets an
-  amendment documenting the removal.
+- **One records migration** invalidates: spi + dps `pb_window` rows,
+  `consistency_intra` achievements, and distance-mode `pb_workout`
+  rows. The persister stops producing workout candidates for
+  distance/race-mode sessions. The FEAT-0010 "locked WindowDefs" note
+  gets an amendment documenting the removals.
 - Unchanged: ≥ 80 % completion rule, shape-hash series grouping
   (ADR-0015), Berlin-time window bounds.
 
