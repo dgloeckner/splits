@@ -129,13 +129,14 @@ export function useDeadReckonedTime(state: LiveState): DeadReckoned {
  * Numeric core of distance dead-reckoning. Returns absolute extrapolated
  * distance in meters since session start.
  *
- * Speed source: EMA-smoothed split (`state.smoothed.paceSecPer500m`),
+ * Speed source: the smoothed split (`state.smoothed.paceSecPer500m`),
  * preferred over a two-stroke Δm/Δs delta because boat velocity surges
  * within each stroke cycle (peak mid-drive, valley during recovery), so
- * the per-pair delta jumps as cadence/power varies. EMA across recent
- * strokes gives a stable mean velocity for the inter-stroke counter.
+ * the per-pair delta jumps as cadence/power varies. The smoothed split is
+ * a pass-through of the rower's wire value (alpha = 1.0) so it reflects
+ * the device's own smoothing without adding lag.
  * Falls back to the current stroke's dps / stroke_cycle_sec when the
- * EMA isn't yet seeded (cold start).
+ * smoothed split isn't yet available (cold start).
  */
 export function useExtrapolatedDistanceM(state: LiveState): Extrapolated {
   const reduced = usePrefersReducedMotion()

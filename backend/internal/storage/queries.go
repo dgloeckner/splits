@@ -184,14 +184,6 @@ func LoadSessionStrokes(ctx context.Context, db dbExec, sessionID string) ([]eve
 	return out, rows.Err()
 }
 
-// DeleteSessionStrokes removes every strokes row for a session.
-// Called from the persister immediately after session_end summary has
-// been written (FEAT-0009 Mode 0).
-func DeleteSessionStrokes(ctx context.Context, db dbExec, sessionID string) error {
-	_, err := db.ExecContext(ctx, `DELETE FROM strokes WHERE session_id = ?`, sessionID)
-	return err
-}
-
 func InsertStroke(ctx context.Context, db *sql.DB, globalID uint64, sessionID string, at time.Time, p event.StrokePayload) error {
 	phase := p.Phase
 	if phase == "" {

@@ -53,7 +53,6 @@ export type RaceResultLatch = {
 
 export function computeRaceResultLatch(args: {
   cross: { t: number; dist: number; watts?: number; spm?: number; split?: number }
-  prev: { t: number; dist: number } | null
   totalMeters: number
   opponents: { ghost?: LatchOpponentCurve; pb?: LatchOpponentCurve }
 }): RaceResultLatch {

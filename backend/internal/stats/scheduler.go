@@ -107,7 +107,7 @@ func (s *RecomputeScheduler) Wait(ctx context.Context, rowerID string) error {
 // real work happens in Recompute.
 func OnSessionChange(s *RecomputeScheduler, rowerID string, change SessionChange) {
 	switch change {
-	case SessionCreated, SessionHardDeleted, SessionCompacted:
+	case SessionCreated, SessionHardDeleted:
 		s.Trigger(rowerID)
 	}
 }

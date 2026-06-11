@@ -249,7 +249,6 @@ export function raceLifecycle(
               spm: event.spm,
               split: event.split,
             },
-            prev: state._prevStroke,
             totalMeters,
             opponents: state._config.opponents ?? {},
           })
@@ -262,10 +261,9 @@ export function raceLifecycle(
         }
         return { ...state, _prevStroke: { t: event.t, dist: event.dist } }
       }
-      // Finished: keep latched result frozen; ignore subsequent strokes
-      // for latch purposes (still update _prevStroke for completeness).
+      // Finished: keep latched result frozen; ignore subsequent strokes.
       if (state.phase === 'Finished') {
-        return { ...state, _prevStroke: { t: event.t, dist: event.dist } }
+        return state
       }
       return state
     }
@@ -294,7 +292,6 @@ export function raceLifecycle(
         if (total != null && prev != null && prev.dist >= total) {
           const latched = computeRaceResultLatch({
             cross: { t: prev.t, dist: prev.dist },
-            prev: null,
             totalMeters: total,
             opponents: state._config.opponents ?? {},
           })

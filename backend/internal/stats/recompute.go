@@ -14,7 +14,6 @@ type SessionChange string
 const (
 	SessionCreated     SessionChange = "created"
 	SessionHardDeleted SessionChange = "hard_deleted"
-	SessionCompacted   SessionChange = "compacted" // boot-janitor only
 )
 
 // VolumeMilestonesM lists the lifetime-distance achievement keys, in

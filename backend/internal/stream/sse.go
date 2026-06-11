@@ -87,7 +87,7 @@ func NewHandler(ring *pipeline.Ring, b *Broadcaster, snap Snapshotter, monitor *
 		// fanout lands in the replay window is buffered on ch rather than
 		// silently lost. The live-loop below deduplicates via the
 		// `e.ID <= afterID` guard.
-		ch := b.Subscribe(afterID)
+		ch := b.Subscribe()
 
 		for _, e := range ring.Since(afterID) {
 			if sentSnapshot[e.ID] {

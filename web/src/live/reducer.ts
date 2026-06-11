@@ -72,7 +72,6 @@ export type LiveAction =
    * pure fold over the event list.
    */
   | { type: 'event'; event: LiveEvent; nowMs?: number }
-  | { type: 'tick'; nowMs: number }
   // Boot-time reconciliation (PRD-0019 / §Boot-time session reconciliation):
   // imperatively drop the cached session/summary/sparklines when the BE
   // says the cached session is already ended (or unknown). Preserves only
@@ -140,9 +139,6 @@ export function liveReducer(state: LiveState, action: LiveAction): LiveState {
     case 'status':
       if (state.status === action.status) return state
       return { ...state, status: action.status }
-
-    case 'tick':
-      return state
 
     case 'reset':
       // Preserve the channel status (the SSE bind is still live); wipe

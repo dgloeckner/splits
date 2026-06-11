@@ -15,8 +15,8 @@ func TestBroadcasterFanOutToClients(t *testing.T) {
 	b := NewBroadcaster(in)
 	go func() { _ = b.Run(ctx) }()
 
-	a := b.Subscribe(0)
-	c := b.Subscribe(0)
+	a := b.Subscribe()
+	c := b.Subscribe()
 
 	in <- event.Event{ID: 1, Kind: event.KindStroke, SessionID: "S1", Stroke: &event.StrokePayload{}}
 
@@ -45,7 +45,7 @@ func TestBroadcasterDropsSlowClient(t *testing.T) {
 	b := NewBroadcaster(in)
 	go func() { _ = b.Run(ctx) }()
 
-	_ = b.Subscribe(0) // slow — never read
+	_ = b.Subscribe() // slow — never read
 
 	for i := 1; i <= BroadcasterPerClientBuffer+2; i++ {
 		in <- event.Event{ID: uint64(i)}

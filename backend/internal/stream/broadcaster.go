@@ -29,11 +29,9 @@ func NewBroadcaster(in <-chan event.Event) *Broadcaster {
 	return &Broadcaster{in: in, clients: map[int]chan event.Event{}}
 }
 
-// Subscribe returns a channel of events. The afterID parameter is
-// currently unused; replay is handled at the HTTP level in sse.go by
-// querying the ring first. Kept for future broadcaster-internal
-// ordering guarantees.
-func (b *Broadcaster) Subscribe(_ uint64) <-chan event.Event {
+// Subscribe returns a channel of events. Replay is handled at the HTTP
+// level in sse.go by querying the ring before this call.
+func (b *Broadcaster) Subscribe() <-chan event.Event {
 	ch := make(chan event.Event, BroadcasterPerClientBuffer)
 	b.mu.Lock()
 	b.nextID++
