@@ -369,6 +369,29 @@ describe('raceLifecycle reducer', () => {
     expect(s.goAnchor).toEqual({ t: 1, dist: 3 }) // last pre-GO stroke position
   })
 
+  it('Falschstart pre-GO meters and seconds are excluded from the latched result', () => {
+    let s = initialRaceLifecycle({ totalMeters: 100 })
+    s = raceLifecycle(s, { type: 'confirm' })
+    s = raceLifecycle(s, { type: 'bereitTap', t: 0 }) // race_t0 = 3_000 (2*1500ms)
+    // Stroke before GO — Falschstart; pre-GO anchor will be {t:2, dist:8}
+    s = raceLifecycle(s, { type: 'stroke', t: 2, dist: 8, userDistance: 8, total: 100, nowMs: 1_000 })
+    expect(s.liveKind).toBe('Falschstart')
+    // Tick past race_t0 → goFired, goAnchor = {t:2, dist:8}
+    s = raceLifecycle(s, { type: 'tick', nowMs: 3_100 })
+    expect(s.goFired).toBe(true)
+    expect(s.goAnchor).toEqual({ t: 2, dist: 8 })
+
+    // Post-GO stroke at cumulative 50m, t=30 — race meters = 50-8=42, not done yet
+    s = raceLifecycle(s, { type: 'stroke', t: 30, dist: 50, userDistance: 50, total: 100, nowMs: 30_000 })
+    expect(s.phase).toBe('Live') // 42 race meters < 100
+
+    // Post-GO stroke that crosses finish: cumulative 108m, t=52 → race meters = 108-8=100 ≥ 100
+    s = raceLifecycle(s, { type: 'stroke', t: 52, dist: 108, userDistance: 108, total: 100, nowMs: 52_000 })
+    expect(s.phase).toBe('Finished')
+    // finalTimeS = 52 - 2 = 50 (pre-GO 2s excluded)
+    expect(s.latchedResult!.finalTimeS).toBeCloseTo(50, 1)
+  })
+
   it('NormalStart sets goFired immediately on Live entry', () => {
     let s = initialRaceLifecycle({ totalMeters: 500 })
     s = raceLifecycle(s, { type: 'confirm' })

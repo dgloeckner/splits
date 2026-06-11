@@ -236,12 +236,15 @@ export function raceLifecycle(
         if (state.session_start == null) {
           state = { ...state, session_start: event.t }
         }
-        if (event.total != null && event.userDistance >= event.total) {
+        const raceDistOffset = state.goAnchor?.dist ?? 0
+        const raceTimeOffset = state.goAnchor?.t ?? 0
+        const raceDist = event.userDistance - raceDistOffset
+        if (event.total != null && raceDist >= event.total) {
           const totalMeters = state._config.totalMeters ?? event.total
           const latched = computeRaceResultLatch({
             cross: {
-              t: event.t,
-              dist: event.dist,
+              t: event.t - raceTimeOffset,
+              dist: event.dist - raceDistOffset,
               watts: event.watts,
               spm: event.spm,
               split: event.split,
