@@ -48,15 +48,15 @@ func TestAssembleSeriesGroupsByShapeHash(t *testing.T) {
 	t0 := time.Date(2026, 5, 9, 8, 35, 0, 0, time.UTC)
 	rows := []sessionRow{
 		// 4× distance 5k — all share hash H_5K (mode-agnostic, warmup-agnostic).
-		{ID: "a", StartedAt: t0,                          Mode: "distance", Params: json.RawMessage(`{"meters":5000}`), ShapeHash: "H_5K", DistM: 5004, TimeSec: 1138, AvgPower: 374, AvgPace: 110, AvgDPS: 9.69, AvgSPI: 12, AvgSPM: 28.0},
-		{ID: "b", StartedAt: t0.Add(6 * 24 * time.Hour),  Mode: "distance", Params: json.RawMessage(`{"meters":5000}`), ShapeHash: "H_5K", DistM: 5005, TimeSec: 1122, AvgPower: 375, AvgPace: 109, AvgDPS: 9.62, AvgSPI: 12, AvgSPM: 28.4},
-		{ID: "c", StartedAt: t0.Add(8 * 24 * time.Hour),  Mode: "distance", Params: json.RawMessage(`{"meters":5000}`), ShapeHash: "H_5K", DistM: 5029, TimeSec: 1102, AvgPower: 379, AvgPace: 107, AvgDPS: 9.53, AvgSPI: 12, AvgSPM: 28.9},
-		{ID: "d", StartedAt: t0.Add(14 * 24 * time.Hour), Mode: "distance", Params: json.RawMessage(`{"meters":5000}`), ShapeHash: "H_5K", DistM: 5008, TimeSec: 1082, AvgPower: 382, AvgPace: 107, AvgDPS: 9.59, AvgSPI: 12, AvgSPM: 28.7},
+		{ID: "a", StartedAt: t0,                          Mode: "distance", Params: json.RawMessage(`{"meters":5000}`), ShapeHash: "H_5K", DistM: 5004, TimeSec: 1138, AvgPower: 374, AvgPace: 110, AvgDPS: 9.69, AvgSPM: 28.0},
+		{ID: "b", StartedAt: t0.Add(6 * 24 * time.Hour),  Mode: "distance", Params: json.RawMessage(`{"meters":5000}`), ShapeHash: "H_5K", DistM: 5005, TimeSec: 1122, AvgPower: 375, AvgPace: 109, AvgDPS: 9.62, AvgSPM: 28.4},
+		{ID: "c", StartedAt: t0.Add(8 * 24 * time.Hour),  Mode: "distance", Params: json.RawMessage(`{"meters":5000}`), ShapeHash: "H_5K", DistM: 5029, TimeSec: 1102, AvgPower: 379, AvgPace: 107, AvgDPS: 9.53, AvgSPM: 28.9},
+		{ID: "d", StartedAt: t0.Add(14 * 24 * time.Hour), Mode: "distance", Params: json.RawMessage(`{"meters":5000}`), ShapeHash: "H_5K", DistM: 5008, TimeSec: 1082, AvgPower: 382, AvgPace: 107, AvgDPS: 9.59, AvgSPM: 28.7},
 		// 1× race 2k + 1× distance 2k — share hash H_2K, collapse to ONE series with 2 points.
-		{ID: "e", StartedAt: t0.Add(4 * 24 * time.Hour), Mode: "race",     Params: json.RawMessage(`{"meters":2000}`), ShapeHash: "H_2K", DistM: 2010, TimeSec: 420, AvgPower: 410, AvgPace: 105, AvgDPS: 9.0, AvgSPI: 13, AvgSPM: 32.0},
-		{ID: "f", StartedAt: t0.Add(5 * 24 * time.Hour), Mode: "distance", Params: json.RawMessage(`{"meters":2000}`), ShapeHash: "H_2K", DistM: 2020, TimeSec: 440, AvgPower: 390, AvgPace: 109, AvgDPS: 9.2, AvgSPI: 12, AvgSPM: 30.0},
+		{ID: "e", StartedAt: t0.Add(4 * 24 * time.Hour), Mode: "race",     Params: json.RawMessage(`{"meters":2000}`), ShapeHash: "H_2K", DistM: 2010, TimeSec: 420, AvgPower: 410, AvgPace: 105, AvgDPS: 9.0, AvgSPM: 32.0},
+		{ID: "f", StartedAt: t0.Add(5 * 24 * time.Hour), Mode: "distance", Params: json.RawMessage(`{"meters":2000}`), ShapeHash: "H_2K", DistM: 2020, TimeSec: 440, AvgPower: 390, AvgPace: 109, AvgDPS: 9.2, AvgSPM: 30.0},
 		// 1× just_row — excluded.
-		{ID: "h", StartedAt: t0.Add(16 * 24 * time.Hour), Mode: "just_row", Params: json.RawMessage(`{}`),             ShapeHash: "H_JR", DistM: 3000, TimeSec: 700, AvgPower: 200, AvgPace: 120, AvgDPS: 9.0, AvgSPI: 10, AvgSPM: 24.0},
+		{ID: "h", StartedAt: t0.Add(16 * 24 * time.Hour), Mode: "just_row", Params: json.RawMessage(`{}`),             ShapeHash: "H_JR", DistM: 3000, TimeSec: 700, AvgPower: 200, AvgPace: 120, AvgDPS: 9.0, AvgSPM: 24.0},
 	}
 	series := assembleSeries(rows)
 

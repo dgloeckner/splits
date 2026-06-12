@@ -54,7 +54,6 @@ type sessionRow struct {
 	AvgPower  float64
 	AvgPace   float64
 	AvgDPS    float64
-	AvgSPI    float64
 	AvgSPM    float64
 }
 
@@ -95,7 +94,6 @@ func assembleSeries(rows []sessionRow) []trendsSeries {
 			AvgPowerW:         r.AvgPower,
 			AvgPaceSecPer500m: r.AvgPace,
 			AvgDPS:            r.AvgDPS,
-			AvgSPI:            r.AvgSPI,
 			AvgSPM:            r.AvgSPM,
 		})
 	}
