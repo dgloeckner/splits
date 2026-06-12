@@ -187,12 +187,17 @@ prefetch (active rower only).
   SessionDetailPage when the surface's queries are **erroring but
   rendering persisted data**: any relevant query has `isError` (or
   `failureCount > 0`) while `data` is present.
-- Label: `Ergo nicht erreichbar · Stand: <date, time>` from the
-  **oldest** `dataUpdatedAt` among the page's queries, formatted
+- Label: `Ergo nicht erreichbar · Stand: <date, time>`, formatted
   German (`10. Juni, 18:42`). Canonical copy per CONTEXT.md
   §"Ergo nicht erreichbar" — never "Offline" in UI copy (the phone is
   online; the Ergo isn't reachable). One shared component supplies
   this string to the Historie banner and the Home hero card.
+- **Stand = the cursor's `packedAt`** — one global value: the moment
+  the last full pack completed against a confirmed `stats_version`.
+  Not per-page `dataUpdatedAt`: the bag is packed atomically, so it
+  has one age; per-page values would show an immutable 20-day-old
+  session detail as "Stand: 23. Mai" despite yesterday's verified
+  pack, and the number would jump while navigating.
 - No banner while fresh or while a first fetch is in flight. Banner
   disappears as soon as a refetch succeeds.
 - **Page error-gate audit (required):** the surfaces must be
