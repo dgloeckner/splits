@@ -3,10 +3,11 @@ import { createRoot } from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
 import {
   QueryClient,
-  QueryClientProvider,
   QueryCache,
   MutationCache,
+  defaultShouldDehydrateQuery,
 } from '@tanstack/react-query'
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
 
 import '@fontsource-variable/space-grotesk/index.css'
 import '@fontsource-variable/inter/index.css'
@@ -22,6 +23,10 @@ import {
   configureEndSessionQueue,
   processPendingEndSessions,
 } from './live/endSessionQueue'
+import { idbPersister, PERSIST_MAX_AGE_MS } from './offline/persister'
+import { isPersistableQuery } from './offline/persistKeys'
+import { attachReachabilityListener } from './offline/ergoStatus'
+import { registerPackTriggers } from './offline/pack'
 
 registerSW({ immediate: true })
 
@@ -55,6 +60,7 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,
+      gcTime: PERSIST_MAX_AGE_MS,
       // Refetch on tab focus so the UI picks up backend changes
       // (new session, DB reset) without a manual reload.
       refetchOnWindowFocus: true,
@@ -71,6 +77,10 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+attachReachabilityListener(queryClient)
+
+void navigator.storage?.persist?.()
 
 // FEAT-0015 Slice 2 / ADR-0010: wire the endSession retry queue so
 // session-end failures (sleeping phone, dropped Wi-Fi mid-cooldown)
@@ -101,9 +111,21 @@ if (typeof window !== 'undefined') {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{
+        persister: idbPersister,
+        maxAge: PERSIST_MAX_AGE_MS,
+        buster: __BUILD_SHA__,
+        dehydrateOptions: {
+          shouldDehydrateQuery: (q) =>
+            defaultShouldDehydrateQuery(q) && isPersistableQuery(q.queryKey),
+        },
+      }}
+      onSuccess={() => registerPackTriggers(queryClient)}
+    >
       <AppRouter />
       <ToastHost />
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   </StrictMode>,
 )
