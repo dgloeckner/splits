@@ -12,7 +12,7 @@ import {
 } from '../api/client'
 import { getWorkout, type Workout } from '../api/workouts'
 import { workoutChipLabel } from '../util/workoutLabel'
-import { LineChart } from '../components/LineChart/LineChart'
+import { SessionChart } from '../components/charts/SessionChart'
 import { fmtFloat, fmtInt, fmtMeters, mmss, mmssWhole, pace500m } from '../util/format'
 import { formatSessionStart } from '../util/dates'
 import { DeleteSessionDialog } from './history/DeleteSessionDialog'
@@ -158,9 +158,12 @@ export function SessionDetailPage() {
       <InsightsSection sessionId={sessionId} />
 
       <div className={styles.charts}>
-        <LineChart title="Split-Verlauf (s / 500 m)" points={splitPts} fmt={(v) => mmss(v)} />
-        <LineChart title="Watt-Verlauf" points={wattPts} />
-        <LineChart title="SPM-Verlauf" points={spmPts} />
+        <SessionChart title="Split-Verlauf (s / 500 m)" points={splitPts} metric="split"
+          fmt={(v) => mmss(v)} avgValue={s.summary?.avg_pace_sec_per_500m ?? null} />
+        <SessionChart title="Watt-Verlauf" points={wattPts} metric="watt"
+          fmt={(v) => `${Math.round(v)}`} avgValue={s.summary?.avg_power_w ?? null} />
+        <SessionChart title="SPM-Verlauf" points={spmPts} metric="spm"
+          fmt={(v) => `${Math.round(v)}`} avgValue={s.summary?.avg_spm ?? null} />
       </div>
 
       <div className={styles.actions}>
