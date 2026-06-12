@@ -49,7 +49,9 @@ Rejected alternatives:
 
 Offline-readable at the club: **Verlauf** (trends charts, all three
 windows), **Rekorde** (PBs, lifetime, achievements), **session list +
-session detail** (incl. samples charts) for recent sessions.
+session detail** (incl. samples charts) for recent sessions, and a
+**Home offline state** (hero card + dimmed favorites) that signals the
+Ergo is unreachable and routes the user to Verlauf.
 
 Out of scope: offline writes (the ergometer is at home; there is
 nothing to write at the club), Live page (errors as today), multi-rower
@@ -190,7 +192,28 @@ prefetch (active rower only).
     unconditionally alongside `{data && …}` → gate to `error && !data`.
   - `RekordeTab.tsx` is already data-first; no change.
 
-### 5. Restore gating
+### 5. Ergo-reachability signal + offline Home
+
+- `useErgoReachable()` — a tiny hook backed by the prefetch module's
+  last cursor-probe outcome (exposed via `useSyncExternalStore`). The
+  probe already runs on boot and resume, so no extra requests; any
+  successful fetch flips the state back to reachable. Deliberately not
+  `navigator.onLine`: at the club the phone *is* online — the Ergo is
+  unreachable.
+- **Home redesign for the unreachable state** (Home is the PWA entry
+  route, so it is the trainer's first screen):
+  - An offline hero card takes the top slot: staleness line (same
+    source of truth as the Historie banner — copy and timestamp cannot
+    drift) plus a single CTA **"→ Verlauf ansehen"**. No automatic
+    redirect.
+  - Favorites stay visible but dimmed/disabled — they are start
+    affordances that need the Ergo; hiding them would look broken.
+  - `StaleSessionCard` keeps hiding itself (volatile, as today).
+- `['favorites', rowerId]` joins the persistence allowlist (organic
+  capture only — no pack entry; it refreshes on every at-home Home
+  visit) so the dimmed favorites render with real content.
+
+### 6. Restore gating
 
 `PersistQueryClientProvider` defers query mounting until the async
 IndexedDB restore resolves (`useIsRestoring` internally); RowerGate
@@ -250,8 +273,9 @@ nothing ages out fast — so the pack's prune step is the bound:
   no-op; failure does not arm the guard).
 - **Playwright e2e (the real proof):** warm the cache with the backend
   up (visit Verlauf/Rekorde or let prefetch run), then `route.abort()`
-  all `/api/*`, reload the page, assert Verlauf charts, Rekorde, and a
-  session detail render data and the banner shows `Offline — Stand:`.
+  all `/api/*`, reload the page, assert: Home shows the offline hero
+  card with dimmed favorites; Verlauf charts, Rekorde, and a session
+  detail render data with the staleness banner.
 
 ## Sequencing & coordination
 
