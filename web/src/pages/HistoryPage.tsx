@@ -1,10 +1,12 @@
 import { NavLink, Outlet } from 'react-router-dom'
+import { ErgoStandNotice } from '../offline/ErgoStandNotice'
 import styles from './HistoryPage.module.css'
 
 export function HistoryPage() {
   return (
     <div className={styles.page}>
       <h1 className="headline-sm">Historie</h1>
+      <ErgoStandNotice variant="banner" />
       <nav className={styles.subnav} aria-label="Historie">
         <NavLink
           to="/historie"

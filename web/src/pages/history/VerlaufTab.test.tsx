@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { TrendsResponse } from '../../api/client'
+import { setErgoStatus, _resetErgoStatusForTest } from '../../offline/ergoStatus'
 import { VerlaufTab } from './VerlaufTab'
 
 const trends: TrendsResponse = {
@@ -55,7 +56,10 @@ function mount() {
 }
 
 describe('VerlaufTab', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    _resetErgoStatusForTest()
+  })
 
   it('renders every point as a list row, newest first', async () => {
     mount()
@@ -90,5 +94,34 @@ describe('VerlaufTab', () => {
     mount()
     expect(await screen.findAllByTestId('progress-context-dot')).toHaveLength(1)
     expect(screen.getAllByTestId('progress-line-dot')).toHaveLength(2)
+  })
+
+  it('unreachable: rows without cached detail are dimmed, cached rows stay links', async () => {
+    _resetErgoStatusForTest()
+    setErgoStatus({ reachable: false, packedAt: '2026-06-12T10:00:00' })
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    // Seed s3 as cached (navigable), s2 and s1 as not cached (dimmed)
+    qc.setQueryData(['sessions', 's3'], { id: 's3' })
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={['/historie']}>
+          <VerlaufTab />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+    const cached = await screen.findByTestId('verlauf-row-s3')
+    expect(cached.tagName).toBe('A')
+    const missing = screen.getByTestId('verlauf-row-s2')
+    expect(missing.tagName).toBe('DIV')
+    expect(missing).toHaveAttribute('aria-disabled', 'true')
+  })
+
+  it('unreachable with restored data: no error placeholder', async () => {
+    _resetErgoStatusForTest()
+    setErgoStatus({ reachable: false })
+    mount()
+    // data is present from mock, error placeholder should not appear
+    await screen.findByTestId('verlauf-row-s3')
+    expect(screen.queryByText('Konnte Verlauf nicht laden.')).toBeNull()
   })
 })

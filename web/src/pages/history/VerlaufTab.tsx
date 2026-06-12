@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   getRowerTrends,
   type TrendsPoint,
@@ -11,6 +11,7 @@ import { useActiveRower } from '../../hooks/useActiveRower'
 import { ProgressChart } from '../../components/charts/ProgressChart'
 import type { ChartMetric } from '../../components/charts/ticks'
 import { formatDurationHuman, pace500m, signedPct } from '../../util/format'
+import { useErgoStatus } from '../../offline/ergoStatus'
 import { WindowTabs } from './WindowTabs'
 import styles from './VerlaufTab.module.css'
 
@@ -84,7 +85,7 @@ export function VerlaufTab() {
       <div className={styles.leftPane}>
         <WindowTabs value={window_} onChange={setWindow} />
         {isPending && <p className={styles.placeholder}>Lädt …</p>}
-        {error && <p className={styles.placeholder}>Konnte Verlauf nicht laden.</p>}
+        {error && !data && <p className={styles.placeholder}>Konnte Verlauf nicht laden.</p>}
         {data && data.points.length === 0 && <EmptyState window_={window_} onWiden={setWindow} />}
         {data && data.points.length > 0 && (
           <>
@@ -192,6 +193,8 @@ function ProgressCard(p: {
 }
 
 function SessionList({ data, highlightId }: { data: TrendsResponse; highlightId: string | null }) {
+  const qc = useQueryClient()
+  const { reachable } = useErgoStatus()
   const labelByShape = new Map(data.series.map((s) => [s.key.shape_hash, s.display_name]))
   const rows = [...data.points].sort((a, b) => (a.t < b.t ? 1 : -1))
 
@@ -203,24 +206,44 @@ function SessionList({ data, highlightId }: { data: TrendsResponse; highlightId:
 
   return (
     <section className={styles.list} aria-label="Sessions">
-      {rows.map((q) => (
-        <Link key={q.session_id} to={`/historie/${q.session_id}`}
-          data-testid={`verlauf-row-${q.session_id}`}
-          className={q.session_id === highlightId ? `${styles.row} ${styles.rowActive}` : styles.row}>
-          <div className={styles.rowMain}>
-            <span className={styles.rowDate}>{new Date(q.t).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
-            <span className={styles.rowChip}>{shapeChip(q, labelByShape)}</span>
-            {q.distance_pb && (
-              <span data-testid={`verlauf-pb-${q.session_id}`} role="img" aria-label="Neue Bestleistung">🏆</span>
-            )}
-          </div>
-          <div className={styles.rowStats}>
-            <span>{q.distance_m} m</span>
-            <span>{fmtTime(q.time_sec)}</span>
-            <span className={styles.rowSplit}>{pace500m(q.avg_pace_sec_per_500m)}</span>
-          </div>
-        </Link>
-      ))}
+      {rows.map((q) => {
+        const body = (
+          <>
+            <div className={styles.rowMain}>
+              <span className={styles.rowDate}>{new Date(q.t).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
+              <span className={styles.rowChip}>{shapeChip(q, labelByShape)}</span>
+              {q.distance_pb && (
+                <span data-testid={`verlauf-pb-${q.session_id}`} role="img" aria-label="Neue Bestleistung">🏆</span>
+              )}
+            </div>
+            <div className={styles.rowStats}>
+              <span>{q.distance_m} m</span>
+              <span>{fmtTime(q.time_sec)}</span>
+              <span className={styles.rowSplit}>{pace500m(q.avg_pace_sec_per_500m)}</span>
+            </div>
+          </>
+        )
+        const inBag = reachable || !!qc.getQueryState(['sessions', q.session_id])?.data
+        if (!inBag) {
+          return (
+            <div
+              key={q.session_id}
+              data-testid={`verlauf-row-${q.session_id}`}
+              aria-disabled="true"
+              className={`${styles.row} ${styles.rowOffline}`}
+            >
+              {body}
+            </div>
+          )
+        }
+        return (
+          <Link key={q.session_id} to={`/historie/${q.session_id}`}
+            data-testid={`verlauf-row-${q.session_id}`}
+            className={q.session_id === highlightId ? `${styles.row} ${styles.rowActive}` : styles.row}>
+            {body}
+          </Link>
+        )
+      })}
     </section>
   )
 }
