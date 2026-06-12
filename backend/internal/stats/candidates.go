@@ -30,8 +30,8 @@ type DistanceCandidate struct {
 }
 
 // WindowCandidate is the best rolling-average of a metric over a
-// fixed window. Kind is "seconds" or "strokes". Higher-is-better for
-// power/dps/spi; lower-is-better for pace.
+// fixed window. Kind is "seconds" or "strokes". Currently power-only
+// (higher-is-better).
 type WindowCandidate struct {
 	Metric     string  `json:"metric"`
 	Kind       string  `json:"kind"`
