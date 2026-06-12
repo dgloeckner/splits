@@ -1,9 +1,10 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route, useParams } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { HomePage } from './HomePage'
+import { setErgoStatus, _resetErgoStatusForTest } from '../offline/ergoStatus'
 
 vi.mock('../api/rowers', () => ({ getActiveRower: vi.fn(async () => null) }))
 
@@ -33,6 +34,8 @@ function renderHome() {
 }
 
 describe('HomePage', () => {
+  beforeEach(() => _resetErgoStatusForTest())
+
   it('renders the page heading', () => {
     renderHome()
     expect(screen.getByRole('heading', { name: /home/i })).toBeInTheDocument()
@@ -67,5 +70,18 @@ describe('HomePage', () => {
     renderHome()
     await userEvent.click(screen.getByTestId('picker-race'))
     expect(await screen.findByText('FLOW:race')).toBeInTheDocument()
+  })
+
+  it('unreachable: hero card shown, start buttons disabled', async () => {
+    setErgoStatus({ reachable: false, packedAt: '2026-06-12T18:42:00' })
+    renderHome()
+    expect(await screen.findByTestId('ergo-offline-hero')).toBeInTheDocument()
+    expect(screen.getByTestId('picker-just-row')).toBeDisabled()
+    expect(screen.getByTestId('picker-distance')).toBeDisabled()
+  })
+
+  it('reachable: no hero card', async () => {
+    renderHome()
+    expect(screen.queryByTestId('ergo-offline-hero')).toBeNull()
   })
 })

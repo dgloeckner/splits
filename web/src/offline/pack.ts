@@ -180,10 +180,11 @@ export function onAppVisible(qc: QueryClient): void {
 export function registerPackTriggers(qc: QueryClient): void {
   if (triggersRegistered) return
   triggersRegistered = true
+  const w = window as any
   const idle = (fn: () => void) =>
-    'requestIdleCallback' in window
-      ? window.requestIdleCallback(fn)
-      : window.setTimeout(fn, 1500)
+    'requestIdleCallback' in w
+      ? w.requestIdleCallback(fn)
+      : w.setTimeout(fn, 1500)
   idle(() => void packIfStale(qc))
   document.addEventListener('visibilitychange', () => onAppVisible(qc))
 }

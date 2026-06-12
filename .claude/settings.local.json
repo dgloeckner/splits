@@ -17,7 +17,9 @@
       "Bash(pkill -f \"vite\")",
       "Bash(pkill -f splits)",
       "Bash(git commit *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(TARGET=armv6 bash deploy/bundle.sh)",
+      "Bash(npm install *)"
     ]
   }
 }
