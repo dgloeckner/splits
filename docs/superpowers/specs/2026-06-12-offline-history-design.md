@@ -79,7 +79,13 @@ prefetch (active rower only).
   backend is reachable, so an offline phone always runs the build its
   cache was written by; after a deploy, the next at-home open rebuilds
   the cache via prefetch.
-- `maxAge: 30 days`.
+- `maxAge: 30 days`, and `defaultOptions.queries.gcTime` raised to the
+  same 30 days. **Required for correctness, not just tuning:** the
+  default `gcTime` of 5 min garbage-collects prefetched-but-unmounted
+  queries from the in-memory cache, and the next persister flush drops
+  them from IndexedDB — the bag would silently empty minutes after
+  packing. Persistence needs `gcTime ≥ maxAge`. The long `gcTime` is
+  also why explicit pruning (see Storage bounds) is required.
 - Boot: call `navigator.storage.persist()` once (best-effort, resists
   iOS storage eviction; data re-syncs on every at-home use anyway).
 
@@ -115,7 +121,18 @@ prefetch (active rower only).
      session IDs are skipped: finalized sessions are immutable, so a
      cached entry stays valid (within `maxAge`). Steady state: a new
      workout costs ~8 requests.
-  4. *Cursor write:* `{rowerId, statsVersion, buildSha, packedAt}` to
+  4. *Prune (storage bound):* after a successful full pack,
+     `queryClient.removeQueries` (inactive queries only) for everything
+     outside the keep-set: `['sessions', …]` entries whose session id
+     is not among the last-N pack IDs (covers detail, samples,
+     pb-banners), `['workout', id]` entries not referenced by a kept
+     session, and rower-scoped aggregates (`rower-trends`, `rower-pbs`,
+     `rower-achievements`, `rower-lifetime`) of rowers other than the
+     active one. The persister flush rewrites the single IndexedDB
+     value, so the store shrinks with the cache. This also removes
+     deleted sessions' orphaned entries promptly instead of waiting
+     out `maxAge`.
+  5. *Cursor write:* `{rowerId, statsVersion, buildSha, packedAt}` to
      `idb-keyval`, only after a fully successful pack. `buildSha`
      (from `__BUILD_SHA__`) must match at probe time or the pack runs
      in full: the persisted query cache is busted on deploy, but the
@@ -130,8 +147,8 @@ prefetch (active rower only).
     (name/color) don't bump `stats_version` — `rowers`/`active-rower`
     refresh organically on every app open and the persister captures
     the live cache. A deleted session bumps the version, so the list
-    re-packs without it; its orphaned detail entry ages out via
-    `maxAge`.
+    re-packs without it; its orphaned detail entry is removed by the
+    prune step.
 - Uses `queryClient.prefetchQuery` with the *exact* keys and client
   functions the pages use — offline cache hits are automatic, and a
   later page visit reuses the prefetched entry (no double fetch within
@@ -180,11 +197,26 @@ IndexedDB restore resolves (`useIsRestoring` internally); RowerGate
 shows its existing loading state for those few ms. No code change
 beyond the provider swap.
 
-## Data volume
+## Data volume & storage bounds
 
-Trivially small: sessions are aggregate rows, samples ~120 buckets per
-session, trends/PB/achievement payloads are a few KB. A full prefetch
-is well under 1 MB — no quota or write-throttling concerns.
+Trivially small per item: sessions are aggregate rows, samples ~120
+buckets per session, trends/PB/achievement payloads are a few KB.
+
+The local store must not grow unbounded. With `gcTime` at 30 days,
+nothing ages out fast — so the pack's prune step is the bound:
+
+- **Sessions: max N = 10** (one constant, equal to the pack depth).
+  Detail/samples/pb-banners/workout entries outside the last-N
+  keep-set are removed on every successful pack.
+- **Rower aggregates:** kept for the active rower only.
+- **Fixed key budget:** ~2 bootstrap + 3 trends + 3 records +
+  N × ≤3 session entries ≈ 40 cache entries, well under 1 MB total.
+- **Known growing payload (by design):** the trends `all` response
+  carries one point per lifetime session (~few hundred bytes each) —
+  the Verlauf "Alles" chart needs exactly that data online too.
+  A decade of training stays in the few-hundred-KB range; no cap.
+- The persisted state is one IndexedDB value rewritten per flush —
+  no append-only growth independent of the cache contents.
 
 ## Error handling
 
@@ -211,9 +243,11 @@ is well under 1 MB — no quota or write-throttling concerns.
   banner, `error && !data` → error UI); prefetch cursor logic
   (unchanged version + recent pack → probe only; version bump or
   `buildSha` mismatch → full pack; cached session IDs skipped; cursor
-  written only after full success) and the resume guard (visible
-  event < 15 min after a successful probe → no-op; failure does not
-  arm the guard).
+  written only after full success); prune keep-set logic (entries
+  outside last-N removed, kept and mounted entries spared, foreign
+  rowers' aggregates removed, orphaned workouts removed); and the
+  resume guard (visible event < 15 min after a successful probe →
+  no-op; failure does not arm the guard).
 - **Playwright e2e (the real proof):** warm the cache with the backend
   up (visit Verlauf/Rekorde or let prefetch run), then `route.abort()`
   all `/api/*`, reload the page, assert Verlauf charts, Rekorde, and a
