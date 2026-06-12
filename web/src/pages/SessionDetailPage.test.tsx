@@ -1,15 +1,16 @@
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect, vi } from 'vitest'
+import { afterEach, describe, it, expect, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { SessionDetailPage } from './SessionDetailPage'
 import * as insightsApi from '../api/insights'
+import { _resetErgoStatusForTest } from '../offline/ergoStatus'
 
-function wrap(initial = '/historie/S1') {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+function wrap(initial = '/historie/S1', qc?: QueryClient) {
+  const client = qc ?? new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return (
-    <QueryClientProvider client={qc}>
+    <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[initial]}>
         <Routes>
           <Route path="/historie" element={<p>Historie</p>} />
@@ -19,6 +20,11 @@ function wrap(initial = '/historie/S1') {
     </QueryClientProvider>
   )
 }
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+  _resetErgoStatusForTest()
+})
 
 function mockFetch(handlers: Record<string, (init?: RequestInit) => Response>) {
   return vi.fn(async (url: RequestInfo | URL, init?: RequestInit) => {
@@ -101,6 +107,19 @@ describe('SessionDetailPage', () => {
     await waitFor(() => expect(screen.getByText('1035 m')).toBeInTheDocument())
     await waitFor(() => expect(screen.getByText('Auswertung')).toBeInTheDocument())
     expect(screen.getByText('Gute Leistung insgesamt.')).toBeInTheDocument()
+  })
+
+  it('renders cached session data even when the refetch errors', async () => {
+    _resetErgoStatusForTest()
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    qc.setQueryData(['sessions', 'S1'], SESSION)
+    qc.setQueryData(['sessions', 'S1', 'samples'], [])
+    vi.stubGlobal('fetch', () => Promise.reject(new TypeError('unreachable')))
+
+    render(wrap('/historie/S1', qc))
+
+    expect(await screen.findByTestId('detail-total-distance')).toBeInTheDocument()
+    expect(screen.queryByText('Session nicht gefunden.')).toBeNull()
   })
 
   it('delete button opens confirm dialog; confirm navigates back', async () => {

@@ -18,6 +18,7 @@ import { formatSessionStart } from '../util/dates'
 import { DeleteSessionDialog } from './history/DeleteSessionDialog'
 import { showToast } from '../app/Toast'
 import { InsightsSection } from './session/InsightsSection'
+import { ErgoStandNotice } from '../offline/ErgoStandNotice'
 import styles from './SessionDetailPage.module.css'
 
 export function SessionDetailPage() {
@@ -60,7 +61,7 @@ export function SessionDetailPage() {
   if (sessionQ.isPending) {
     return <div className={styles.page}>Lädt …</div>
   }
-  if (sessionQ.error || !sessionQ.data) {
+  if (!sessionQ.data) {
     return (
       <div className={styles.page}>
         <Link to="/historie" className={styles.back}>
@@ -83,6 +84,7 @@ export function SessionDetailPage() {
       <Link to="/historie" className={styles.back}>
         ← Zurück
       </Link>
+      <ErgoStandNotice variant="banner" />
 
       {(() => {
         const b = bannersQ.data
