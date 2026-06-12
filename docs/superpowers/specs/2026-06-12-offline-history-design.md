@@ -66,15 +66,26 @@ prefetch (active rower only).
   with an async IndexedDB persister (`persistClient` / `restoreClient`
   / `removeClient` over `idb-keyval`).
 - **Allowlist** via `shouldDehydrateQuery` (exported pure function
-  `isPersistableQuery(queryKey)` so it is unit-testable). Persisted
-  key prefixes:
-  - `rowers`, `active-rower` — bootstrap; lets RowerGate pass offline
-  - `rower-trends` (`['rower-trends', rowerId, window]`)
-  - `rower-pbs`, `rower-achievements`, `rower-lifetime`
-  - `sessions` (list, `['sessions', id]`, `['sessions', id, 'samples']`)
-  - `workout` (session detail resolves the workout shape)
-  - Never persisted: `active-session`, `stale-open`, `race-opponents`,
-    pairing/favorites-mutation state — anything live or volatile.
+  `isPersistableQuery(queryKey)` so it is unit-testable).
+  **Exact-shape matching, not prefixes** — concrete key shapes only:
+  - `['rowers']`, `['active-rower']` — bootstrap; lets RowerGate pass
+  - `['favorites', rowerId]` — offline Home renders real favorites
+  - `['rower-trends', rowerId, window]`
+  - `['rower-pbs', rowerId]`, `['rower-achievements', rowerId]`,
+    `['rower-lifetime', rowerId]`
+  - `['sessions', id]`, `['sessions', id, 'samples' | 'pb-banners']`
+  - `['workout', id]` — session detail resolves the workout shape
+  - Everything else falls through — notably
+    `['sessions', 'stale-open', rowerId]` (length-3, non-matching
+    tail), `['active-session']`, `['race-opponents', …]`, pairing.
+    A prefix match on `sessions` would have persisted the volatile
+    stale-open query; exact shapes exclude it structurally.
+  - Drift net: the Playwright offline walkthrough asserts every
+    offline surface renders from cache, so a future query missing
+    from the allowlist fails CI, not the club demo. (A central
+    `queryKeys.ts` factory was considered and deferred — YAGNI at
+    ~15 keys, and it would touch pages the Historie rewrite is
+    actively changing.)
 - Only successful queries dehydrate (library default).
 - `buster: __BUILD_SHA__` — a deploy invalidates the persisted cache.
   Safe offline: the service worker can only fetch an update when the
