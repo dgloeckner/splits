@@ -1,14 +1,12 @@
-import type { TrendsRange } from '../../api/client'
+import type { TrendsWindowKey } from '../../api/client'
 
 const DAY = 24 * 60 * 60 * 1000
 
-export function rangeRollingWindowDays(range: TrendsRange): number | null {
-  switch (range) {
-    case 'week':
-      return null
-    case 'month':
+export function rangeRollingWindowDays(window: TrendsWindowKey): number {
+  switch (window) {
+    case '30d':
       return 14
-    case 'year':
+    case '365d':
       return 30
     case 'all':
       return 90

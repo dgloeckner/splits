@@ -25,7 +25,7 @@ const METRICS: { key: ChartMetric; label: string }[] = [
   { key: 'spm', label: 'SPM' },
   { key: 'dps', label: 'DPS' },
 ]
-const MIN_SERIES_POINTS = 3
+const MIN_SERIES_POINTS = 2
 
 function parseWindow(s: string | null): TrendsWindowKey {
   if (s && (VALID as string[]).includes(s)) return s as TrendsWindowKey

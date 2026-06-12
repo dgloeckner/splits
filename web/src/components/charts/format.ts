@@ -1,11 +1,9 @@
-import type { TrendsRange } from '../../api/client'
-
 const SHORT_MONTH_DE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
 const LONG_MONTH_DE  = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
 const SHORT_DAY_DE   = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa']
 const LONG_DAY_DE    = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag']
 
-export function formatChartDate(t: number, range: TrendsRange): string {
+export function formatChartDate(t: number, range: string): string {
   const d = new Date(t)
   switch (range) {
     case 'week':
@@ -15,6 +13,8 @@ export function formatChartDate(t: number, range: TrendsRange): string {
     case 'year':
       return SHORT_MONTH_DE[d.getMonth()]
     case 'all':
+      return String(d.getFullYear())
+    default:
       return String(d.getFullYear())
   }
 }

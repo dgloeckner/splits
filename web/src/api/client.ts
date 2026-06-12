@@ -175,7 +175,7 @@ export async function getSessionPBBanners(id: string): Promise<SessionPBBanners>
   return json<SessionPBBanners>(r)
 }
 
-export type TrendsRange = 'week' | 'month' | 'year' | 'all'
+export type TrendsWindowKey = '30d' | '365d' | 'all'
 
 export type TrendsTotals = {
   distance_m: number
@@ -183,25 +183,29 @@ export type TrendsTotals = {
   sessions: number
 }
 
+export type TrendsPoint = {
+  t: string
+  session_id: string
+  mode: string
+  shape_hash?: string
+  distance_m: number
+  time_sec: number
+  avg_pace_sec_per_500m: number
+  avg_power_w: number
+  avg_spm: number
+  avg_dps: number
+  completed: boolean
+  distance_pb: boolean
+}
+
 export type TrendsResponse = {
-  range: TrendsRange
-  period: { label: string; from: string; to: string }
+  window: TrendsWindowKey
+  from: string
+  to: string
+  points: TrendsPoint[]
+  series: TrendsSeries[]
   totals: TrendsTotals
   prior?: TrendsTotals
-  performance: {
-    points: { t: string; avg_power_w: number; avg_pace_sec_per_500m: number }[]
-    avg_power_w: number
-    avg_pace_sec_per_500m: number
-  }
-  efficiency: {
-    points: { t: string; avg_dps: number; avg_spi: number }[]
-    avg_dps: number
-    avg_spi: number
-    delta_dps: number
-    delta_spi: number
-  }
-  series: TrendsSeries[]
-  efficiency_series: TrendsSeries[]
   stats_version: number
 }
 
@@ -217,7 +221,6 @@ export type TrendsSeriesPoint = {
   avg_power_w: number
   avg_pace_sec_per_500m: number
   avg_dps: number
-  avg_spi: number
   avg_spm: number
 }
 
@@ -229,9 +232,9 @@ export type TrendsSeries = {
   points: TrendsSeriesPoint[]
 }
 
-export async function getRowerTrends(rowerID: string, range: TrendsRange): Promise<TrendsResponse> {
+export async function getRowerTrends(rowerID: string, window: TrendsWindowKey): Promise<TrendsResponse> {
   const r = await fetch(
-    `/api/v1/rowers/${encodeURIComponent(rowerID)}/trends?range=${range}`,
+    `/api/v1/rowers/${encodeURIComponent(rowerID)}/trends?window=${window}`,
   )
   return json<TrendsResponse>(r)
 }

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useSearchParams } from 'react-router-dom'
 import { AppLayout } from './AppLayout'
 import { ErrorBoundary } from './ErrorBoundary'
 import { NotFound } from './NotFound'
@@ -9,8 +9,7 @@ import { WorkoutOverlayProvider } from '../pages/live/WorkoutOverlayContext'
 import { LivePage } from '../pages/LivePage'
 import { HomePage } from '../pages/HomePage'
 import { HistoryPage } from '../pages/HistoryPage'
-import { SessionsTab } from '../pages/history/SessionsTab'
-import { TrendsTab } from '../pages/history/TrendsTab'
+import { VerlaufTab } from '../pages/history/VerlaufTab'
 import { RekordeTab } from '../pages/history/RekordeTab'
 import { SessionDetailPage } from '../pages/SessionDetailPage'
 import { ProfilePage } from '../pages/ProfilePage'
@@ -24,6 +23,14 @@ import { WorkoutFlowPage } from '../pages/workout/WorkoutFlowPage'
 function BootReconciler() {
   useBootReconcile()
   return null
+}
+
+// TrendsRedirect maps the old ?range= param to the new ?window= format.
+function TrendsRedirect() {
+  const [params] = useSearchParams()
+  const r = params.get('range')
+  const w = r === 'year' ? '365d' : r === 'all' ? 'all' : '30d'
+  return <Navigate to={`/historie?window=${w}`} replace />
 }
 
 export function AppRouter() {
@@ -42,8 +49,8 @@ export function AppRouter() {
                 <Route path="/live" element={<LivePage />} />
                 <Route path="/workout/new/:mode" element={<WorkoutFlowPage />} />
                 <Route path="/historie" element={<HistoryPage />}>
-                  <Route index element={<SessionsTab />} />
-                  <Route path="trends" element={<TrendsTab />} />
+                  <Route index element={<VerlaufTab />} />
+                  <Route path="trends" element={<TrendsRedirect />} />
                   <Route path="rekorde" element={<RekordeTab />} />
                 </Route>
                 <Route path="/historie/:sessionId" element={<SessionDetailPage />} />

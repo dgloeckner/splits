@@ -2,10 +2,9 @@ import { describe, it, expect } from 'vitest'
 import { rangeRollingWindowDays, rollingAverage } from './rolling'
 
 describe('rangeRollingWindowDays', () => {
-  it('returns the documented per-range window', () => {
-    expect(rangeRollingWindowDays('week')).toBeNull()
-    expect(rangeRollingWindowDays('month')).toBe(14)
-    expect(rangeRollingWindowDays('year')).toBe(30)
+  it('returns the documented per-window window', () => {
+    expect(rangeRollingWindowDays('30d')).toBe(14)
+    expect(rangeRollingWindowDays('365d')).toBe(30)
     expect(rangeRollingWindowDays('all')).toBe(90)
   })
 })
