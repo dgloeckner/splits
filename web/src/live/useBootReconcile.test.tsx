@@ -71,7 +71,6 @@ describe('useBootReconcile', () => {
       peak_power_w: 320,
       avg_spm: 24,
       avg_dps: 8,
-      avg_spi: 7.5,
       avg_pace_sec_per_500m: 120,
       session_calories: 95,
     }
