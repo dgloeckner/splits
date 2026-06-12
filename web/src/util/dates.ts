@@ -22,3 +22,9 @@ export function formatSessionStart(isoStr: string, now: Date = new Date()): stri
 
   return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()} ${hhmm(d)}`
 }
+
+export function formatStand(isoStr: string): string {
+  const d = new Date(isoStr)
+  const date = d.toLocaleDateString('de-DE', { day: 'numeric', month: 'long' })
+  return `${date}, ${hhmm(d)}`
+}
