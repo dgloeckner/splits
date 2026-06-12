@@ -18,6 +18,7 @@
 | ADR-0015 | Trends Group by Workout Intent          | Accepted  |
 | ADR-0016 | Trends Charts Touch-Native Scrubber     | Accepted  |
 | ADR-0017 | Deterministic Replay Harness as CI Seam | Accepted  |
+| ADR-0018 | Offline History as Packed Snapshot      | Accepted  |
 
 Future candidates:
 - **ADR-0008** — Serial protocol vs BLE FTMS (depends on firmware check)
