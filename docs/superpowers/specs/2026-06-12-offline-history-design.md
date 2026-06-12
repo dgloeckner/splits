@@ -96,11 +96,33 @@ prefetch (active rower only).
   fetched otherwise). A timer would poll the Pi while idle and fire
   uselessly when away. The 15-min guard (plus a no-concurrent-pack
   guard) keeps foreground-flapping from hammering the Pi Zero.
-- Each run packs, for the active rower:
-  - `rower-trends` × {`30d`, `365d`, `all`}
-  - `rower-pbs`, `rower-achievements`, `rower-lifetime`
-  - sessions list (existing default `limit=50`)
-  - session detail + samples (+ workout) for the **last 10 sessions**
+- **Cursor-based packing.** The backend already provides the cursor:
+  `stats.Recompute` bumps `rower_lifetime_stats.stats_version` on
+  every call (recompute.go), and recompute runs after every session
+  end and delete. No backend changes.
+  1. *Probe:* each trigger fetches `getRowerLifetime` (single-row
+     query; doubles as the `rower-lifetime` cache refresh) and reads
+     `stats_version`.
+  2. *Cursor hit:* `stats_version` equals the persisted cursor **and**
+     the last full pack is < 24 h old → done. A resume at home costs
+     one request.
+  3. *Cursor miss:* full pack — `rower-trends` × {`30d`, `365d`,
+     `all`}, `rower-pbs`, `rower-achievements`, sessions list
+     (default `limit=50`), then detail + samples (+ workout) for the
+     **last 10 sessions**, skipping IDs already cached: finalized
+     sessions are immutable, so a cached entry stays valid (within
+     `maxAge`). Steady state: a new workout costs ~8 requests.
+  4. *Cursor write:* `{rowerId, statsVersion, packedAt}` to
+     `idb-keyval`, only after a fully successful pack.
+  - The 24 h secondary condition exists because trends windows are
+    rolling: a 30d window drifts daily even with no new session, so an
+    unchanged cursor alone would let chart content age silently.
+  - Not covered by the cursor (deliberately): rower profile edits
+    (name/color) don't bump `stats_version` — `rowers`/`active-rower`
+    refresh organically on every app open and the persister captures
+    the live cache. A deleted session bumps the version, so the list
+    re-packs without it; its orphaned detail entry ages out via
+    `maxAge`.
 - Uses `queryClient.prefetchQuery` with the *exact* keys and client
   functions the pages use — offline cache hits are automatic, and a
   later page visit reuses the prefetched entry (no double fetch within
@@ -162,10 +184,11 @@ is well under 1 MB — no quota or write-throttling concerns.
 
 - **vitest:** `isPersistableQuery` allowlist (each prefix in/out);
   banner visibility logic (error+data → shown, fresh → hidden,
-  date formatting); prefetch issues the expected query keys (mock
-  fetch, assert cache contents) and the resume re-pack guard (visible
-  event < 15 min after a successful pack → no-op; failed pack does
-  not arm the guard).
+  date formatting); prefetch cursor logic (unchanged version + recent
+  pack → probe only; version bump → full pack; cached session IDs
+  skipped; cursor written only after full success) and the resume
+  guard (visible event < 15 min after a successful probe → no-op;
+  failure does not arm the guard).
 - **Playwright e2e (the real proof):** warm the cache with the backend
   up (visit Verlauf/Rekorde or let prefetch run), then `route.abort()`
   all `/api/*`, reload the page, assert Verlauf charts, Rekorde, and a
