@@ -93,12 +93,28 @@ func applyMigrations(db *sql.DB) error {
 		if err != nil {
 			return err
 		}
-		if _, err := db.Exec(string(body)); err != nil {
-			return fmt.Errorf("apply %s: %w", name, err)
-		}
-		if _, err := db.Exec(`INSERT OR IGNORE INTO schema_migrations(version) VALUES(?)`, version); err != nil {
-			return fmt.Errorf("record %s: %w", name, err)
+		if err := applyMigration(db, name, version, string(body)); err != nil {
+			return err
 		}
 	}
 	return nil
+}
+
+// applyMigration runs one migration body plus its schema_migrations
+// record inside a single transaction, so multi-statement migrations
+// (0018+) are atomic: a mid-file failure leaves no partial schema and
+// no recorded version.
+func applyMigration(db *sql.DB, name string, version int, body string) error {
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.Exec(body); err != nil {
+		return fmt.Errorf("apply %s: %w", name, err)
+	}
+	if _, err := tx.Exec(`INSERT OR IGNORE INTO schema_migrations(version) VALUES(?)`, version); err != nil {
+		return fmt.Errorf("record %s: %w", name, err)
+	}
+	return tx.Commit()
 }
