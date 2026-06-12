@@ -176,9 +176,12 @@ prefetch (active rower only).
   SessionDetailPage when the surface's queries are **erroring but
   rendering persisted data**: any relevant query has `isError` (or
   `failureCount > 0`) while `data` is present.
-- Label: `Offline — Stand: <date, time>` from the **oldest**
-  `dataUpdatedAt` among the page's queries, formatted German
-  (`10. Juni, 18:42`).
+- Label: `Ergo nicht erreichbar · Stand: <date, time>` from the
+  **oldest** `dataUpdatedAt` among the page's queries, formatted
+  German (`10. Juni, 18:42`). Canonical copy per CONTEXT.md
+  §"Ergo nicht erreichbar" — never "Offline" in UI copy (the phone is
+  online; the Ergo isn't reachable). One shared component supplies
+  this string to the Historie banner and the Home hero card.
 - No banner while fresh or while a first fetch is in flight. Banner
   disappears as soon as a refetch succeeds.
 - **Page error-gate audit (required):** the surfaces must be

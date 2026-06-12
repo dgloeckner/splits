@@ -379,3 +379,25 @@ Efficiency metrics (DPS, SPI) are grouped not by shape but by
 the session's average SPM, since technique meaning depends on
 rate, not piece type: Paddle (≤ 20 spm), Steady (20–26), Hard
 (≥ 26). Used for per-dot color encoding on the Effizienz chart.
+
+## Ergo nicht erreichbar
+
+The app state in which the backend (the Ergo at home) cannot be
+reached — typically away from home, e.g. showing a trainer at the
+rowing club. The phone itself is online; only the Ergo is not. The
+app runs from the packed local snapshot: history data renders with an
+explicit **Stand** label (the timestamp of the last successful pack),
+and start affordances (favorites, new workout) are visible but
+disabled — there is no Ergo to row on.
+
+_Avoid_: "Offline" in UI copy — the phone is online, and "Offline"
+reads as "the app is broken". "Offline" survives only as the informal
+feature name in docs/specs.
+
+Canonical UI copy: `Ergo nicht erreichbar · Stand: 12. Juni, 18:42`.
+
+### Stand
+
+The timestamp of the data snapshot currently shown — the moment the
+last successful pack (or fetch) completed. Always displayed when the
+Ergo is unreachable; never shown when data is live.
