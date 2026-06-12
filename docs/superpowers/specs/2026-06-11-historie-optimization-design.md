@@ -12,6 +12,17 @@ pipeline is dead code today), and the records migration must ship
 resurrects the invalidated rows. See §Implementation architecture for
 the extraction-first slice the test plan depends on.
 
+Amended 2026-06-12 after the data-integrity precondition fixes landed
+(`01c97b2`, `e72cd26`, `42f5e69`, `ddf7489`, `f387b51`) and were
+code-reviewed. The preconditions are **done**; what changed in this
+spec as a result: the prune that shipped is deliberately narrower
+than first written (zero persisted strokes, not zero *work* strokes),
+so the trends endpoint additionally **filters zero-work sessions**
+(§Backend & data); the records migration is now **0018** (0017 is the
+phantom prune) and is preceded by a **migration-runner transaction
+fix** — the earlier claim that migrations run transactionally was
+wrong.
+
 ## Goals
 
 The section serves three jobs, in priority order:
@@ -85,7 +96,10 @@ One chart card.
 - **Context dots**: every other session in the window (Just Row,
   intervals, aborted, other shapes) renders as a faint dot at its avg
   split (or the toggled metric). Nothing rowed is invisible; a
-  free-rower sees dots instead of an empty chart.
+  free-rower sees dots instead of an empty chart. Exception:
+  zero-work sessions (warmup-only, race false-start) are filtered by
+  the API and never appear — as dot, list row, or footnote
+  contribution (§Backend & data).
 - **Metric toggle**: `Split | Watt | SPM | DPS`. Split is default.
   DPS folds in here — there is no separate Effizienz chart anymore.
   Data is already in the API per point (avg_pace / avg_power_w /
@@ -115,7 +129,8 @@ oversized percent chip). Durations use real units (`1 h 30 min`,
 
 Keep the existing pattern: copy + widen-range action
 ("Zeitraum erweitern → Jahr"). With context dots, the chart is
-non-empty whenever any session exists in the window.
+non-empty whenever any session with work strokes exists in the
+window (zero-work sessions are API-filtered and don't count).
 
 ## Chart rules (all charts in the section)
 
@@ -221,7 +236,11 @@ Targets: iPhone (~390 pt) and iPad (~768 pt+).
     distance, time, avg split/watt/spm/dps, plus a
     `distance_pb: bool` flag — true only for standard-distance PBs,
     driving the list's 🏆 badge) — feeds context dots AND the session
-    list in one fetch;
+    list in one fetch; **sessions with zero work strokes are
+    excluded** from points, list, and totals (warmup-only and
+    false-start-only sessions persist with stroke rows and zero work
+    totals — the prune cannot delete them, see §Data-integrity
+    preconditions);
   - per-shape series of completed sessions (existing grouping),
     each with `pb_pace_sec_per_500m`;
   - window totals + prior-equal-window totals for the footnote delta.
@@ -240,7 +259,14 @@ Targets: iPhone (~390 pt) and iPad (~768 pt+).
   points.
 - **SPI removal end-to-end** (task #2): sessionizer accumulator,
   sample buckets, summary field, `WindowDefs` entry, API types.
-- **One records change — code and migration in lockstep.** Recompute
+- **One records change — code and migration in lockstep.** The
+  migration is **0018** (0017 is the phantom prune, landed
+  `e72cd26`). Precursor, since 0018 is multi-statement:
+  `applyMigrations` (db.go) currently execs migration bodies
+  **without** a transaction — it must first be changed to wrap each
+  migration body plus its `schema_migrations` insert in one
+  transaction (fixes the class for all future migrations; 0017 was
+  safe only as a single implicitly-atomic DELETE). Recompute
   re-creates active PB rows from the candidate tables, and the
   spi/dps/consistency candidates persist; an invalidation-only
   migration would be undone on the next recompute. One commit ships
@@ -264,10 +290,10 @@ Targets: iPhone (~390 pt) and iPad (~768 pt+).
     rows: none exist, nothing to invalidate);
   - the FEAT-0010 "locked WindowDefs" note gets an amendment
     documenting the removals and the workout-PB addition.
-- **Empty-session prune at `FinaliseSession`** (data-integrity
-  precondition — see §Implementation architecture): zero-work-stroke
-  ended sessions are not persisted, and a migration removes the
-  existing phantom rows so they never reach the trends/list queries.
+- **Empty-session prune** — ✅ landed (`01c97b2`, migration 0017
+  `e72cd26`); see §Data-integrity preconditions for what actually
+  shipped and the residual zero-work class the endpoint filter above
+  covers.
 - Unchanged: ≥ 80 % completion rule, shape-hash series grouping
   (ADR-0015), Berlin-time window bounds.
 
@@ -276,45 +302,52 @@ Targets: iPhone (~390 pt) and iPad (~768 pt+).
 Constraints from the 2026-06-11 code review. These are preconditions
 for the test plan below, not nice-to-haves.
 
-### Data-integrity preconditions (land before the Verlauf list)
+### Data-integrity preconditions — ✅ landed 2026-06-11/12
 
 Surfaced by a real rowing session on 2026-06-11 (journal- and
-DB-verified, not theory). Verlauf renders *every* session in the
-window as a dot, a list row, and a contribution to the volume
-footnote — so any phantom or empty session is a visible defect and
-poisons the e2e capture fixtures. These fix the **sources** of bad
-rows; they are not part of the live-surface redesign (still out of
-scope), only the data the new endpoint reads.
+DB-verified, not theory). Verlauf renders sessions in the window as
+dots, list rows, and contributions to the volume footnote — so any
+phantom or empty session is a visible defect and poisons the e2e
+capture fixtures. These fixed the **sources** of bad rows; they were
+not part of the live-surface redesign (still out of scope), only the
+data the new endpoint reads. All three landed and were code-reviewed
+on 2026-06-12; statuses below record what actually shipped where it
+deviates from the original wording.
 
-- **Empty sessions never persist.** A `POST /session/start` that
-  never receives an IPM frame currently persists a zero-stroke
-  session with a stub summary (three such rows were created in one
-  evening: `01KTW2CNVS`, `01KTW2DKXS`, `01KTW3SBV4`). Invariant at
-  the `FinaliseSession` seam (the one shutdown path consolidated in
-  `efebae0`): an ended session with zero work strokes is pruned, not
-  written, and the prune is logged. A migration removes the existing
-  zero-stroke rows. This single invariant protects the Verlauf list,
-  the trends totals, and the Rekorde grid at once.
-- **Discard must leave no trace and pop no save-overlay.** The
-  backend `DELETE /sessions/{id}` already ends-then-deletes correctly
-  (journal-confirmed). The defect is frontend: the `session_end` that
-  `EndSession()` emits during delete pops the generic "Session
-  beendet / Bestleistungen werden berechnet…" overlay and "Details
-  ansehen" then deep-links to the just-deleted id → "Session nicht
-  gefunden." The discard path must set a "discarding" intent before
-  awaiting the delete (suppressing the latch in `LivePage`), clear
-  the `sessionStorage` latch, never show the save-overlay, and never
-  offer Details for a discarded id. The two duplicated `onDiscard`
-  closures (`WorkoutProgressStrip`, `PauseDialog`) collapse into one
-  live-session discard action so the rule can't rot in one copy.
+- **Empty sessions never persist.** ✅ Landed (`01c97b2`; migration
+  0017 `e72cd26` removed the existing phantoms `01KTW2CNVS`,
+  `01KTW2DKXS`, `01KTW3SBV4`). What shipped is deliberately narrower
+  than first written: pruned is an ended session with **zero
+  persisted strokes and an empty authoritative summary** — not "zero
+  work strokes" — because deleting stroke-bearing sessions would
+  violate replay-grade persistence (ADR-0011) and the strokes FK.
+  The prune lives in `persister.applySessionEnd` (logged); the boot
+  janitor's zero-stroke delete and the stale path's `ErrZeroStrokes`
+  cover the other two shutdown routes through `FinaliseSession`.
+  Residual class this leaves: a deliberately ended warmup-only or
+  race-false-start session persists with stroke rows and zero work
+  totals — handled by the trends endpoint's zero-work filter
+  (§Backend & data), same user-visible outcome, data kept.
+- **Discard leaves no trace and pops no save-overlay.** ✅ Landed
+  (`42f5e69`): the two duplicated `onDiscard` closures collapsed
+  into one `useDiscardSession` hook (used by `WorkoutProgressStrip`
+  and `PauseDialog`) that sets the discarding intent *before*
+  awaiting the delete, suppresses the save-overlay latch, and clears
+  the `sessionStorage` latch. The e2e (`discard-session.spec.ts`)
+  covers overlay suppression and return-home; the remaining
+  acceptance assertions are deferred to the Verlauf list slice
+  (§Testing).
 - **Foreign keys already enforced** (verified 2026-06-11, no work
   needed). The app opens SQLite with `_pragma=foreign_keys(on)` in
   the DSN (`storage/db.go`), so enforcement is on per-connection — a
   stroke cannot reference a deleted session. The `PRAGMA
   foreign_keys → 0` observed earlier was the `sqlite3` CLI's own
   default on the file, not the app's connection. The orphan-row
-  class is already structurally impossible; the prune migration
-  below still runs inside a transaction regardless.
+  class is already structurally impossible. Correction 2026-06-12:
+  the earlier claim that migrations run inside a transaction was
+  wrong — `applyMigrations` execs bodies un-wrapped; 0017 was safe
+  only as a single statement. The runner fix under §Backend & data
+  closes this for 0018+.
 
 ### Extraction-first slice
 
@@ -390,14 +423,18 @@ all), and a vestigial `DualLineChart`. Target: one family.
   achievements are invalidated and absent from responses, and that
   the workout-PB backfill produces time-mode rows from historical
   session aggregates.
-- **Data-integrity preconditions**: an integration test for the
-  empty-session invariant (a session ended with zero work strokes is
-  pruned, not persisted, and is absent from the trends/list
-  responses) and the prune migration; one e2e acceptance test for
-  discard — *tap Verwerfen → no "Session beendet" overlay appears,
-  the app returns home, the session is absent from the list, Verlauf,
-  and Rekorde, and a fresh session starts cleanly* — which covers the
-  overlay-race, the latch leak, and the dead deep-link in one pass.
+- **Data-integrity preconditions** — partially delivered with the
+  fixes. ✅ Delivered: prune unit/integration tests
+  (`persister_test.go`), migration-predicate test
+  (`migrations_prune_test.go`), discard e2e
+  (`discard-session.spec.ts`) for overlay suppression + return home.
+  **Outstanding, owned by the Verlauf/trends slices** (they need the
+  new list and seed helpers): the response-level assertion that
+  pruned and zero-work sessions are absent from the trends/list
+  responses (fold into the typed golden tests), and the discard
+  e2e's remaining assertions — *session absent from the list,
+  Verlauf, and Rekorde; a fresh session starts cleanly* — which
+  close the latch-leak and dead-deep-link coverage.
 - **E2E**: new `web/tests/e2e/ux-audit/history-capture.spec.ts`
   driving Verlauf (all three windows, metric toggle, dot↔row link)
   and Rekorde on phone + tablet viewports, so the section joins the
@@ -411,9 +448,8 @@ all), and a vestigial `DualLineChart`. Target: one family.
   two data-integrity preconditions above (empty-session prune,
   discard-flow integrity) are in scope because they are *sources* of
   the rows Verlauf renders — not redesign.
-- **Warmup-countdown regression** (`locateSegment` reads
-  `work_time_sec`, pinned at 0 during warmup, instead of
-  `phase_time_sec`; regression from `47725f8`) — a live-surface bug
-  with no bearing on Historie data. Tracked as its own bugfix, not in
-  this spec; needs the missing warmup test class (no fixture
-  exercises a warmup phase, which is why it shipped).
+- **Warmup-countdown regression** — ✅ fixed (`ddf7489`: the leading
+  warmup counts against `phase_time_sec`; `f387b51`: a completed
+  warmup no longer skews following time-based work segments via
+  `timeAnchor`). The previously missing warmup test class now exists
+  in `segments.test.ts`, including a time-mode-after-warmup case.
