@@ -64,3 +64,14 @@
   font-weight: 600;
   cursor: pointer;
 }
+
+@media (min-width: 768px) {
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(340px, 420px) 1fr;
+    align-items: start;
+    gap: 20px;
+  }
+  .leftPane { position: sticky; top: 12px; }
+  .list { max-height: calc(100vh - 160px); overflow-y: auto; }
+}
