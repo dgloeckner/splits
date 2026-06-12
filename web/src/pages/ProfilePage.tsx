@@ -8,6 +8,8 @@ import { RowerStrip } from '../app/RowerStrip'
 import { PairingModal } from '../app/PairingModal'
 import { ThemeSwitcher } from './profile/ThemeSwitcher'
 import { Wartung } from './profile/Wartung'
+import { useErgoStatus } from '../offline/ergoStatus'
+import { formatStand } from '../util/dates'
 import styles from './ProfilePage.module.css'
 
 function formatSince(iso: string): string {
@@ -173,6 +175,7 @@ function RowerEditor({ r }: { r: Rower }) {
 export function ProfilePage() {
   const rowers = useRowers()
   const active = useActiveRower()
+  const ergo = useErgoStatus()
   const [pairingOpen, setPairingOpen] = useState(false)
 
   const activeRower = active.data
@@ -228,6 +231,11 @@ export function ProfilePage() {
 
       <footer className={styles.footer}>
         <p className={styles.footerLine}>splits</p>
+        {ergo.packedAt && (
+          <p className={styles.footerLine} data-testid="offline-stand">
+            Unterwegs-Daten: Stand {formatStand(ergo.packedAt)} · {ergo.packedSessions} Sessions
+          </p>
+        )}
         <p className={styles.footerLine} data-testid="build-version">
           Build {__BUILD_SHA__} · {new Date(__BUILD_TIME__).toLocaleString('de-DE')}
         </p>
