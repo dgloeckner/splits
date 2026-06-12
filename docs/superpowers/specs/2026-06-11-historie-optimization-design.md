@@ -1,5 +1,7 @@
 # Historie-Optimierung — Verlauf + Rekorde
 
+> Status: implemented 2026-06-12 — see docs/superpowers/plans/2026-06-12-historie-optimization.md
+
 Design spec, 2026-06-11. Outcome of the history/stats feature review
 (same date) and a brainstorming session. Supersedes the current
 three-tab structure (Sessions · Trends · Rekorde).
