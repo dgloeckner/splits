@@ -90,3 +90,21 @@ export function signedNum(v: number | null | undefined, decimals = 1): string {
   if (rounded === 0) return rounded.toFixed(decimals)
   return `${rounded > 0 ? '+' : ''}${rounded.toFixed(decimals)}`
 }
+
+// formatDurationHuman renders duration totals in real units —
+// "1 h 30 min", "2 min" — replacing hhmm() at total-duration call
+// sites (the "Dauer 0:01" bug class). Carry-safe: minutes round, and
+// 60 min carries into the hour (cf. f46765d).
+export function formatDurationHuman(seconds: number | null | undefined): string {
+  if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return DASH
+  const total = Math.max(0, seconds)
+  let h = Math.floor(total / 3600)
+  let m = Math.round((total - h * 3600) / 60)
+  if (m === 60) {
+    h += 1
+    m = 0
+  }
+  if (h > 0 && m > 0) return `${h} h ${m} min`
+  if (h > 0) return `${h} h`
+  return `${m} min`
+}

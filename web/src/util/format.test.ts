@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mmss, mmssWhole, pace500m, fmtInt, fmtFloat, fmtMeters, hhmm, signedPct, signedNum } from './format'
+import { mmss, mmssWhole, pace500m, fmtInt, fmtFloat, fmtMeters, hhmm, signedPct, signedNum, formatDurationHuman } from './format'
 
 describe('mmss', () => {
   it.each([
@@ -113,4 +113,13 @@ describe('signedNum', () => {
   it('returns em-dash for null', () => {
     expect(signedNum(null)).toBe('—')
   })
+})
+
+describe('formatDurationHuman', () => {
+  it('1 h 30 min', () => expect(formatDurationHuman(5400)).toBe('1 h 30 min'))
+  it('2 min', () => expect(formatDurationHuman(120)).toBe('2 min'))
+  it('exact hours omit minutes', () => expect(formatDurationHuman(7200)).toBe('2 h'))
+  it('carry-safe at the hour boundary', () => expect(formatDurationHuman(3599)).toBe('1 h'))
+  it('sub-minute rounds to minutes', () => expect(formatDurationHuman(40)).toBe('1 min'))
+  it('zero', () => expect(formatDurationHuman(0)).toBe('0 min'))
 })
