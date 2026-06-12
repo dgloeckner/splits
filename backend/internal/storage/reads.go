@@ -41,7 +41,6 @@ type SampleRow struct {
 	StrokeCycleSec float64 `json:"stroke_cycle_sec"`
 	PaceSecPer500m int     `json:"pace_sec_per_500m"`
 	EnergyJoules   int     `json:"energy_joules"`
-	SPI            int     `json:"spi"`
 }
 
 // sessionSelectCols is the column list shared by ListSessions and
@@ -52,7 +51,7 @@ type SampleRow struct {
 // COALESCE(w.mode, '') column resolves correctly.
 const sessionSelectCols = `s.id, s.rower_id, s.workout_id, s.started_at, s.ended_at, s.initial_level,
 		       s.total_distance_m, s.total_time_sec, s.total_strokes,
-		       s.avg_power_w, s.peak_power_w, s.avg_spm, s.avg_dps, s.avg_spi,
+		       s.avg_power_w, s.peak_power_w, s.avg_spm, s.avg_dps,
 		       s.avg_pace_sec_per_500m, s.session_calories,
 		       s.summary_json,
 		       (EXISTS(SELECT 1 FROM pb_distance pd
@@ -157,8 +156,7 @@ func MaxStrokeGlobalID(ctx context.Context, db *sql.DB) (uint64, error) {
 func ListSamples(ctx context.Context, db *sql.DB, sessionID string) ([]SampleRow, error) {
 	rows, err := db.QueryContext(ctx, `
 		SELECT stroke_no, time_sec, distance_m, spm, power_w, cal_per_hr, level,
-		       dps, stroke_cycle_sec, pace_sec_per_500m, energy_joules,
-		       (CASE WHEN spm > 0 AND power_w >= 20 THEN power_w / spm ELSE 0 END) AS spi
+		       dps, stroke_cycle_sec, pace_sec_per_500m, energy_joules
 		FROM strokes
 		WHERE session_id = ?
 		ORDER BY stroke_no ASC`, sessionID)
@@ -171,7 +169,7 @@ func ListSamples(ctx context.Context, db *sql.DB, sessionID string) ([]SampleRow
 	for rows.Next() {
 		var s SampleRow
 		if err := rows.Scan(&s.StrokeNo, &s.TimeSec, &s.DistanceM, &s.SPM, &s.PowerW, &s.CalPerHr, &s.Level,
-			&s.DPS, &s.StrokeCycleSec, &s.PaceSecPer500m, &s.EnergyJoules, &s.SPI); err != nil {
+			&s.DPS, &s.StrokeCycleSec, &s.PaceSecPer500m, &s.EnergyJoules); err != nil {
 			return nil, err
 		}
 		out = append(out, s)
@@ -197,14 +195,13 @@ func scanSession(r rowScanner) (SessionRow, error) {
 		peakPower   sql.NullFloat64
 		avgSPM      sql.NullFloat64
 		avgDPS      sql.NullFloat64
-		avgSPI      sql.NullFloat64
 		avgPace     sql.NullFloat64
 		sessionCal  sql.NullFloat64
 		summaryStr  sql.NullString
 	)
 	if err := r.Scan(&out.ID, &out.RowerID, &workoutStr, &startedStr, &endedStr, &out.InitialLevel,
 		&totalDist, &totalTime, &totalStroke,
-		&avgPower, &peakPower, &avgSPM, &avgDPS, &avgSPI, &avgPace, &sessionCal,
+		&avgPower, &peakPower, &avgSPM, &avgDPS, &avgPace, &sessionCal,
 		&summaryStr, &out.HasPB, &out.WorkoutMode); err != nil {
 		return out, err
 	}
@@ -248,7 +245,6 @@ func scanSession(r rowScanner) (SessionRow, error) {
 			PeakPowerW:        intOrFloat(peakPower),
 			AvgSPM:            avgSPM.Float64,
 			AvgDPS:            avgDPS.Float64,
-			AvgSPI:            intOrFloat(avgSPI),
 			AvgPaceSecPer500m: intOrFloat(avgPace),
 			SessionCalories:   intOrFloat(sessionCal),
 		}

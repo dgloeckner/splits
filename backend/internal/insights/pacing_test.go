@@ -14,7 +14,6 @@ func samplesFromSplits(splits []int) *event.SessionSamples {
 		s.Watt = append(s.Watt, 200)
 		s.SPM = append(s.SPM, 22)
 		s.DPS = append(s.DPS, 9.0)
-		s.SPI = append(s.SPI, 9)
 	}
 	return s
 }

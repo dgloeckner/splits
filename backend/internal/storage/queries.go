@@ -63,14 +63,14 @@ func UpdateSessionEndWithEventID(ctx context.Context, db dbExec, id string, ende
 			ended_at = ?,
 			total_distance_m = ?, total_time_sec = ?, total_strokes = ?,
 			avg_power_w = ?, peak_power_w = ?,
-			avg_spm = ?, avg_dps = ?, avg_spi = ?,
+			avg_spm = ?, avg_dps = ?,
 			avg_pace_sec_per_500m = ?, session_calories = ?,
 			summary_json = ?, last_event_id = ?
 		WHERE id = ?`,
 		endedAt.UTC().Format(time.RFC3339Nano),
 		s.TotalDistanceM, s.TotalTimeSec, s.TotalStrokes,
 		float64(s.AvgPowerW), float64(s.PeakPowerW),
-		s.AvgSPM, s.AvgDPS, float64(s.AvgSPI),
+		s.AvgSPM, s.AvgDPS,
 		float64(s.AvgPaceSecPer500m), float64(s.SessionCalories),
 		summaryStr, lastEventID, id,
 	); err != nil {

@@ -30,7 +30,6 @@ func TestRunStandardSession(t *testing.T) {
 		s.T = append(s.T, float64(i+1))
 		s.SPM = append(s.SPM, 22)
 		s.DPS = append(s.DPS, 9.0)
-		s.SPI = append(s.SPI, 9)
 	}
 	res := Run(SessionMeta{WorkoutMode: "distance", DurationSec: 600, DistanceM: 2480}, s)
 	if !res.Eligible {

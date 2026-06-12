@@ -53,7 +53,6 @@ func ComputeSamples(strokes []event.StrokePayload, bucketStrokes int) *event.Ses
 		Watt:          make([]int, 0, nBuckets),
 		SPM:           make([]int, 0, nBuckets),
 		DPS:           make([]float64, 0, nBuckets),
-		SPI:           make([]int, 0, nBuckets),
 	}
 
 	for start := 0; start < len(strokes); start += bucketStrokes {
@@ -63,17 +62,12 @@ func ComputeSamples(strokes []event.StrokePayload, bucketStrokes int) *event.Ses
 		}
 		var paceSum, wattSum, spmSum int
 		var dpsSum float64
-		var spiSum, spiCount int
 		for i := start; i < end; i++ {
 			s := strokes[i]
 			paceSum += s.PaceSecPer500m
 			wattSum += s.PowerW
 			spmSum += s.SPM
 			dpsSum += s.DPS
-			if s.SPM > 0 && s.PowerW >= 20 {
-				spiSum += s.PowerW / s.SPM
-				spiCount++
-			}
 		}
 		n := end - start
 		out.T = append(out.T, strokes[end-1].TimeSec)
@@ -81,11 +75,6 @@ func ComputeSamples(strokes []event.StrokePayload, bucketStrokes int) *event.Ses
 		out.Watt = append(out.Watt, wattSum/n)
 		out.SPM = append(out.SPM, spmSum/n)
 		out.DPS = append(out.DPS, dpsSum/float64(n))
-		spiBucket := 0
-		if spiCount > 0 {
-			spiBucket = spiSum / spiCount
-		}
-		out.SPI = append(out.SPI, spiBucket)
 	}
 	return out
 }

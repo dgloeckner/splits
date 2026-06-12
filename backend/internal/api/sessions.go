@@ -202,8 +202,8 @@ func getSamples(db *sql.DB) http.HandlerFunc {
 // using the same field names the live samples endpoint already
 // returns. stroke_no is the bucket index; fields not stored in the
 // downsampled series (distance_m, level, …) are zeroed.
-// DPS and SPI are populated when present; older summaries written
-// before these fields were added will leave them at zero.
+// DPS is populated when present; older summaries written
+// before this field was added will leave it at zero.
 func expandSamples(s *event.SessionSamples) []storage.SampleRow {
 	if s == nil {
 		return nil
@@ -220,9 +220,6 @@ func expandSamples(s *event.SessionSamples) []storage.SampleRow {
 		}
 		if i < len(s.DPS) {
 			row.DPS = s.DPS[i]
-		}
-		if i < len(s.SPI) {
-			row.SPI = s.SPI[i]
 		}
 		out = append(out, row)
 	}

@@ -84,7 +84,6 @@ func Marshal(e Event) ([]byte, error) {
 				PeakPowerW:        p.Summary.PeakPowerW,
 				AvgSPM:            p.Summary.AvgSPM,
 				AvgDPS:            p.Summary.AvgDPS,
-				AvgSPI:            p.Summary.AvgSPI,
 				AvgPaceSecPer500m: p.Summary.AvgPaceSecPer500m,
 				SessionCalories:   p.Summary.SessionCalories,
 			},
@@ -180,7 +179,6 @@ type summaryWire struct {
 	PeakPowerW        int     `json:"peak_power_w"`
 	AvgSPM            float64 `json:"avg_spm"`
 	AvgDPS            float64 `json:"avg_dps"`
-	AvgSPI            int     `json:"avg_spi"`
 	AvgPaceSecPer500m int     `json:"avg_pace_sec_per_500m"`
 	SessionCalories   int     `json:"session_calories"`
 }

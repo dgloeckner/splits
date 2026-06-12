@@ -147,12 +147,6 @@ export function SessionDetailPage() {
             </span>
           </div>
           <div className={styles.heroSecondaryRow}>
-            <span className={`label-sm ${styles.heroSecondaryKey}`}>Ø SPI</span>
-            <span className={styles.heroSecondaryValue} data-testid="detail-avg-spi">
-              {fmtInt(s.summary?.avg_spi ?? null)}
-            </span>
-          </div>
-          <div className={styles.heroSecondaryRow}>
             <span className={`label-sm ${styles.heroSecondaryKey}`}>Schläge</span>
             <span className={styles.heroSecondaryValue} data-testid="detail-total-strokes">
               {fmtInt(s.total_strokes ?? null)}

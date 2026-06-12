@@ -191,14 +191,14 @@ func FinaliseSession(
 			ended_at = ?,
 			total_distance_m = ?, total_time_sec = ?, total_strokes = ?,
 			avg_power_w = ?, peak_power_w = ?,
-			avg_spm = ?, avg_dps = ?, avg_spi = ?,
+			avg_spm = ?, avg_dps = ?,
 			avg_pace_sec_per_500m = ?, session_calories = ?,
 			summary_json = ?, last_event_id = ?
 		WHERE id = ? AND ended_at IS NULL`,
 		endedAt.UTC().Format(time.RFC3339Nano),
 		summary.TotalDistanceM, summary.TotalTimeSec, summary.TotalStrokes,
 		float64(summary.AvgPowerW), float64(summary.PeakPowerW),
-		summary.AvgSPM, summary.AvgDPS, float64(summary.AvgSPI),
+		summary.AvgSPM, summary.AvgDPS,
 		float64(summary.AvgPaceSecPer500m), float64(summary.SessionCalories),
 		summaryStr, lastEventID, sessionID,
 	)

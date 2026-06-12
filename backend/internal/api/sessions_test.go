@@ -136,7 +136,7 @@ func TestGetSessionSamples(t *testing.T) {
 }
 
 func TestGetSessionSamplesFromSummary(t *testing.T) {
-	// Simulate a compacted session: strokes deleted, summary has Samples with DPS+SPI.
+	// Simulate a compacted session: strokes deleted, summary has Samples with DPS.
 	db, err := storage.Open(filepath.Join(t.TempDir(), "t.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -154,7 +154,6 @@ func TestGetSessionSamplesFromSummary(t *testing.T) {
 		TotalTimeSec:      60,
 		TotalStrokes:      10,
 		AvgPaceSecPer500m: 125,
-		AvgSPI:            8,
 		Samples: &event.SessionSamples{
 			BucketStrokes: 5,
 			T:             []float64{10.0, 20.0},
@@ -162,7 +161,6 @@ func TestGetSessionSamplesFromSummary(t *testing.T) {
 			Watt:          []int{200, 210},
 			SPM:           []int{25, 26},
 			DPS:           []float64{8.5, 9.0},
-			SPI:           []int{8, 8},
 		},
 	}
 	if err := storage.UpdateSessionEnd(ctx, db.Handle(), "S2", started.Add(time.Minute), summary); err != nil {
@@ -183,14 +181,10 @@ func TestGetSessionSamplesFromSummary(t *testing.T) {
 	if len(body.Samples) != 2 {
 		t.Fatalf("got %d samples, want 2", len(body.Samples))
 	}
-	// DPS and SPI should be non-zero.
+	// DPS should be non-zero.
 	dps0, _ := body.Samples[0]["dps"].(float64)
 	if dps0 == 0 {
 		t.Errorf("samples[0].dps = 0, want non-zero (from summary)")
-	}
-	spi0, _ := body.Samples[0]["spi"].(float64)
-	if spi0 == 0 {
-		t.Errorf("samples[0].spi = 0, want non-zero (from summary)")
 	}
 }
 

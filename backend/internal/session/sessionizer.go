@@ -94,8 +94,6 @@ type accumulator struct {
 	peakPower     int
 	spmSum        int
 	dpsSum        float64
-	spiSum        int
-	spiCount      int
 	paceSum       int
 	calSum        int
 }
@@ -814,10 +812,6 @@ func (s *Sessionizer) accumulate(p *event.StrokePayload) {
 	}
 	st.acc.spmSum += p.SPM
 	st.acc.dpsSum += p.DPS
-	if p.SPM > 0 && p.PowerW >= 20 {
-		st.acc.spiSum += p.PowerW / p.SPM
-		st.acc.spiCount++
-	}
 	st.acc.paceSum += p.PaceSecPer500m
 	st.acc.calSum += p.EnergyJoules
 	p2 := *p
@@ -1056,9 +1050,6 @@ func (s *Sessionizer) closeSession() []event.Event {
 		summary.AvgDPS = st.acc.dpsSum / float64(st.acc.strokes)
 		summary.AvgPaceSecPer500m = st.acc.paceSum / st.acc.strokes
 		summary.SessionCalories = st.acc.calSum / 1000 // joules → kcal
-		if st.acc.spiCount > 0 {
-			summary.AvgSPI = st.acc.spiSum / st.acc.spiCount
-		}
 	}
 	s.mu.Lock()
 	s.currentSessionStart = nil

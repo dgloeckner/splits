@@ -203,10 +203,4 @@ func TestListSamplesOrderByStrokeNo(t *testing.T) {
 	if samples[0].StrokeNo != 1 || samples[2].StrokeNo != 3 {
 		t.Errorf("not sorted: %+v", samples)
 	}
-	// SPI is derived at query time: power_w=200, spm=25 → 200/25=8.
-	for i, s := range samples {
-		if s.SPI != 8 {
-			t.Errorf("samples[%d].SPI = %d, want 8 (power=200/spm=25)", i, s.SPI)
-		}
-	}
 }
