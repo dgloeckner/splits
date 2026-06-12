@@ -85,8 +85,18 @@ prefetch (active rower only).
 
 ### 2. Prefetch ("Rucksack packen") — `web/src/offline/prefetch.ts`
 
-- Runs once per app load, low priority (after first paint /
-  `requestIdleCallback` fallback `setTimeout`), for the active rower:
+- Triggers: once per app load, low priority (after first paint /
+  `requestIdleCallback` fallback `setTimeout`), **and** on
+  `visibilitychange` → visible when the last *successful* pack is
+  older than 15 minutes. Not a periodic timer: a mobile PWA rarely
+  reloads — it gets resumed — and the resume trigger covers the
+  "rowed with the app open in the background, left home without
+  reopening it" gap (post-session invalidation only refetches
+  *mounted* queries; the new session's detail/samples are never
+  fetched otherwise). A timer would poll the Pi while idle and fire
+  uselessly when away. The 15-min guard (plus a no-concurrent-pack
+  guard) keeps foreground-flapping from hammering the Pi Zero.
+- Each run packs, for the active rower:
   - `rower-trends` × {`30d`, `365d`, `all`}
   - `rower-pbs`, `rower-achievements`, `rower-lifetime`
   - sessions list (existing default `limit=50`)
@@ -97,9 +107,9 @@ prefetch (active rower only).
   `staleTime`).
 - Unreachable backend → prefetches fail silently (they share the fast
   fetch timeout below). No retry storm: `retry: false` for prefetches.
-- Freshness model: the rower opens the app at home after every
-  workout, so the bag is at most one workout stale. No manual "pack"
-  button in v1.
+- Freshness model: boot + resume packing means the bag is refreshed
+  whenever the app is in hand at home — at most one workout stale in
+  practice. No manual "pack" button in v1.
 
 ### 3. Fast failure — `web/src/api/client.ts`
 
@@ -153,7 +163,9 @@ is well under 1 MB — no quota or write-throttling concerns.
 - **vitest:** `isPersistableQuery` allowlist (each prefix in/out);
   banner visibility logic (error+data → shown, fresh → hidden,
   date formatting); prefetch issues the expected query keys (mock
-  fetch, assert cache contents).
+  fetch, assert cache contents) and the resume re-pack guard (visible
+  event < 15 min after a successful pack → no-op; failed pack does
+  not arm the guard).
 - **Playwright e2e (the real proof):** warm the cache with the backend
   up (visit Verlauf/Rekorde or let prefetch run), then `route.abort()`
   all `/api/*`, reload the page, assert Verlauf charts, Rekorde, and a
