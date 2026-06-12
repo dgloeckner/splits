@@ -237,6 +237,12 @@ prefetch (active rower only).
   - Favorites stay visible but dimmed/disabled — they are start
     affordances that need the Ergo; hiding them would look broken.
   - `StaleSessionCard` keeps hiding itself (volatile, as today).
+- **Pack status at home:** a passive one-liner on ProfilePage next to
+  the existing build info — `Unterwegs-Daten: Stand 12. Juni, 18:42 ·
+  10 Sessions` — read straight from the cursor record. One glance
+  before a trainer day confirms the bag; no badges, no notifications,
+  no manual pack button (boot + resume triggers make a stale bag
+  rare; a button would imply a workflow where none is needed).
 - `['favorites', rowerId]` joins the persistence allowlist (organic
   capture only — no pack entry; it refreshes on every at-home Home
   visit) so the dimmed favorites render with real content.
