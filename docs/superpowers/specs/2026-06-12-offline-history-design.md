@@ -205,6 +205,15 @@ prefetch (active rower only).
   - `VerlaufTab.tsx` renders `{error && 'Konnte Verlauf nicht laden.'}`
     unconditionally alongside `{data && …}` → gate to `error && !data`.
   - `RekordeTab.tsx` is already data-first; no change.
+- **Verlauf list rows beyond the bag:** the list (embedded in the
+  trends response) shows every session in the window, but only the
+  last N have cached detail + samples. When the Ergo is unreachable,
+  rows without a cached detail (`queryClient.getQueryState(['sessions',
+  id])`, checked only in the unreachable state) render **dimmed and
+  non-navigable** — same "visible but disabled = needs the Ergo"
+  language as the Home favorites. The row's inline aggregates (date,
+  distance, time, split) remain readable; no dead-end error screens
+  mid-demo.
 
 ### 5. Ergo-reachability signal + offline Home
 
