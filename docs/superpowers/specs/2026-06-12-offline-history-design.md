@@ -107,13 +107,22 @@ prefetch (active rower only).
      the last full pack is < 24 h old → done. A resume at home costs
      one request.
   3. *Cursor miss:* full pack — `rower-trends` × {`30d`, `365d`,
-     `all`}, `rower-pbs`, `rower-achievements`, sessions list
-     (default `limit=50`), then detail + samples (+ workout) for the
-     **last 10 sessions**, skipping IDs already cached: finalized
-     sessions are immutable, so a cached entry stays valid (within
-     `maxAge`). Steady state: a new workout costs ~8 requests.
-  4. *Cursor write:* `{rowerId, statsVersion, packedAt}` to
-     `idb-keyval`, only after a fully successful pack.
+     `all`}, `rower-pbs`, `rower-achievements`, then detail + samples
+     (+ workout) for the **last 10 sessions**, whose IDs are derived
+     from the just-packed trends response (the Verlauf session list is
+     embedded in `TrendsResponse` — no separate `listSessions` pack;
+     that endpoint is only consumed by Wartung). Already-cached
+     session IDs are skipped: finalized sessions are immutable, so a
+     cached entry stays valid (within `maxAge`). Steady state: a new
+     workout costs ~8 requests.
+  4. *Cursor write:* `{rowerId, statsVersion, buildSha, packedAt}` to
+     `idb-keyval`, only after a fully successful pack. `buildSha`
+     (from `__BUILD_SHA__`) must match at probe time or the pack runs
+     in full: the persisted query cache is busted on deploy, but the
+     cursor record would survive — without this check, a same-day
+     "deploy at home, club at noon" trip would skip packing into the
+     freshly emptied cache. (The `maxAge`-expiry variant of the same
+     desync is already covered by the 24 h condition.)
   - The 24 h secondary condition exists because trends windows are
     rolling: a 30d window drifts daily even with no new session, so an
     unchanged cursor alone would let chart content age silently.
@@ -153,6 +162,16 @@ prefetch (active rower only).
   (`10. Juni, 18:42`).
 - No banner while fresh or while a first fetch is in flight. Banner
   disappears as soon as a refetch succeeds.
+- **Page error-gate audit (required):** the surfaces must be
+  data-first — error UI only when `error && !data`, banner when
+  `error && data`. Two concrete fixes:
+  - `SessionDetailPage.tsx` gates with `sessionQ.error || !sessionQ.data`
+    → offline it flips to the full error screen even though restored
+    data is present. Change to `!sessionQ.data` (error screen only
+    without data).
+  - `VerlaufTab.tsx` renders `{error && 'Konnte Verlauf nicht laden.'}`
+    unconditionally alongside `{data && …}` → gate to `error && !data`.
+  - `RekordeTab.tsx` is already data-first; no change.
 
 ### 5. Restore gating
 
@@ -179,16 +198,22 @@ is well under 1 MB — no quota or write-throttling concerns.
 - Corrupt/incompatible persisted payload: persister `removeClient` +
   throwing restore falls back to an empty cache (library behavior) —
   identical to first-open.
+- Accepted residual: the persister flushes on a ~1 s throttle, so
+  killing the app between pack-success and flush can leave a cursor
+  that claims packed while an entry is missing. Self-heals on the next
+  version bump or 24 h pack; not worth extra machinery.
 
 ## Testing
 
 - **vitest:** `isPersistableQuery` allowlist (each prefix in/out);
   banner visibility logic (error+data → shown, fresh → hidden,
-  date formatting); prefetch cursor logic (unchanged version + recent
-  pack → probe only; version bump → full pack; cached session IDs
-  skipped; cursor written only after full success) and the resume
-  guard (visible event < 15 min after a successful probe → no-op;
-  failure does not arm the guard).
+  date formatting); page error gates (`error && data` → content +
+  banner, `error && !data` → error UI); prefetch cursor logic
+  (unchanged version + recent pack → probe only; version bump or
+  `buildSha` mismatch → full pack; cached session IDs skipped; cursor
+  written only after full success) and the resume guard (visible
+  event < 15 min after a successful probe → no-op; failure does not
+  arm the guard).
 - **Playwright e2e (the real proof):** warm the cache with the backend
   up (visit Verlauf/Rekorde or let prefetch run), then `route.abort()`
   all `/api/*`, reload the page, assert Verlauf charts, Rekorde, and a
