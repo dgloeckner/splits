@@ -8,7 +8,7 @@ import {
   type RowerPBs,
 } from '../../api/client'
 import { useActiveRower } from '../../hooks/useActiveRower'
-import { fmtMeters, mmssWhole, pace500m } from '../../util/format'
+import { mmssWhole } from '../../util/format'
 import styles from './RekordeTab.module.css'
 
 export function RekordeTab() {
@@ -57,16 +57,12 @@ export function RekordeTab() {
 
   const distanceByM = new Map(pbs.distance.map((d) => [d.distance_m, d]))
   const milestones = (achievementsQ.data ?? []).filter((a) => a.type === 'volume')
-  const consistency = (achievementsQ.data ?? []).filter(
-    (a) => a.type === 'consistency_intra',
-  )
 
   const isEmpty =
     pbs.distance.length === 0 &&
     pbs.window.length === 0 &&
     pbs.workout.length === 0 &&
-    milestones.length === 0 &&
-    consistency.length === 0
+    milestones.length === 0
 
   if (isEmpty) {
     // F8: match the Trends empty-state pattern — copy + tappable
@@ -95,7 +91,6 @@ export function RekordeTab() {
       <DistanceGrid byM={distanceByM} />
       {pbs.window.length > 0 && <WindowSection items={pbs.window} />}
       {pbs.workout.length > 0 && <WorkoutSection items={pbs.workout} />}
-      {consistency.length > 0 && <ConsistencyCards items={consistency} />}
       {milestones.length > 0 && <MilestonesStrip items={milestones} />}
       {timeline.length > 0 && <Timeline items={timeline} />}
     </>
@@ -158,6 +153,21 @@ function pickNewest(pbs: RowerPBs, achievements: Achievement[]): HeroItem | null
       delta: deltaWindow(w),
     })
   }
+  for (const w of pbs.workout) {
+    consider({
+      id: `wo-${w.shape_hash}`,
+      emoji: '🏆',
+      label: `Workout-PB · ${workoutPBLabel(w)}`,
+      achievedAt: w.source_session_started_at || w.achieved_at,
+      eyebrow: 'NEUESTER ERFOLG',
+      chip: `🏆 ${workoutPBLabel(w).toUpperCase()}`,
+      value: Math.round(w.value).toLocaleString('de-DE'),
+      unit: 'm',
+      delta: w.previous_value !== undefined && Math.round(w.value - w.previous_value) !== 0
+        ? `${w.value > w.previous_value ? '+' : '−'}${Math.abs(Math.round(w.value - w.previous_value)).toLocaleString('de-DE')} m`
+        : undefined,
+    })
+  }
   for (const a of achievements) {
     consider({
       id: `ach-${a.key}`,
@@ -194,7 +204,7 @@ function buildTimeline(pbs: RowerPBs, achievements: Achievement[]): TimelineItem
     items.push({
       id: `wo-${w.shape_hash}`,
       emoji: '🏆',
-      label: `Workout-PB · ${modeLabel(w.mode)}`,
+      label: `Workout-PB · ${workoutPBLabel(w)} · ${Math.round(w.value).toLocaleString('de-DE')} m`,
       achievedAt: w.source_session_started_at || w.achieved_at,
     })
   }
@@ -258,50 +268,18 @@ function deltaWindow(w: RowerPBs['window'][number]): string | undefined {
   if (w.previous_value === undefined) return undefined
   const diff = w.value - w.previous_value
   if (Math.abs(diff) < 1e-9) return undefined
-  switch (w.metric) {
-    case 'pace': {
-      const d = Math.round(diff)
-      return d === 0 ? undefined : `${d > 0 ? '+' : '-'}${Math.abs(d)}s`
-    }
-    case 'power':
-      return `${diff > 0 ? '+' : ''}${Math.round(diff)} W`
-    case 'dps':
-      return `${diff > 0 ? '+' : ''}${diff.toFixed(2)} m`
-    case 'spi':
-      return `${diff > 0 ? '+' : ''}${diff.toFixed(1)} J`
-  }
+  if (w.metric === 'power') return `${diff > 0 ? '+' : ''}${Math.round(diff)} W`
   return undefined
 }
 
 function achievementLabel(a: Achievement): string {
   if (a.type === 'volume') return milestoneLabel(a.key)
-  if (a.type === 'consistency_intra') {
-    const map: Record<string, string> = {
-      consistency_power_cv: 'Power-Konstanz',
-      consistency_pace_split_cv: 'Split-Konstanz',
-      consistency_spm_cv: 'SPM-Konstanz',
-    }
-    return map[a.key] ?? a.key
-  }
   return a.key
 }
 
 function achievementValueText(a: Achievement): string {
-  if (a.type === 'consistency_intra' && typeof a.value === 'number') {
-    return consistencyBand(a.value).label
-  }
   if (a.type === 'volume') return milestoneLabel(a.key)
   return ''
-}
-
-// Maps coefficient-of-variation (stddev/mean) to a qualitative band.
-// CV is a statistician's metric; rowers want "wie gleichmäßig war
-// ich?". Bands chosen empirically for steady-state ergo work.
-function consistencyBand(cv: number): { label: string; tone: 'good' | 'ok' | 'warn' } {
-  if (cv < 0.03) return { label: 'Sehr gleichmäßig', tone: 'good' }
-  if (cv < 0.06) return { label: 'Gleichmäßig', tone: 'good' }
-  if (cv < 0.1) return { label: 'Schwankend', tone: 'ok' }
-  return { label: 'Sehr schwankend', tone: 'warn' }
 }
 
 function formatRelative(iso: string): string {
@@ -335,7 +313,7 @@ function DistanceGrid({ byM }: { byM: Map<number, RowerPBs['distance'][number]> 
               </span>
               {pb && (
                 <span className={styles.distanceDate}>
-                  {formatShortDate(pb.achieved_at)}
+                  {formatShortDate(pb.source_session_started_at || pb.achieved_at)}
                 </span>
               )}
             </div>
@@ -372,12 +350,10 @@ function WorkoutSection({ items }: { items: RowerPBs['workout'] }) {
       <h2 className={styles.sectionLabel}>Bestleistungen · Workouts</h2>
       <div className={styles.workoutList}>
         {items.map((w) => (
-          <div key={w.shape_hash} className={styles.workoutCard}>
-            <span className={styles.workoutMode}>{modeLabel(w.mode)}</span>
+          <div key={w.shape_hash} id={`pb-workout-${w.shape_hash}`} className={styles.workoutCard}>
+            <span className={styles.workoutMode}>{workoutPBLabel(w)}</span>
             <span className={styles.workoutValue}>
-              {w.value_kind === 'time_sec'
-                ? mmssWhole(w.value)
-                : `${fmtMeters(w.value)} m`}
+              {Math.round(w.value).toLocaleString('de-DE')} m
             </span>
           </div>
         ))}
@@ -386,41 +362,13 @@ function WorkoutSection({ items }: { items: RowerPBs['workout'] }) {
   )
 }
 
-function ConsistencyCards({ items }: { items: Achievement[] }) {
-  const byKey = new Map(items.map((a) => [a.key, a]))
-  const cards: { key: string; label: string }[] = [
-    { key: 'consistency_power_cv', label: 'Power-Konstanz' },
-    { key: 'consistency_pace_split_cv', label: 'Split-Konstanz' },
-    { key: 'consistency_spm_cv', label: 'SPM-Konstanz' },
-  ]
-  return (
-    <section className={styles.section}>
-      <h2 className={styles.sectionLabel}>Konstanz-Bestleistungen</h2>
-      <div className={styles.consistencyGrid}>
-        {cards.map((c) => {
-          const a = byKey.get(c.key)
-          const band = a && typeof a.value === 'number' ? consistencyBand(a.value) : null
-          return (
-            <div key={c.key} className={styles.consistencyCard}>
-              <span className={styles.consistencyLabel}>{c.label}</span>
-              <span
-                className={styles.consistencyValue}
-                data-tone={band?.tone}
-              >
-                {band ? band.label : '—'}
-              </span>
-              {band && a && typeof a.value === 'number' && (
-                <span className={styles.consistencySub}>
-                  CV {(a.value * 100).toFixed(1)} %
-                </span>
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </section>
-  )
+// Time-mode cards name the duration: "Beste Distanz · 20 min".
+// Only time-mode workout-PBs exist (CONTEXT.md §PB-leader).
+function workoutPBLabel(w: RowerPBs['workout'][number]): string {
+  const sec = typeof w.params?.seconds === 'number' ? (w.params.seconds as number) : null
+  return sec ? `Beste Distanz · ${Math.round(sec / 60)} min` : 'Beste Distanz'
 }
+
 
 function MilestonesStrip({ items }: { items: Achievement[] }) {
   return (
@@ -444,48 +392,15 @@ function distanceLabel(m: number): string {
 
 function windowLabel(w: { metric: string; window_kind: string; window_size: number }): string {
   const win = w.window_kind === 'seconds' ? `${w.window_size} s` : `${w.window_size} Schläge`
-  switch (w.metric) {
-    case 'power':
-      return `Beste ${win} Ø Power`
-    case 'pace':
-      // Split is per-500m by definition; the windowed PB is the
-      // average split achieved during the user's best window.
-      return `Schnellster ${win} Ø Split`
-    case 'dps':
-      return `Beste ${win} Ø DPS`
-    case 'spi':
-      return `Beste ${win} Ø SPI`
-  }
+  if (w.metric === 'power') return `Beste ${win} Ø Power`
   return `${w.metric} ${win}`
 }
 
 function windowValue(w: { metric: string; value: number }): string {
-  switch (w.metric) {
-    case 'power':
-      return `${Math.round(w.value)} W`
-    case 'pace':
-      return `${pace500m(Math.round(w.value))} /500m`
-    case 'dps':
-      return `${w.value.toFixed(2)} m`
-    case 'spi':
-      return `${w.value.toFixed(1)} J`
-  }
+  if (w.metric === 'power') return `${Math.round(w.value)} W`
   return String(w.value)
 }
 
-function modeLabel(mode: string): string {
-  switch (mode) {
-    case 'distance':
-      return 'Distanz'
-    case 'time':
-      return 'Zeit'
-    case 'intervals':
-      return 'Intervalle'
-    case 'just_row':
-      return 'Just Row'
-  }
-  return mode
-}
 
 function milestoneLabel(key: string): string {
   if (key.startsWith('distance_') && key.endsWith('m')) {

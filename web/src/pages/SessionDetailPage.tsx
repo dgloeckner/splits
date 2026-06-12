@@ -187,16 +187,6 @@ export function SessionDetailPage() {
 
 function bannerWindowLabel(metric: string, kind: string, size: number): string {
   const window = kind === 'seconds' ? `${size} s` : `${size} Schläge`
-  switch (metric) {
-    case 'power':
-      return `Power ${window}`
-    case 'pace':
-      return `Pace ${window}`
-    case 'dps':
-      return `DPS ${window}`
-    case 'spi':
-      return `SPI ${window}`
-    default:
-      return `${metric} ${window}`
-  }
+  if (metric === 'power') return `Power ${window}`
+  return `${metric} ${window}`
 }

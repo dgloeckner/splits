@@ -63,7 +63,7 @@ describe('RekordeTab', () => {
   it('renders distance grid with placeholders for missing distances', async () => {
     mockBackend({
       pbs: {
-        distance: [{ distance_m: 2000, time_sec: 480, achieved_at: '2026-04-01T10:00:00Z' }],
+        distance: [{ distance_m: 2000, time_sec: 480, achieved_at: '2026-04-01T10:00:00Z', source_session_started_at: '2026-04-01T10:00:00Z' }],
         window: [],
         workout: [],
       },
@@ -80,7 +80,7 @@ describe('RekordeTab', () => {
   it('renders milestones strip when achievements include volume entries', async () => {
     mockBackend({
       pbs: {
-        distance: [{ distance_m: 1000, time_sec: 240, achieved_at: '2026-04-01T10:00:00Z' }],
+        distance: [{ distance_m: 1000, time_sec: 240, achieved_at: '2026-04-01T10:00:00Z', source_session_started_at: '2026-04-01T10:00:00Z' }],
         window: [],
         workout: [],
       },
@@ -183,5 +183,112 @@ describe('RekordeTab', () => {
     const timelineLabels = labels.filter((el) => el.className.includes('timelineLabel'))
     expect(timelineLabels[0].textContent).toMatch(/500 m · 2:14/)
     expect(timelineLabels[1].textContent).toMatch(/2 k · 8:00/)
+  })
+
+  it('grid date comes from source_session_started_at not achieved_at', async () => {
+    mockBackend({
+      pbs: {
+        distance: [
+          {
+            distance_m: 2000,
+            time_sec: 480,
+            achieved_at: '2026-06-11T10:00:00Z',
+            source_session_started_at: '2026-03-02T08:00:00Z',
+            source_session_id: 'S1',
+          },
+        ],
+        window: [],
+        workout: [],
+      },
+    })
+    renderTab()
+    await waitFor(() =>
+      expect(screen.getByText(/Persönliche Bestzeiten · Distanzen/)).toBeInTheDocument(),
+    )
+    // Should show date from source_session_started_at (March 2), not achieved_at (June 11)
+    // Date appears in multiple places (hero, grid card, timeline)
+    const dateEls = screen.getAllByText('02.03.26')
+    expect(dateEls.length).toBeGreaterThanOrEqual(1)
+    // The grid distanceDate element specifically should show March 2
+    expect(dateEls.some((el) => el.className.includes('distanceDate'))).toBe(true)
+    expect(screen.queryByText('11.06.26')).not.toBeInTheDocument()
+  })
+
+  it('renders workout PB card with "Beste Distanz · 20 min" label and German-formatted value', async () => {
+    mockBackend({
+      pbs: {
+        distance: [],
+        window: [],
+        workout: [
+          {
+            shape_hash: 'H20',
+            mode: 'time',
+            params: { seconds: 1200 },
+            value_kind: 'distance_m',
+            value: 4812,
+            achieved_at: '2026-04-01T10:00:00Z',
+            source_session_started_at: '2026-04-01T10:00:00Z',
+          },
+        ],
+      },
+    })
+    renderTab()
+    await waitFor(() =>
+      expect(screen.getByText(/Bestleistungen · Workouts/)).toBeInTheDocument(),
+    )
+    expect(screen.getAllByText('Beste Distanz · 20 min').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getAllByText(/4\.812/).length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('does not render Konstanz section even when consistency_intra achievements are present', async () => {
+    mockBackend({
+      pbs: {
+        distance: [{ distance_m: 1000, time_sec: 240, achieved_at: '2026-04-01T10:00:00Z', source_session_started_at: '2026-04-01T10:00:00Z' }],
+        window: [],
+        workout: [],
+      },
+      achievements: [
+        { type: 'consistency_intra', key: 'consistency_power_cv', value: 0.02, achieved_at: '2026-04-01T10:00:00Z' },
+      ],
+    })
+    renderTab()
+    await waitFor(() =>
+      expect(screen.getByText(/Persönliche Bestzeiten · Distanzen/)).toBeInTheDocument(),
+    )
+    expect(screen.queryByText(/Konstanz/)).not.toBeInTheDocument()
+  })
+
+  it('hero can be a workout PB when it is the newest entry', async () => {
+    const old = new Date(Date.now() - 5 * 86_400_000).toISOString()
+    const newest = new Date(Date.now() - 1 * 86_400_000).toISOString()
+    mockBackend({
+      pbs: {
+        distance: [
+          {
+            distance_m: 500,
+            time_sec: 134,
+            achieved_at: old,
+            source_session_started_at: old,
+            source_session_id: 'S0',
+          },
+        ],
+        window: [],
+        workout: [
+          {
+            shape_hash: 'H20',
+            mode: 'time',
+            params: { seconds: 1200 },
+            value_kind: 'distance_m',
+            value: 4812,
+            achieved_at: newest,
+            source_session_started_at: newest,
+          },
+        ],
+      },
+    })
+    renderTab()
+    await waitFor(() => expect(screen.getByText('NEUESTER ERFOLG')).toBeInTheDocument())
+    // Hero chip should show the workout PB label
+    expect(screen.getAllByText(/BESTE DISTANZ · 20 MIN/i).length).toBeGreaterThanOrEqual(1)
   })
 })
