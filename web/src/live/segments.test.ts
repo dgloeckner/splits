@@ -139,6 +139,33 @@ it('empty segments → null', () => {
   expect(locateSegment([], 100, 100, 0)).toBeNull()
 })
 
+// REGRESSION (2026-06-12): a time-based work segment following a warmup
+// must anchor at work_time_sec = 0 (work time starts when the work phase
+// starts), not at the warmup duration — otherwise the countdown freezes
+// at full for the warmup's length and overstates remaining throughout.
+describe('locateSegment time work after warmup', () => {
+  const segs = expandWorkout({
+    id: 'W', mode: 'time',
+    params: { seconds: 1200 },
+    warmup_sec: 120, cooldown_sec: 0,
+    created_at: '',
+  } as Workout)
+  // segments: warmup(120s), work(1200s)
+
+  it('work countdown is full the moment work begins', () => {
+    const a = locateSegment(segs, 5, 0, 0)
+    expect(a?.segment.kind).toBe('work')
+    expect(a?.remainingSec).toBe(1200)
+  })
+
+  it('counts down against work time, unskewed by the warmup duration', () => {
+    const a = locateSegment(segs, 700, 300, 300)
+    expect(a?.segment.kind).toBe('work')
+    expect(a?.remainingSec).toBe(900)
+    expect(a?.progressRatio).toBeCloseTo(0.25)
+  })
+})
+
 describe('locateSegment cooldown after distance work', () => {
   function makeSegs() {
     return expandWorkout({

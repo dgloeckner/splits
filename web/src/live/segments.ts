@@ -146,7 +146,10 @@ export function locateSegment(
           }
         }
       }
-      timeAnchor += seg.durationSec
+      // The warmup lives on the phase-time axis; work_time_sec starts at 0
+      // when the work phase begins, so the warmup contributes nothing to
+      // timeAnchor — adding its duration would skew every following
+      // time-based work segment by the warmup length.
       continue
     }
 
