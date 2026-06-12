@@ -119,3 +119,8 @@
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+
+.startDimmed {
+  opacity: 0.45;
+  pointer-events: none;
+}

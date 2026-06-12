@@ -99,3 +99,8 @@
 .delete:active {
   opacity: 0.85;
 }
+
+.sectionDimmed {
+  opacity: 0.45;
+  pointer-events: none;
+}

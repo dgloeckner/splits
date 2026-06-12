@@ -6,9 +6,9 @@ import { createWorkout } from '../../api/workouts'
 import { workoutIconFor } from '../../icons/workout'
 import styles from './FavoritesList.module.css'
 
-export type Props = { rowerID?: string }
+export type Props = { rowerID?: string; disabled?: boolean }
 
-export function FavoritesList({ rowerID }: Props) {
+export function FavoritesList({ rowerID, disabled = false }: Props) {
   const nav = useNavigate()
   const qc = useQueryClient()
   const { data } = useQuery({
@@ -38,7 +38,10 @@ export function FavoritesList({ rowerID }: Props) {
   if (favorites.length === 0) return null
 
   return (
-    <section data-testid="favorites-list" className={styles.section}>
+    <section
+      data-testid="favorites-list"
+      className={disabled ? `${styles.section} ${styles.sectionDimmed}` : styles.section}
+    >
       <h2 className={styles.heading}>Favoriten</h2>
       <ul className={styles.list}>
         {favorites.map((fav) => {
@@ -49,6 +52,7 @@ export function FavoritesList({ rowerID }: Props) {
                 type="button"
                 className={styles.itemBody}
                 onClick={() => start(fav)}
+                disabled={disabled}
               >
                 <span className={styles.icon}>
                   <Icon size={24} />
@@ -63,6 +67,7 @@ export function FavoritesList({ rowerID }: Props) {
                 onClick={() => {
                   if (window.confirm('Favorit löschen?')) del.mutate(fav.id)
                 }}
+                disabled={disabled}
               >
                 ✕
               </button>

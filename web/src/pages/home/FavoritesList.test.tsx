@@ -80,6 +80,18 @@ describe('FavoritesList', () => {
     expect(attached).toBe(true)
   })
 
+  it('disabled: start buttons are disabled and the section is dimmed', async () => {
+    mockRoutes({
+      '/api/v1/favorites': { body: JSON.stringify({ favorites: [
+        { id: 'F1', rower_id: 'R1', name: 'My 5k', mode: 'distance', params: { meters: 5000 }, intensity: 'moderat', warmup_sec: 0, cooldown_sec: 0, created_at: '2026-04-22T08:00:00Z' },
+      ]}), status: 200 },
+    })
+    wrap(<FavoritesList rowerID="R1" disabled={true} />)
+    const section = await screen.findByTestId('favorites-list')
+    expect(section.className).toMatch(/sectionDimmed/)
+    for (const btn of screen.getAllByRole('button')) expect(btn).toBeDisabled()
+  })
+
   it('delete button removes the favorite', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     let listCall = 0
