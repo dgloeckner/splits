@@ -50,6 +50,13 @@ test('discarding a session leaves no trace and shows no save-overlay', async ({
   await page.waitForTimeout(2_000)
   await expect(page.getByTestId('session-ended-overlay')).toHaveCount(0)
 
-  // App returns home.
-  await expect(page).toHaveURL(/\/$|\/home|\/workout/, { timeout: 10_000 })
+  // App returns exactly home (not /workflow/new/... or any sub-path).
+  await expect(page).toHaveURL('/', { timeout: 10_000 })
+
+  // The discarded session must not appear in the Verlauf list.
+  // Fresh rower with no prior sessions: the list should be empty.
+  await page.goto('/historie')
+  await page.waitForTimeout(2_000)
+  // No session rows should appear (the discarded session was never saved).
+  await expect(page.locator('[data-testid^="verlauf-row-"]')).toHaveCount(0)
 })
