@@ -38,7 +38,7 @@ export type Sample = {
   energy_joules: number
 }
 
-import { ApiError } from './error'
+import { ApiError, getFetch } from './error'
 
 async function json<T>(r: Response): Promise<T> {
   if (!r.ok) throw new ApiError(r.status, `${r.status} ${r.statusText}`)
@@ -61,12 +61,12 @@ export async function listSessions(
 }
 
 export async function getSession(id: string): Promise<SessionRow> {
-  const r = await fetch(`/api/v1/sessions/${encodeURIComponent(id)}`)
+  const r = await getFetch(`/api/v1/sessions/${encodeURIComponent(id)}`)
   return json<SessionRow>(r)
 }
 
 export async function getSamples(id: string): Promise<Sample[]> {
-  const r = await fetch(`/api/v1/sessions/${encodeURIComponent(id)}/samples`)
+  const r = await getFetch(`/api/v1/sessions/${encodeURIComponent(id)}/samples`)
   const body = await json<{ samples: Sample[] }>(r)
   return body.samples
 }
@@ -171,7 +171,7 @@ export type SessionPBBanners = {
 }
 
 export async function getSessionPBBanners(id: string): Promise<SessionPBBanners> {
-  const r = await fetch(`/api/v1/sessions/${encodeURIComponent(id)}/pb-banners`)
+  const r = await getFetch(`/api/v1/sessions/${encodeURIComponent(id)}/pb-banners`)
   return json<SessionPBBanners>(r)
 }
 
@@ -233,7 +233,7 @@ export type TrendsSeries = {
 }
 
 export async function getRowerTrends(rowerID: string, window: TrendsWindowKey): Promise<TrendsResponse> {
-  const r = await fetch(
+  const r = await getFetch(
     `/api/v1/rowers/${encodeURIComponent(rowerID)}/trends?window=${window}`,
   )
   return json<TrendsResponse>(r)
@@ -266,7 +266,7 @@ export type RowerPBs = {
 }
 
 export async function getRowerPBs(rowerID: string): Promise<RowerPBs> {
-  const r = await fetch(`/api/v1/rowers/${encodeURIComponent(rowerID)}/pbs`)
+  const r = await getFetch(`/api/v1/rowers/${encodeURIComponent(rowerID)}/pbs`)
   return json<RowerPBs>(r)
 }
 
@@ -280,7 +280,7 @@ export type RowerLifetime = {
 }
 
 export async function getRowerLifetime(rowerID: string): Promise<RowerLifetime> {
-  const r = await fetch(`/api/v1/rowers/${encodeURIComponent(rowerID)}/lifetime`)
+  const r = await getFetch(`/api/v1/rowers/${encodeURIComponent(rowerID)}/lifetime`)
   return json<RowerLifetime>(r)
 }
 
@@ -294,7 +294,7 @@ export type Achievement = {
 }
 
 export async function getRowerAchievements(rowerID: string): Promise<Achievement[]> {
-  const r = await fetch(`/api/v1/rowers/${encodeURIComponent(rowerID)}/achievements`)
+  const r = await getFetch(`/api/v1/rowers/${encodeURIComponent(rowerID)}/achievements`)
   const body = await json<{ achievements: Achievement[] }>(r)
   return body.achievements
 }

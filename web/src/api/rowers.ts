@@ -19,7 +19,7 @@ export type CreateRowerInput = {
 export type UpdateRowerInput = Partial<CreateRowerInput>
 
 export { ApiError } from './error'
-import { apiFetch, readApiError } from './error'
+import { apiFetch, getFetch, readApiError } from './error'
 
 async function json<T>(r: Response): Promise<T> {
   if (!r.ok) throw await readApiError(r)
@@ -27,7 +27,7 @@ async function json<T>(r: Response): Promise<T> {
 }
 
 export async function listRowers(): Promise<Rower[]> {
-  const r = await apiFetch('/api/v1/rowers')
+  const r = await getFetch('/api/v1/rowers')
   const body = await json<{ rowers: Rower[] }>(r)
   return body.rowers
 }
@@ -51,7 +51,7 @@ export async function updateRower(id: string, input: UpdateRowerInput): Promise<
 }
 
 export async function getActiveRower(): Promise<Rower | null> {
-  const r = await apiFetch('/api/v1/active-rower')
+  const r = await getFetch('/api/v1/active-rower')
   if (r.status === 404) return null
   return json<Rower>(r)
 }

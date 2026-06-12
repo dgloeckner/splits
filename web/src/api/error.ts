@@ -55,3 +55,9 @@ export async function readApiError(r: Response): Promise<ApiError> {
     body: snippet,
   })
 }
+
+export const GET_TIMEOUT_MS = 6_000
+
+export function getFetch(url: string, timeoutMs: number = GET_TIMEOUT_MS): Promise<Response> {
+  return apiFetch(url, { signal: AbortSignal.timeout(timeoutMs) })
+}

@@ -1,5 +1,5 @@
 import type { Intensity, WorkoutMode, WorkoutParams } from './workouts'
-import { ApiError } from './error'
+import { ApiError, getFetch } from './error'
 
 export type Favorite = {
   id: string
@@ -24,7 +24,7 @@ export type CreateFavoriteInput = {
 }
 
 export async function listFavorites(rowerID: string): Promise<Favorite[]> {
-  const res = await fetch(`/api/v1/favorites?rower_id=${encodeURIComponent(rowerID)}`)
+  const res = await getFetch(`/api/v1/favorites?rower_id=${encodeURIComponent(rowerID)}`)
   if (!res.ok) throw new ApiError(res.status, `listFavorites: ${res.status}`)
   const body = (await res.json()) as { favorites?: Favorite[] }
   return body.favorites ?? []

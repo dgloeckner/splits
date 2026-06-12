@@ -1,4 +1,4 @@
-import { ApiError } from './error'
+import { ApiError, getFetch } from './error'
 
 export type WorkoutMode = 'just_row' | 'distance' | 'time' | 'intervals' | 'race'
 export type Intensity = 'locker' | 'moderat' | 'hart' | 'allout'
@@ -50,7 +50,7 @@ export async function attachWorkout(id: string): Promise<void> {
 }
 
 export async function getWorkout(id: string): Promise<Workout> {
-  const res = await fetch(`/api/v1/workouts/${encodeURIComponent(id)}`)
+  const res = await getFetch(`/api/v1/workouts/${encodeURIComponent(id)}`)
   if (!res.ok) throw new ApiError(res.status, `getWorkout: ${res.status}`)
   return res.json()
 }
