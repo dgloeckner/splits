@@ -11,9 +11,8 @@ import (
 // gone after Mode 0 compaction). Persister stores this inside
 // summary_json.pb_candidates at session_end.
 type PBCandidates struct {
-	Distance    []DistanceCandidate    `json:"distance,omitempty"`
-	Window      []WindowCandidate      `json:"window,omitempty"`
-	Consistency *ConsistencyCandidates `json:"consistency,omitempty"`
+	Distance []DistanceCandidate `json:"distance,omitempty"`
+	Window   []WindowCandidate   `json:"window,omitempty"`
 	// Workout candidate is filled by the persister when the session
 	// is attached to a workout, since the per-workout PB depends on
 	// the workout's shape_hash and mode (not in stroke data).
@@ -40,15 +39,6 @@ type WindowCandidate struct {
 	Value      float64 `json:"value"`
 }
 
-// ConsistencyCandidates carry the three within-session CVs (FEAT-0010
-// (c)). Lower is better. nil when the session has fewer than the
-// minimum-strokes threshold.
-type ConsistencyCandidates struct {
-	PowerCV     float64 `json:"power_cv"`
-	PaceSplitCV float64 `json:"pace_split_cv"`
-	SPMCV       float64 `json:"spm_cv"`
-}
-
 // WorkoutCandidate is the per-workout PB's value for this session.
 // ValueKind is "time_sec" or "distance_m" depending on the workout's
 // mode. The shape_hash, mode, and params live on the workout row;
@@ -64,24 +54,15 @@ type WorkoutCandidate struct {
 var StandardDistances = []int{500, 1000, 2000, 5000, 6000, 10000}
 
 // WindowDefs lists the fixed window-PB definitions. Locked at
-// deployment per FEAT-0010 — adding a definition later cannot
-// back-fill historical sessions whose strokes are gone.
+// deployment per FEAT-0010 (amended 2026-06-12: dps + spi retired —
+// SPI is retired everywhere; DPS as a trophy rewards low-rate hauling.
+// 60 s avg power survives as the honest sprint benchmark).
 //
-// Pace is intentionally absent: split = sec/500m by definition, so
-// a "best 60 s avg pace" is not a metric rowers track. Continuous
-// 500 m and longer distance PBs cover the split story; window-PBs
-// here are reserved for intensity metrics with no natural
-// distance equivalent (power) or stroke-quality metrics
-// (DPS, SPI).
+// Pace is intentionally absent: split = sec/500m by definition;
+// distance-PBs cover the split story.
 var WindowDefs = []WindowDef{
 	{Metric: "power", Kind: "seconds", Size: 60},
-	{Metric: "dps", Kind: "strokes", Size: 30},
-	{Metric: "spi", Kind: "strokes", Size: 30},
 }
-
-// MinStrokesForConsistency is the threshold below which a session
-// does not contribute consistency candidates.
-const MinStrokesForConsistency = 80
 
 // WindowDef is one entry in WindowDefs.
 type WindowDef struct {
@@ -125,9 +106,6 @@ func ComputeCandidates(strokes []event.StrokePayload) *PBCandidates {
 	}
 	for _, run := range splitByStrokeNoGap(workStrokes) {
 		mergeWindow(&out.Window, windowCandidates(run, WindowDefs))
-	}
-	if len(workStrokes) >= MinStrokesForConsistency {
-		out.Consistency = consistencyCandidates(workStrokes)
 	}
 	return out
 }
@@ -371,65 +349,14 @@ func windowCandidates(strokes []event.StrokePayload, defs []WindowDef) []WindowC
 }
 
 func strokeMetric(s event.StrokePayload, metric string) float64 {
-	switch metric {
-	case "power":
+	if metric == "power" {
 		return float64(s.PowerW)
-	case "pace":
-		return float64(s.PaceSecPer500m)
-	case "dps":
-		return s.DPS
-	case "spi":
-		// Stroke-power index ≈ work per stroke in joules.
-		return float64(s.EnergyJoules)
 	}
 	return 0
 }
 
-// better reports whether candidate v should replace cur for the
-// given metric. Pace is lower-is-better; everything else is
-// higher-is-better.
-func better(metric string, v, cur float64) bool {
-	if metric == "pace" {
-		return v < cur
-	}
+// better reports whether candidate v should replace cur. All current
+// window metrics are higher-is-better.
+func better(_ string, v, cur float64) bool {
 	return v > cur
-}
-
-// consistencyCandidates returns the three CVs (σ / mean) for the
-// session. Caller checks the minimum-strokes threshold first.
-func consistencyCandidates(strokes []event.StrokePayload) *ConsistencyCandidates {
-	power := make([]float64, len(strokes))
-	pace := make([]float64, len(strokes))
-	spm := make([]float64, len(strokes))
-	for i, s := range strokes {
-		power[i] = float64(s.PowerW)
-		pace[i] = float64(s.PaceSecPer500m)
-		spm[i] = float64(s.SPM)
-	}
-	return &ConsistencyCandidates{
-		PowerCV:     coeffOfVar(power),
-		PaceSplitCV: coeffOfVar(pace),
-		SPMCV:       coeffOfVar(spm),
-	}
-}
-
-func coeffOfVar(xs []float64) float64 {
-	if len(xs) == 0 {
-		return 0
-	}
-	var sum float64
-	for _, v := range xs {
-		sum += v
-	}
-	mean := sum / float64(len(xs))
-	if mean == 0 {
-		return 0
-	}
-	var sq float64
-	for _, v := range xs {
-		d := v - mean
-		sq += d * d
-	}
-	stddev := math.Sqrt(sq / float64(len(xs)))
-	return stddev / mean
 }

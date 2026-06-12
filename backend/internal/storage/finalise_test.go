@@ -285,3 +285,96 @@ func TestFinaliseSession_LastEventIDRestored(t *testing.T) {
 		t.Errorf("MaxStrokeGlobalID = %d, want >= %d (boot seed regression)", maxID, lastEventID)
 	}
 }
+
+// TestFinaliseSession_WorkoutPBCandidate verifies that FinaliseEnded emits a
+// session_pb_workout_candidate row when the session ran the full prescribed
+// duration of a time-mode workout (within the slack window), and does NOT
+// emit one when the session was too short.
+func TestFinaliseSession_WorkoutPBCandidate(t *testing.T) {
+	ctx := context.Background()
+
+	seedWithWorkout := func(t *testing.T, sessionID, workoutID string, strokeCount int) {
+		t.Helper()
+		db := testDB(t)
+		h := db.Handle()
+		// Insert rower (needed by FK on sessions in some test setups,
+		// but testDB's r1 is already there).
+		// Insert time-mode workout: 60 s.
+		if _, err := h.Exec(`
+			INSERT INTO workout(id, mode, params_json, shape_hash, warmup_sec, cooldown_sec, created_at)
+			VALUES(?, 'time', '{"seconds":60}', 'HASH60', 0, 0, '2026-01-01T00:00:00Z')`, workoutID); err != nil {
+			t.Fatalf("seed workout: %v", err)
+		}
+		started := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+		if err := InsertSession(ctx, h, sessionID, "r1", started, 3, workoutID); err != nil {
+			t.Fatalf("InsertSession: %v", err)
+		}
+		for i := 1; i <= strokeCount; i++ {
+			if err := InsertStroke(ctx, h, uint64(i+100), sessionID, started, event.StrokePayload{
+				StrokeNo: i, TimeSec: float64(i) * 2.0, DistanceM: i * 8,
+				SPM: 24, PowerW: 200, CalPerHr: 1000,
+				DPS: 8, StrokeCycleSec: 2.0, PaceSecPer500m: 130,
+				EnergyJoules: 400, Phase: "work",
+			}); err != nil {
+				t.Fatalf("InsertStroke %d: %v", i, err)
+			}
+		}
+		t.Cleanup(func() { db.Close() })
+
+		// Case 1: TotalTimeSec=58 (within 5s slack of 60s) → candidate emitted.
+		endedAt := started.Add(time.Minute)
+		baseSummary := event.SessionSummary{TotalDistanceM: 250, TotalTimeSec: 58, TotalStrokes: strokeCount}
+		if _, err := FinaliseSession(ctx, h, sessionID, endedAt, baseSummary, nil, 0, FinaliseEnded, nil); err != nil {
+			t.Fatalf("FinaliseSession (completed): %v", err)
+		}
+		var n int
+		if err := h.QueryRow(`SELECT COUNT(*) FROM session_pb_workout_candidate WHERE session_id=? AND value=250 AND shape_hash='HASH60'`, sessionID).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n != 1 {
+			t.Errorf("completed session: expected 1 workout candidate, got %d", n)
+		}
+	}
+
+	// Run the completed case with a fresh db.
+	t.Run("completed_within_slack", func(t *testing.T) {
+		seedWithWorkout(t, "swp1", "WTIME1", 5)
+	})
+
+	// Case 2: TotalTimeSec=40 (> 5s short of 60s) → no candidate.
+	t.Run("too_short", func(t *testing.T) {
+		db := testDB(t)
+		h := db.Handle()
+		if _, err := h.Exec(`
+			INSERT INTO workout(id, mode, params_json, shape_hash, warmup_sec, cooldown_sec, created_at)
+			VALUES('WTIME2','time','{"seconds":60}','HASH60',0,0,'2026-01-01T00:00:00Z')`); err != nil {
+			t.Fatalf("seed workout: %v", err)
+		}
+		started := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+		if err := InsertSession(ctx, h, "swp2", "r1", started, 3, "WTIME2"); err != nil {
+			t.Fatalf("InsertSession: %v", err)
+		}
+		for i := 1; i <= 5; i++ {
+			if err := InsertStroke(ctx, h, uint64(i+100), "swp2", started, event.StrokePayload{
+				StrokeNo: i, TimeSec: float64(i) * 2.0, DistanceM: i * 8,
+				SPM: 24, PowerW: 200, CalPerHr: 1000,
+				DPS: 8, StrokeCycleSec: 2.0, PaceSecPer500m: 130,
+				EnergyJoules: 400, Phase: "work",
+			}); err != nil {
+				t.Fatalf("InsertStroke %d: %v", i, err)
+			}
+		}
+		endedAt := started.Add(40 * time.Second)
+		baseSummary := event.SessionSummary{TotalDistanceM: 200, TotalTimeSec: 40, TotalStrokes: 5}
+		if _, err := FinaliseSession(ctx, h, "swp2", endedAt, baseSummary, nil, 0, FinaliseEnded, nil); err != nil {
+			t.Fatalf("FinaliseSession (too short): %v", err)
+		}
+		var n int
+		if err := h.QueryRow(`SELECT COUNT(*) FROM session_pb_workout_candidate WHERE session_id='swp2'`).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n != 0 {
+			t.Errorf("too-short session: expected 0 workout candidates, got %d", n)
+		}
+	})
+}

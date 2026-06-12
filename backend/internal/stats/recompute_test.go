@@ -66,15 +66,6 @@ func seedSession(t *testing.T, db *sql.DB, id, rowerID string, started time.Time
 			t.Fatal(err)
 		}
 	}
-	if c := candidates.Consistency; c != nil {
-		if _, err := db.Exec(`
-			INSERT INTO session_consistency(session_id, rower_id, started_at,
-				power_cv, pace_split_cv, spm_cv)
-			VALUES(?,?,?,?,?,?)`,
-			id, rowerID, startedStr, c.PowerCV, c.PaceSplitCV, c.SPMCV); err != nil {
-			t.Fatal(err)
-		}
-	}
 }
 
 func openDB(t *testing.T) *sql.DB {
@@ -299,25 +290,75 @@ func TestRecomputeVolumeMilestonesRealAchievedAt(t *testing.T) {
 	}
 }
 
-func TestRecomputeConsistencyRealAchievedAt(t *testing.T) {
+// Workout-PB pipeline: a backfilled/emitted time-mode candidate becomes
+// an active pb_workout row; the better of two sessions wins.
+func TestRecomputeWorkoutTimeModePB(t *testing.T) {
+	db := openDB(t)
+	seedWorkoutCandidate(t, db, "S1", "2026-01-02T00:00:00Z", "H20", 4812)
+	seedWorkoutCandidate(t, db, "S2", "2026-01-03T00:00:00Z", "H20", 5004)
+	if err := stats.Recompute(context.Background(), db, "R1"); err != nil {
+		t.Fatal(err)
+	}
+	var val float64
+	var src string
+	err := db.QueryRow(`SELECT value, source_session_id FROM pb_workout
+		WHERE rower_id='R1' AND shape_hash='H20' AND invalidated_at IS NULL`).Scan(&val, &src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if val != 5004 || src != "S2" {
+		t.Fatalf("want 5004/S2, got %v/%s", val, src)
+	}
+}
+
+func seedWorkoutCandidate(t *testing.T, db *sql.DB, sid, startedAt, hash string, distM float64) {
+	t.Helper()
+	if _, err := db.Exec(`INSERT INTO sessions(id, rower_id, started_at, ended_at, initial_level,
+			total_distance_m, total_time_sec, total_strokes)
+		VALUES(?, 'R1', ?, ?, 5, ?, 1200, 400)`, sid, startedAt, startedAt, distM); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO session_pb_workout_candidate(
+			session_id, rower_id, started_at, shape_hash, mode, value_kind, value)
+		VALUES(?, 'R1', ?, ?, 'time', 'distance_m', ?)`, sid, startedAt, hash, distM); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// spi/dps candidates may persist in the table, but recompute only
+// re-creates power rows.
+func TestRecomputeWindowPowerOnly(t *testing.T) {
 	db := openDB(t)
 	ctx := context.Background()
 	t0 := time.Date(2026, 4, 1, 8, 0, 0, 0, time.UTC)
 
+	// Seed window candidates for all three metrics (power, dps, spi) from pre-0018 era.
 	seedSession(t, db, "S1", "R1", t0, 5000, 500, 1500, &PBCandidates{
-		Consistency: &stats.ConsistencyCandidates{PowerCV: 0.05, PaceSplitCV: 0.04, SPMCV: 0.03},
+		Window: []stats.WindowCandidate{
+			{Metric: "power", Kind: "seconds", Size: 60, Value: 250},
+			{Metric: "dps", Kind: "strokes", Size: 30, Value: 8.5},
+			{Metric: "spi", Kind: "strokes", Size: 30, Value: 500},
+		},
 	})
 	if err := Recompute(ctx, db, "R1"); err != nil {
 		t.Fatal(err)
 	}
-	var achievedAt string
-	if err := db.QueryRow(`SELECT achieved_at FROM achievements
-		WHERE rower_id='R1' AND achievement_key='consistency_power_cv' AND invalidated_at IS NULL`).
-		Scan(&achievedAt); err != nil {
+
+	// Only power pb_window row should be active.
+	rows, err := db.QueryContext(ctx,
+		`SELECT metric FROM pb_window WHERE rower_id='R1' AND invalidated_at IS NULL ORDER BY metric`)
+	if err != nil {
 		t.Fatal(err)
 	}
-	want := t0.UTC().Format(time.RFC3339Nano)
-	if achievedAt != want {
-		t.Errorf("consistency achieved_at=%q, want %q (session start)", achievedAt, want)
+	defer rows.Close()
+	var metrics []string
+	for rows.Next() {
+		var m string
+		_ = rows.Scan(&m)
+		metrics = append(metrics, m)
+	}
+	if len(metrics) != 1 || metrics[0] != "power" {
+		t.Fatalf("expected only power pb_window active, got %v", metrics)
 	}
 }
+

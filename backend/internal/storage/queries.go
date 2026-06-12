@@ -128,16 +128,6 @@ func UpdateSessionEndWithEventID(ctx context.Context, db dbExec, id string, ende
 			return err
 		}
 	}
-	if c := cands.Consistency; c != nil {
-		if _, err := db.ExecContext(ctx, `
-			INSERT INTO session_consistency(
-				session_id, rower_id, started_at, power_cv, pace_split_cv, spm_cv)
-			VALUES(?, ?, ?, ?, ?, ?)`,
-			id, rowerID, startedAt, c.PowerCV, c.PaceSplitCV, c.SPMCV,
-		); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 

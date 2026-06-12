@@ -64,27 +64,6 @@ func TestWindowCandidatesPower60s(t *testing.T) {
 	}
 }
 
-func TestWindowCandidatesDPS30Strokes(t *testing.T) {
-	strokes := makeStrokes(40, 8, 2)
-	cs := windowCandidates(strokes, []WindowDef{{Metric: "dps", Kind: "strokes", Size: 30}})
-	if len(cs) != 1 {
-		t.Fatalf("want 1 candidate, got %d", len(cs))
-	}
-	if math.Abs(cs[0].Value-8) > 0.01 {
-		t.Errorf("dps 30-stroke avg = %v, want 8", cs[0].Value)
-	}
-}
-
-func TestConsistencyOnlyAboveThreshold(t *testing.T) {
-	if c := consistencyCandidates(makeStrokes(MinStrokesForConsistency, 10, 2)); c == nil || c.PowerCV != 0 {
-		t.Errorf("perfect-steady CV should be 0, got %+v", c)
-	}
-	got := ComputeCandidates(makeStrokes(MinStrokesForConsistency-1, 10, 2))
-	if got.Consistency != nil {
-		t.Errorf("below threshold should skip consistency, got %+v", got.Consistency)
-	}
-}
-
 func TestComputeCandidatesPopulatesAll(t *testing.T) {
 	c := ComputeCandidates(makeStrokes(600, 10, 2))
 	if len(c.Distance) == 0 {
@@ -92,9 +71,6 @@ func TestComputeCandidatesPopulatesAll(t *testing.T) {
 	}
 	if len(c.Window) == 0 {
 		t.Error("missing window candidates")
-	}
-	if c.Consistency == nil {
-		t.Error("missing consistency candidates")
 	}
 }
 

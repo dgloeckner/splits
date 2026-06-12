@@ -135,6 +135,17 @@ cannot back-fill historical sessions because their strokes are
 gone. New windows would only apply to future sessions, creating
 asymmetric PB grids. Decided not worth the friction.
 
+**Amendment 2026-06-12 (Historie optimization spec):** `WindowDefs`
+shrank to `power/seconds/60`. The dps and spi window definitions were
+removed (SPI retired everywhere; DPS-as-trophy rewards low-rate
+hauling) and their `pb_window` rows invalidated by migration 0018.
+Workout-PBs were built for **time mode only** (`value_kind =
+distance_m`, work distance over the fully completed prescribed
+duration); historical time-mode sessions were backfilled from session
+aggregates in the same migration — the "cannot back-fill" caveat above
+applies to stroke-window definitions, not to aggregate-level ones.
+Konstanz (`consistency_intra`) achievements were retired entirely.
+
 ### (c) Consistency
 
 Three within-session consistency PBs, all "lower is better"

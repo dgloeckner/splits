@@ -52,10 +52,6 @@ func Recompute(ctx context.Context, db *sql.DB, rowerID string) error {
 	if err := recomputeWorkout(ctx, tx, rowerID, now); err != nil {
 		return err
 	}
-	if err := recomputeConsistency(ctx, tx, rowerID, now); err != nil {
-		return err
-	}
-
 	var totalDist, totalSec, totalStrokes, totalSessions int
 	row := tx.QueryRowContext(ctx, `
 		SELECT COALESCE(SUM(total_distance_m), 0),
@@ -160,16 +156,13 @@ func recomputeWindow(ctx context.Context, tx *sql.Tx, rowerID, now string) error
 		value                              float64
 	}
 	var bests []best
-	// Pace window-PBs were retired (split is sec/500m by definition;
-	// distance-PBs cover the split story). Remaining metrics are all
-	// higher-is-better. Recompute always invalidates the full pb_window
-	// table first and re-inserts from the filtered candidate set, so
-	// any stale pace rows from the old WindowDefs naturally drop out.
+	// Window-PBs are power-only (dps + spi retired per migration 0018).
+	// Power is higher-is-better.
 	for _, p := range []struct {
 		filter string
 		order  string
 	}{
-		{filter: "metric IN ('power','dps','spi')", order: "DESC"},
+		{filter: "metric = 'power'", order: "DESC"},
 	} {
 		q := fmt.Sprintf(`
 			SELECT metric, window_kind, window_size, value, session_id, started_at
@@ -242,28 +235,20 @@ func recomputeWorkout(ctx context.Context, tx *sql.Tx, rowerID, now string) erro
 		sessionID, startedAt     string
 	}
 	var allBests []best
-	// time_sec values rank ASC (faster is better); other value_kinds
-	// (distance_m) rank DESC. Branch on value_kind by partitioning the
-	// query, same shape as the window recompute.
-	for _, p := range []struct {
-		filter string
-		order  string
-	}{
-		{filter: "value_kind = 'time_sec'", order: "ASC"},
-		{filter: "value_kind <> 'time_sec'", order: "DESC"},
-	} {
-		q := fmt.Sprintf(`
+	// Workout-PBs are time-mode only (value_kind = distance_m, higher is better).
+	{
+		q := `
 			SELECT shape_hash, mode, value_kind, value, session_id, started_at
 			FROM (
 			  SELECT shape_hash, mode, value_kind, value, session_id, started_at,
 			         ROW_NUMBER() OVER (
 			           PARTITION BY shape_hash
-			           ORDER BY value %s, started_at ASC
+			           ORDER BY value DESC, started_at ASC
 			         ) AS rn
 			  FROM session_pb_workout_candidate
-			  WHERE rower_id = ? AND %s
+			  WHERE rower_id = ? AND value_kind = 'distance_m'
 			)
-			WHERE rn = 1`, p.order, p.filter)
+			WHERE rn = 1`
 		rows, err := tx.QueryContext(ctx, q, rowerID)
 		if err != nil {
 			return err
@@ -324,48 +309,6 @@ func recomputeWorkout(ctx context.Context, tx *sql.Tx, rowerID, now string) erro
 				source_session_id, source_session_started_at, achieved_at)
 			VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			rowerID, b.shapeHash, mode, params, b.valKind, b.value, prev, b.sessionID, b.startedAt, now,
-		); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func recomputeConsistency(ctx context.Context, tx *sql.Tx, rowerID, now string) error {
-	if _, err := tx.ExecContext(ctx,
-		`UPDATE achievements SET invalidated_at = ?
-		 WHERE rower_id = ? AND achievement_type = 'consistency_intra' AND invalidated_at IS NULL`,
-		now, rowerID); err != nil {
-		return err
-	}
-	// One best per CV metric. Each metric is lower-is-better.
-	for _, m := range []struct {
-		col, key string
-	}{
-		{"power_cv", "consistency_power_cv"},
-		{"pace_split_cv", "consistency_pace_split_cv"},
-		{"spm_cv", "consistency_spm_cv"},
-	} {
-		var value float64
-		var sessionID, startedAt string
-		err := tx.QueryRowContext(ctx, fmt.Sprintf(`
-			SELECT %s, session_id, started_at
-			FROM session_consistency
-			WHERE rower_id = ?
-			ORDER BY %s ASC, started_at ASC
-			LIMIT 1`, m.col, m.col),
-			rowerID).Scan(&value, &sessionID, &startedAt)
-		if err == sql.ErrNoRows {
-			continue
-		}
-		if err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, `
-			INSERT INTO achievements(rower_id, achievement_type, achievement_key, value,
-				source_session_id, source_session_started_at, achieved_at)
-			VALUES(?, 'consistency_intra', ?, ?, ?, ?, ?)`,
-			rowerID, m.key, value, sessionID, startedAt, startedAt,
 		); err != nil {
 			return err
 		}

@@ -27,6 +27,13 @@ const (
 // callers return 204 at the API level.
 var ErrZeroStrokes = errors.New("storage: session has zero strokes")
 
+// workoutCompletionSlackSec absorbs final-stroke granularity when
+// deciding "ran the fully prescribed duration": work time is stamped
+// at stroke boundaries, so the last work stroke can land up to ~one
+// stroke period short of the target (≈3.3 s at 18 spm). Must match
+// the backfill predicate in migrations/0018_records_rebuild.sql.
+const workoutCompletionSlackSec = 5.0
+
 // FilterWorkStrokes returns only work-phase strokes (phase == "work" or
 // phase == "" for legacy untagged rows). This is the single canonical
 // implementation; the three previously-private copies in persister.go,
@@ -107,12 +114,13 @@ func FinaliseSession(
 
 	// Pre-load rower + workout context (needed for race result, insights,
 	// and the recompute trigger).
-	var rowerID, workoutMode, workoutID string
+	var rowerID, workoutMode, workoutID, workoutShapeHash, workoutParams string
 	if err := db.QueryRowContext(ctx, `
-		SELECT s.rower_id, COALESCE(w.mode, ''), COALESCE(s.workout_id, '')
+		SELECT s.rower_id, COALESCE(w.mode, ''), COALESCE(s.workout_id, ''),
+		       COALESCE(w.shape_hash, ''), COALESCE(w.params_json, '')
 		FROM sessions s
 		LEFT JOIN workout w ON w.id = s.workout_id
-		WHERE s.id = ?`, sessionID).Scan(&rowerID, &workoutMode, &workoutID); err != nil {
+		WHERE s.id = ?`, sessionID).Scan(&rowerID, &workoutMode, &workoutID, &workoutShapeHash, &workoutParams); err != nil {
 		return event.SessionSummary{}, err
 	}
 
@@ -137,6 +145,29 @@ func FinaliseSession(
 		summary.Race = nil
 		summary.Flags = []string{"recovered"}
 		lastEventID = 0
+	}
+
+	// §PB-leader / pb_workout: a time-mode session that ran the fully
+	// prescribed duration emits a workout-PB candidate (work-phase
+	// distance, higher better). Other modes never emit one; recovery
+	// paths don't either.
+	if reason == FinaliseEnded && workoutMode == "time" && workoutShapeHash != "" {
+		var tp struct {
+			Seconds int `json:"seconds"`
+		}
+		if jerr := json.Unmarshal([]byte(workoutParams), &tp); jerr == nil && tp.Seconds > 0 {
+			if summary.TotalDistanceM > 0 &&
+				summary.TotalTimeSec+workoutCompletionSlackSec >= float64(tp.Seconds) {
+				if cands, ok := summary.PBCandidates.(*stats.PBCandidates); ok && cands != nil {
+					cands.Workout = &stats.WorkoutCandidate{
+						ShapeHash: workoutShapeHash,
+						Mode:      workoutMode,
+						ValueKind: "distance_m",
+						Value:     float64(summary.TotalDistanceM),
+					}
+				}
+			}
+		}
 	}
 
 	// Step 9: write summary with WHERE ended_at IS NULL (idempotent guard).
@@ -278,16 +309,6 @@ func insertCandidates(ctx context.Context, db dbExec, sessionID string, cands *s
 				value_kind, value)
 			VALUES(?, ?, ?, ?, ?, ?, ?)`,
 			sessionID, rowerID, startedAt, w.ShapeHash, w.Mode, w.ValueKind, w.Value,
-		); err != nil {
-			return err
-		}
-	}
-	if c := cands.Consistency; c != nil {
-		if _, err := db.ExecContext(ctx, `
-			INSERT INTO session_consistency(
-				session_id, rower_id, started_at, power_cv, pace_split_cv, spm_cv)
-			VALUES(?, ?, ?, ?, ?, ?)`,
-			sessionID, rowerID, startedAt, c.PowerCV, c.PaceSplitCV, c.SPMCV,
 		); err != nil {
 			return err
 		}
