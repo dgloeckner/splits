@@ -33,8 +33,22 @@ export function RowerGate() {
   }
 
   const noRower = (rowers.data?.length ?? 0) === 0 || !active.data
-  if (noRower && loc.pathname !== '/onboarding') {
-    return <Navigate to="/onboarding" replace />
+  if (noRower) {
+    // Only send to onboarding once a fresh fetch THIS session has
+    // confirmed there is genuinely no rower. Otherwise an existing
+    // user is stranded on onboarding by a stale empty snapshot that
+    // the offline cache hydrated from IndexedDB (rowers=[]/active=null
+    // are both "successful" queries, so they get persisted). Hold on
+    // the loader while the mounted queries revalidate against the
+    // network — the live answer then resolves to the app or, if truly
+    // unregistered, to onboarding.
+    const confirmed = rowers.isFetchedAfterMount && active.isFetchedAfterMount
+    if (!confirmed) {
+      return <BootstrapScreen state="loading" />
+    }
+    if (loc.pathname !== '/onboarding') {
+      return <Navigate to="/onboarding" replace />
+    }
   }
   return <Outlet />
 }

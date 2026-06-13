@@ -1,7 +1,9 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Navigate, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { createRower, setActiveRower } from '../api/rowers'
+import { useRowers } from '../hooks/useRowers'
+import { useActiveRower } from '../hooks/useActiveRower'
 import { ApiError, NetworkError } from '../api/error'
 import styles from './OnboardingPage.module.css'
 
@@ -42,6 +44,17 @@ export function OnboardingPage() {
   const [busy, setBusy] = useState(false)
   const nav = useNavigate()
   const qc = useQueryClient()
+  const rowers = useRowers()
+  const active = useActiveRower()
+
+  // Defense in depth against the offline-cache trap: if this device
+  // already has a rower, never show the welcome form. The gate may have
+  // sent us here on a stale empty snapshot; once the live refetch
+  // confirms a rower, bounce straight home rather than stranding the
+  // user (or letting them create a duplicate).
+  if ((rowers.data?.length ?? 0) > 0 && active.data) {
+    return <Navigate to="/" replace />
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()

@@ -37,6 +37,32 @@ describe('RowerGate', () => {
     await waitFor(() => expect(screen.getByText('ONBOARD')).toBeInTheDocument())
   })
 
+  it('does not strand a registered user on onboarding from a stale empty persisted snapshot', async () => {
+    const rower = { id: 'r1', name: 'Daniel', color: '#5dd7e4', created_at: '2026-05-03T19:01:59Z' }
+    vi.mocked(listRowers).mockResolvedValue([rower as never])
+    vi.mocked(getActiveRower).mockResolvedValue(rower as never)
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    // Hydrated from IndexedDB persistence: a stale empty snapshot. The
+    // old updatedAt makes the mounted queries refetch and confirm the
+    // real rower — the gate must wait for that, not flash onboarding.
+    qc.setQueryData(['rowers'], [], { updatedAt: 1 })
+    qc.setQueryData(['active-rower'], null, { updatedAt: 1 })
+    render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route path="/onboarding" element={<div>ONBOARD</div>} />
+            <Route element={<RowerGate />}>
+              <Route path="/" element={<div>HOME</div>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+    await waitFor(() => expect(screen.getByText('HOME')).toBeInTheDocument())
+    expect(screen.queryByText('ONBOARD')).not.toBeInTheDocument()
+  })
+
   it('shows bootstrap error screen with details instead of redirecting to /onboarding', async () => {
     const { NetworkError } = await import('../api/error')
     vi.mocked(listRowers).mockRejectedValue(new NetworkError('/api/v1/rowers', new TypeError('Load failed')))
