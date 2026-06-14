@@ -25,7 +25,7 @@ import {
 } from './live/endSessionQueue'
 import { idbPersister, PERSIST_MAX_AGE_MS } from './offline/persister'
 import { isPersistableQuery } from './offline/persistKeys'
-import { attachReachabilityListener } from './offline/ergoStatus'
+import { startReachabilityProbe } from './offline/reachability'
 import { registerPackTriggers } from './offline/pack'
 
 registerSW({ immediate: true })
@@ -78,7 +78,10 @@ const queryClient = new QueryClient({
   },
 })
 
-attachReachabilityListener(queryClient)
+// Reachability is an uncached round-trip to /api/health (ADR-0019):
+// once the SW serves /api reads from cache, query success no longer
+// means the ergo is reachable.
+startReachabilityProbe()
 
 void navigator.storage?.persist?.()
 

@@ -39,25 +39,69 @@ export default defineConfig({
       registerType: 'autoUpdate',
       devOptions: { enabled: true },
       includeAssets: ['favicon.svg'],
-      // The service worker precaches the app shell only. /api/* must
-      // never be cached — the backend SQLite DB is the source of truth,
-      // and stale API responses would lie to the user after DB writes.
+      // ADR-0019: the offline trainer-demo reads are served from a
+      // durable SW runtime cache (NetworkFirst) so they survive an iOS
+      // cold PWA relaunch, which evicts/empties the react-query
+      // IndexedDB bag (ADR-0018's load-bearing store). The network
+      // always wins when it answers, so an online user never sees stale
+      // data; the cache only serves when the fetch fails. Staleness is
+      // labelled in the app via the reachability probe + "Stand: …"
+      // notice (see web/src/offline/reachability.ts), NOT inferred from
+      // query success. Mutations, /api/health (the probe), the SSE
+      // stream and session control stay NetworkOnly.
       workbox: {
         navigateFallbackDenylist: [/^\/api\//],
-        // Streaming SSE must NOT pass through Workbox at all.
-        // `NetworkOnly` reads the response body to evaluate the
-        // cache policy, which breaks `text/event-stream`: the
-        // browser's EventSource never sees the body so `onopen`
-        // never fires and the connection indicator stays stuck on
-        // "connecting". Excluding the stream URL from the runtime
-        // cache rule lets the SW pass it straight through to the
-        // network. The rest of /api/* keeps NetworkOnly so PWA
-        // offline behaviour is unchanged.
         runtimeCaching: [
           {
-            urlPattern: ({ url }) =>
-              url.pathname.startsWith('/api/') &&
-              !url.pathname.startsWith('/api/v1/stream'),
+            // Offline-read GETs. Keep in sync with isOfflineReadPath in
+            // web/src/offline/swRoutes.ts — this copy must be
+            // self-contained so Workbox can inline it into the SW.
+            urlPattern: ({ url, request }) => {
+              if (request.method !== 'GET') return false
+              const p = url.pathname.replace(/\/+$/, '')
+              if (
+                p === '/api/v1/rowers' ||
+                p === '/api/v1/active-rower' ||
+                p === '/api/v1/favorites' ||
+                p === '/api/v1/sessions'
+              ) {
+                return true
+              }
+              const s = p.split('/').filter(Boolean)
+              if (s[0] === 'api' && s[1] === 'v1' && s[2] === 'rowers' && s.length === 5) {
+                return (
+                  s[4] === 'pbs' ||
+                  s[4] === 'lifetime' ||
+                  s[4] === 'achievements' ||
+                  s[4] === 'trends'
+                )
+              }
+              if (s[0] === 'api' && s[1] === 'v1' && s[2] === 'sessions') {
+                if (s[3] === 'stale-open') return false
+                if (s.length === 4) return true
+                if (s.length === 5) return s[4] === 'samples' || s[4] === 'pb-banners'
+                return false
+              }
+              if (s[0] === 'api' && s[1] === 'v1' && s[2] === 'workouts' && s.length === 4) {
+                return s[3] !== 'last'
+              }
+              return false
+            },
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'splits-api-read',
+              networkTimeoutSeconds: 6,
+              cacheableResponse: { statuses: [200] },
+              expiration: { maxEntries: 200, maxAgeSeconds: 30 * 24 * 60 * 60 },
+            },
+          },
+          {
+            // Everything else under /api — mutations, /api/health (the
+            // uncached reachability probe), session control, stale-open,
+            // and the SSE stream — must never be cached. NetworkOnly on
+            // the stream also keeps text/event-stream pass-through intact
+            // (Workbox reading the body would stall EventSource.onopen).
+            urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
             handler: 'NetworkOnly',
           },
         ],

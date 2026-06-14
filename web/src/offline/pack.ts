@@ -55,11 +55,12 @@ export async function packIfStale(qc: QueryClient): Promise<void> {
         retry: false,
       })
     } catch {
-      setErgoStatus({ reachable: false })
+      // Reachability is owned by the /api/health probe (ADR-0019), not
+      // by this fetch — under NetworkFirst the read could be served
+      // from the SW cache and would wrongly report "reachable".
       return
     }
     lastProbeOkAt = Date.now()
-    setErgoStatus({ reachable: true })
 
     const fresh =
       cursor !== null &&

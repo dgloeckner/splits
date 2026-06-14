@@ -1,7 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { QueryClient } from '@tanstack/react-query'
 import {
-  attachReachabilityListener,
   getErgoStatus,
   setErgoStatus,
   subscribeErgoStatus,
@@ -24,11 +22,8 @@ describe('ergoStatus store', () => {
     expect(getErgoStatus().reachable).toBe(false)
   })
 
-  it('any successful query flips reachable back on', async () => {
-    setErgoStatus({ reachable: false })
-    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    attachReachabilityListener(qc)
-    await qc.fetchQuery({ queryKey: ['probe'], queryFn: async () => 42 })
-    expect(getErgoStatus().reachable).toBe(true)
-  })
+  // Reachability is no longer inferred from query success — under the
+  // NetworkFirst SW cache a read can succeed from cache while the ergo
+  // is unreachable. It is owned by the /api/health probe instead; see
+  // reachability.test.ts. The store just holds whatever the probe sets.
 })

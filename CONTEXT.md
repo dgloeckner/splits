@@ -390,6 +390,13 @@ explicit **Stand** label (the timestamp of the last successful pack),
 and start affordances (favorites, new workout) are visible but
 disabled — there is no Ergo to row on.
 
+Reachability is decided by an uncached `/api/health` probe, **not** by
+query success (ADR-0019): the offline-read GETs are served from a
+durable service-worker `NetworkFirst` cache, so a successful read no
+longer proves the Ergo is reachable. The snapshot data lives in SW
+Cache Storage (survives an iOS cold relaunch); the react-query
+IndexedDB persistence (ADR-0018) is now redundant belt-and-suspenders.
+
 _Avoid_: "Offline" in UI copy — the phone is online, and "Offline"
 reads as "the app is broken". "Offline" survives only as the informal
 feature name in docs/specs.

@@ -1,5 +1,4 @@
 import { useSyncExternalStore } from 'react'
-import type { QueryClient } from '@tanstack/react-query'
 
 export type ErgoStatus = {
   reachable: boolean
@@ -36,14 +35,6 @@ export function subscribeErgoStatus(fn: () => void): () => void {
 
 export function useErgoStatus(): ErgoStatus {
   return useSyncExternalStore(subscribeErgoStatus, getErgoStatus, getErgoStatus)
-}
-
-export function attachReachabilityListener(qc: QueryClient): void {
-  qc.getQueryCache().subscribe((event) => {
-    if (event.type === 'updated' && event.action.type === 'success') {
-      setErgoStatus({ reachable: true })
-    }
-  })
 }
 
 export function _resetErgoStatusForTest(): void {

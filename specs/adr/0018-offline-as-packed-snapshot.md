@@ -1,6 +1,6 @@
 # ADR-0018: Offline history is a read-only packed snapshot; the backend stays LAN-only
 
-- **Status**: Accepted
+- **Status**: Accepted — amended by [ADR-0019](0019-offline-reads-served-from-sw-cache.md)
 - **Date**: 2026-06-12
 
 ## Context

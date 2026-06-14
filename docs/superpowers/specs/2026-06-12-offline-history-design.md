@@ -1,8 +1,21 @@
 # Offline history in the PWA — design
 
 **Date:** 2026-06-12
-**Status:** Approved (brainstorming session)
+**Status:** Partially superseded (2026-06-13) — see ADR-0019
 **Depends on:** docs/superpowers/plans/2026-06-12-historie-optimization.md Tasks 7–9 (new trends endpoint + VerlaufTab/RekordeTab). Implement after those land.
+
+> **Amendment (2026-06-13, ADR-0019).** The "persist react-query cache
+> to IndexedDB, no service-worker changes" decision below failed in
+> production on iOS: an installed PWA's IndexedDB is evicted/empty on a
+> cold relaunch (the exact moment you reopen the app on LTE after
+> toggling Wi-Fi), and with `/api/*` `NetworkOnly` there was no
+> fallback, so `RowerGate` hard-errored "Backend nicht erreichbar".
+> The rejected "Workbox `NetworkFirst`" alternative is now **adopted**
+> for offline-read GETs, hardened so its three original objections no
+> longer hold: reachability (and the Stand label) is driven by an
+> uncached `/api/health` probe instead of query success. The IndexedDB
+> persistence stays as redundant belt-and-suspenders. See
+> `specs/adr/0019-offline-reads-served-from-sw-cache.md`.
 
 ## Problem
 

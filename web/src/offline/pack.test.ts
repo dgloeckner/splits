@@ -127,7 +127,10 @@ describe('packIfStale', () => {
     expect(store.get(CURSOR_KEY)).toBeUndefined()
   })
 
-  it('probe failure flips unreachable and stops; Stand survives from the cursor', async () => {
+  it('a failing probe stops the pack; Stand survives from the cursor', async () => {
+    // The pack no longer owns `reachable` (ADR-0019: that's the
+    // /api/health probe's job). It just stops on a failed fetch and
+    // leaves the Stand label hydrated from the cursor.
     store.set(CURSOR_KEY, {
       rowerId: 'R1', statsVersion: 5, buildSha: 'x',
       packedAt: '2026-06-11T09:00:00.000Z', sessionIds: ['S2'],
@@ -136,7 +139,6 @@ describe('packIfStale', () => {
     vi.mocked(rowers.getActiveRower).mockRejectedValueOnce(new Error('timeout'))
     await packIfStale(qc)
     expect(getErgoStatus()).toMatchObject({
-      reachable: false,
       packedAt: '2026-06-11T09:00:00.000Z',
       packedSessions: 1,
     })
