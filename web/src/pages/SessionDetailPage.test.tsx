@@ -122,6 +122,29 @@ describe('SessionDetailPage', () => {
     expect(screen.queryByText('Session nicht gefunden.')).toBeNull()
   })
 
+  it('shows not-found copy only on a real 404', async () => {
+    vi.stubGlobal('fetch', mockFetch({}))
+    render(wrap())
+    await waitFor(() =>
+      expect(screen.getByText('Session nicht gefunden.')).toBeInTheDocument(),
+    )
+  })
+
+  it('shows the offline copy with a retry on a network failure', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('Load failed')
+      }),
+    )
+    render(wrap())
+    await waitFor(() =>
+      expect(screen.getByText(/konnte nicht geladen werden/)).toBeInTheDocument(),
+    )
+    expect(screen.queryByText('Session nicht gefunden.')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Erneut versuchen' })).toBeInTheDocument()
+  })
+
   it('delete button opens confirm dialog; confirm navigates back', async () => {
     const fetchMock = mockFetch({
       '/api/v1/sessions/S1/samples': () => new Response(JSON.stringify({ samples: SAMPLES }), { status: 200 }),

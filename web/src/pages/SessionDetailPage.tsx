@@ -19,6 +19,7 @@ import { DeleteSessionDialog } from './history/DeleteSessionDialog'
 import { showToast } from '../app/Toast'
 import { InsightsSection } from './session/InsightsSection'
 import { ErgoStandNotice } from '../offline/ErgoStandNotice'
+import { ApiError } from '../api/error'
 import styles from './SessionDetailPage.module.css'
 
 export function SessionDetailPage() {
@@ -62,12 +63,30 @@ export function SessionDetailPage() {
     return <div className={styles.page}>Lädt …</div>
   }
   if (!sessionQ.data) {
+    // A 404 means the session is really gone. Anything else (network
+    // failure, 5xx) must not masquerade as "nicht gefunden" — see
+    // bugs/IMG_3271.PNG where an existing session rendered as missing
+    // because the ergo was unreachable.
+    const notFound = sessionQ.error instanceof ApiError && sessionQ.error.status === 404
     return (
       <div className={styles.page}>
         <Link to="/historie" className={styles.back}>
           ← Zurück
         </Link>
-        <p>Session nicht gefunden.</p>
+        {notFound ? (
+          <p>Session nicht gefunden.</p>
+        ) : (
+          <>
+            <p>Session konnte nicht geladen werden — Ergo nicht erreichbar?</p>
+            <button
+              type="button"
+              className={styles.retryBtn}
+              onClick={() => sessionQ.refetch()}
+            >
+              Erneut versuchen
+            </button>
+          </>
+        )}
       </div>
     )
   }
