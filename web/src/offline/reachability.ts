@@ -1,4 +1,4 @@
-import { setErgoStatus } from './ergoStatus'
+import { getErgoStatus, setErgoStatus } from './ergoStatus'
 
 /**
  * Reachability probe for the ergo backend.
@@ -14,9 +14,19 @@ import { setErgoStatus } from './ergoStatus'
  * backend is unreachable. That boolean drives `ergoStatus.reachable`,
  * which gates the offline hero, dimmed start affordances, and the
  * "Stand: …" label.
+ *
+ * Self-healing (ADR-0020): while unreachable, the probe re-runs every
+ * REPROBE_WHILE_DOWN_MS, so a single mistimed probe (e.g. Wi-Fi still
+ * re-associating right after unlock) cannot latch `reachable = false`
+ * until the next visibility change. `retryReachabilityNow()` is the
+ * manual trigger behind every "Erneut verbinden" button. On the
+ * false→true transition exactly one `onReconnect` hook fires so query
+ * invalidation, the end-session queue and the offline pack are
+ * coordinated in one place (wired in main.tsx).
  */
 const HEALTH_URL = '/api/health'
-const PROBE_TIMEOUT_MS = 6_000
+const PROBE_TIMEOUT_MS = 3_500
+export const REPROBE_WHILE_DOWN_MS = 25_000
 
 export async function probeReachable(): Promise<boolean> {
   try {
@@ -31,32 +41,79 @@ export async function probeReachable(): Promise<boolean> {
 }
 
 let started = false
+let probing = false
+let downTimer: ReturnType<typeof setTimeout> | null = null
+let onReconnect: (() => void) | null = null
+
+async function runProbe(): Promise<void> {
+  if (probing) return
+  probing = true
+  try {
+    const reachable = await probeReachable()
+    const wasReachable = getErgoStatus().reachable
+    setErgoStatus({ reachable })
+    if (reachable && !wasReachable) onReconnect?.()
+  } finally {
+    probing = false
+    scheduleReprobeWhileDown()
+  }
+}
+
+function scheduleReprobeWhileDown(): void {
+  if (downTimer) {
+    clearTimeout(downTimer)
+    downTimer = null
+  }
+  if (getErgoStatus().reachable) return
+  downTimer = setTimeout(() => {
+    downTimer = null
+    void runProbe()
+  }, REPROBE_WHILE_DOWN_MS)
+}
 
 /**
- * Probe once on boot, then re-probe whenever the tab becomes visible or
- * the browser reports it is back online. Idempotent.
+ * Manual reconnect trigger — behind every "Erneut verbinden" button.
+ * Runs a probe immediately; the onReconnect hook (if the probe
+ * succeeds after a failure) does the rest.
  */
-export function startReachabilityProbe(): void {
+export function retryReachabilityNow(): void {
+  void runProbe()
+}
+
+/**
+ * Probe once on boot, then re-probe on visibility/online/pageshow and
+ * on an interval while unreachable. Idempotent.
+ */
+export function startReachabilityProbe(opts?: { onReconnect?: () => void }): void {
   if (started) return
   started = true
+  onReconnect = opts?.onReconnect ?? null
 
-  const run = () => {
-    void probeReachable().then((reachable) => setErgoStatus({ reachable }))
-  }
-
-  run()
+  void runProbe()
 
   if (typeof window !== 'undefined') {
-    window.addEventListener('online', run)
-    window.addEventListener('offline', () => setErgoStatus({ reachable: false }))
+    window.addEventListener('online', () => void runProbe())
+    window.addEventListener('offline', () => {
+      setErgoStatus({ reachable: false })
+      scheduleReprobeWhileDown()
+    })
+    // iOS standalone PWAs can resume from the bfcache without a
+    // visibilitychange; pageshow covers that path.
+    window.addEventListener('pageshow', () => void runProbe())
   }
   if (typeof document !== 'undefined') {
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') run()
+      if (document.visibilityState === 'visible') void runProbe()
     })
   }
 }
 
 export function _resetReachabilityForTest(): void {
   started = false
+  probing = false
+  onReconnect = null
+  if (downTimer) {
+    clearTimeout(downTimer)
+    downTimer = null
+  }
 }
