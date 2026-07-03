@@ -5,6 +5,7 @@ import { NotFound } from './NotFound'
 import { RowerGate } from './RowerGate'
 import { LiveSessionProvider } from '../live/LiveSessionContext'
 import { useBootReconcile } from '../live/useBootReconcile'
+import { ChannelReviver } from '../live/ChannelReviver'
 import { WorkoutOverlayProvider } from '../pages/live/WorkoutOverlayContext'
 import { LivePage } from '../pages/LivePage'
 import { HomePage } from '../pages/HomePage'
@@ -38,6 +39,7 @@ export function AppRouter() {
     <ErrorBoundary>
       <LiveSessionProvider>
         <BootReconciler />
+        <ChannelReviver />
         <WorkoutOverlayProvider>
         <BrowserRouter>
           <Routes>
