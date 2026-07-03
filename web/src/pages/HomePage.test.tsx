@@ -7,6 +7,8 @@ import { HomePage } from './HomePage'
 import { setErgoStatus, _resetErgoStatusForTest } from '../offline/ergoStatus'
 
 vi.mock('../api/rowers', () => ({ getActiveRower: vi.fn(async () => null) }))
+vi.mock('../app/Toast', () => ({ showToast: vi.fn() }))
+import { showToast } from '../app/Toast'
 
 const originalFetch = global.fetch
 afterEach(() => {
@@ -83,5 +85,15 @@ describe('HomePage', () => {
   it('reachable: no hero card', async () => {
     renderHome()
     expect(screen.queryByTestId('ergo-offline-hero')).toBeNull()
+  })
+
+  it('shows a toast instead of hanging when session start fails', async () => {
+    global.fetch = vi.fn(async () => {
+      throw new TypeError('Load failed')
+    }) as typeof fetch
+    renderHome()
+    await userEvent.click(screen.getByRole('button', { name: /nur rudern/i }))
+    await waitFor(() => expect(showToast).toHaveBeenCalled())
+    expect(screen.queryByText('LIVE')).not.toBeInTheDocument()
   })
 })

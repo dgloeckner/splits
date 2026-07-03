@@ -38,7 +38,7 @@ export type Sample = {
   energy_joules: number
 }
 
-import { ApiError, getFetch } from './error'
+import { ApiError, apiFetch, getFetch } from './error'
 
 async function json<T>(r: Response): Promise<T> {
   if (!r.ok) throw new ApiError(r.status, `${r.status} ${r.statusText}`)
@@ -121,11 +121,14 @@ export async function raceGo(): Promise<void> {
 // and not idle, the call is a no-op. Strokes arriving before this is
 // called are dropped at the sessionizer (per FEAT-0009 / new-workout
 // flow), so the UI must always call this before navigating to /live.
+// Fails fast (6s) instead of hanging when the ergo is unreachable —
+// callers surface that as a toast rather than a dead button.
 export async function startSession(workoutID?: string): Promise<void> {
-  const r = await fetch('/api/v1/session/start', {
+  const r = await apiFetch('/api/v1/session/start', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ workout_id: workoutID ?? '' }),
+    signal: AbortSignal.timeout(6_000),
   })
   if (!r.ok) throw new ApiError(r.status, `${r.status} ${r.statusText}`)
 }

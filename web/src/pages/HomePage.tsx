@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useActiveRower } from '../hooks/useActiveRower'
 import { startSession } from '../api/client'
+import { showToast } from '../app/Toast'
 import { FavoritesList } from './home/FavoritesList'
 import { StaleSessionCard } from './home/StaleSessionCard'
 import { IconJustRow, IconDistance, IconTime, IconInterval, IconRace } from '../icons/workout'
@@ -14,7 +15,12 @@ export function HomePage() {
   const { reachable } = useErgoStatus()
 
   async function startJustRow() {
-    await startSession()
+    try {
+      await startSession()
+    } catch {
+      showToast('Start fehlgeschlagen — Ergo nicht erreichbar?', 'warn')
+      return
+    }
     nav('/live')
   }
 

@@ -4,6 +4,7 @@ import { startSession } from '../../api/client'
 import { deleteFavorite, listFavorites, type Favorite } from '../../api/favorites'
 import { createWorkout } from '../../api/workouts'
 import { workoutIconFor } from '../../icons/workout'
+import { showToast } from '../../app/Toast'
 import styles from './FavoritesList.module.css'
 
 export type Props = { rowerID?: string; disabled?: boolean }
@@ -24,14 +25,19 @@ export function FavoritesList({ rowerID, disabled = false }: Props) {
   const favorites = data ?? []
 
   async function start(fav: Favorite) {
-    const created = await createWorkout({
-      mode: fav.mode,
-      params: fav.params,
-      intensity: fav.intensity,
-      warmup_sec: fav.warmup_sec,
-      cooldown_sec: fav.cooldown_sec,
-    })
-    await startSession(created.id)
+    try {
+      const created = await createWorkout({
+        mode: fav.mode,
+        params: fav.params,
+        intensity: fav.intensity,
+        warmup_sec: fav.warmup_sec,
+        cooldown_sec: fav.cooldown_sec,
+      })
+      await startSession(created.id)
+    } catch {
+      showToast('Start fehlgeschlagen — Ergo nicht erreichbar?', 'warn')
+      return
+    }
     nav('/live')
   }
 
