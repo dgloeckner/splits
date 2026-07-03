@@ -26,7 +26,7 @@ import {
 import { idbPersister, PERSIST_MAX_AGE_MS } from './offline/persister'
 import { isPersistableQuery } from './offline/persistKeys'
 import { startReachabilityProbe } from './offline/reachability'
-import { registerPackTriggers } from './offline/pack'
+import { registerPackTriggers, packIfStale } from './offline/pack'
 
 registerSW({ immediate: true })
 
@@ -80,8 +80,17 @@ const queryClient = new QueryClient({
 
 // Reachability is an uncached round-trip to /api/health (ADR-0019):
 // once the SW serves /api reads from cache, query success no longer
-// means the ergo is reachable.
-startReachabilityProbe()
+// means the ergo is reachable. On the false→true transition run the
+// single coordinated "back online" step (ADR-0020): refresh all
+// cached reads, flush the deferred end-session queue, refresh the
+// offline pack. The SSE channel revives via ChannelReviver.
+startReachabilityProbe({
+  onReconnect: () => {
+    void queryClient.invalidateQueries()
+    void processPendingEndSessions()
+    void packIfStale(queryClient)
+  },
+})
 
 void navigator.storage?.persist?.()
 
