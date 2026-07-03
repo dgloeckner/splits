@@ -20,6 +20,7 @@
 | ADR-0017 | Deterministic Replay Harness as CI Seam | Accepted  |
 | ADR-0018 | Offline History as Packed Snapshot      | Accepted (amended by 0019) |
 | ADR-0019 | Offline Reads Served from SW Cache      | Accepted  |
+| ADR-0020 | Reachability is Self-Healing and Owns Connectivity Recovery | Accepted  |
 
 Future candidates:
 - **ADR-0008** — Serial protocol vs BLE FTMS (depends on firmware check)
