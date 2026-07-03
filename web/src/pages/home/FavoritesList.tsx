@@ -25,14 +25,20 @@ export function FavoritesList({ rowerID, disabled = false }: Props) {
   const favorites = data ?? []
 
   async function start(fav: Favorite) {
+    let created
     try {
-      const created = await createWorkout({
+      created = await createWorkout({
         mode: fav.mode,
         params: fav.params,
         intensity: fav.intensity,
         warmup_sec: fav.warmup_sec,
         cooldown_sec: fav.cooldown_sec,
       })
+    } catch {
+      showToast('Start fehlgeschlagen — Ergo nicht erreichbar?', 'warn')
+      return
+    }
+    try {
       await startSession(created.id)
     } catch {
       showToast('Start fehlgeschlagen — Ergo nicht erreichbar?', 'warn')

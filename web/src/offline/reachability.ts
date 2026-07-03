@@ -52,7 +52,9 @@ async function runProbe(): Promise<void> {
     const reachable = await probeReachable()
     const wasReachable = getErgoStatus().reachable
     setErgoStatus({ reachable })
-    if (reachable && !wasReachable) onReconnect?.()
+    if (reachable && !wasReachable) {
+      try { onReconnect?.() } catch { /* hook errors must not abort the probe */ }
+    }
   } finally {
     probing = false
     scheduleReprobeWhileDown()
