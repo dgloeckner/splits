@@ -2,7 +2,7 @@ import styles from './BootstrapScreen.module.css'
 import { ApiError, NetworkError } from '../api/error'
 
 type Props = {
-  state: 'loading' | 'error'
+  state: 'loading' | 'error' | 'offline'
   error?: unknown
   onRetry?: () => void
 }
@@ -41,10 +41,32 @@ export function BootstrapScreen({ state, error, onRetry }: Props) {
             <div className={styles.spinner} aria-hidden />
             <p className={styles.label}>Verbinde zum Backend…</p>
           </>
+        ) : state === 'offline' ? (
+          <OfflineBlock onRetry={onRetry} />
         ) : (
           <ErrorBlock error={error} onRetry={onRetry} />
         )}
       </main>
+    </div>
+  )
+}
+
+// Friendly away-from-home state (ADR-0020): the ergo is a LAN-only
+// backend, so "unreachable" is an expected situation, not an error.
+// No stack traces, no URLs — just the fact and a reconnect trigger.
+function OfflineBlock({ onRetry }: { onRetry?: () => void }) {
+  return (
+    <div className={styles.error} data-testid="bootstrap-offline">
+      <h1 className={styles.title}>Ergo nicht erreichbar</h1>
+      <p className={styles.subtitle}>
+        Du bist nicht im Heimnetz oder das Ergo ist aus. Verlauf und Rekorde
+        brauchen beim ersten Laden einmal eine Verbindung.
+      </p>
+      {onRetry && (
+        <button type="button" className={styles.retry} onClick={onRetry}>
+          Erneut verbinden
+        </button>
+      )}
     </div>
   )
 }

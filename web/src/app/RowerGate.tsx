@@ -1,26 +1,32 @@
 import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useRowers } from '../hooks/useRowers'
 import { useActiveRower } from '../hooks/useActiveRower'
+import { useErgoStatus } from '../offline/ergoStatus'
+import { retryReachabilityNow } from '../offline/reachability'
 import { BootstrapScreen } from './BootstrapScreen'
 
 export function RowerGate() {
   const rowers = useRowers()
   const active = useActiveRower()
+  const { reachable } = useErgoStatus()
   const loc = useLocation()
 
   // Bootstrap fetch is failing or has failed. Don't treat missing data
-  // as "no rower" — that wrongly sends an existing user to onboarding
-  // when the backend is just slow to come up. Show the underlying
-  // error so a tech user can diagnose; queries keep retrying with
-  // backoff in the background.
+  // as "no rower" — that wrongly sends an existing user to onboarding.
+  // Away from home (probe says unreachable) this is the friendly
+  // offline screen; only when the backend is reachable but failing do
+  // we surface diagnostics for a tech user (ADR-0020). Recovery is
+  // owned by the reachability probe loop; the button forces a probe
+  // and a refetch right now.
   const failure = rowers.failureReason ?? active.failureReason
   const hasFailed = (rowers.failureCount ?? 0) > 0 || (active.failureCount ?? 0) > 0
   if (hasFailed && (!rowers.data || !active.data)) {
     return (
       <BootstrapScreen
-        state="error"
+        state={reachable ? 'error' : 'offline'}
         error={failure}
         onRetry={() => {
+          retryReachabilityNow()
           rowers.refetch()
           active.refetch()
         }}

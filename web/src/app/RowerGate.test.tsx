@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { RowerGate } from './RowerGate'
 import { listRowers, getActiveRower } from '../api/rowers'
+import { setErgoStatus, _resetErgoStatusForTest } from '../offline/ergoStatus'
 
 vi.mock('../api/rowers', () => ({
   listRowers: vi.fn(async () => []),
@@ -28,6 +29,7 @@ function wrap(initial: string) {
 
 describe('RowerGate', () => {
   beforeEach(() => {
+    _resetErgoStatusForTest()
     vi.mocked(listRowers).mockReset().mockResolvedValue([])
     vi.mocked(getActiveRower).mockReset().mockResolvedValue(null)
   })
@@ -75,5 +77,42 @@ describe('RowerGate', () => {
     // Underlying error detail visible to tech user.
     expect(screen.getByText(/Load failed/)).toBeInTheDocument()
     expect(screen.getByText(/\/api\/v1\/rowers/)).toBeInTheDocument()
+  })
+
+  it('shows the friendly offline screen (not the raw error) when the ergo is unreachable', async () => {
+    setErgoStatus({ reachable: false })
+    const { NetworkError } = await import('../api/error')
+    vi.mocked(listRowers).mockRejectedValue(
+      new NetworkError('/api/v1/rowers', new TypeError('Load failed')),
+    )
+    vi.mocked(getActiveRower).mockRejectedValue(
+      new NetworkError('/api/v1/active-rower', new TypeError('Load failed')),
+    )
+    wrap('/')
+    await waitFor(() =>
+      expect(screen.getByText('Ergo nicht erreichbar')).toBeInTheDocument(),
+    )
+    // No developer diagnostics on the away-from-home path.
+    expect(screen.queryByText(/Load failed/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/\/api\/v1\/rowers/)).not.toBeInTheDocument()
+    // Manual reconnect trigger is present.
+    expect(screen.getByRole('button', { name: 'Erneut verbinden' })).toBeInTheDocument()
+    expect(screen.queryByText('ONBOARD')).not.toBeInTheDocument()
+  })
+
+  it('keeps the diagnostic screen when the backend is reachable but failing', async () => {
+    setErgoStatus({ reachable: true })
+    const { NetworkError } = await import('../api/error')
+    vi.mocked(listRowers).mockRejectedValue(
+      new NetworkError('/api/v1/rowers', new TypeError('Load failed')),
+    )
+    vi.mocked(getActiveRower).mockRejectedValue(
+      new NetworkError('/api/v1/active-rower', new TypeError('Load failed')),
+    )
+    wrap('/')
+    await waitFor(() =>
+      expect(screen.getByText('Backend nicht erreichbar')).toBeInTheDocument(),
+    )
+    expect(screen.getByText(/Load failed/)).toBeInTheDocument()
   })
 })

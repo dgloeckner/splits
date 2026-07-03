@@ -6,7 +6,5 @@ export function useActiveRower() {
     queryKey: ['active-rower'],
     queryFn: getActiveRower,
     staleTime: 10_000,
-    retry: true,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 10_000),
   })
 }
