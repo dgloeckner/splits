@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { formatStand } from '../util/dates'
 import { useErgoStatus } from './ergoStatus'
+import { retryReachabilityNow } from './reachability'
 import styles from './ErgoStandNotice.module.css'
 
 export function ErgoStandNotice({ variant }: { variant: 'banner' | 'hero' }) {
@@ -21,6 +22,14 @@ export function ErgoStandNotice({ variant }: { variant: 'banner' | 'hero' }) {
       <Link to="/historie" className={styles.heroCta} data-testid="ergo-offline-cta">
         → Verlauf ansehen
       </Link>
+      <button
+        type="button"
+        className={styles.heroRetry}
+        data-testid="ergo-reconnect"
+        onClick={() => retryReachabilityNow()}
+      >
+        Erneut verbinden
+      </button>
     </section>
   )
 }

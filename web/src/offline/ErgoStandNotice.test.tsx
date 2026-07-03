@@ -1,8 +1,12 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router-dom'
 import { ErgoStandNotice } from './ErgoStandNotice'
 import { setErgoStatus, _resetErgoStatusForTest } from './ergoStatus'
+
+vi.mock('./reachability', () => ({ retryReachabilityNow: vi.fn() }))
+import { retryReachabilityNow } from './reachability'
 
 function renderNotice(variant: 'banner' | 'hero') {
   return render(
@@ -41,5 +45,12 @@ describe('ErgoStandNotice', () => {
     expect(screen.getByText('Ergo nicht erreichbar')).toBeInTheDocument()
     expect(screen.getByText('Stand: 12. Juni, 18:42')).toBeInTheDocument()
     expect(screen.getByTestId('ergo-offline-cta')).toHaveAttribute('href', '/historie')
+  })
+
+  it('hero reconnect button triggers an immediate probe', async () => {
+    setErgoStatus({ reachable: false })
+    renderNotice('hero')
+    await userEvent.click(screen.getByTestId('ergo-reconnect'))
+    expect(retryReachabilityNow).toHaveBeenCalledTimes(1)
   })
 })
