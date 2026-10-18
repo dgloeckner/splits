@@ -78,6 +78,7 @@ describe('SessionDetailPage', () => {
     expect(screen.getByText(/Split-Verlauf/)).toBeInTheDocument()
     expect(screen.getByText(/Watt-Verlauf/)).toBeInTheDocument()
     expect(screen.getByText(/SPM-Verlauf/)).toBeInTheDocument()
+    expect(screen.getByText(/DPS-Verlauf/)).toBeInTheDocument()
   })
 
   it('renders Auswertung section when insights are available', async () => {
