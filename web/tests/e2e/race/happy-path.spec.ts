@@ -174,7 +174,7 @@ test.describe('race-flow canonical happy path (0016-05)', () => {
     await page.screenshot({ path: `${SCREENSHOT_DIR}/06-after-fertig.png` })
 
     // 10. Invoke the e2e-critic sub-agent with the screenshots + AC list.
-    //     Mirrors the invocation in critic-regression.test.mjs. If the
+    //     Mirrors the invocation in critic-regression.mjs. If the
     //     CLI is unavailable, log a note and continue — gate is advisory
     //     for this first integration (see file header).
     const criticInput = {
@@ -219,7 +219,7 @@ test.describe('race-flow canonical happy path (0016-05)', () => {
 
 /**
  * Run the e2e-critic sub-agent against the captured screenshots. The
- * invocation mirrors critic-regression.test.mjs. Findings are written
+ * invocation mirrors critic-regression.mjs. Findings are written
  * to a JSON file alongside the screenshots and logged to stderr; any
  * `severity: blocker` findings are surfaced as warnings on this first
  * integration (ADR-0014 / PRD-0016 gate begins with NEW regressions,

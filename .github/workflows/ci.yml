@@ -71,9 +71,9 @@ jobs:
     name: e2e (playwright, advisory)
     runs-on: ubuntu-latest
     # Advisory until the full suite is green on main. At the time of writing
-    # six specs fail regardless of CI (offline.spec, race/abort "Abort from
-    # Live", race/falschstart x2, race/fertig, rower-onboarding); see
-    # ADR-0022 follow-ups. Drop continue-on-error once they pass.
+    # four specs fail regardless of CI (race/abort "Abort from Live",
+    # race/falschstart x2, rower-onboarding); see ADR-0022 follow-ups. Drop
+    # continue-on-error once they pass.
     continue-on-error: true
     defaults:
       run:
@@ -104,9 +104,24 @@ jobs:
       # Excluded: capture-only suites that only write PNGs for human review
       # (theme-screenshots, ux-audit). The e2e-critic regression script is
       # excluded in playwright.config.ts (testIgnore) since it runs on load.
-      - run: npx playwright test --workers=1 --grep-invert "theme-screenshots|ux-audit"
+      - run: npx playwright test --workers=1 --grep-invert "theme-screenshots|ux-audit" --reporter=line,json
         env:
           CI: "1"
+          PLAYWRIGHT_JSON_OUTPUT_NAME: results.json
+      # A run that exits before collecting any test (a script that calls
+      # process.exit on import once ended the run after 3 s, exit code 0)
+      # must not pass as green. Read the JSON report and insist on tests.
+      - name: Fail if no tests ran
+        if: always()
+        run: |
+          node -e '
+            const fs = require("fs");
+            if (!fs.existsSync("results.json")) { console.error("no results.json: playwright did not finish"); process.exit(1); }
+            const s = JSON.parse(fs.readFileSync("results.json", "utf8")).stats;
+            const ran = (s.expected || 0) + (s.unexpected || 0) + (s.flaky || 0);
+            console.log(`playwright ran ${ran} tests (expected=${s.expected} unexpected=${s.unexpected} flaky=${s.flaky} skipped=${s.skipped})`);
+            if (ran === 0) { console.error("zero tests ran"); process.exit(1); }
+          '
       - uses: actions/upload-artifact@v5
         if: always()
         with:
@@ -114,5 +129,6 @@ jobs:
           path: |
             web/playwright-report
             web/test-results
+            web/results.json
           if-no-files-found: ignore
           retention-days: 7

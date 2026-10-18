@@ -65,11 +65,17 @@ more than it delivers.
   Vite + Go backend + Chromium; two workers starve each other on a
   4-vCPU runner), excludes the capture-only suites (`theme-screenshots`,
   `ux-audit`) via `--grep-invert`, and is advisory as a whole until the
-  suite is green on `main` — six specs (offline, race abort-from-live,
-  Falschstart x2, Fertig, rower-onboarding) fail independently of CI.
-  The `e2e-critic` regression script (ADR-0014) is excluded in
-  `playwright.config.ts` because Playwright would execute it on load and
-  it needs the `claude` CLI.
+  suite is green on `main` — four specs (race abort-from-live,
+  Falschstart x2, rower-onboarding) fail independently of CI. A guard
+  step fails the job when Playwright reports zero tests, because a
+  script that called `process.exit` on import once ended the run after
+  three seconds with exit code 0. That script, the `e2e-critic`
+  regression (ADR-0014), is now named `critic-regression.mjs` so it no
+  longer matches Playwright's default `testMatch`; a `testIgnore` was
+  not enough, since a project-level `testIgnore` replaces the top-level
+  one.
+- The job's `--grep-invert` filter is the one place a spec can be
+  silently dropped; keep it to the capture-only suites.
 - `release.yml`: runs on `push` to `main` and on tags `v*`. Bundles are
   named `splits-linux-<armv6|armv7|arm64|amd64>-<version>.tar.gz`;
   `bundle.sh` now uses the same `linux-<arch>` suffix as the binary so
@@ -96,7 +102,7 @@ more than it delivers.
   build time; both workflows assert the tree is clean after `npm ci` so
   a CI build can never be stamped `-dirty`.
 - Follow-ups, not in this ADR: fix the ESLint backlog and make the lint
-  step blocking; fix the six failing e2e specs and make the e2e job
+  step blocking; fix the four failing e2e specs and make the e2e job
   blocking; a `splits --version` flag populated via `-ldflags -X`;
   a golden-fixture freshness check (ADR-0017); Dependabot for action
   versions; serving the PWA from the Go binary.
