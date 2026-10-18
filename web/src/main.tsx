@@ -24,7 +24,7 @@ import {
   configureEndSessionQueue,
   processPendingEndSessions,
 } from './live/endSessionQueue'
-import { idbPersister, PERSIST_MAX_AGE_MS } from './offline/persister'
+import { idbPersister, PERSIST_BUSTER, PERSIST_MAX_AGE_MS } from './offline/persister'
 import { recordBootstrapQuery } from './offline/bootstrapMirror'
 import { isPersistableQuery } from './offline/persistKeys'
 import { leaveOfflineMode, reportUnreachable, startReachabilityProbe } from './offline/reachability'
@@ -137,7 +137,7 @@ createRoot(document.getElementById('root')!).render(
       persistOptions={{
         persister: idbPersister,
         maxAge: PERSIST_MAX_AGE_MS,
-        buster: __BUILD_SHA__,
+        buster: PERSIST_BUSTER,
         dehydrateOptions: {
           shouldDehydrateQuery: (q) =>
             defaultShouldDehydrateQuery(q) && isPersistableQuery(q.queryKey),

@@ -41,6 +41,7 @@ vi.mock('../api/workouts', () => ({
 
 import * as client from '../api/client'
 import * as rowers from '../api/rowers'
+import { PERSIST_SCHEMA_VERSION } from './persister'
 import { packIfStale, onAppVisible, _resetPackForTest } from './pack'
 import { getErgoStatus, _resetErgoStatusForTest } from './ergoStatus'
 import type { OfflineCursor } from './cursor'
@@ -100,12 +101,35 @@ describe('packIfStale', () => {
     expect(client.getSession).not.toHaveBeenCalled()
   })
 
-  it('buildSha mismatch forces a full pack despite matching version', async () => {
+  // Issue #6 / ADR-0021: a deploy must not force a re-pack — only a
+  // change of the persisted shape (PERSIST_SCHEMA_VERSION) does.
+  it('a fresh pack from another build is kept: probe only', async () => {
     const qc = new QueryClient(qcOpts)
     store.set(CURSOR_KEY, {
-      rowerId: 'R1', statsVersion: 5, buildSha: 'someone-elses-build',
+      rowerId: 'R1', statsVersion: 5, schemaVersion: PERSIST_SCHEMA_VERSION,
       packedAt: '2026-06-12T09:00:00.000Z', sessionIds: ['S2', 'S1'],
     } satisfies OfflineCursor)
+    await packIfStale(qc)
+    expect(client.getRowerLifetime).toHaveBeenCalledTimes(1)
+    expect(client.getRowerTrends).not.toHaveBeenCalled()
+  })
+
+  it('a schema-version change forces a full pack despite matching stats', async () => {
+    const qc = new QueryClient(qcOpts)
+    store.set(CURSOR_KEY, {
+      rowerId: 'R1', statsVersion: 5, schemaVersion: PERSIST_SCHEMA_VERSION - 1,
+      packedAt: '2026-06-12T09:00:00.000Z', sessionIds: ['S2', 'S1'],
+    } satisfies OfflineCursor)
+    await packIfStale(qc)
+    expect(client.getRowerTrends).toHaveBeenCalledTimes(3)
+  })
+
+  it('an old-shape cursor (buildSha) yields one full pack', async () => {
+    const qc = new QueryClient(qcOpts)
+    store.set(CURSOR_KEY, {
+      rowerId: 'R1', statsVersion: 5, buildSha: 'abc1234',
+      packedAt: '2026-06-12T09:00:00.000Z', sessionIds: ['S2', 'S1'],
+    })
     await packIfStale(qc)
     expect(client.getRowerTrends).toHaveBeenCalledTimes(3)
   })
@@ -132,7 +156,7 @@ describe('packIfStale', () => {
     // /api/health probe's job). It just stops on a failed fetch and
     // leaves the Stand label hydrated from the cursor.
     store.set(CURSOR_KEY, {
-      rowerId: 'R1', statsVersion: 5, buildSha: 'x',
+      rowerId: 'R1', statsVersion: 5, schemaVersion: PERSIST_SCHEMA_VERSION,
       packedAt: '2026-06-11T09:00:00.000Z', sessionIds: ['S2'],
     } satisfies OfflineCursor)
     const qc = new QueryClient(qcOpts)

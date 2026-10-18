@@ -152,6 +152,11 @@ stream or `/api/health`, and no stale response is ever shown unlabelled.
   of `ergoStatus` must handle; the GET-timeout / SW-timeout margin is an
   invariant that needs a test; the schema-version buster must be bumped
   whenever persisted shapes change.
+- Schema-version rule: `PERSIST_SCHEMA_VERSION` (`web/src/offline/persister.ts`)
+  is the persisted-cache buster *and* the pack cursor's freshness key.
+  Bump it by hand only when the shape of a persisted response changes —
+  never per build — so neither the bag nor the pack is discarded by a
+  deploy. An old cursor shape fails validation and triggers one full pack.
 - Testing: the ADR-0019/0020 testing gap is closed by a Playwright
   project against the **preview build** with the real failure shapes
   (hanging connection, 502, airplane mode, IDB evicted), not only the

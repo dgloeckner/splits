@@ -14,6 +14,7 @@ import { getActiveRower } from '../api/rowers'
 import { getWorkout } from '../api/workouts'
 import { loadCursor, saveCursor } from './cursor'
 import { setErgoStatus } from './ergoStatus'
+import { PERSIST_SCHEMA_VERSION } from './persister'
 
 export const OFFLINE_SESSION_DEPTH = 10
 export const PACK_GUARD_MS = 15 * 60_000
@@ -66,7 +67,7 @@ export async function packIfStale(qc: QueryClient): Promise<void> {
       cursor !== null &&
       cursor.rowerId === rid &&
       cursor.statsVersion === lifetime.stats_version &&
-      cursor.buildSha === __BUILD_SHA__ &&
+      cursor.schemaVersion === PERSIST_SCHEMA_VERSION &&
       Date.now() - Date.parse(cursor.packedAt) < FULL_PACK_MAX_AGE_MS
     if (fresh) return
 
@@ -132,7 +133,7 @@ export async function packIfStale(qc: QueryClient): Promise<void> {
     await saveCursor({
       rowerId: rid,
       statsVersion: lifetime.stats_version,
-      buildSha: __BUILD_SHA__,
+      schemaVersion: PERSIST_SCHEMA_VERSION,
       packedAt,
       sessionIds: ids,
     })
