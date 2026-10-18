@@ -70,6 +70,7 @@ dev/caddy_darwin_amd64_custom
 # Playwright + audit artefacts
 test-results/
 playwright-report/
+web/results.json
 
 # Local scratch — not for the repo
 tmp.png

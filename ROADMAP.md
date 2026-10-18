@@ -58,6 +58,7 @@
 - [x] Caddy + TLS (ADR-0006) — `deploy/Caddyfile.template` (DuckDNS DNS-01)
 - [x] systemd units and install script — `deploy/splits.service` + `deploy/install.sh`
 - [x] Daily SQLite backup — `deploy/splits-backup.{sh,service,timer}`
+- [x] CI + downloadable release packages — `.github/workflows/{ci,release}.yml`, `deploy/bundle.sh` (ADR-0022)
 
 ## M7 — Polish
 

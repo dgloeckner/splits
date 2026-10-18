@@ -11,6 +11,7 @@
     "format": "prettier --write .",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "e2e": "playwright test"
@@ -36,6 +37,7 @@
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.1",
+    "@vitest/coverage-v8": "4.1.5",
     "@vitest/ui": "^4.1.4",
     "eslint": "^9.39.4",
     "eslint-plugin-react-hooks": "^7.1.1",

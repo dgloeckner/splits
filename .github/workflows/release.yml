@@ -1,0 +1,146 @@
+# Release packaging: build the four Linux bundles (deploy/bundle.sh) and
+# publish them as GitHub Release assets.
+#
+#   - push a tag `vX.Y.Z`  -> versioned release, assets
+#                             splits-linux-<arch>-vX.Y.Z.tar.gz + SHA256SUMS
+#   - push to main         -> the rolling `nightly` pre-release is replaced,
+#                             assets splits-linux-<arch>-nightly.tar.gz
+#
+# Only actions/* plus the `gh` CLI preinstalled on the runner are used.
+# See ADR-0022 and deploy/README.md ("Install from a release").
+name: release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+# Read-only by default: the build jobs run npm-installed code, and a
+# compromised package should not get a token that can write releases. Only
+# `publish` asks for write.
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+
+# Never run two publishes for the same ref at once (two quick pushes to
+# main would otherwise race on the nightly release); let a queued run wait.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  web:
+    name: build web/dist
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: git diff --exit-code -- package-lock.json
+      - run: npm run build
+      - uses: actions/upload-artifact@v5
+        with:
+          name: web-dist
+          path: web/dist
+          if-no-files-found: error
+          retention-days: 1
+
+  bundle:
+    name: bundle ${{ matrix.target }}
+    needs: web
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # Keys of deploy/build.sh: armv6 = Pi Zero / Zero W, arm = armv7
+        # (Pi Zero 2 W, Pi 3 32-bit), arm64 = 64-bit Pi OS, amd64 = x86.
+        target: [armv6, arm, arm64, amd64]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      - uses: actions/download-artifact@v6
+        with:
+          name: web-dist
+          path: web/dist
+      - name: bundle
+        env:
+          TARGET: ${{ matrix.target }}
+          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'nightly' }}
+          WEB_SKIP: "1"
+        run: bash deploy/bundle.sh
+      - uses: actions/upload-artifact@v5
+        with:
+          name: bundle-${{ matrix.target }}
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: publish release
+    needs: bundle
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v6
+        with:
+          pattern: bundle-*
+          path: dist
+          merge-multiple: true
+      - name: checksums
+        working-directory: dist
+        run: |
+          sha256sum *.tar.gz | tee SHA256SUMS
+      - name: publish tagged release
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          # v1.2.3-rc1 style tags become pre-releases.
+          pre=""
+          case "$TAG" in *-*) pre="--prerelease" ;; esac
+          gh release create "$TAG" \
+            --verify-tag \
+            --generate-notes \
+            --title "$TAG" \
+            $pre \
+            dist/*.tar.gz dist/SHA256SUMS
+      - name: refresh nightly pre-release
+        if: github.ref_type == 'branch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          short="$(git rev-parse --short "$GITHUB_SHA")"
+          notes="Rolling build of \`main\` @ ${GITHUB_SHA} ($(date -u +%FT%TZ)). Replaced on every push to main; use a tagged release for anything you want to keep."
+          # Move the tag, then update the existing release in place so its
+          # URL and asset names stay stable and watchers don't get a "new
+          # release" notification on every merge:
+          #   .../releases/download/nightly/splits-linux-armv7-nightly.tar.gz
+          # (pushes with GITHUB_TOKEN don't retrigger workflows, so no loop.)
+          git push --force origin "${GITHUB_SHA}:refs/tags/nightly"
+          if gh release view nightly >/dev/null 2>&1; then
+            gh release upload nightly --clobber dist/*.tar.gz dist/SHA256SUMS
+            gh release edit nightly --prerelease --target "$GITHUB_SHA" \
+              --title "nightly ($short)" --notes "$notes"
+          else
+            gh release create nightly --prerelease --target "$GITHUB_SHA" \
+              --title "nightly ($short)" --notes "$notes" \
+              dist/*.tar.gz dist/SHA256SUMS
+          fi

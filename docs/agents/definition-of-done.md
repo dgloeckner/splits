@@ -16,7 +16,11 @@ The architectural rationale for the E2E gate is
    in the issue's `## Comments`.
 2. **Unit / integration tests green.** Vitest (web), `go test` (backend),
    or whichever language-native runner covers the layer under change.
-   Exit code 0.
+   Exit code 0. Coverage must not fall below the floors
+   (`backend/.coverage-floor`, the `coverage.thresholds` in
+   `web/vite.config.ts`); `scripts/backend.sh coverage` and
+   `npm run test:coverage` check them locally. Raise a floor when the
+   diff earns it, never lower one (ADR-0022).
 3. **Spec coherence.** If the diff diverges from a referenced
    FEAT/INT/ADR, the spec is updated in the same commit.
 4. **Small diff.** One concern. If the diff has sprawled to >~300 lines

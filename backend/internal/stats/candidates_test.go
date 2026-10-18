@@ -229,14 +229,6 @@ func TestComputeCandidatesB1_WindowCandidatesIgnoreWarmup(t *testing.T) {
 	t.Fatal("expected a power-60s window candidate")
 }
 
-func distancesOf(in []DistanceCandidate) []int {
-	out := make([]int, 0, len(in))
-	for _, c := range in {
-		out = append(out, c.DistanceM)
-	}
-	return out
-}
-
 func TestComputeCandidatesPerWorkSegmentRuns(t *testing.T) {
 	mk := func(no int, ts float64, d int, p int) event.StrokePayload {
 		return event.StrokePayload{StrokeNo: no, TimeSec: ts, DistanceM: d, PowerW: p}

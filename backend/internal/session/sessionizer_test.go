@@ -1507,7 +1507,7 @@ func TestPause_PhaseAnchorsInAdjustedDomain(t *testing.T) {
 	if len(ends) != 0 {
 		t.Errorf("expected no session_end before explicit close, got %d", len(ends))
 	}
-	all = append(all, s.CloseOpenSession()...)
+	s.CloseOpenSession()
 }
 
 // TestPause_NoPhantomResume: session opened by Start, idle broadcasts

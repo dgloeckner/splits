@@ -96,7 +96,11 @@ test.describe('race-flow canonical happy path (0016-05)', () => {
       fixtureRate: 'fast',
       fixtureDelay: '0s',
       fixturePaused: true,
-      idleTimeout: '5s',
+      // Must outlast confirm → ceremony → Live wait → first frame (~8 s):
+      // a first frame after IdleTimeout closes the frame-less session the
+      // client opened on confirm, and the client reads that session_end
+      // as the race being over. Fertig ends the session explicitly.
+      idleTimeout: '20s',
     })
 
     // 2. Seed the rower (sets device cookie + active rower).
@@ -132,11 +136,14 @@ test.describe('race-flow canonical happy path (0016-05)', () => {
     await expect(raceFlow.userBoat()).toBeVisible()
     await page.screenshot({ path: `${SCREENSHOT_DIR}/03-set.png` })
 
-    // 7. Just before GO!: release the fixture so strokes arrive *after*
-    //    GO!. The race-lifecycle reducer's `race_t0` is set on the GO!
-    //    transition; any pre-GO! stroke would be discarded from the
-    //    race timer (and clamped to distance 0 on the visual lane).
+    // 7. After GO!: release the fixture only once the reducer is in Live
+    //    (RaceFlowPage.waitForLive — the overlay unmounts 1.5 s after
+    //    "GO!" first shows), so strokes arrive *after* GO!. Any pre-GO!
+    //    stroke would be discarded from the race timer (and clamped to
+    //    distance 0 on the visual lane), and at `fast` pacing the whole
+    //    CSV flushes in one tick.
     await raceFlow.waitForCeremonyStep('go', 3_000)
+    await raceFlow.waitForLive()
     await resumeFixture(backend)
 
     // Mid-race screenshot. At fast fixture pacing the full race can fit
@@ -166,15 +173,14 @@ test.describe('race-flow canonical happy path (0016-05)', () => {
     //    Fertig is the affordance that dismisses the overlay and
     //    routes the rower back to Home (rather than the deprecated
     //    `RacePostScreen` automatic transition). Mirrors fertig.spec.ts.
-    const fertig = page.getByTestId('finish-fertig')
-    await expect(fertig).toBeVisible()
-    await expect(fertig).toBeEnabled()
-    await fertig.click()
+    //    tapFertig() clears the PBOverlay that session_end can stack on
+    //    top of the FinishOverlay before it taps (see RaceFlowPage).
+    await raceFlow.tapFertig()
     await expect(page.getByTestId('finish-overlay')).toBeHidden({ timeout: 5_000 })
     await page.screenshot({ path: `${SCREENSHOT_DIR}/06-after-fertig.png` })
 
     // 10. Invoke the e2e-critic sub-agent with the screenshots + AC list.
-    //     Mirrors the invocation in critic-regression.test.mjs. If the
+    //     Mirrors the invocation in critic-regression.mjs. If the
     //     CLI is unavailable, log a note and continue — gate is advisory
     //     for this first integration (see file header).
     const criticInput = {
@@ -219,7 +225,7 @@ test.describe('race-flow canonical happy path (0016-05)', () => {
 
 /**
  * Run the e2e-critic sub-agent against the captured screenshots. The
- * invocation mirrors critic-regression.test.mjs. Findings are written
+ * invocation mirrors critic-regression.mjs. Findings are written
  * to a JSON file alongside the screenshots and logged to stderr; any
  * `severity: blocker` findings are surfaced as warnings on this first
  * integration (ADR-0014 / PRD-0016 gate begins with NEW regressions,

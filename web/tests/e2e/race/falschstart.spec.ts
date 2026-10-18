@@ -137,7 +137,12 @@ async function runFalschstartScenario(
     fixtureRate: 'fast',
     fixtureDelay: '0s',
     fixturePaused: true,
-    idleTimeout: '5s',
+    // Must outlast confirm → Bereit → ceremony step → first frame: the
+    // session opened on confirm has no frame yet, and a first frame
+    // after IdleTimeout makes the sessionizer close it as stale (the
+    // client then shows the post screen instead of the toast). 5 s was
+    // a coin flip on a loaded runner; Fertig ends the session explicitly.
+    idleTimeout: '20s',
   })
 
   // 2. Seed rower + a prior workout row so the opponent fetch has
@@ -199,10 +204,10 @@ async function runFalschstartScenario(
   //    (rather than the deprecated `RacePostScreen`, which is no longer
   //    on the race-mode happy path). See fertig.spec.ts for the
   //    canonical assertion shape.
-  const fertig = page.getByTestId('finish-fertig')
-  await expect(fertig).toBeVisible()
-  await expect(fertig).toBeEnabled()
-  await fertig.click()
+  //    By now session_end has usually landed (the fast fixture hits EOF
+  //    within ms of the resume) and the PBOverlay sits on top of the
+  //    FinishOverlay; tapFertig() dismisses it first.
+  await raceFlow.tapFertig()
   await expect(page.getByTestId('finish-overlay')).toBeHidden({ timeout: 5_000 })
   await page.screenshot({ path: `${screenshotDir}/06-after-fertig.png` })
 

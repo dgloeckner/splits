@@ -165,11 +165,6 @@ func (p *PhasePlan) Reset() {
 	p.raceCrossingPassed = false
 }
 
-// hasWarmup reports whether the plan begins with a warmup segment.
-func (p *PhasePlan) hasWarmup() bool {
-	return len(p.segs) > 0 && p.segs[0].kind == PhaseWarmup
-}
-
 // Classify returns the phase for the given absolute (distanceM, timeSec).
 // The second return is true when the entire workout is complete (cooldown
 // elapsed, or last work segment done if no cooldown).

@@ -32,7 +32,15 @@ The script is deterministic; re-running it produces byte-identical files.
 
 ## Regression test
 
-`critic-regression.test.mjs` invokes the `e2e-critic` sub-agent against
+`critic-regression.mjs` is a plain Node script, run with `node`, not a
+Playwright spec. It must not be named `*.test.mjs` or `*.spec.*`: that
+matches Playwright's default `testMatch`, and because the script runs on
+import and calls `process.exit`, loading it would terminate the whole
+`playwright test` run before any test starts (CI hit exactly this). A
+`testIgnore` in the config is not enough, since a project-level
+`testIgnore` replaces the top-level one.
+
+`critic-regression.mjs` invokes the `e2e-critic` sub-agent against
 `empty-canvas.png` and asserts:
 
 1. The sub-agent exits with a non-zero status code.
@@ -45,7 +53,7 @@ The script is deterministic; re-running it produces byte-identical files.
 Run:
 
 ```sh
-node web/tests/e2e/critic-regression/critic-regression.test.mjs
+node web/tests/e2e/critic-regression/critic-regression.mjs
 ```
 
 ### Invocation mechanism
