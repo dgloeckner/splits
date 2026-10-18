@@ -1,6 +1,6 @@
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Page } from '@playwright/test'
+import type { BrowserContext, Page } from '@playwright/test'
 import { test, expect } from './fixtures'
 import { seedTrendsSessions } from '../helpers/seedTrends'
 
@@ -64,6 +64,15 @@ function persistedSessionCount(): Promise<number> {
       }
     }
   })
+}
+
+async function airplaneMode(
+  context: BrowserContext,
+  fault: { setMode: (m: 'pass' | 'refuse') => void },
+  on: boolean,
+): Promise<void> {
+  fault.setMode(on ? 'refuse' : 'pass')
+  await context.setOffline(on)
 }
 
 async function seed(
@@ -220,4 +229,95 @@ test('backend up: the network wins over a cached bootstrap', async ({
   const body = await page.evaluate(async () => (await fetch('/api/v1/rowers')).text())
   expect(body).toContain(renamed)
   await expect(page.getByTestId('ergo-offline-hero')).toHaveCount(0)
+})
+
+// Issue #4: airplane mode (navigator.onLine === false). With react-query's
+// default networkMode 'online' the queries pause and never reach the SW.
+// Chromium's setOffline does not cover the SW's own fetches, so the
+// fault proxy additionally drops every /api connection ('refuse').
+test('airplane mode: the trainer demo renders, and recovers when back online', async ({
+  startBackend,
+  seedActiveRower,
+  fault,
+  page,
+  context,
+}) => {
+  await seed(startBackend, seedActiveRower)
+  await packAtHome(page)
+
+  await airplaneMode(context, fault, true)
+  await expectOfflineDemo(page, { shots: `${SCREENSHOT_ROOT}/airplane` })
+
+  // Back online with the backend up: the hero goes away without a reload
+  // (probe loop + `online` event).
+  await page.goto('/')
+  await expect(page.getByTestId('ergo-offline-hero')).toBeVisible({ timeout: 15_000 })
+  await airplaneMode(context, fault, false)
+  await expect(page.getByTestId('ergo-offline-hero')).toHaveCount(0, { timeout: 30_000 })
+})
+
+test('airplane mode, empty caches: the gate says „Ergo nicht erreichbar“, never spins', async ({
+  startBackend,
+  seedActiveRower,
+  fault,
+  page,
+  context,
+}) => {
+  await seed(startBackend, seedActiveRower)
+  await packAtHome(page)
+
+  await page.evaluate(async () => {
+    indexedDB.deleteDatabase('keyval-store')
+    await caches.delete('splits-api-read')
+    await caches.delete('splits-api-bootstrap')
+  })
+  await airplaneMode(context, fault, true)
+  await page.goto('/')
+  await expect(page.getByText('Ergo nicht erreichbar')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('Verbinde zum Backend…')).toHaveCount(0)
+  await page.screenshot({ path: `${SCREENSHOT_ROOT}/airplane/05-empty-caches-gate.png` })
+})
+
+// The B2 shape that bites in practice: react-query's onlineManager only
+// learns about offline from the `offline` event, so the trap is going
+// offline *while the app is open*. Every query mounted afterwards is
+// paused under networkMode 'online' and never asks the SW cache.
+test('airplane mode mid-session: in-app navigation still reaches the SW cache', async ({
+  startBackend,
+  seedActiveRower,
+  fault,
+  page,
+  context,
+}) => {
+  await seed(startBackend, seedActiveRower)
+  await packAtHome(page)
+
+  // Boot without the IndexedDB bag but with a fresh pack cursor (so the
+  // pack does not refill memory): only the SW cache holds the history,
+  // nothing beyond the bootstrap is in react-query's memory.
+  fault.setMode('refuse')
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const open = indexedDB.open('keyval-store')
+        open.onerror = () => reject(open.error)
+        open.onsuccess = () => {
+          const tx = open.result.transaction('keyval', 'readwrite')
+          tx.objectStore('keyval').delete('splits:rq-cache')
+          tx.oncomplete = () => {
+            open.result.close()
+            resolve()
+          }
+        }
+      }),
+  )
+  await page.goto('/')
+  await expect(page.getByTestId('ergo-offline-hero')).toBeVisible({ timeout: 15_000 })
+
+  await airplaneMode(context, fault, true) // fires `offline` in the page
+  await page.getByTestId('ergo-offline-cta').click()
+  await page.waitForSelector('[data-testid^="verlauf-row-"]', { timeout: 15_000 })
+  await page.getByRole('link', { name: 'Rekorde' }).click()
+  await expect(page.getByTestId('ergo-stand-banner')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('rekorde-empty')).toHaveCount(0)
 })

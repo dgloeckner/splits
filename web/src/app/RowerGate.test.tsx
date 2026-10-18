@@ -1,6 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query'
+import { queryDefaults } from '../api/queryDefaults'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { RowerGate } from './RowerGate'
 import { listRowers, getActiveRower } from '../api/rowers'
@@ -114,5 +115,52 @@ describe('RowerGate', () => {
       expect(screen.getByText('Backend nicht erreichbar')).toBeInTheDocument(),
     )
     expect(screen.getByText(/Load failed/)).toBeInTheDocument()
+  })
+})
+
+// Issue #4 / ADR-0021: in airplane mode react-query's default
+// networkMode 'online' pauses the bootstrap queries — the queryFn (and
+// with it the SW cache) is never asked and the gate spins forever.
+describe('RowerGate in airplane mode (navigator.onLine === false)', () => {
+  beforeEach(() => {
+    _resetErgoStatusForTest()
+    onlineManager.setOnline(false)
+  })
+  afterEach(() => onlineManager.setOnline(true))
+
+  function wrapWithAppDefaults() {
+    const qc = new QueryClient({ defaultOptions: { queries: { ...queryDefaults, retry: false } } })
+    return render(
+      <QueryClientProvider client={qc}>
+        <MemoryRouter initialEntries={['/']}>
+          <Routes>
+            <Route path="/onboarding" element={<div>ONBOARD</div>} />
+            <Route element={<RowerGate />}>
+              <Route path="/" element={<div>HOME</div>} />
+            </Route>
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    )
+  }
+
+  it('runs the bootstrap queries so a SW cache hit renders the app', async () => {
+    const rower = { id: 'r1', name: 'Daniel', color: '#5dd7e4', created_at: '2026-05-03T19:01:59Z' }
+    vi.mocked(listRowers).mockResolvedValue([rower as never])
+    vi.mocked(getActiveRower).mockResolvedValue(rower as never)
+    wrapWithAppDefaults()
+    await waitFor(() => expect(screen.getByText('HOME')).toBeInTheDocument())
+  })
+
+  it('shows the friendly offline screen on a cache miss, not an endless loader', async () => {
+    const { NetworkError } = await import('../api/error')
+    vi.mocked(listRowers).mockRejectedValue(new NetworkError('/api/v1/rowers', new TypeError('offline')))
+    vi.mocked(getActiveRower).mockRejectedValue(
+      new NetworkError('/api/v1/active-rower', new TypeError('offline')),
+    )
+    setErgoStatus({ reachable: false })
+    wrapWithAppDefaults()
+    await waitFor(() => expect(screen.getByText('Ergo nicht erreichbar')).toBeInTheDocument())
+    expect(screen.queryByText('Verbinde zum Backend…')).not.toBeInTheDocument()
   })
 })

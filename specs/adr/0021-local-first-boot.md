@@ -156,6 +156,14 @@ stream or `/api/health`, and no stale response is ever shown unlabelled.
   project against the **preview build** with the real failure shapes
   (hanging connection, 502, airplane mode, IDB evicted), not only the
   instant `connectionrefused` abort `offline.spec.ts` uses.
+- `networkMode: 'offlineFirst'` (Decision §5) changes only *whether a
+  query runs* while the browser reports offline — it does not couple
+  react-query's `onlineManager` to `reachable`, so ADR-0020's rejection
+  of that coupling stands. Note that `onlineManager` learns about
+  offline only from the `offline` event (not from `navigator.onLine` at
+  boot), so the failure it fixes is going offline while the app is open:
+  every query mounted afterwards used to pause without asking the SW
+  cache. Retries still wait for `online`.
 - Copy: the hero stays „Ergo nicht erreichbar · Stand: …"; „Offline"
   appears only as the action label „Offline weiter" (a user decision,
   not a status).
