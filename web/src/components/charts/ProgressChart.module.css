@@ -4,17 +4,28 @@
 }
 
 .strip {
-  padding: 8px 12px;
-  font-family: var(--font-mono, 'SF Mono', monospace);
-  line-height: 1.4;
-  background: var(--surface-2, #111);
-  color: var(--text, #eee);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  column-gap: var(--space-2);
+  row-gap: var(--space-0-5);
+  padding: 0 0 var(--space-1);
+  font-family: var(--font-body);
+  color: var(--color-on-surface);
+  min-height: 28px;
 }
 
 .stripDate {
-  font-size: 12px;
-  opacity: 0.6;
-  margin-bottom: 4px;
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+}
+
+.stripReadout {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-1);
+  font-variant-numeric: tabular-nums;
 }
 
 .stripRow {
@@ -33,79 +44,84 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--accent, #4ade80);
+  background: var(--color-primary);
 }
 
 .dotNeutral {
   background: transparent;
-  border: 1px solid var(--text-muted, #888);
+  border: 1px solid var(--color-on-surface-variant);
 }
 
 .stripValue {
+  font-family: var(--font-display);
+  font-size: var(--text-headline-sm);
   font-weight: 600;
 }
 
 .stripDelta {
-  font-size: 11px;
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
 }
 
 .stripDeltaGood {
-  font-size: 11px;
-  color: var(--accent, #4ade80);
+  font-size: 12px;
+  color: var(--color-primary);
 }
 
 .stripDeltaImprovement {
-  color: var(--accent, #4ade80);
+  color: var(--color-primary);
 }
 
 .stripDeltaRegression {
-  color: var(--text-muted, #888);
+  color: var(--color-on-surface-variant);
 }
 
 .svg {
   display: block;
   width: 100%;
-  background: var(--surface-1, #0a0a0a);
+  overflow: visible;
 }
 
 .grid {
-  stroke: var(--border-faint, #222);
+  stroke: var(--color-outline-variant);
   stroke-width: 0.5;
+  stroke-opacity: 0.6;
 }
 
 .baseline {
-  stroke: var(--border, #333);
+  stroke: var(--color-outline-variant);
   stroke-width: 0.5;
 }
 
 .axisLabel {
-  fill: var(--text-muted, #888);
-  font-size: 9px;
-  font-family: var(--font-mono, 'SF Mono', monospace);
+  fill: var(--color-on-surface-variant);
+  font-size: 10px;
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
 }
 
 .rollingPath {
   fill: none;
-  stroke: var(--text-muted, #888);
+  stroke: var(--color-on-surface-variant);
   stroke-width: 1.2;
   stroke-dasharray: 3 3;
 }
 
 .seriesPath {
   fill: none;
-  stroke: var(--accent, #4ade80);
+  stroke: var(--color-primary);
   stroke-width: 1.75;
 }
 
 .seriesPathPrimary {
   fill: none;
-  stroke: var(--accent, #4ade80);
+  stroke: var(--color-primary);
   stroke-width: 1.75;
 }
 
 .seriesPathNeutral {
   fill: none;
-  stroke: var(--text-muted, #888);
+  stroke: var(--color-on-surface-variant);
   stroke-width: 1.75;
 }
 
@@ -114,22 +130,22 @@
 }
 
 .dotPrimary {
-  fill: var(--accent, #4ade80);
+  fill: var(--color-primary);
 }
 
 .dotNeutralFill {
-  fill: var(--text-muted, #888);
+  fill: var(--color-on-surface-variant);
 }
 
 .guideline {
-  stroke: var(--accent, #4ade80);
+  stroke: var(--color-primary);
   stroke-width: 1;
   stroke-opacity: 0.5;
 }
 
 .activeRing {
   fill: none;
-  stroke: var(--accent, #4ade80);
+  stroke: var(--color-primary);
   stroke-width: 1.2;
   stroke-opacity: 0.7;
 }
@@ -140,10 +156,10 @@
   touch-action: none;
 }
 
-.pbLine { stroke: var(--color-gold, #d4a017); stroke-width: 1; stroke-dasharray: 4 3; }
-.pbLabel { fill: var(--color-gold, #d4a017); font-size: 8px; }
-.rollingLabel { fill: var(--color-text-muted, #888); font-size: 8px; }
-.contextDot { fill: var(--color-text-muted, #888); opacity: 0.35; }
-.lineDot { fill: var(--accent, #4ade80); }
+.pbLine { stroke: var(--color-tertiary); stroke-width: 1; stroke-dasharray: 4 3; }
+.pbLabel { fill: var(--color-tertiary); font-size: 10px; font-family: var(--font-body); font-weight: 600; }
+.rollingLabel { fill: var(--color-on-surface-variant); font-size: 10px; font-family: var(--font-body); }
+.contextDot { fill: var(--color-on-surface-variant); opacity: 0.4; }
+.lineDot { fill: var(--color-primary); stroke: var(--color-surface-container); stroke-width: 1.5; }
 .sessionChart { margin: 0; }
-.sessionChartTitle { font-size: 12px; color: var(--color-text-muted, #888); margin-bottom: 4px; }
+.sessionChartTitle { font-size: 12px; color: var(--color-on-surface-variant); margin-bottom: 4px; }

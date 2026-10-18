@@ -50,4 +50,12 @@ describe('ProgressChart', () => {
     render(<ProgressChart {...base} linePoints={line} contextDots={[]} />)
     expect(screen.getByTestId('progress-strip-delta').textContent).toMatch(/vs Ø 14 T$/)
   })
+
+  it('keeps PB and Ø labels apart when their lines coincide', () => {
+    const flat = line.map((q) => ({ ...q, y: 116 }))
+    render(<ProgressChart {...base} linePoints={flat} contextDots={[]} pbValue={116} pbLabel="PB 1:56" />)
+    const pbY = Number(screen.getByText('PB 1:56').getAttribute('y'))
+    const avgY = Number(screen.getByText('Ø 14 T').getAttribute('y'))
+    expect(Math.abs(pbY - avgY)).toBeGreaterThanOrEqual(10)
+  })
 })
