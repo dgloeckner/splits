@@ -13,6 +13,8 @@ test.beforeAll(async () => {
     env: {
       ...process.env,
       SPLITS_ADDR: ':8080',
+      // Non-localhost bind needs the dev-mode gate (T10), as in helpers/backend.ts.
+      SPLITS_DEV_MODE: '1',
       SPLITS_DB_PATH: join(tmp, 'e2e.db'),
       SPLITS_FIXTURE: '../specs/int/fixtures/ipm/session-short.csv',
       SPLITS_FIXTURE_RATE: 'fast',

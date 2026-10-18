@@ -8,10 +8,10 @@
 #   WEB_SKIP=1   bash deploy/bundle.sh                  # reuse existing web/dist
 #
 # Output:
-#   dist/splits-${TARGET}-${VERSION}.tar.gz
+#   dist/splits-linux-${ARCH}-${VERSION}.tar.gz   (e.g. splits-linux-armv7-v0.4.0.tar.gz)
 #
 # Layout inside the tarball:
-#   splits-${TARGET}-${VERSION}/
+#   splits-linux-${ARCH}-${VERSION}/
 #     bin/splits                   # cross-compiled backend
 #     web/dist/                    # PWA shell + assets
 #     deploy/install.sh            # idempotent installer
@@ -20,7 +20,7 @@
 #     deploy/Caddyfile.template
 #     deploy/splits.env.template
 #     deploy/README.md
-#     VERSION                      # plain text, what's in this bundle
+#     VERSION                      # line 1: version, line 2: git commit (if known)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -57,7 +57,8 @@ else
 fi
 
 # 3. Stage into temp tree, then tar.
-name="splits-${TARGET}-${VERSION}"
+# Same linux-<arch> suffix as the binary, so release assets are unambiguous.
+name="splits-${suffix}-${VERSION}"
 out="dist/${name}.tar.gz"
 stage="$(mktemp -d)"
 trap 'rm -rf "$stage"' EXIT
@@ -79,6 +80,10 @@ done
 chmod 0755 "$root/deploy/install.sh" "$root/deploy/splits-backup.sh"
 
 printf '%s\n' "$VERSION" > "$root/VERSION"
+# Second line: the exact commit, so a "nightly" bundle still says what it is.
+if sha="$(git rev-parse HEAD 2>/dev/null)"; then
+  printf '%s\n' "$sha" >> "$root/VERSION"
+fi
 
 mkdir -p dist
 tar -C "$stage" -czf "$out" "$name"

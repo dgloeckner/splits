@@ -19,6 +19,17 @@ sample session captures and decoded CSVs are under
 [`specs/int/fixtures/ipm/`](specs/int/fixtures/ipm/). Session
 visualisations under [`docs/visualizations/`](docs/visualizations/).
 
+## Install
+
+Download the tarball for your board from the
+[Releases page](https://github.com/dgloeckner/splits/releases)
+(`v*` tags; `nightly` tracks `main`) and follow
+[`deploy/README.md`](deploy/README.md). Each tarball bundles the static
+backend binary, the PWA, and the installer for a Raspberry Pi or any
+systemd Linux host. CI (`.github/workflows/`) tests every change and
+builds the packages — see
+[`specs/adr/0022-ci-and-release-packaging.md`](specs/adr/0022-ci-and-release-packaging.md).
+
 ## Quick pointers
 
 - 🤖 [`AGENTS.md`](AGENTS.md) — start here if you're an AI agent or a human

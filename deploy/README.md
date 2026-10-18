@@ -44,13 +44,57 @@ Either way, confirm:
 caddy list-modules | grep duckdns
 ```
 
-## Build + install
+## Install from a release
 
-On a workstation with this repo checked out:
+CI builds one self-contained tarball per Linux target for every tagged
+release (`v*`) and a rolling `nightly` pre-release from `main` (see
+ADR-0022). Pick the file for your board:
+
+| Asset                               | Hardware                                   |
+|-------------------------------------|--------------------------------------------|
+| `splits-linux-armv6-<ver>.tar.gz`   | Pi Zero / Zero W (original, ARMv6)         |
+| `splits-linux-armv7-<ver>.tar.gz`   | Pi Zero 2 W, Pi 3 on 32-bit Pi OS          |
+| `splits-linux-arm64-<ver>.tar.gz`   | Pi 3/4/5 on 64-bit Pi OS                   |
+| `splits-linux-amd64-<ver>.tar.gz`   | x86-64 host (NAS, mini PC)                 |
+
+On the Pi (after the one-time host prep above):
+
+```bash
+ver=v0.1.0   # or: nightly
+arch=armv7
+base=https://github.com/dgloeckner/splits/releases/download/$ver
+curl -fLO "$base/splits-linux-$arch-$ver.tar.gz"
+curl -fLO "$base/SHA256SUMS"
+sha256sum -c --ignore-missing SHA256SUMS
+tar xzf "splits-linux-$arch-$ver.tar.gz"
+cd "splits-linux-$arch-$ver"
+sudo HOSTNAME=homeergo.duckdns.org \
+     DUCKDNS_TOKEN=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \
+     BIN=./bin/splits \
+     WEB_DIST=./web/dist \
+     bash deploy/install.sh
+```
+
+`VERSION` inside the tarball names the release and the exact commit.
+Upgrading is the same procedure with a newer tarball; `install.sh` is
+idempotent (see below). `nightly` is replaced on every push to `main`
+and is meant for trying things out, not for keeping.
+
+## Build + install from source
+
+On a workstation with this repo checked out, `deploy/bundle.sh` produces
+the same tarball CI publishes:
+
+```bash
+TARGET=arm bash deploy/bundle.sh   # → dist/splits-linux-armv7-<git describe>.tar.gz
+```
+
+Copy it to the Pi and follow the steps under *Install from a release*.
+Or build the pieces separately:
 
 ```bash
 TARGET=arm deploy/build.sh        # → dist/splits-linux-armv7
-cd web && npm install --legacy-peer-deps && npm run build && cd ..
+cd web && npm ci && npm run build && cd ..
 ```
 
 Copy the repo (or just the deploy/, dist/, web/dist/ subtrees) to the
@@ -121,16 +165,22 @@ sudo rm -f /etc/systemd/system/splits.service \
 sudo systemctl daemon-reload
 ```
 
-## Build script
+## Build scripts
 
 `deploy/build.sh` cross-compiles the backend. Targets:
 
-- `TARGET=arm` (default) → `dist/splits-linux-armv7` for Pi Zero / Zero 2 W (32-bit Pi OS).
+- `TARGET=armv6` → `dist/splits-linux-armv6` for the original Pi Zero / Zero W.
+- `TARGET=arm` (default) → `dist/splits-linux-armv7` for Pi Zero 2 W / Pi 3 (32-bit Pi OS).
 - `TARGET=arm64` → `dist/splits-linux-arm64` for 64-bit Pi OS / RPi 3+ / 4 / 5.
 - `TARGET=amd64` → `dist/splits-linux-amd64` for x86 hosts (NAS, Docker).
 
 CGO is disabled and modernc-sqlite is pure-Go, so the binary is fully
 static — no glibc-version surprises.
+
+`deploy/bundle.sh` wraps `build.sh` + the web build and tars binary,
+`web/dist/` and this directory into one installable archive (the same
+thing `.github/workflows/release.yml` publishes). `WEB_SKIP=1` reuses an
+existing `web/dist`; `VERSION=` overrides the `git describe` default.
 
 ## Files at a glance
 
@@ -138,6 +188,7 @@ static — no glibc-version surprises.
 deploy/
 ├── README.md                 (this file)
 ├── build.sh                  cross-compile the backend
+├── bundle.sh                 build.sh + web build → one tarball (what CI publishes)
 ├── Caddyfile.template        production Caddy config
 ├── splits.service            systemd unit
 ├── splits.env.template       env file (rendered into /etc/splits/)

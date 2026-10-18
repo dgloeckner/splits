@@ -15,7 +15,7 @@
 
 import { test } from '../fixtures'
 import { captureLayout } from './layout-audit'
-import { seedTrendsSessions } from '../verlauf.spec'
+import { seedTrendsSessions } from '../helpers/seedTrends'
 import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 

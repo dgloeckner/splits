@@ -22,6 +22,7 @@
 | ADR-0019 | Offline Reads Served from SW Cache      | Accepted (amended by 0020, 0021) |
 | ADR-0020 | Reachability is Self-Healing and Owns Connectivity Recovery | Accepted (amended by 0021) |
 | ADR-0021 | Boot is Local-First; Network is a Background Upgrade | Accepted  |
+| ADR-0022 | CI and Release Packaging                | Accepted  |
 
 Future candidates:
 - **ADR-0008** — Serial protocol vs BLE FTMS (depends on firmware check)
