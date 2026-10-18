@@ -125,6 +125,118 @@ curl -sI https://homeergo.duckdns.org/api/health
 First load may take a minute or two while Caddy provisions the cert via
 DuckDNS DNS-01.
 
+## Unattended updates
+
+A Pi installed from a tagged release keeps itself current (ADR-0023,
+FEAT-0016). Every night at 04:30 (plus up to an hour of jitter, an hour
+after the 03:30 backup) `splits-update.timer` runs
+`/opt/splits/current/deploy/splits-update.sh`, which installs the
+repository's **latest non-pre-release GitHub Release** when it is newer
+than what is installed — and rolls back by itself if the new version
+does not come up. Publishing a Release is the act that moves every Pi;
+`-rc` tags and `nightly` are never installed automatically.
+
+### Layout
+
+```
+/opt/splits/
+  releases/v0.4.0/          one extracted bundle: bin/ web/dist/ deploy/ VERSION ARCH
+  releases/v0.4.1/
+  current  -> releases/v0.4.1     what runs (the only record of what is installed)
+  previous -> releases/v0.4.0     the rollback target
+  blocked                         tags that failed here, one per line
+  update-state.json               the last run's verdict (shown on Profil)
+/usr/local/bin/splits -> /opt/splits/current/bin/splits
+/var/www/splits       -> /opt/splits/current/web/dist
+/var/lib/splits/update-backup/    pre-update DB copies, newest 3 kept
+```
+
+A slot not named after a release tag (`dev`, `nightly`, a `git describe`
+string) is a **hand-managed install**: the updater refuses it with exit
+2 and changes nothing. Install a tagged release with `install.sh` to
+hand the Pi to the updater.
+
+### What a run does
+
+1. Refuses — and exits 0, "no update tonight" — when updates are off,
+   GitHub is unreachable, the latest tag is not a plain `vX.Y.Z`, it is
+   the installed one, it is *older* (never downgrades), it is in
+   `blocked`, somebody is rowing (`/api/health` reports
+   `session_open: true`), or the service is running but not answering.
+2. Downloads `splits-linux-<arch>-<tag>.tar.gz` and `SHA256SUMS`,
+   verifies the checksum, unpacks into `releases/.incoming-<tag>` and only
+   then renames it to `releases/<tag>`.
+3. Stops `splits`, copies the database to `update-backup/`, points
+   `previous` at the old slot and swaps `current` with one rename, starts
+   `splits`.
+4. Waits up to `SPLITS_UPDATE_HEALTH_TIMEOUT` seconds for `/api/health`
+   to report **the new tag**. Success prunes old slots; failure rolls
+   back (below).
+
+The updater does not touch systemd units, the env file or the
+Caddyfile. A release that changes one of them says so in its notes; apply
+it by running that release's `install.sh`.
+
+### Commands
+
+| Task | Command |
+|---|---|
+| What is installed, previous, blocked, last result | `sudo /opt/splits/current/deploy/splits-update.sh --status` |
+| What tonight's run would do (changes nothing) | `sudo /opt/splits/current/deploy/splits-update.sh --check` |
+| Update now instead of tonight | `sudo systemctl start splits-update.service` |
+| Read the story of the last runs | `journalctl -u splits-update` |
+| Forget a failed tag so it may be retried | `sudo /opt/splits/current/deploy/splits-update.sh --clear-block` |
+| Next scheduled run | `systemctl list-timers splits-update.timer` |
+
+### Configuration (`/etc/splits/splits.env`)
+
+| Key | Default | Meaning |
+|---|---|---|
+| `SPLITS_UPDATE_ENABLED` | `1` | `0` opts this Pi out; the timer still runs and records "off" |
+| `SPLITS_UPDATE_PIN` | (empty) | hold at exactly this tag (e.g. `v0.4.1`); never moves past it |
+| `SPLITS_UPDATE_REPO` | `dgloeckner/splits` | where Releases come from (a fork) |
+| `SPLITS_UPDATE_HEALTH_TIMEOUT` | `120` | seconds the new version has to report healthy |
+
+**Opting out entirely:** set `SPLITS_UPDATE_ENABLED=0`, or
+`sudo systemctl disable --now splits-update.timer`. The cadence is not a
+config key: anything other than nightly is a systemd drop-in for the
+timer (`systemctl edit splits-update.timer`), and keep in mind that the
+rollback restores the pre-update database — the night-time window is what
+makes that safe.
+
+### What a rollback looks like
+
+```
+$ journalctl -u splits-update -n 20
+splits-update: installed v0.4.1, latest release v0.4.2
+splits-update: downloading splits-linux-armv7-v0.4.2.tar.gz
+splits-update: checksum verified
+splits-update: stopping splits.service
+splits-update: database backed up to /var/lib/splits/update-backup/splits-v0.4.1-20261019T044107Z.db
+splits-update: current -> v0.4.2
+splits-update: waiting up to 120s for /api/health to report v0.4.2
+splits-update: WARNING: v0.4.2 did not report healthy within 120s; rolling back to v0.4.1
+splits-update: database restored from /var/lib/splits/update-backup/splits-v0.4.1-20261019T044107Z.db
+splits-update: current -> v0.4.1
+splits-update: v0.4.1 is serving again
+splits-update: WARNING: rolled back to v0.4.1 and blocked v0.4.2; nothing is installed until a newer release exists or --clear-block is run
+systemd[1]: splits-update.service: Main process exited, code=exited, status=1/FAILURE
+```
+
+Profil then shows „Update auf v0.4.2 fehlgeschlagen — läuft weiter auf
+v0.4.1". The Pi keeps running v0.4.1 and ignores v0.4.2 for good; the
+next newer Release is installed normally. If the old version does not
+come back either, the journal says `CRITICAL` — that Pi needs a person.
+
+### Going back by hand
+
+The updater never downgrades (database migrations are forward-only). To
+return to an older release: stop `splits`, restore the matching DB copy
+from `update-backup/` (or a daily backup, see *Restoring from backup*),
+then run the older release's `install.sh`. Set `SPLITS_UPDATE_PIN` to
+that tag first, or the next night's run installs the latest Release
+again.
+
 ## Operations
 
 | Task | Command |
