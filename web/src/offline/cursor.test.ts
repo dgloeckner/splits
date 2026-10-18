@@ -12,7 +12,7 @@ import { loadCursor, saveCursor, type OfflineCursor } from './cursor'
 const valid: OfflineCursor = {
   rowerId: 'R1',
   statsVersion: 7,
-  buildSha: 'abc1234',
+  schemaVersion: 1,
   packedAt: '2026-06-12T16:42:00.000Z',
   sessionIds: ['S1', 'S2'],
 }

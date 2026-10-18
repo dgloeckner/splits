@@ -49,21 +49,26 @@ export async function spawnViteServer(opts: {
   proc.stderr?.on('data', (d) => process.stderr.write(`${tag} ${d}`))
   proc.stdout?.on('data', (d) => process.stderr.write(`${tag} ${d}`))
 
-  const url = `http://127.0.0.1:${opts.port}`
+  return waitForVite(proc, opts.port)
+}
+
+/** Poll until the Vite process on `port` answers, or kill it after 60 s. */
+export async function waitForVite(proc: ChildProcess, port: number): Promise<ViteHandle> {
+  const url = `http://127.0.0.1:${port}`
   const deadline = Date.now() + 60_000
   while (Date.now() < deadline) {
     try {
       const r = await fetch(url + '/', {
         signal: AbortSignal.timeout(500),
       })
-      // Vite serves the SPA index on / in dev mode. Any 2xx/3xx means
-      // the server bound and is responding.
+      // Vite serves the SPA index on /. Any 2xx/3xx means the server
+      // bound and is responding.
       if (r.status < 500) {
         r.body?.cancel()
         return {
           proc,
           url,
-          port: opts.port,
+          port,
           kill: () => killVite(proc),
         }
       }
@@ -76,7 +81,7 @@ export async function spawnViteServer(opts: {
   throw new Error(`vite did not come up on ${url} in 60s`)
 }
 
-async function killVite(proc: ChildProcess): Promise<void> {
+export async function killVite(proc: ChildProcess): Promise<void> {
   if (!proc.pid || proc.killed) return
   await new Promise<void>((resolve) => {
     try {

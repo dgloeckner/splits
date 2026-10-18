@@ -17,15 +17,18 @@ import './styles/base.css'
 
 import { AppRouter } from './app/AppRouter'
 import { ToastHost, showToast } from './app/Toast'
-import { ApiError } from './api/error'
+import { ApiError, NetworkError } from './api/error'
+import { queryDefaults } from './api/queryDefaults'
 import { endSession } from './api/client'
 import {
   configureEndSessionQueue,
   processPendingEndSessions,
 } from './live/endSessionQueue'
-import { idbPersister, PERSIST_MAX_AGE_MS } from './offline/persister'
+import { idbPersister, PERSIST_BUSTER, PERSIST_MAX_AGE_MS } from './offline/persister'
+import { recordBootstrapQuery } from './offline/bootstrapMirror'
 import { isPersistableQuery } from './offline/persistKeys'
-import { startReachabilityProbe } from './offline/reachability'
+import { leaveOfflineMode, reportUnreachable, startReachabilityProbe } from './offline/reachability'
+import { promptOnQueryFailures } from './offline/offlinePrompt'
 import { registerPackTriggers, packIfStale } from './offline/pack'
 
 registerSW({ immediate: true })
@@ -53,22 +56,15 @@ function notifyForApiError(error: unknown) {
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: notifyForApiError,
+    // Local-first boot (ADR-0021): keep the durable bootstrap mirror
+    // in step with every successful rowers / active-rower fetch.
+    onSuccess: (data, query) => recordBootstrapQuery(query.queryKey, data),
   }),
   mutationCache: new MutationCache({
     onError: notifyForApiError,
   }),
   defaultOptions: {
-    queries: {
-      staleTime: 30_000,
-      gcTime: PERSIST_MAX_AGE_MS,
-      // Refetch on tab focus so the UI picks up backend changes
-      // (new session, DB reset) without a manual reload.
-      refetchOnWindowFocus: true,
-      retry: (failureCount, error) => {
-        if (error instanceof ApiError && error.status === 429) return false
-        return failureCount < 2
-      },
-    },
+    queries: queryDefaults,
     mutations: {
       retry: (_failureCount, error) => {
         if (error instanceof ApiError && error.status === 429) return false
@@ -84,7 +80,14 @@ const queryClient = new QueryClient({
 // single coordinated "back online" step (ADR-0020): refresh all
 // cached reads, flush the deferred end-session queue, refresh the
 // offline pack. The SSE channel revives via ChannelReviver.
+// ADR-0021 §4: a network failure while the Ergo seems reachable asks
+// „Offline weiter?“ (debounced) — at the first failed attempt.
+promptOnQueryFailures(queryClient.getQueryCache())
+
 startReachabilityProbe({
+  // While the user latched offline mode, a successful probe only hints.
+  onBackWhileOffline: () =>
+    showToast('Ergo wieder erreichbar', 'info', { label: 'Verbinden', onClick: leaveOfflineMode }),
   onReconnect: () => {
     void queryClient.invalidateQueries()
     void processPendingEndSessions()
@@ -102,7 +105,13 @@ void navigator.storage?.persist?.()
 // the queue keyed correctly for future per-id finalize.
 configureEndSessionQueue({
   endSession: async (_sessionId: string) => {
-    await endSession()
+    try {
+      await endSession()
+    } catch (e) {
+      // ADR-0021 §3: a network failure is evidence the Ergo is gone.
+      if (e instanceof NetworkError) reportUnreachable()
+      throw e
+    }
   },
   onSuccess: () => {
     queryClient.invalidateQueries({ queryKey: ['sessions'] })
@@ -128,7 +137,7 @@ createRoot(document.getElementById('root')!).render(
       persistOptions={{
         persister: idbPersister,
         maxAge: PERSIST_MAX_AGE_MS,
-        buster: __BUILD_SHA__,
+        buster: PERSIST_BUSTER,
         dehydrateOptions: {
           shouldDehydrateQuery: (q) =>
             defaultShouldDehydrateQuery(q) && isPersistableQuery(q.queryKey),

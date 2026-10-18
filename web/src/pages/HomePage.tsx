@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useActiveRower } from '../hooks/useActiveRower'
 import { startSession } from '../api/client'
-import { showToast } from '../app/Toast'
+import { handleStartFailure } from '../offline/offlinePrompt'
 import { FavoritesList } from './home/FavoritesList'
 import { StaleSessionCard } from './home/StaleSessionCard'
 import { IconJustRow, IconDistance, IconTime, IconInterval, IconRace } from '../icons/workout'
@@ -13,12 +13,14 @@ export function HomePage() {
   const active = useActiveRower()
   const nav = useNavigate()
   const { reachable } = useErgoStatus()
+  // Starts need the Ergo: held while unknown (ADR-0021) and while away.
+  const canStart = reachable === true
 
   async function startJustRow() {
     try {
       await startSession()
-    } catch {
-      showToast('Start fehlgeschlagen — Ergo nicht erreichbar?', 'warn')
+    } catch (e) {
+      handleStartFailure(e)
       return
     }
     nav('/live')
@@ -33,17 +35,22 @@ export function HomePage() {
       <h1 className={styles.heading}>Home</h1>
 
       <ErgoStandNotice variant="hero" />
+      {reachable === 'unknown' && (
+        <p className={styles.searching} role="status" data-testid="ergo-searching">
+          Suche Ergo…
+        </p>
+      )}
 
       <section
-        className={reachable ? styles.start : `${styles.start} ${styles.startDimmed}`}
-        aria-disabled={!reachable}
+        className={canStart ? styles.start : `${styles.start} ${styles.startDimmed}`}
+        aria-disabled={!canStart}
       >
         <button
           type="button"
           className={styles.hero}
           onClick={startJustRow}
           data-testid="picker-just-row"
-          disabled={!reachable}
+          disabled={!canStart}
         >
           <span className={styles.heroIcon}>
             <IconJustRow size={32} />
@@ -64,7 +71,7 @@ export function HomePage() {
             className={styles.mode}
             onClick={() => pickMode('distance')}
             data-testid="picker-distance"
-            disabled={!reachable}
+            disabled={!canStart}
           >
             <span className={styles.modeIcon}><IconDistance size={24} /></span>
             <span className={styles.modeLabel}>Distanz</span>
@@ -74,7 +81,7 @@ export function HomePage() {
             className={styles.mode}
             onClick={() => pickMode('time')}
             data-testid="picker-time"
-            disabled={!reachable}
+            disabled={!canStart}
           >
             <span className={styles.modeIcon}><IconTime size={24} /></span>
             <span className={styles.modeLabel}>Zeit</span>
@@ -84,7 +91,7 @@ export function HomePage() {
             className={styles.mode}
             onClick={() => pickMode('intervals')}
             data-testid="picker-intervals"
-            disabled={!reachable}
+            disabled={!canStart}
           >
             <span className={styles.modeIcon}><IconInterval size={24} /></span>
             <span className={styles.modeLabel}>Intervalle</span>
@@ -97,7 +104,7 @@ export function HomePage() {
             className={styles.mode}
             onClick={() => pickMode('race')}
             data-testid="picker-race"
-            disabled={!reachable}
+            disabled={!canStart}
           >
             <span className={styles.modeIcon}><IconRace size={24} /></span>
             <span className={styles.modeLabel}>Rennen</span>
@@ -106,7 +113,7 @@ export function HomePage() {
       </section>
 
       <StaleSessionCard rowerID={active.data?.id} />
-      <FavoritesList rowerID={active.data?.id} disabled={!reachable} />
+      <FavoritesList rowerID={active.data?.id} disabled={!canStart} />
     </main>
   )
 }

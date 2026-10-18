@@ -3,12 +3,24 @@ import { render, screen, fireEvent, act } from '@testing-library/react'
 import { LiveSessionProvider } from './LiveSessionContext'
 import { ConnectionBanner } from './ConnectionBanner'
 import { MockChannel } from './channel'
+import { MemoryRouter, Routes, Route } from 'react-router-dom'
+import { getErgoStatus, _resetErgoStatusForTest } from '../offline/ergoStatus'
 
 function renderWithChannel(channel: MockChannel) {
   return render(
-    <LiveSessionProvider channel={channel}>
-      <ConnectionBanner />
-    </LiveSessionProvider>,
+    <MemoryRouter initialEntries={['/live']}>
+      <Routes>
+        <Route path="/" element={<div>HOME</div>} />
+        <Route
+          path="/live"
+          element={
+            <LiveSessionProvider channel={channel}>
+              <ConnectionBanner />
+            </LiveSessionProvider>
+          }
+        />
+      </Routes>
+    </MemoryRouter>,
   )
 }
 
@@ -49,5 +61,16 @@ describe('ConnectionBanner', () => {
     act(() => ch.setStatus('permanently_disconnected'))
     fireEvent.click(screen.getByRole('button', { name: /Erneut verbinden/i }))
     expect(reconnect).toHaveBeenCalled()
+  })
+
+  // ADR-0021 §4: switch to the latched offline mode from the Live page.
+  it('„Offline-Modus“ enters offline mode and goes Home', () => {
+    _resetErgoStatusForTest()
+    const ch = new MockChannel()
+    renderWithChannel(ch)
+    act(() => ch.setStatus('permanently_disconnected'))
+    fireEvent.click(screen.getByRole('button', { name: 'Offline-Modus' }))
+    expect(getErgoStatus()).toMatchObject({ mode: 'offline', reachable: false })
+    expect(screen.getByText('HOME')).toBeInTheDocument()
   })
 })

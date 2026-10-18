@@ -20,8 +20,12 @@ test('packed at home, history demo works at the club', async ({
   await page.goto('/profil')
   await expect(page.getByTestId('offline-stand')).toBeVisible({ timeout: 30_000 })
 
-  // At the club: no route to the backend.
-  await context.route('**/api/**', (route) => route.abort('connectionrefused'))
+  // At the club: no route to the backend. Match the path prefix, not a
+  // `**/api/**` glob — in dev, Vite serves `/src/api/*.ts` modules too.
+  await context.route(
+    (url) => url.pathname.startsWith('/api/'),
+    (route) => route.abort('connectionrefused'),
+  )
 
   // Home: hero card with CTA; start affordances dimmed.
   await page.goto('/')
