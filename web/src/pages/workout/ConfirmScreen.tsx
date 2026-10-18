@@ -11,7 +11,7 @@ import {
 } from '../../api/workouts'
 import { createFavorite } from '../../api/favorites'
 import { formatDistanceLabel } from '../../util/format'
-import { useWorkoutFlow, type FlowState } from './WorkoutFlowProvider'
+import { useWorkoutFlow, type FlowState } from './WorkoutFlowContext'
 import styles from './ConfirmScreen.module.css'
 
 function intensityLabelFor(i: string): string {

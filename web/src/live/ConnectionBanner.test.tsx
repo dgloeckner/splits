@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { render, screen, fireEvent, act } from '@testing-library/react'
-import { LiveSessionProvider } from './LiveSessionContext'
+import { LiveSessionProvider } from './LiveSessionProvider'
 import { ConnectionBanner } from './ConnectionBanner'
 import { MockChannel } from './channel'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'

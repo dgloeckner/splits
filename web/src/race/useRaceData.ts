@@ -15,12 +15,13 @@ function readSelection(): { ghost: boolean; pb: boolean } {
 
 export function useRaceData(args: { workoutId: string | null; rowerId: string | null }): RaceOpponentsResponse {
   const [state, setState] = useState<RaceOpponentsResponse>(empty)
+  const hasIds = !!args.workoutId && !!args.rowerId
+  // Losing either id drops the opponents. Adjusted while rendering, React's
+  // pattern for state that follows a changing input.
+  if (!hasIds && state !== empty) setState(empty)
 
   useEffect(() => {
-    if (!args.workoutId || !args.rowerId) {
-      setState(empty)
-      return
-    }
+    if (!args.workoutId || !args.rowerId) return
     let cancelled = false
     fetchRaceOpponents({ workoutId: args.workoutId, rowerId: args.rowerId })
       .then((r) => {

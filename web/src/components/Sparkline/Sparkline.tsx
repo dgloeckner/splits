@@ -87,7 +87,6 @@ export function Sparkline({ points, ghost, windowSeconds = 90, yMin, yMax }: Pro
     }
     // lastTimeSec is what we really depend on, but points array identity
     // already changes on each new point — either works.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [points, reduced, visible, windowSeconds])
 
   const numericPoints = points.filter(

@@ -3,7 +3,8 @@ import { render, screen, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { WorkoutFlowPage } from './WorkoutFlowPage'
-import { WorkoutFlowProvider, useWorkoutFlow } from './WorkoutFlowProvider'
+import { useWorkoutFlow } from './WorkoutFlowContext'
+import { WorkoutFlowProvider } from './WorkoutFlowProvider'
 
 function Probe() {
   const { state, dispatch } = useWorkoutFlow()

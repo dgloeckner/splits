@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { LiveState } from './reducer'
+import type { LiveState, SmoothedValues } from './reducer'
 import { smoothingConfig } from './smoothing'
 import { applyHysteresis } from './ema'
 import { fmtInt, fmtFloat, mmssWhole, pace500m } from '../util/format'
@@ -86,6 +86,9 @@ export function useIsLivePaused(state: LiveState): boolean {
   if (state.serverPaused) return true
   const last = state.lastStrokeReceivedAtMs
   if (last === null) return true
+  // Reading the wall clock while rendering is the point of this hook: the
+  // frame tick or the interval above re-renders it so the read is fresh.
+  // eslint-disable-next-line react-hooks/purity
   return Date.now() - last >= smoothingConfig.deadReckoning.pauseThresholdMs
 }
 
@@ -104,8 +107,11 @@ export function useExtrapolatedTimeSec(state: LiveState): Extrapolated {
   const s = state.stroke
   if (!s) return { value: null, paused: false }
 
-  const receivedAt = state.lastStrokeReceivedAtMs ?? Date.now()
+  // Reading the wall clock while rendering is the point of this hook: the
+  // frame tick above re-renders it every frame so the read is fresh.
+  // eslint-disable-next-line react-hooks/purity
   const now = Date.now()
+  const receivedAt = state.lastStrokeReceivedAtMs ?? now
   const sinceFrame = now - receivedAt
   const paused = sinceFrame >= smoothingConfig.deadReckoning.pauseThresholdMs
 
@@ -146,8 +152,11 @@ export function useExtrapolatedDistanceM(state: LiveState): Extrapolated {
   const s = state.stroke
   if (!s) return { value: null, paused: false }
 
-  const receivedAt = state.lastStrokeReceivedAtMs ?? Date.now()
+  // Reading the wall clock while rendering is the point of this hook: the
+  // frame tick above re-renders it every frame so the read is fresh.
+  // eslint-disable-next-line react-hooks/purity
   const now = Date.now()
+  const receivedAt = state.lastStrokeReceivedAtMs ?? now
   const sinceFrame = now - receivedAt
   const paused = sinceFrame >= smoothingConfig.deadReckoning.pauseThresholdMs
 
@@ -211,73 +220,64 @@ export type SmoothedDisplay = {
   spi: string
 }
 
+type HeldValues = {
+  watts: number | null
+  split: number | null
+  spm: number | null
+  dps: number | null
+  spi: number | null
+}
+
+const NOTHING_HELD: HeldValues = { watts: null, split: null, spm: null, dps: null, spi: null }
+
+/**
+ * The value to hold after seeing `candidate`: the first value is taken as
+ * is, a later one replaces the held value only once it moves by at least
+ * `threshold`, and a null candidate keeps whatever was held.
+ */
+function hold(held: number | null, candidate: number | null, threshold: number): number | null {
+  if (candidate === null) return held
+  return held === null ? candidate : applyHysteresis(held, candidate, threshold)
+}
+
 /**
  * Formats the reducer's smoothed values for display, applying hysteresis at
- * the *display* layer (via refs) so tiny wiggles don't flicker the DOM.
+ * the *display* layer so tiny wiggles don't flicker the DOM.
  * Falls back to em-dash while smoothed is null (pre-first-stroke).
  */
 export function useSmoothed(state: LiveState): SmoothedDisplay {
-  const wattsRef = useRef<number | null>(null)
-  const splitRef = useRef<number | null>(null)
-  const spmRef = useRef<number | null>(null)
-  const dpsRef = useRef<number | null>(null)
-  const spiRef = useRef<number | null>(null)
-
   const sm = state.smoothed
+  // The held values, and the smoothed frame they were last moved by. They
+  // are updated while rendering, React's pattern for state that follows a
+  // changing input: the hook re-renders at once with the new values,
+  // before anything is painted, and a re-render of the same frame (every
+  // animation tick) leaves them alone.
+  const [held, setHeld] = useState<{ from: SmoothedValues | null; values: HeldValues }>({
+    from: null,
+    values: NOTHING_HELD,
+  })
+  let values = held.values
+  if (sm && sm !== held.from) {
+    const h = smoothingConfig.ema
+    values = {
+      watts: hold(values.watts, sm.power, h.watts.hysteresis),
+      split: hold(values.split, sm.paceSecPer500m, h.split.hysteresis),
+      spm: hold(values.spm, sm.spm, h.spm.hysteresis),
+      dps: hold(values.dps, sm.dps, h.dps.hysteresis),
+      spi: hold(values.spi, sm.spi, h.spi.hysteresis),
+    }
+    setHeld({ from: sm, values })
+  }
+
   if (!sm) {
     return { watts: '—', split: '—', spm: '—', dps: '—', spi: '—' }
   }
-
-  const wattsVal =
-    sm.power === null
-      ? null
-      : wattsRef.current === null
-        ? sm.power
-        : applyHysteresis(wattsRef.current, sm.power, smoothingConfig.ema.watts.hysteresis)
-  if (wattsVal !== null) wattsRef.current = wattsVal
-
-  const splitVal =
-    sm.paceSecPer500m === null
-      ? null
-      : splitRef.current === null
-        ? sm.paceSecPer500m
-        : applyHysteresis(
-            splitRef.current,
-            sm.paceSecPer500m,
-            smoothingConfig.ema.split.hysteresis,
-          )
-  if (splitVal !== null) splitRef.current = splitVal
-
-  const spmVal =
-    sm.spm === null
-      ? null
-      : spmRef.current === null
-        ? sm.spm
-        : applyHysteresis(spmRef.current, sm.spm, smoothingConfig.ema.spm.hysteresis)
-  if (spmVal !== null) spmRef.current = spmVal
-
-  const dpsVal =
-    sm.dps === null
-      ? null
-      : dpsRef.current === null
-        ? sm.dps
-        : applyHysteresis(dpsRef.current, sm.dps, smoothingConfig.ema.dps.hysteresis)
-  if (dpsVal !== null) dpsRef.current = dpsVal
-
-  const spiVal =
-    sm.spi === null
-      ? null
-      : spiRef.current === null
-        ? sm.spi
-        : applyHysteresis(spiRef.current, sm.spi, smoothingConfig.ema.spi.hysteresis)
-  if (spiVal !== null) spiRef.current = spiVal
-
   return {
-    watts: fmtInt(wattsVal),
-    split: pace500m(splitVal),
-    spm: fmtInt(spmVal),
-    dps: fmtFloat(dpsVal, 1),
-    spi: fmtFloat(spiVal, 1),
+    watts: fmtInt(sm.power === null ? null : values.watts),
+    split: pace500m(sm.paceSecPer500m === null ? null : values.split),
+    spm: fmtInt(sm.spm === null ? null : values.spm),
+    dps: fmtFloat(sm.dps === null ? null : values.dps, 1),
+    spi: fmtFloat(sm.spi === null ? null : values.spi, 1),
   }
 }
 
@@ -297,10 +297,15 @@ export function useCountUp(value: number | null, durationMs: number): number | n
   const toRef = useRef<number | null>(value)
   const rafRef = useRef<number | null>(null)
 
+  // A null target, reduced motion and a hidden tab all snap straight to the
+  // target. Snapping while rendering, rather than from the effect below,
+  // means the stale number is never painted first.
+  const snap = value === null || reduced || !visible
+  if (snap && displayed !== value) setDisplayed(value)
+
   useEffect(() => {
     if (value === null) {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current)
-      setDisplayed(null)
       toRef.current = null
       return
     }
@@ -309,7 +314,6 @@ export function useCountUp(value: number | null, durationMs: number): number | n
     if (reduced || !visible) {
       toRef.current = value
       fromRef.current = value
-      setDisplayed(value)
       return
     }
 

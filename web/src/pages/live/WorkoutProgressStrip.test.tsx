@@ -7,7 +7,7 @@ import { MemoryRouter } from 'react-router-dom'
 import { LiveSessionContext } from '../../live/LiveSessionContext'
 import { initialLiveState, type LiveState } from '../../live/reducer'
 import type { Segment, ActiveSegment } from '../../live/segments'
-import { WorkoutOverlayProvider } from './WorkoutOverlayContext'
+import { WorkoutOverlayProvider } from './WorkoutOverlayProvider'
 import { WorkoutProgressStrip, WorkoutProgressStripView } from './WorkoutProgressStrip'
 
 function seg(kind: Segment['kind'], index: number, d?: number, s?: number): Segment {

@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, act, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider, QueryCache, useQuery } from '@tanstack/react-query'
-import { ToastHost, showToast } from './Toast'
+import { ToastHost } from './Toast'
+import { showToast } from './toastBus'
 import { ApiError } from '../api/error'
 
 beforeEach(() => {
