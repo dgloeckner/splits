@@ -1,4 +1,4 @@
-import { useMemo, useRef } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { monotonePath } from './path'
 import { rollingAverage } from './rolling'
 import { formatStripDate } from './format'
@@ -7,18 +7,19 @@ import { selectXTicksAtCalendarBoundaries, selectYTicksRound, type ChartMetric }
 import { useChartScrubber, type ChartDot } from './useChartScrubber'
 import styles from './ProgressChart.module.css'
 
-const WIDTH = 300
-const HEIGHT = 170
-const LEFT_PAD = 34
-const RIGHT_PAD = 40
-const TOP_PAD = 6
-const BOTTOM_PAD = 14
+// Fallback width until the container is measured (and in jsdom).
+const DEFAULT_WIDTH = 300
+const HEIGHT = 180
+const LEFT_PAD = 40
+const RIGHT_PAD = 52
+const TOP_PAD = 8
+const BOTTOM_PAD = 22
 const PLOT_LEFT = LEFT_PAD
-const PLOT_RIGHT = WIDTH - RIGHT_PAD
 const PLOT_TOP = TOP_PAD
 const PLOT_BOTTOM = HEIGHT - BOTTOM_PAD
-const PLOT_W = PLOT_RIGHT - PLOT_LEFT
 const PLOT_H = PLOT_BOTTOM - PLOT_TOP
+// Minimum vertical gap between the right-edge direct labels (PB, Ø).
+const LABEL_GAP = 11
 
 export type ProgressPoint = { t: number; y: number; sessionId: string }
 
@@ -42,7 +43,40 @@ export type ProgressChartProps = {
   onScrubSession?: (sessionId: string | null) => void
 }
 
+// Render in real pixels instead of stretching a fixed viewBox: with
+// preserveAspectRatio="none" text and dots distort on wide screens.
+function useMeasuredWidth() {
+  const ref = useRef<HTMLDivElement | null>(null)
+  const [width, setWidth] = useState(DEFAULT_WIDTH)
+  useLayoutEffect(() => {
+    const w = ref.current?.getBoundingClientRect().width
+    if (w) setWidth(w)
+  }, [])
+  useEffect(() => {
+    if (!ref.current || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0].contentRect.width
+      if (w) setWidth(w)
+    })
+    ro.observe(ref.current)
+    return () => ro.disconnect()
+  }, [])
+  return { ref, width }
+}
+
+// Push the two right-edge labels apart when their lines sit close
+// together (PB and Ø often coincide).
+function separateLabels(a: number | null, b: number | null): [number | null, number | null] {
+  if (a === null || b === null || Math.abs(a - b) >= LABEL_GAP) return [a, b]
+  const mid = (a + b) / 2
+  const [lo, hi] = [mid - LABEL_GAP / 2, mid + LABEL_GAP / 2]
+  return a <= b ? [lo, hi] : [hi, lo]
+}
+
 export function ProgressChart(p: ProgressChartProps) {
+  const { ref: wrapRef, width } = useMeasuredWidth()
+  const plotRight = width - RIGHT_PAD
+  const plotW = plotRight - PLOT_LEFT
   const captureRef = useRef<SVGRectElement | null>(null)
   const all = useMemo(() => [...p.linePoints, ...p.contextDots], [p.linePoints, p.contextDots])
 
@@ -62,7 +96,7 @@ export function ProgressChart(p: ProgressChartProps) {
   const yMax = yTicks[yTicks.length - 1] ?? 1
   const xMin = p.windowFromMs
   const xMax = p.windowToMs
-  const toX = (t: number) => PLOT_LEFT + ((t - xMin) / Math.max(1, xMax - xMin)) * PLOT_W
+  const toX = (t: number) => PLOT_LEFT + ((t - xMin) / Math.max(1, xMax - xMin)) * plotW
   const toY = (y: number) => PLOT_TOP + (1 - (y - yMin) / Math.max(1e-6, yMax - yMin)) * PLOT_H
 
   const xTicks = useMemo(() => selectXTicksAtCalendarBoundaries(xMin, xMax), [xMin, xMax])
@@ -70,7 +104,7 @@ export function ProgressChart(p: ProgressChartProps) {
   const dots: ChartDot[] = useMemo(
     () => all.map((q) => ({ x: toX(q.t), sessionId: q.sessionId })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [all, xMin, xMax],
+    [all, xMin, xMax, width],
   )
 
   const { scrubX, handlers } = useChartScrubber({
@@ -91,7 +125,7 @@ export function ProgressChart(p: ProgressChartProps) {
     }
     return p.linePoints[p.linePoints.length - 1] ?? all[all.length - 1] ?? null
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scrubX, all, p.selectedSessionId, p.linePoints])
+  }, [scrubX, all, p.selectedSessionId, p.linePoints, width])
 
   const lastReported = useRef<string | null>(null)
   const activeId = scrubX !== null ? (active?.sessionId ?? null) : null
@@ -102,13 +136,19 @@ export function ProgressChart(p: ProgressChartProps) {
 
   const ravg = active ? (rolling.find((r) => r.t === active.t)?.y ?? null) : null
   const lastRolling = rolling[rolling.length - 1]
+  const showPb = p.pbValue != null && p.pbValue >= yMin && p.pbValue <= yMax
+  const showRolling = rolling.length > 1
+  const [pbLabelY, rollingLabelY] = separateLabels(
+    showPb ? toY(p.pbValue as number) : null,
+    showRolling && lastRolling ? toY(lastRolling.y) : null,
+  )
 
   return (
-    <div className={styles.wrap}>
+    <div className={styles.wrap} ref={wrapRef}>
       <div className={styles.strip} data-testid="progress-strip">
         <span className={styles.stripDate}>{active ? formatStripDate(active.t) : ''}</span>
         {active && (
-          <>
+          <span className={styles.stripReadout}>
             <span className={styles.stripValue}>{p.fmt(active.y)}</span>
             <span
               className={
@@ -120,40 +160,41 @@ export function ProgressChart(p: ProgressChartProps) {
             >
               {formatStripDelta(active.y, ravg, p.rollingWindowDays, p.metric)}
             </span>
-          </>
+          </span>
         )}
       </div>
 
-      <svg className={styles.svg} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} preserveAspectRatio="none"
-        style={{ height: HEIGHT }} role="img" aria-label="Verlauf">
+      <svg className={styles.svg} viewBox={`0 0 ${width} ${HEIGHT}`}
+        width={width} height={HEIGHT} role="img" aria-label="Verlauf">
         {yTicks.map((y) => (
           <g key={`y-${y}`}>
             <line data-testid="progress-gridline" className={styles.grid}
-              x1={PLOT_LEFT} x2={PLOT_RIGHT} y1={toY(y)} y2={toY(y)} />
-            <text className={styles.axisLabel} x={4} y={toY(y) + 3}>{p.fmt(y)}</text>
+              x1={PLOT_LEFT} x2={plotRight} y1={toY(y)} y2={toY(y)} />
+            <text className={styles.axisLabel} x={PLOT_LEFT - 6} y={toY(y) + 3}
+              textAnchor="end">{p.fmt(y)}</text>
           </g>
         ))}
         {xTicks.map((tk) => (
           <text key={`x-${tk.t}`} data-testid="progress-xtick" className={styles.axisLabel}
-            x={toX(tk.t)} y={HEIGHT - 3} textAnchor="middle">{tk.label}</text>
+            x={toX(tk.t)} y={HEIGHT - 5} textAnchor="middle">{tk.label}</text>
         ))}
 
-        {p.pbValue != null && p.pbValue >= yMin && p.pbValue <= yMax && (
+        {showPb && p.pbValue != null && pbLabelY !== null && (
           <g data-testid="progress-pb-line">
-            <line className={styles.pbLine} x1={PLOT_LEFT} x2={PLOT_RIGHT}
+            <line className={styles.pbLine} x1={PLOT_LEFT} x2={plotRight}
               y1={toY(p.pbValue)} y2={toY(p.pbValue)} />
-            <text className={styles.pbLabel} x={PLOT_RIGHT + 2} y={toY(p.pbValue) + 3}>
+            <text className={styles.pbLabel} x={plotRight + 4} y={pbLabelY + 3}>
               {p.pbLabel ?? `PB ${p.fmt(p.pbValue)}`}
             </text>
           </g>
         )}
 
-        {rolling.length > 1 && (
+        {showRolling && (
           <g data-testid="progress-rolling">
             <path className={styles.rollingPath}
               d={monotonePath(rolling.map((r) => ({ x: toX(r.t), y: toY(r.y) })))} />
-            {lastRolling && (
-              <text className={styles.rollingLabel} x={PLOT_RIGHT + 2} y={toY(lastRolling.y) + 3}>
+            {rollingLabelY !== null && (
+              <text className={styles.rollingLabel} x={plotRight + 4} y={rollingLabelY + 3}>
                 {`Ø ${p.rollingWindowDays} T`}
               </text>
             )}
@@ -180,7 +221,7 @@ export function ProgressChart(p: ProgressChartProps) {
           <line className={styles.guideline} x1={scrubX} x2={scrubX} y1={PLOT_TOP} y2={PLOT_BOTTOM} />
         )}
         <rect ref={captureRef} data-testid="progress-capture" className={styles.capture}
-          x={PLOT_LEFT} y={PLOT_TOP} width={PLOT_W} height={PLOT_H} {...handlers} />
+          x={PLOT_LEFT} y={PLOT_TOP} width={plotW} height={PLOT_H} {...handlers} />
       </svg>
     </div>
   )
