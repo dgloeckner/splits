@@ -230,14 +230,17 @@ export function ProfilePage() {
       )}
 
       <footer className={styles.footer}>
-        <p className={styles.footerLine}>splits</p>
         {ergo.packedAt && (
           <p className={styles.footerLine} data-testid="offline-stand">
             Unterwegs-Daten: Stand {formatStand(ergo.packedAt)} · {ergo.packedSessions} Sessions
           </p>
         )}
-        <p className={styles.footerLine} data-testid="build-version">
-          Build {__BUILD_SHA__} · {new Date(__BUILD_TIME__).toLocaleString('de-DE')}
+        <p
+          className={styles.footerLine}
+          data-testid="build-version"
+          title={new Date(__BUILD_TIME__).toLocaleString('de-DE')}
+        >
+          splits {__BUILD_VERSION__} · Build {__BUILD_SHA__}
         </p>
       </footer>
     </main>

@@ -293,6 +293,9 @@ static — no glibc-version surprises.
 `web/dist/` and this directory into one installable archive (the same
 thing `.github/workflows/release.yml` publishes). `WEB_SKIP=1` reuses an
 existing `web/dist`; `VERSION=` overrides the `git describe` default.
+The same `VERSION` is stamped into the binary (`splits --version`,
+`GET /api/health`) and the PWA (Profil footer), and the bundle carries an
+`ARCH` file (`linux-armv7`, …) that the updater uses to pick its asset.
 
 ## Files at a glance
 

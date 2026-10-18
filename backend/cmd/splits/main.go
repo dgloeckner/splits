@@ -38,6 +38,10 @@ func main() {
 }
 
 func run() error {
+	if isVersionArg(os.Args) {
+		printVersion(os.Stdout)
+		return nil
+	}
 	cfg, err := config.Load(os.LookupEnv)
 	if err != nil {
 		return err
@@ -66,6 +70,7 @@ func run() error {
 	}
 	configureLogger(cfg.LogLevel)
 	slog.Info("splits.start",
+		"version", version, "commit", buildCommit(),
 		"addr", cfg.Addr, "fixture", cfg.Fixture, "fixture_rate", cfg.FixtureRate,
 		"serial_port", cfg.SerialPort, "db_path", cfg.DBPath, "idle_timeout", cfg.IdleTimeout,
 	)
@@ -194,6 +199,8 @@ func run() error {
 			DeviceMonitor:      deviceMonitor,
 			DevMode:            cfg.DevMode,
 			FixtureControl:     fixtureCtl,
+			Version:            version,
+			Commit:             buildCommit(),
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}

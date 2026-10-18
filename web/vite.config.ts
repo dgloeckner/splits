@@ -26,12 +26,27 @@ function gitDirty(): boolean {
   }
 }
 
+// The release tag (ADR-0023 §1). bundle.sh and release.yml's web job set
+// VERSION, so the PWA inside a tagged bundle carries the same tag as the
+// backend beside it; a workstation build falls back to `git describe`.
+function buildVersion(): string {
+  if (process.env.VERSION) return process.env.VERSION
+  try {
+    return execSync('git describe --tags --always', { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim()
+  } catch {
+    return 'dev'
+  }
+}
+
 const buildSha = gitShortSha() + (gitDirty() ? '-dirty' : '')
 const buildTime = new Date().toISOString()
 
 export default defineConfig({
   define: {
     __BUILD_SHA__: JSON.stringify(buildSha),
+    __BUILD_VERSION__: JSON.stringify(buildVersion()),
     __BUILD_TIME__: JSON.stringify(buildTime),
   },
   plugins: [

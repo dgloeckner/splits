@@ -31,13 +31,13 @@ app is never reloaded under somebody's hands mid-session.
 
 ### Version stamping (stage 1)
 
-- [ ] `splits --version` prints the release tag and the commit; an
+- [x] `splits --version` prints the release tag and the commit; an
       unstamped build reports `dev`.
-- [ ] `GET /api/health` returns `version`, `commit` and `session_open`
+- [x] `GET /api/health` returns `version`, `commit` and `session_open`
       alongside `status`.
-- [ ] The Profil footer shows the release tag of the bundle the PWA came
+- [x] The Profil footer shows the release tag of the bundle the PWA came
       from (`splits v0.4.1 · Build abc1234`).
-- [ ] `release.yml` fails on a tag without the `v` prefix; the PWA inside
+- [x] `release.yml` fails on a tag without the `v` prefix; the PWA inside
       a tagged bundle is stamped with that tag.
 
 ### Slot layout (stage 2)

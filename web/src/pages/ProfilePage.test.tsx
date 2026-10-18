@@ -32,3 +32,12 @@ describe('ProfilePage offline status line', () => {
     expect(screen.queryByTestId('offline-stand')).toBeNull()
   })
 })
+
+describe('ProfilePage footer', () => {
+  it('names the release tag and the build commit (ADR-0023 §1)', async () => {
+    mount()
+    expect(await screen.findByTestId('build-version')).toHaveTextContent(
+      `splits ${__BUILD_VERSION__} · Build ${__BUILD_SHA__}`,
+    )
+  })
+})
