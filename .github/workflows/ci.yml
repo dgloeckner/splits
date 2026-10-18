@@ -78,11 +78,8 @@ jobs:
       # npm ci rewrote the lockfile, otherwise every CI build would be
       # "dirty".
       - run: git diff --exit-code -- package-lock.json
-      # Advisory until the pre-existing ESLint errors on main are fixed
-      # (146 at the time of writing, see ADR-0022 follow-ups); then drop
-      # continue-on-error to make lint blocking.
+      # Blocking: main is lint-clean, so any ESLint problem fails the job.
       - run: npm run lint
-        continue-on-error: true
       - run: npm run typecheck
       # vitest with the v8 provider; the thresholds in vite.config.ts are the
       # web coverage floor (ADR-0022) and fail this step when undercut.

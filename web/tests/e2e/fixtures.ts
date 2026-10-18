@@ -70,6 +70,8 @@ export type TestFixtures = {
 export const test = base.extend<TestFixtures, WorkerFixtures>({
   // ── Worker-scoped ────────────────────────────────────────────────
   viteWorker: [
+    // Playwright requires a destructuring pattern for the fixtures arg.
+    // eslint-disable-next-line no-empty-pattern
     async ({}, use) => {
       // Reserve two ports up front. The backend port stays unbound
       // until the per-test `startBackend` claims it; Vite binds its

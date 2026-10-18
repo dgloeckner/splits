@@ -3,9 +3,9 @@ import { ApiError, NetworkError } from '../api/error'
 import { setErgoStatus, getErgoStatus, _resetErgoStatusForTest } from './ergoStatus'
 import { recordBootstrapQuery, _resetBootstrapMirrorForTest } from './bootstrapMirror'
 
-vi.mock('../app/Toast', () => ({ showToast: vi.fn() }))
+vi.mock('../app/toastBus', () => ({ showToast: vi.fn() }))
 vi.mock('./reachability', () => ({ enterOfflineMode: vi.fn(), reportUnreachable: vi.fn() }))
-import { showToast } from '../app/Toast'
+import { showToast } from '../app/toastBus'
 import { enterOfflineMode, reportUnreachable } from './reachability'
 import {
   maybePromptOffline,

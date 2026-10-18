@@ -74,7 +74,7 @@ describe('useDeadReckonedTime', () => {
   })
 
   it('freezes + flags paused once the pause threshold elapses', () => {
-    let s: LiveState = liveReducer(initialLiveState, {
+    const s: LiveState = liveReducer(initialLiveState, {
       type: 'event',
       event: stroke(1, { time_sec: 10 }),
     })

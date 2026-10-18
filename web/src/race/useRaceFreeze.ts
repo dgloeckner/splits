@@ -1,4 +1,4 @@
-import { useRef } from 'react'
+import { useState } from 'react'
 import type { LiveState } from '../live/reducer'
 import type { RaceResultLatch } from './raceResultLatch'
 import { opponentLookup } from './opponentLookup'
@@ -64,9 +64,11 @@ export function useRaceFreeze({
 }: Args): RaceFreezeValues {
   // Fallback snapshot for callers that don't plumb `latchedResult`
   // (e.g. older unit tests that render `RaceLiveView` standalone). When
-  // `latchedResult` is provided it always wins — the ref is only the
-  // safety net for the unplumbed path.
-  const fallbackRef = useRef<RaceFreezeValues | null>(null)
+  // `latchedResult` is provided it always wins — this snapshot is only
+  // the safety net for the unplumbed path. It is set while rendering, React's
+  // pattern for state that follows a changing input; the immediate
+  // re-render then returns it from the check below.
+  const [fallback, setFallback] = useState<RaceFreezeValues | null>(null)
 
   if (latchedResult) {
     const { finalTimeS, gaps, crossSnapshot } = latchedResult
@@ -82,7 +84,7 @@ export function useRaceFreeze({
     }
   }
 
-  if (fallbackRef.current) return fallbackRef.current
+  if (fallback) return fallback
 
   const stroke = liveState.stroke
   const elapsedSec = stroke?.time_sec ?? 0
@@ -118,7 +120,7 @@ export function useRaceFreeze({
       pbGap,
       frozen: true,
     })
-    fallbackRef.current = snapshot
+    setFallback(snapshot)
     return snapshot
   }
 

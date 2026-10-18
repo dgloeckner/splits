@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useWorkoutFlow } from './WorkoutFlowProvider'
+import { useWorkoutFlow } from './WorkoutFlowContext'
 import { distancePresets, timePresets, intervalPresets, racePresets } from './presets'
 import { formatDistanceLabel } from '../../util/format'
 import styles from './Step2Dimension.module.css'

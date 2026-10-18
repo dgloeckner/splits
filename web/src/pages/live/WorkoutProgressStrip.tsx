@@ -7,7 +7,7 @@ import type { ActiveSegment, Segment } from '../../live/segments'
 import { useWorkoutOverlay } from './WorkoutOverlayContext'
 import { useDiscardSession } from './useDiscardSession'
 import { AbortWorkoutDialog } from './AbortWorkoutDialog'
-import { useExtrapolatedActiveSegment } from './SegmentStatus'
+import { useExtrapolatedActiveSegment } from './useExtrapolatedActiveSegment'
 import { WorkProgressBadge } from './WorkProgressBadge'
 import styles from './WorkoutProgressStrip.module.css'
 

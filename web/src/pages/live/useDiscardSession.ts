@@ -2,7 +2,7 @@ import { useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { deleteSession } from '../../api/client'
-import { showToast } from '../../app/Toast'
+import { showToast } from '../../app/toastBus'
 import { useWorkoutOverlay } from './WorkoutOverlayContext'
 
 /**

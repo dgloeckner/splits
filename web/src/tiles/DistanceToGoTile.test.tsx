@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { LiveSessionContext } from '../live/LiveSessionContext'
 import { initialLiveState, type LiveState } from '../live/reducer'
-import { WorkoutOverlayProvider } from '../pages/live/WorkoutOverlayContext'
+import { WorkoutOverlayProvider } from '../pages/live/WorkoutOverlayProvider'
 import { NumericTile } from './NumericTile'
 import { getTile } from './registry'
 
