@@ -4,12 +4,13 @@ import { setErgoStatus, getErgoStatus, _resetErgoStatusForTest } from './ergoSta
 import { recordBootstrapQuery, _resetBootstrapMirrorForTest } from './bootstrapMirror'
 
 vi.mock('../app/Toast', () => ({ showToast: vi.fn() }))
-vi.mock('./reachability', () => ({ enterOfflineMode: vi.fn() }))
+vi.mock('./reachability', () => ({ enterOfflineMode: vi.fn(), reportUnreachable: vi.fn() }))
 import { showToast } from '../app/Toast'
-import { enterOfflineMode } from './reachability'
+import { enterOfflineMode, reportUnreachable } from './reachability'
 import {
   maybePromptOffline,
   showStartFailedToast,
+  handleStartFailure,
   OFFLINE_PROMPT_DEBOUNCE_MS,
   promptOnQueryFailures,
   _resetOfflinePromptForTest,
@@ -120,5 +121,29 @@ describe('promptOnQueryFailures', () => {
     await qc.fetchQuery({ queryKey: ['y'], queryFn: () => Promise.reject(netErr()) }).catch(() => {})
     expect(showToast).toHaveBeenCalledTimes(1)
     stop()
+  })
+})
+
+describe('handleStartFailure', () => {
+  beforeEach(() => {
+    vi.mocked(showToast).mockReset()
+    vi.mocked(reportUnreachable).mockReset()
+    _resetErgoStatusForTest()
+  })
+
+  it('a network failure is evidence: report unreachable, then the toast', () => {
+    handleStartFailure(netErr())
+    expect(reportUnreachable).toHaveBeenCalledTimes(1)
+    expect(showToast).toHaveBeenCalledWith(
+      'Start fehlgeschlagen — Ergo nicht erreichbar?',
+      'warn',
+      undefined,
+    )
+  })
+
+  it('an HTTP error only toasts — the backend answered', () => {
+    handleStartFailure(new ApiError(500, 'boom'))
+    expect(reportUnreachable).not.toHaveBeenCalled()
+    expect(showToast).toHaveBeenCalledTimes(1)
   })
 })

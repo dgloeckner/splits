@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useActiveRower } from '../hooks/useActiveRower'
 import { startSession } from '../api/client'
-import { showStartFailedToast } from '../offline/offlinePrompt'
+import { handleStartFailure } from '../offline/offlinePrompt'
 import { FavoritesList } from './home/FavoritesList'
 import { StaleSessionCard } from './home/StaleSessionCard'
 import { IconJustRow, IconDistance, IconTime, IconInterval, IconRace } from '../icons/workout'
@@ -19,8 +19,8 @@ export function HomePage() {
   async function startJustRow() {
     try {
       await startSession()
-    } catch {
-      showStartFailedToast()
+    } catch (e) {
+      handleStartFailure(e)
       return
     }
     nav('/live')

@@ -3,7 +3,7 @@ import { NetworkError } from '../api/error'
 import { showToast, type ToastAction } from '../app/Toast'
 import { loadBootstrapMirror } from './bootstrapMirror'
 import { getErgoStatus } from './ergoStatus'
-import { enterOfflineMode } from './reachability'
+import { enterOfflineMode, reportUnreachable } from './reachability'
 
 /**
  * Offline on request (ADR-0021 §4): when a request fails at the network
@@ -52,6 +52,12 @@ export function promptOnQueryFailures(cache: QueryCache): () => void {
 /** A start (Nur rudern, favorite, workout flow) ran into the network. */
 export function showStartFailedToast(): void {
   showToast('Start fehlgeschlagen — Ergo nicht erreichbar?', 'warn', offlineAction())
+}
+
+/** A start failed: a network failure is also evidence (ADR-0021 §3). */
+export function handleStartFailure(error: unknown): void {
+  if (error instanceof NetworkError) reportUnreachable()
+  showStartFailedToast()
 }
 
 export function _resetOfflinePromptForTest(): void {

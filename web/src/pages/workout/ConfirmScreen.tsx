@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useActiveRower } from '../../hooks/useActiveRower'
 import { startSession } from '../../api/client'
-import { showStartFailedToast } from '../../offline/offlinePrompt'
+import { handleStartFailure } from '../../offline/offlinePrompt'
 import {
   createWorkout,
   type CreateWorkoutInput,
@@ -207,7 +207,7 @@ export function ConfirmScreen() {
       nav('/live')
     } catch (e) {
       console.error('start workout failed', e)
-      showStartFailedToast()
+      handleStartFailure(e)
       setStarting(false)
     }
   }

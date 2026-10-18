@@ -105,7 +105,7 @@ export async function finalizeSession(id: string): Promise<void> {
 }
 
 export async function endSession(): Promise<void> {
-  const r = await fetch('/api/v1/session/end', { method: 'POST' })
+  const r = await apiFetch('/api/v1/session/end', { method: 'POST' })
   if (!r.ok) throw new ApiError(r.status, `${r.status} ${r.statusText}`)
 }
 

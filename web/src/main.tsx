@@ -17,7 +17,7 @@ import './styles/base.css'
 
 import { AppRouter } from './app/AppRouter'
 import { ToastHost, showToast } from './app/Toast'
-import { ApiError } from './api/error'
+import { ApiError, NetworkError } from './api/error'
 import { queryDefaults } from './api/queryDefaults'
 import { endSession } from './api/client'
 import {
@@ -27,7 +27,7 @@ import {
 import { idbPersister, PERSIST_MAX_AGE_MS } from './offline/persister'
 import { recordBootstrapQuery } from './offline/bootstrapMirror'
 import { isPersistableQuery } from './offline/persistKeys'
-import { leaveOfflineMode, startReachabilityProbe } from './offline/reachability'
+import { leaveOfflineMode, reportUnreachable, startReachabilityProbe } from './offline/reachability'
 import { promptOnQueryFailures } from './offline/offlinePrompt'
 import { registerPackTriggers, packIfStale } from './offline/pack'
 
@@ -105,7 +105,13 @@ void navigator.storage?.persist?.()
 // the queue keyed correctly for future per-id finalize.
 configureEndSessionQueue({
   endSession: async (_sessionId: string) => {
-    await endSession()
+    try {
+      await endSession()
+    } catch (e) {
+      // ADR-0021 §3: a network failure is evidence the Ergo is gone.
+      if (e instanceof NetworkError) reportUnreachable()
+      throw e
+    }
   },
   onSuccess: () => {
     queryClient.invalidateQueries({ queryKey: ['sessions'] })

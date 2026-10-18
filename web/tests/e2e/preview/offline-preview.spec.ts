@@ -455,3 +455,31 @@ test('offline on request without local data: the prompt has no action', async ({
   await expect(page.getByRole('button', { name: /Offline weiter/ })).toHaveCount(0)
   await page.screenshot({ path: `${SCREENSHOT_ROOT}/on-request/06-no-local-data.png` })
 })
+
+// Issue #8 / ADR-0021 §3: real request failures feed the reachability
+// loop. The Ergo goes away while Home is open — no reload, no tab switch.
+test('the Ergo goes away with the app open: the next failed request shows the hero', async ({
+  startBackend,
+  seedActiveRower,
+  fault,
+  page,
+}) => {
+  await seed(startBackend, seedActiveRower)
+  await packAtHome(page)
+  await page.goto('/')
+  await expect(page.getByTestId('picker-just-row')).toBeEnabled({ timeout: 15_000 })
+
+  fault.setMode('hang')
+  const t0 = Date.now()
+  await page.getByTestId('picker-just-row').click() // runs into the 6 s start timeout
+  await expect(page.getByTestId('ergo-offline-hero')).toBeVisible({ timeout: 20_000 })
+  expect(Date.now() - t0).toBeLessThan(20_000)
+  await expect(page.getByTestId('picker-just-row')).toBeDisabled()
+  await page.screenshot({ path: `${SCREENSHOT_ROOT}/evidence/01-hero-after-failed-start.png` })
+
+  // Back: the down-loop notices within one 25 s period.
+  fault.setMode('pass')
+  await expect(page.getByTestId('ergo-offline-hero')).toHaveCount(0, { timeout: 30_000 })
+  await expect(page.getByTestId('picker-just-row')).toBeEnabled()
+  await page.screenshot({ path: `${SCREENSHOT_ROOT}/evidence/02-recovered.png` })
+})

@@ -99,6 +99,19 @@ export function retryReachabilityNow(): void {
 }
 
 /**
+ * Evidence from a real request that the Ergo is gone (ADR-0021 §3): an
+ * exhausted SSE channel, a session start/end network failure. Flips to
+ * unreachable and arms the down-loop — no polling while reachable, the
+ * next real request reports. The latched offline mode owns the status,
+ * and a loop already running is not pushed back.
+ */
+export function reportUnreachable(): void {
+  if (getErgoStatus().mode === 'offline') return
+  setErgoStatus({ reachable: false })
+  if (!downTimer && !probing) scheduleReprobeWhileDown()
+}
+
+/**
  * „Offline weiter“ (ADR-0021 §4): latch the user-chosen offline mode.
  * The down-loop keeps probing, but a success only fires the one-time
  * `onBackWhileOffline` hint — it never switches back by itself.
