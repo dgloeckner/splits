@@ -1,6 +1,6 @@
 # ADR-0020: Reachability is self-healing and owns connectivity recovery
 
-- **Status**: Accepted
+- **Status**: Accepted — amended by [ADR-0021](0021-local-first-boot.md)
 - **Date**: 2026-07-03
 - **Amends**: [ADR-0019](0019-offline-reads-served-from-sw-cache.md) (Offline reads served from SW cache; reachability as uncached probe)
 

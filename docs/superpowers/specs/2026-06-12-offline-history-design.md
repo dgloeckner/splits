@@ -1,7 +1,7 @@
 # Offline history in the PWA — design
 
 **Date:** 2026-06-12
-**Status:** Partially superseded (2026-06-13) — see ADR-0019
+**Status:** Partially superseded (2026-06-13, 2026-10-18) — see ADR-0019, ADR-0021
 **Depends on:** docs/superpowers/plans/2026-06-12-historie-optimization.md Tasks 7–9 (new trends endpoint + VerlaufTab/RekordeTab). Implement after those land.
 
 > **Amendment (2026-06-13, ADR-0019).** The "persist react-query cache
@@ -16,6 +16,21 @@
 > uncached `/api/health` probe instead of query success. The IndexedDB
 > persistence stays as redundant belt-and-suspenders. See
 > `specs/adr/0019-offline-reads-served-from-sw-cache.md`.
+
+> **Amendment (2026-10-18, ADR-0021).** The boot is now **local-first**:
+> the app renders from a synchronous `localStorage` mirror of
+> `rowers` / `active-rower` plus the persisted query cache, and the
+> network is a background revalidation — `RowerGate` no longer blocks a
+> device that has been at home once. Reachability is three-valued
+> (`unknown → true | false`, neutral „Suche Ergo…" while probing) and is
+> also flipped by real request failures; the user can latch an explicit
+> offline mode („Offline weiter") on any network error. Queries run with
+> `networkMode: 'offlineFirst'` so airplane mode reaches the SW cache.
+> The SW `NetworkFirst` cache is hardened (client GET timeout > SW
+> timeout, 5xx falls back to cache, bootstrap paths never expire), and
+> the IndexedDB buster becomes a schema version instead of the build
+> SHA, so the bag survives deploys. See
+> `specs/adr/0021-local-first-boot.md`.
 
 ## Problem
 
