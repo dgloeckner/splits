@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest'
-import { isOfflineReadPath } from './swRoutes'
+import {
+  isBootstrapPath,
+  isOfflineReadPath,
+  isServerFailureStatus,
+  SW_NETWORK_TIMEOUT_SECONDS,
+} from './swRoutes'
 
 describe('isOfflineReadPath — SW NetworkFirst allowlist', () => {
   it('caches the bootstrap reads that let RowerGate pass', () => {
@@ -50,5 +55,43 @@ describe('isOfflineReadPath — SW NetworkFirst allowlist', () => {
     expect(isOfflineReadPath('/index.html')).toBe(false)
     expect(isOfflineReadPath('/api/v2/rowers')).toBe(false)
     expect(isOfflineReadPath('/api/v1/workouts')).toBe(false)
+  })
+})
+
+describe('isBootstrapPath — never-expiring SW route', () => {
+  it('matches only the RowerGate bootstrap reads', () => {
+    expect(isBootstrapPath('/api/v1/rowers')).toBe(true)
+    expect(isBootstrapPath('/api/v1/rowers/')).toBe(true)
+    expect(isBootstrapPath('/api/v1/active-rower')).toBe(true)
+    expect(isBootstrapPath('/api/v1/rowers/r1/pbs')).toBe(false)
+    expect(isBootstrapPath('/api/v1/sessions')).toBe(false)
+    expect(isBootstrapPath('/api/health')).toBe(false)
+  })
+
+  it('is a subset of the offline-read allowlist', () => {
+    expect(isOfflineReadPath('/api/v1/rowers')).toBe(true)
+    expect(isOfflineReadPath('/api/v1/active-rower')).toBe(true)
+  })
+})
+
+describe('isServerFailureStatus — 5xx falls back to the SW cache', () => {
+  it('treats 5xx (proxy up, service down) as a network failure', () => {
+    expect(isServerFailureStatus(500)).toBe(true)
+    expect(isServerFailureStatus(502)).toBe(true)
+    expect(isServerFailureStatus(504)).toBe(true)
+  })
+
+  it('passes 2xx/4xx through — 403 (pairing) must reach the page', () => {
+    expect(isServerFailureStatus(200)).toBe(false)
+    expect(isServerFailureStatus(403)).toBe(false)
+    expect(isServerFailureStatus(404)).toBe(false)
+    expect(isServerFailureStatus(429)).toBe(false)
+  })
+})
+
+describe('SW_NETWORK_TIMEOUT_SECONDS', () => {
+  it('falls back to the cache within a few seconds', () => {
+    expect(SW_NETWORK_TIMEOUT_SECONDS).toBeGreaterThan(0)
+    expect(SW_NETWORK_TIMEOUT_SECONDS).toBeLessThanOrEqual(5)
   })
 })

@@ -1,11 +1,14 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { getFetch, GET_TIMEOUT_MS, NetworkError } from './error'
+import { SW_NETWORK_TIMEOUT_SECONDS } from '../offline/swRoutes'
 
 afterEach(() => vi.unstubAllGlobals())
 
 describe('getFetch', () => {
-  it('exports a 6 s default timeout', () => {
-    expect(GET_TIMEOUT_MS).toBe(6000)
+  // Epic #1 / B1: if the page aborts first, the SW NetworkFirst never
+  // gets to serve its cache on a hanging connection. Keep a margin.
+  it('outlasts the SW network timeout by at least 3 s', () => {
+    expect(GET_TIMEOUT_MS).toBeGreaterThanOrEqual(SW_NETWORK_TIMEOUT_SECONDS * 1000 + 3000)
   })
 
   it('aborts a hanging fetch after the timeout', async () => {

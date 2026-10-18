@@ -18,12 +18,13 @@ import './styles/base.css'
 import { AppRouter } from './app/AppRouter'
 import { ToastHost, showToast } from './app/Toast'
 import { ApiError } from './api/error'
+import { queryRetry } from './api/retry'
 import { endSession } from './api/client'
 import {
   configureEndSessionQueue,
   processPendingEndSessions,
 } from './live/endSessionQueue'
-import { idbPersister, PERSIST_MAX_AGE_MS } from './offline/persister'
+import { idbPersister, PERSIST_MAX_AGE_MS, QUERY_GC_TIME } from './offline/persister'
 import { isPersistableQuery } from './offline/persistKeys'
 import { startReachabilityProbe } from './offline/reachability'
 import { registerPackTriggers, packIfStale } from './offline/pack'
@@ -60,14 +61,11 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 30_000,
-      gcTime: PERSIST_MAX_AGE_MS,
+      gcTime: QUERY_GC_TIME,
       // Refetch on tab focus so the UI picks up backend changes
       // (new session, DB reset) without a manual reload.
       refetchOnWindowFocus: true,
-      retry: (failureCount, error) => {
-        if (error instanceof ApiError && error.status === 429) return false
-        return failureCount < 2
-      },
+      retry: queryRetry,
     },
     mutations: {
       retry: (_failureCount, error) => {

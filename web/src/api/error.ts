@@ -56,7 +56,10 @@ export async function readApiError(r: Response): Promise<ApiError> {
   })
 }
 
-export const GET_TIMEOUT_MS = 6_000
+// Must outlast SW_NETWORK_TIMEOUT_SECONDS (offline/swRoutes.ts) by a
+// margin so the SW can serve its cache on a hanging connection before
+// the page aborts (ADR-0021; guarded by error.test.ts).
+export const GET_TIMEOUT_MS = 12_000
 
 export function getFetch(url: string, timeoutMs: number = GET_TIMEOUT_MS): Promise<Response> {
   return apiFetch(url, { signal: AbortSignal.timeout(timeoutMs) })

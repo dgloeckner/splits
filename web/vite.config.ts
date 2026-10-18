@@ -3,6 +3,7 @@ import { execSync } from 'node:child_process'
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import { SW_NETWORK_TIMEOUT_SECONDS } from './src/offline/swRoutes'
 
 function gitShortSha(): string {
   try {
@@ -49,9 +50,43 @@ export default defineConfig({
       // notice (see web/src/offline/reachability.ts), NOT inferred from
       // query success. Mutations, /api/health (the probe), the SSE
       // stream and session control stay NetworkOnly.
+      // ADR-0021 hardening: one SW timeout constant (the client GET
+      // timeout outlasts it), 5xx falls back to cache, and the
+      // bootstrap reads never expire.
       workbox: {
+        // Fonts and logos too: with the origin hanging, any asset left to
+        // the network stalls the page (fonts block rendering) — airplane
+        // mode must work after first load (AGENTS.md).
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         navigateFallbackDenylist: [/^\/api\//],
         runtimeCaching: [
+          {
+            // Bootstrap reads (RowerGate). Keep in sync with
+            // isBootstrapPath in web/src/offline/swRoutes.ts. No
+            // expiration: the gate's data must not age out or be
+            // LRU-evicted by samples. Matched before the read route.
+            urlPattern: ({ url, request }) => {
+              if (request.method !== 'GET') return false
+              const p = url.pathname.replace(/\/+$/, '')
+              return p === '/api/v1/rowers' || p === '/api/v1/active-rower'
+            },
+            handler: 'NetworkFirst',
+            options: {
+              cacheName: 'splits-api-bootstrap',
+              networkTimeoutSeconds: SW_NETWORK_TIMEOUT_SECONDS,
+              cacheableResponse: { statuses: [200] },
+              plugins: [
+                {
+                  // isServerFailureStatus (swRoutes.ts): a 5xx is a
+                  // failed fetch, so NetworkFirst serves the cache.
+                  fetchDidSucceed: async ({ response }) => {
+                    if (response.status >= 500) throw new Error(`HTTP ${response.status}`)
+                    return response
+                  },
+                },
+              ],
+            },
+          },
           {
             // Offline-read GETs. Keep in sync with isOfflineReadPath in
             // web/src/offline/swRoutes.ts — this copy must be
@@ -90,9 +125,18 @@ export default defineConfig({
             handler: 'NetworkFirst',
             options: {
               cacheName: 'splits-api-read',
-              networkTimeoutSeconds: 6,
+              networkTimeoutSeconds: SW_NETWORK_TIMEOUT_SECONDS,
               cacheableResponse: { statuses: [200] },
               expiration: { maxEntries: 200, maxAgeSeconds: 30 * 24 * 60 * 60 },
+              plugins: [
+                {
+                  // isServerFailureStatus (swRoutes.ts), as above.
+                  fetchDidSucceed: async ({ response }) => {
+                    if (response.status >= 500) throw new Error(`HTTP ${response.status}`)
+                    return response
+                  },
+                },
+              ],
             },
           },
           {
