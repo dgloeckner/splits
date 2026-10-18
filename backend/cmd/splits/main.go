@@ -201,6 +201,7 @@ func run() error {
 			FixtureControl:     fixtureCtl,
 			Version:            version,
 			Commit:             buildCommit(),
+			UpdateStatePath:    cfg.UpdateStatePath,
 		}),
 		ReadHeaderTimeout: 10 * time.Second,
 	}

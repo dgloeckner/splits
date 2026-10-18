@@ -49,6 +49,9 @@ type Inputs struct {
 	// (ADR-0023 §1). Empty reads as "dev" / "unknown".
 	Version string
 	Commit  string
+	// UpdateStatePath is the updater's update-state.json behind
+	// GET /api/v1/update-status. Empty → the route is not mounted.
+	UpdateStatePath string
 }
 
 func NewRouter(in Inputs) http.Handler {
@@ -143,6 +146,14 @@ func NewRouter(in Inputs) http.Handler {
 		if p, ok := in.SessionSnapshot.(SessionActiveProvider); ok {
 			mux.Handle("GET /api/v1/session/active", gate(SessionActiveHandler(p)))
 		}
+	}
+
+	if in.UpdateStatePath != "" {
+		running := in.Version
+		if running == "" {
+			running = "dev"
+		}
+		mux.Handle("GET /api/v1/update-status", gate(UpdateStatusHandler(in.UpdateStatePath, running)))
 	}
 
 	registerFixtureRoutes(mux, in.DevMode, in.FixtureControl)

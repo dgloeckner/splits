@@ -77,6 +77,9 @@ export type BackendHandle = {
   proc: ChildProcess
   addr: string
   dbPath: string
+  /** The updater's update-state.json this backend serves at
+   *  /api/v1/update-status (ADR-0023 §4). Absent until a test writes it. */
+  updateStatePath: string
   kill: () => Promise<void>
 }
 
@@ -92,6 +95,8 @@ export async function spawnBackend(opts: BackendOptions = {}): Promise<BackendHa
   const bin = ensureSplitsBinary()
   const tmp = mkdtempSync(join(tmpdir(), 'splits-e2e-flow-'))
   const dbPath = join(tmp, 'e2e.db')
+  // Never the host's /opt/splits/update-state.json.
+  const updateStatePath = join(tmp, 'update-state.json')
   // Legacy specs without `addr` keep the historic 8080 default (they
   // run in serial mode so collisions are avoided that way). New
   // parallel-aware callers should pass an explicit dynamic addr.
@@ -103,6 +108,7 @@ export async function spawnBackend(opts: BackendOptions = {}): Promise<BackendHa
     SPLITS_DB_PATH: dbPath,
     SPLITS_IDLE_TIMEOUT: opts.idleTimeout ?? '2s',
     SPLITS_DEV_MODE: '1',
+    SPLITS_UPDATE_STATE: updateStatePath,
   }
   if (opts.pauseTimeout) {
     env.SPLITS_PAUSE_TIMEOUT = opts.pauseTimeout
@@ -139,6 +145,7 @@ export async function spawnBackend(opts: BackendOptions = {}): Promise<BackendHa
           proc,
           addr,
           dbPath,
+          updateStatePath,
           kill: () => killBackend(proc, hostPort),
         }
       }

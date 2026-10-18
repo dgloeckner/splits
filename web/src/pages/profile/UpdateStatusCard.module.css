@@ -1,0 +1,48 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  background: var(--color-surface-container-low);
+  border: 1px solid color-mix(in srgb, var(--color-outline-variant) 40%, transparent);
+  border-left-width: 4px;
+  border-radius: var(--radius-card);
+}
+
+.title {
+  font-family: var(--font-body, 'Inter'), sans-serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-on-surface);
+  overflow-wrap: anywhere;
+}
+
+.detail {
+  font-family: var(--font-body, 'Inter'), sans-serif;
+  font-size: 13px;
+  color: var(--color-on-surface-variant);
+}
+
+/* current: no accent, the quiet default. */
+.normal {
+  border-left-color: color-mix(in srgb, var(--color-outline-variant) 40%, transparent);
+}
+
+/* behind: informational accent in the primary colour — never error-red. */
+.info {
+  border-left-color: var(--color-primary);
+}
+
+/* stuck: the one state to act on. */
+.warn {
+  border-left-color: var(--color-error);
+  background: color-mix(in srgb, var(--color-error) 8%, var(--color-surface-container-low));
+}
+
+.warn .title {
+  color: var(--color-error);
+}
+
+.muted .title {
+  color: var(--color-on-surface-variant);
+}

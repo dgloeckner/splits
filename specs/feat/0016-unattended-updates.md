@@ -69,9 +69,9 @@ app is never reloaded under somebody's hands mid-session.
 
 ### Reporting (stage 4)
 
-- [ ] `GET /api/v1/update-status` returns `current`, `behind`, `stuck`,
+- [x] `GET /api/v1/update-status` returns `current`, `behind`, `stuck`,
       `unknown` or `off`.
-- [ ] Profil shows an "Updates" block (`data-testid="update-status"`)
+- [x] Profil shows an "Updates" block (`data-testid="update-status"`)
       for each state; *behind* is not styled as an error and differs
       visibly from *stuck*.
 
@@ -91,9 +91,12 @@ Profil, section „Updates", one card:
 |---------|------------------------------------------|----------------------------------------------|--------|
 | current | Installiert v0.4.1 · aktuell             | Zuletzt geprüft 19.10., 04:41                | normal |
 | behind  | Installiert v0.4.1                       | Neu: v0.4.2 — wird heute Nacht installiert   | info   |
-| stuck   | Update auf v0.4.2 fehlgeschlagen         | läuft weiter auf v0.4.1                      | warn   |
+| stuck   | Update auf v0.4.2 fehlgeschlagen — läuft weiter auf v0.4.1 | Wird erst mit einer neueren Version wieder versucht. | warn |
 | off     | Automatische Updates aus                 | Installiert v0.4.1                           | muted  |
-| unknown | Update-Status unbekannt                  | (version from `/api/health` when known)      | muted  |
+| unknown | Update-Status unbekannt                  | Manuell verwaltete Installation · or · Läuft v0.4.1 (the serving backend) | muted |
+
+`behind` carries the primary-colour accent; `stuck` the error colour (accent,
+tint and title). Unreachable (offline) reads as `unknown` without a detail.
 
 Footer: `splits v0.4.1 · Build abc1234`.
 

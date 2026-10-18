@@ -8,6 +8,7 @@ import { RowerStrip } from '../app/RowerStrip'
 import { PairingModal } from '../app/PairingModal'
 import { ThemeSwitcher } from './profile/ThemeSwitcher'
 import { Wartung } from './profile/Wartung'
+import { UpdateStatusCard } from './profile/UpdateStatusCard'
 import { useErgoStatus } from '../offline/ergoStatus'
 import { formatStand } from '../util/dates'
 import styles from './ProfilePage.module.css'
@@ -208,6 +209,11 @@ export function ProfilePage() {
       <section className={styles.section}>
         <h2 className={styles.sectionLabel}>Erscheinungsbild</h2>
         <ThemeSwitcher />
+      </section>
+
+      <section className={styles.section}>
+        <h2 className={styles.sectionLabel}>Updates</h2>
+        <UpdateStatusCard />
       </section>
 
       <section className={styles.section}>
