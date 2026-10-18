@@ -17,14 +17,13 @@ export function PairPage() {
   const nav = useNavigate()
   const qc = useQueryClient()
   const location = useLocation()
-  const [status, setStatus] = useState<Status>('pending')
+  const tok = readToken(location.hash)
+  const [pairStatus, setStatus] = useState<Status>('pending')
+  // A link without a token never reaches the server.
+  const status: Status = tok ? pairStatus : 'malformed'
 
   useEffect(() => {
-    const tok = readToken(location.hash)
-    if (!tok) {
-      setStatus('malformed')
-      return
-    }
+    if (!tok) return
     pair(tok)
       .then(async () => {
         // Clear the fragment from URL + history.
@@ -41,7 +40,7 @@ export function PairPage() {
           setStatus('error')
         }
       })
-  }, [nav, qc, location.hash])
+  }, [nav, qc, tok])
 
   return (
     <main className={styles.page}>

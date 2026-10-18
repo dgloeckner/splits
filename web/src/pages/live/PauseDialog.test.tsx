@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter } from 'react-router-dom'
 import { LiveSessionContext } from '../../live/LiveSessionContext'
 import { initialLiveState, type LiveState } from '../../live/reducer'
-import { WorkoutOverlayProvider } from './WorkoutOverlayContext'
+import { WorkoutOverlayProvider } from './WorkoutOverlayProvider'
 import { PauseDialog } from './PauseDialog'
 
 const mockWorkoutProgress = vi.hoisted(

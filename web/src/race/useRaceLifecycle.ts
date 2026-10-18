@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef } from 'react'
 import {
   initialRaceLifecycle,
   raceLifecycle,
@@ -18,7 +18,12 @@ import {
 export function useRaceLifecycle(config?: RaceLifecycleConfig) {
   const [state, dispatch] = useReducer(raceLifecycle, config, initialRaceLifecycle)
   const stateRef = useRef<RaceLifecycleState>(state)
-  stateRef.current = state
+  // The rAF loop below reads the latest committed state. A layout effect
+  // runs before the passive effect that starts the loop, so the ref is
+  // current by the time the loop reads it.
+  useLayoutEffect(() => {
+    stateRef.current = state
+  })
 
   useEffect(() => {
     const needsTick =

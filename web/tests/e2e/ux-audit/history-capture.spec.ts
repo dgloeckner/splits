@@ -17,7 +17,6 @@ import { test } from '../fixtures'
 import { captureLayout } from './layout-audit'
 import { seedTrendsSessions } from '../helpers/seedTrends'
 import { spawnSync } from 'node:child_process'
-import { randomUUID } from 'node:crypto'
 
 const PHONE = { width: 390, height: 844 } // iPhone-ish, mobile-first default
 const TABLET = { width: 820, height: 1180 } // iPad-ish
@@ -72,7 +71,7 @@ for (const v of VIEWPORTS) {
       }
 
       // Seed sessions and PB data
-      const { sessionIds, newestSessionId } = seedTrendsSessions(
+      const { newestSessionId } = seedTrendsSessions(
         handle.dbPath,
         rower.id,
         500,
@@ -81,7 +80,7 @@ for (const v of VIEWPORTS) {
       )
 
       // Also seed a 5 km (5000 m) session for a second shape
-      const { sessionIds: ids5k } = seedTrendsSessions(
+      seedTrendsSessions(
         handle.dbPath,
         rower.id,
         5000,

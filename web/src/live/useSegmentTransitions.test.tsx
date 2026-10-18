@@ -7,11 +7,13 @@ import { initialLiveState, type LiveState } from './reducer'
 import { useSegmentTransitions } from './useSegmentTransitions'
 
 const originalFetch = global.fetch
-const originalVibrate = (navigator as any).vibrate
+// `vibrate` is optional in practice even though lib.dom declares it.
+const nav = navigator as { vibrate?: Navigator['vibrate'] }
+const originalVibrate = nav.vibrate
 
 afterEach(() => {
   global.fetch = originalFetch
-  ;(navigator as any).vibrate = originalVibrate
+  nav.vibrate = originalVibrate
 })
 
 function mockWorkout() {
@@ -50,7 +52,7 @@ function stateFor(distanceM: number, timeSec: number): LiveState {
 describe('useSegmentTransitions', () => {
   it('does not vibrate on initial mount', async () => {
     const spy = vi.fn(() => true)
-    ;(navigator as any).vibrate = spy
+    nav.vibrate = spy
     mockWorkout()
 
     const { rerender } = renderHook(() => useSegmentTransitions(), { wrapper: wrap(stateFor(0, 0)) })
@@ -62,7 +64,7 @@ describe('useSegmentTransitions', () => {
 
   it('vibrates when segment index rises', async () => {
     const spy = vi.fn(() => true)
-    ;(navigator as any).vibrate = spy
+    nav.vibrate = spy
     mockWorkout()
 
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
