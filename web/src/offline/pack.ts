@@ -191,11 +191,12 @@ export function onAppVisible(qc: QueryClient): void {
 export function registerPackTriggers(qc: QueryClient): void {
   if (triggersRegistered) return
   triggersRegistered = true
-  const w = window as any
+  // Safari has no requestIdleCallback, although lib.dom declares it.
+  const w = window as Omit<Window, 'requestIdleCallback'> & {
+    requestIdleCallback?: Window['requestIdleCallback']
+  }
   const idle = (fn: () => void) =>
-    'requestIdleCallback' in w
-      ? w.requestIdleCallback(fn)
-      : w.setTimeout(fn, 1500)
+    w.requestIdleCallback ? w.requestIdleCallback(fn) : w.setTimeout(fn, 1500)
   idle(() => void packIfStale(qc))
   document.addEventListener('visibilitychange', () => onAppVisible(qc))
   // The boot's idle trigger usually beats the first probe: pack as soon

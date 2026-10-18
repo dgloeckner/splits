@@ -6,12 +6,12 @@ class ResizeObserverStub {
   unobserve() {}
   disconnect() {}
 }
-;(globalThis as any).ResizeObserver = ResizeObserverStub
-if (typeof (globalThis as any).cancelAnimationFrame !== 'function') {
-  ;(globalThis as any).cancelAnimationFrame = () => {}
+globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver
+if (typeof globalThis.cancelAnimationFrame !== 'function') {
+  globalThis.cancelAnimationFrame = () => {}
 }
-if (typeof (globalThis as any).requestAnimationFrame !== 'function') {
-  ;(globalThis as any).requestAnimationFrame = (cb: FrameRequestCallback) => {
+if (typeof globalThis.requestAnimationFrame !== 'function') {
+  globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
     return setTimeout(() => cb(performance.now ? performance.now() : 0), 0) as unknown as number
   }
 }
@@ -19,15 +19,32 @@ if (typeof (globalThis as any).requestAnimationFrame !== 'function') {
 import { RaceFlow } from './RaceFlow'
 import * as dataHook from './useRaceData'
 import * as motionHook from './reducedMotion'
+import type { RaceOpponentsResponse } from '../api/raceOpponents'
+import type { LiveState } from '../live/reducer'
+import type { StrokePayload } from '../live/events'
 
-const fakeOpps = { ghost: null, pb: null }
+const fakeOpps: RaceOpponentsResponse = { ghost: null, pb: null }
 
-const baseLive = {
-  session: null,
-  stroke: null,
-  summary: null,
-  phase: 'idle',
-} as any
+/**
+ * A LiveState carrying only the fields RaceFlow reads. Strokes and
+ * summaries are partial on purpose: the race surface never looks at the
+ * rest of the payload.
+ */
+function live(over: {
+  stroke?: Partial<StrokePayload> | null
+  // RaceFlow only checks whether a summary has arrived, not its shape.
+  summary?: Record<string, unknown> | null
+} = {}): LiveState {
+  return {
+    session: null,
+    stroke: null,
+    summary: null,
+    phase: 'idle',
+    ...over,
+  } as unknown as LiveState
+}
+
+const baseLive = live()
 
 beforeEach(() => {
   vi.useFakeTimers()
@@ -40,7 +57,7 @@ afterEach(() => {
 
 describe('RaceFlow integration', () => {
   it('renders BereitScreen first; does NOT open live-data subscription before tap', () => {
-    const spy = vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps as any)
+    const spy = vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps)
     const { getByTestId, queryByTestId } = render(
       <RaceFlow liveState={baseLive} totalMeters={2000} opponentsLabel="Ghost · PB" />,
     )
@@ -52,7 +69,7 @@ describe('RaceFlow integration', () => {
   })
 
   it('finish-cross renders FinishOverlay over the canvas; canvas stays mounted; latched values stable across subsequent strokes', () => {
-    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps as any)
+    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps)
     const rafCallbacks: FrameRequestCallback[] = []
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
       rafCallbacks.push(cb)
@@ -60,7 +77,7 @@ describe('RaceFlow integration', () => {
     })
     vi.stubGlobal('cancelAnimationFrame', () => {})
     let now = 0
-    vi.stubGlobal('performance', { now: () => now } as any)
+    vi.stubGlobal('performance', { now: () => now })
 
     function pumpRaf(toMs: number) {
       now = toMs
@@ -70,7 +87,7 @@ describe('RaceFlow integration', () => {
       })
     }
 
-    let liveState: any = { ...baseLive, stroke: null }
+    let liveState = live({ stroke: null })
     const { getByTestId, queryByTestId, rerender } = render(
       <RaceFlow liveState={liveState} totalMeters={2000} opponentsLabel="" />,
     )
@@ -81,7 +98,7 @@ describe('RaceFlow integration', () => {
     pumpRaf(4500)
 
     // Finish-cross stroke
-    liveState = { ...baseLive, stroke: { time_sec: 470, distance_m: 2000, pace_sec_per_500m: 118, power_w: 280, spm: 32 } }
+    liveState = live({ stroke: { time_sec: 470, distance_m: 2000, pace_sec_per_500m: 118, power_w: 280, spm: 32 } })
     rerender(<RaceFlow liveState={liveState} totalMeters={2000} opponentsLabel="" />)
 
     expect(getByTestId('finish-overlay')).toBeTruthy()
@@ -90,7 +107,7 @@ describe('RaceFlow integration', () => {
     const time0 = getByTestId('finish-time').textContent
 
     // Additional "paddle-out" strokes — overlay values must NOT change
-    liveState = { ...baseLive, stroke: { time_sec: 480, distance_m: 2010, pace_sec_per_500m: 119, power_w: 250, spm: 30 } }
+    liveState = live({ stroke: { time_sec: 480, distance_m: 2010, pace_sec_per_500m: 119, power_w: 250, spm: 30 } })
     rerender(<RaceFlow liveState={liveState} totalMeters={2000} opponentsLabel="" />)
     expect(getByTestId('finish-overlay')).toBeTruthy()
     expect(getByTestId('finish-time').textContent).toBe(time0)
@@ -101,7 +118,7 @@ describe('RaceFlow integration', () => {
   })
 
   it('Bereit tap → ATTENTION → SET → GO!; canvas mounts at ATTENTION (ADR-0013)', () => {
-    const spy = vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps as any)
+    const spy = vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps)
     // Drive rAF via fake timers so the lifecycle hook can advance.
     const rafCallbacks: FrameRequestCallback[] = []
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
@@ -110,7 +127,7 @@ describe('RaceFlow integration', () => {
     })
     vi.stubGlobal('cancelAnimationFrame', () => {})
     let now = 0
-    vi.stubGlobal('performance', { now: () => now } as any)
+    vi.stubGlobal('performance', { now: () => now })
 
     const { getByTestId, queryByTestId } = render(
       <RaceFlow liveState={baseLive} totalMeters={2000} opponentsLabel="Ghost · PB" />,
@@ -164,7 +181,7 @@ describe('RaceFlow integration', () => {
   })
 
   it('AbortControl pill is rendered on Bereit', () => {
-    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps as any)
+    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps)
     const { getByTestId } = render(
       <RaceFlow liveState={baseLive} totalMeters={2000} opponentsLabel="Ghost · PB" />,
     )
@@ -172,15 +189,15 @@ describe('RaceFlow integration', () => {
   })
 
   it('AbortControl pill is rendered on Ceremony and remains tappable above the overlay', () => {
-    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps as any)
+    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps)
     const rafCallbacks: FrameRequestCallback[] = []
-    ;(globalThis as any).requestAnimationFrame = (cb: FrameRequestCallback) => {
+    globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
       rafCallbacks.push(cb)
       return rafCallbacks.length
     }
-    ;(globalThis as any).cancelAnimationFrame = () => {}
+    globalThis.cancelAnimationFrame = () => {}
     let now = 0
-    vi.stubGlobal('performance', { now: () => now } as any)
+    vi.stubGlobal('performance', { now: () => now })
     function pumpRaf(toMs: number) {
       now = toMs
       act(() => {
@@ -207,7 +224,7 @@ describe('RaceFlow integration', () => {
   })
 
   it('AbortControl pill is rendered on Live but absent on Finished and Post (PRD-0017 / 0017-02 Option A)', () => {
-    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps as any)
+    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps)
     const rafCallbacks: FrameRequestCallback[] = []
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
       rafCallbacks.push(cb)
@@ -215,7 +232,7 @@ describe('RaceFlow integration', () => {
     })
     vi.stubGlobal('cancelAnimationFrame', () => {})
     let now = 0
-    vi.stubGlobal('performance', { now: () => now } as any)
+    vi.stubGlobal('performance', { now: () => now })
     function pumpRaf(toMs: number) {
       now = toMs
       act(() => {
@@ -224,7 +241,7 @@ describe('RaceFlow integration', () => {
       })
     }
 
-    let liveState: any = { ...baseLive, stroke: null }
+    let liveState = live({ stroke: null })
     const { getByTestId, queryByTestId, rerender } = render(
       <RaceFlow liveState={liveState} totalMeters={2000} opponentsLabel="" />,
     )
@@ -239,24 +256,23 @@ describe('RaceFlow integration', () => {
     // Finish-cross → Finished. Per PRD-0017 / 0017-02 (Option A) the
     // Abbrechen pill is hidden once the finish horn fires: the result
     // is latched and abort is unavailable (see CONTEXT.md §Pause/Abort).
-    liveState = { ...baseLive, stroke: { time_sec: 470, distance_m: 2000, pace_sec_per_500m: 118, power_w: 280, spm: 32 } }
+    liveState = live({ stroke: { time_sec: 470, distance_m: 2000, pace_sec_per_500m: 118, power_w: 280, spm: 32 } })
     rerender(<RaceFlow liveState={liveState} totalMeters={2000} opponentsLabel="" />)
     expect(queryByTestId('finish-overlay')).not.toBeNull()
     expect(queryByTestId('abort-pill')).toBeNull()
 
     // Session ends → Post
-    liveState = {
-      ...baseLive,
+    liveState = live({
       stroke: liveState.stroke,
       summary: { duration_sec: 470, total_distance_m: 2000, race: null },
-    }
+    })
     rerender(<RaceFlow liveState={liveState} totalMeters={2000} opponentsLabel="" />)
     // We're on Post — pill must be absent.
     expect(queryByTestId('abort-pill')).toBeNull()
   })
 
   it('From Ceremony: tap pill → confirm → reducer transitions to Aborted (race surface unmounts)', () => {
-    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps as any)
+    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps)
     const rafCallbacks: FrameRequestCallback[] = []
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
       rafCallbacks.push(cb)
@@ -264,7 +280,7 @@ describe('RaceFlow integration', () => {
     })
     vi.stubGlobal('cancelAnimationFrame', () => {})
     let now = 0
-    vi.stubGlobal('performance', { now: () => now } as any)
+    vi.stubGlobal('performance', { now: () => now })
     function pumpRaf(toMs: number) {
       now = toMs
       act(() => {
@@ -296,7 +312,7 @@ describe('RaceFlow integration', () => {
   })
 
   it('Confirm invokes the onAbort prop (caller wires session-end via useWorkoutOverlay.abort)', () => {
-    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps as any)
+    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps)
     const rafCallbacks: FrameRequestCallback[] = []
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
       rafCallbacks.push(cb)
@@ -304,7 +320,7 @@ describe('RaceFlow integration', () => {
     })
     vi.stubGlobal('cancelAnimationFrame', () => {})
     let now = 0
-    vi.stubGlobal('performance', { now: () => now } as any)
+    vi.stubGlobal('performance', { now: () => now })
     function pumpRaf(toMs: number) {
       now = toMs
       act(() => {
@@ -325,15 +341,15 @@ describe('RaceFlow integration', () => {
   })
 
   it('Cancel path: tap pill → cancel → reducer state unchanged; canvas + overlay intact', () => {
-    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps as any)
+    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps)
     const rafCallbacks: FrameRequestCallback[] = []
-    ;(globalThis as any).requestAnimationFrame = (cb: FrameRequestCallback) => {
+    globalThis.requestAnimationFrame = (cb: FrameRequestCallback) => {
       rafCallbacks.push(cb)
       return rafCallbacks.length
     }
-    ;(globalThis as any).cancelAnimationFrame = () => {}
+    globalThis.cancelAnimationFrame = () => {}
     let now = 0
-    vi.stubGlobal('performance', { now: () => now } as any)
+    vi.stubGlobal('performance', { now: () => now })
     function pumpRaf(toMs: number) {
       now = toMs
       act(() => {
@@ -363,7 +379,7 @@ describe('RaceFlow integration', () => {
   })
 
   it('Falschstart: stroke during ATTENTION → Live(falschstart); visible boat stays at 0', () => {
-    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps as any)
+    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps)
     const rafCallbacks: FrameRequestCallback[] = []
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
       rafCallbacks.push(cb)
@@ -371,7 +387,7 @@ describe('RaceFlow integration', () => {
     })
     vi.stubGlobal('cancelAnimationFrame', () => {})
     let now = 0
-    vi.stubGlobal('performance', { now: () => now } as any)
+    vi.stubGlobal('performance', { now: () => now })
 
     function pumpRaf(toMs: number) {
       now = toMs
@@ -381,7 +397,7 @@ describe('RaceFlow integration', () => {
       })
     }
 
-    let liveState: any = { ...baseLive, stroke: null }
+    let liveState = live({ stroke: null })
     const { getByTestId, rerender } = render(
       <RaceFlow liveState={liveState} totalMeters={2000} opponentsLabel="" />,
     )
@@ -389,10 +405,9 @@ describe('RaceFlow integration', () => {
     pumpRaf(100) // ATTENTION
 
     // Stroke arrives during ATTENTION: time_sec is well before race_t0 (ms).
-    liveState = {
-      ...baseLive,
+    liveState = live({
       stroke: { time_sec: 0.5, distance_m: 3, pace_sec_per_500m: 130, power_w: 100, spm: 20 },
-    }
+    })
     rerender(<RaceFlow liveState={liveState} totalMeters={2000} opponentsLabel="" />)
 
     // Reducer should have transitioned to Live(Falschstart); FalschstartToast visible.
@@ -406,7 +421,7 @@ describe('RaceFlow integration', () => {
 
   // 0019-03: explicit Fertig affordance plumbed through RaceFlow.
   it('Finished: tapping FinishOverlay Fertig invokes the onFinish prop exactly once', () => {
-    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps as any)
+    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps)
     const rafCallbacks: FrameRequestCallback[] = []
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
       rafCallbacks.push(cb)
@@ -414,7 +429,7 @@ describe('RaceFlow integration', () => {
     })
     vi.stubGlobal('cancelAnimationFrame', () => {})
     let now = 0
-    vi.stubGlobal('performance', { now: () => now } as any)
+    vi.stubGlobal('performance', { now: () => now })
     function pumpRaf(toMs: number) {
       now = toMs
       act(() => {
@@ -424,7 +439,7 @@ describe('RaceFlow integration', () => {
     }
 
     const onFinish = vi.fn()
-    let liveState: any = { ...baseLive, stroke: null }
+    let liveState = live({ stroke: null })
     const { getByTestId, rerender, queryByTestId } = render(
       <RaceFlow
         liveState={liveState}
@@ -440,7 +455,7 @@ describe('RaceFlow integration', () => {
     pumpRaf(4500)
 
     // Finish-cross
-    liveState = { ...baseLive, stroke: { time_sec: 470, distance_m: 2000, pace_sec_per_500m: 118, power_w: 280, spm: 32 } }
+    liveState = live({ stroke: { time_sec: 470, distance_m: 2000, pace_sec_per_500m: 118, power_w: 280, spm: 32 } })
     rerender(
       <RaceFlow
         liveState={liveState}
@@ -475,7 +490,7 @@ describe('RaceFlow integration', () => {
   // fires session_end within milliseconds of the horn, and we still
   // need to keep showing the result.
   it('Post-finish session_end does NOT auto-dismiss the FinishOverlay — Fertig is the only Finished → Post path (0019-02)', () => {
-    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps as any)
+    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps)
     const rafCallbacks: FrameRequestCallback[] = []
     vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
       rafCallbacks.push(cb)
@@ -483,7 +498,7 @@ describe('RaceFlow integration', () => {
     })
     vi.stubGlobal('cancelAnimationFrame', () => {})
     let now = 0
-    vi.stubGlobal('performance', { now: () => now } as any)
+    vi.stubGlobal('performance', { now: () => now })
     function pumpRaf(toMs: number) {
       now = toMs
       act(() => {
@@ -493,7 +508,7 @@ describe('RaceFlow integration', () => {
     }
 
     const onFinish = vi.fn()
-    let liveState: any = { ...baseLive, stroke: null }
+    let liveState = live({ stroke: null })
     const { getByTestId, rerender, queryByTestId } = render(
       <RaceFlow
         liveState={liveState}
@@ -509,7 +524,7 @@ describe('RaceFlow integration', () => {
     pumpRaf(4500)
 
     // Finish-cross → Finished + FinishOverlay
-    liveState = { ...baseLive, stroke: { time_sec: 470, distance_m: 2000, pace_sec_per_500m: 118, power_w: 280, spm: 32 } }
+    liveState = live({ stroke: { time_sec: 470, distance_m: 2000, pace_sec_per_500m: 118, power_w: 280, spm: 32 } })
     rerender(
       <RaceFlow
         liveState={liveState}
@@ -523,11 +538,10 @@ describe('RaceFlow integration', () => {
     // Rower walks away. Idle-timeout backend fires session_end; the
     // caller's reducer surfaces `summary` on liveState — no Fertig
     // tap occurred.
-    liveState = {
-      ...baseLive,
+    liveState = live({
       stroke: liveState.stroke,
       summary: { duration_sec: 470, total_distance_m: 2000, race: null },
-    }
+    })
     rerender(
       <RaceFlow
         liveState={liveState}

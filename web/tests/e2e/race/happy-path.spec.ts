@@ -104,7 +104,7 @@ test.describe('race-flow canonical happy path (0016-05)', () => {
     })
 
     // 2. Seed the rower (sets device cookie + active rower).
-    const rower = await seedActiveRower()
+    await seedActiveRower()
 
     // 3. Seed a prior race session at 500 m so the opponent fetch has
     //    *something* to consider. See "Known limitations" above — until
@@ -215,7 +215,6 @@ test.describe('race-flow canonical happy path (0016-05)', () => {
     // Soft assert via annotation; don't fail the suite on a single
     // contended host. The 90 s setTimeout above is the hard cap.
     if (elapsedMs > 60_000) {
-      // eslint-disable-next-line no-console
       console.warn(
         `[0016-05] walkthrough took ${(elapsedMs / 1000).toFixed(1)} s — over the 60 s budget. Rower not impacted; investigate runner contention.`,
       )
@@ -234,7 +233,6 @@ test.describe('race-flow canonical happy path (0016-05)', () => {
 function invokeCriticAdvisory(input: unknown): void {
   const which = spawnSync('which', ['claude'], { encoding: 'utf8' })
   if (which.status !== 0 || !which.stdout.trim()) {
-    // eslint-disable-next-line no-console
     console.warn('[0016-05] claude CLI not on PATH — skipping e2e-critic advisory pass.')
     return
   }
@@ -257,6 +255,5 @@ function invokeCriticAdvisory(input: unknown): void {
   } catch {
     /* best effort */
   }
-  // eslint-disable-next-line no-console
   console.log(`[0016-05] e2e-critic exit=${result.status}; output → ${SCREENSHOT_DIR}/critic.json`)
 }

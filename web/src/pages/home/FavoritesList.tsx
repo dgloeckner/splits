@@ -91,7 +91,7 @@ export function FavoritesList({ rowerID, disabled = false }: Props) {
   )
 }
 
-export function formatFavoriteSummary(fav: Favorite): string {
+function formatFavoriteSummary(fav: Favorite): string {
   let base = ''
   switch (fav.mode) {
     case 'distance': {

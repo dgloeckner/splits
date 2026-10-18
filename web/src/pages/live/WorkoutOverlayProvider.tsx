@@ -1,27 +1,6 @@
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ReactNode,
-} from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useLiveSession } from '../../live/LiveSessionContext'
-
-type Ctx = {
-  aborted: boolean
-  abort: () => void
-  reset: () => void
-  /** Record that this session is being discarded, BEFORE the delete is
-   *  awaited, so LivePage suppresses the session-end latch (no
-   *  save-overlay for a discard). */
-  markDiscarded: (sessionId: string) => void
-  /** True if the given session id was marked discarded. */
-  wasDiscarded: (sessionId: string | null) => boolean
-}
-const WorkoutOverlayContext = createContext<Ctx | null>(null)
+import { WorkoutOverlayContext, type WorkoutOverlay } from './WorkoutOverlayContext'
 
 export function WorkoutOverlayProvider({ children }: { children: ReactNode }) {
   const state = useLiveSession()
@@ -60,22 +39,9 @@ export function WorkoutOverlayProvider({ children }: { children: ReactNode }) {
     [],
   )
 
-  const value = useMemo<Ctx>(
+  const value = useMemo<WorkoutOverlay>(
     () => ({ aborted, abort, reset, markDiscarded, wasDiscarded }),
     [aborted, abort, reset, markDiscarded, wasDiscarded],
   )
   return <WorkoutOverlayContext.Provider value={value}>{children}</WorkoutOverlayContext.Provider>
-}
-
-export function useWorkoutOverlay(): Ctx {
-  const ctx = useContext(WorkoutOverlayContext)
-  if (!ctx)
-    return {
-      aborted: false,
-      abort: () => {},
-      reset: () => {},
-      markDiscarded: () => {},
-      wasDiscarded: () => false,
-    }
-  return ctx
 }

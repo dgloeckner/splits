@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { enqueueEndSession, processPendingEndSessions } from '../../live/endSessionQueue'
 import { useLiveSession } from '../../live/LiveSessionContext'
@@ -24,10 +24,13 @@ export function PauseDialog() {
   const discard = useDiscardSession()
   const nav = useNavigate()
   const [dismissed, setDismissed] = useState(false)
-
-  useEffect(() => {
+  // Resuming clears the "Weiter" suppression. Adjusted while rendering,
+  // React's pattern for state that follows a changing input.
+  const [wasPaused, setWasPaused] = useState(paused)
+  if (paused !== wasPaused) {
+    setWasPaused(paused)
     if (!paused) setDismissed(false)
-  }, [paused])
+  }
 
   const sessionActive = state.session !== null && state.summary === null
   const hasStrokes = state.stroke !== null

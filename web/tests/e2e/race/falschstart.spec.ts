@@ -280,7 +280,6 @@ async function runFalschstartScenario(
     description: `${scenario}: ${(elapsedMs / 1000).toFixed(1)} s (budget 60 s per scenario)`,
   })
   if (elapsedMs > 60_000) {
-    // eslint-disable-next-line no-console
     console.warn(
       `[0016-06] ${scenario} took ${(elapsedMs / 1000).toFixed(1)} s — over budget.`,
     )
@@ -344,7 +343,6 @@ async function expectSessionPersisted(
 function invokeCriticAdvisory(input: unknown, dir: string): void {
   const which = spawnSync('which', ['claude'], { encoding: 'utf8' })
   if (which.status !== 0 || !which.stdout.trim()) {
-    // eslint-disable-next-line no-console
     console.warn('[0016-06] claude CLI not on PATH — skipping e2e-critic advisory pass.')
     return
   }
@@ -367,6 +365,5 @@ function invokeCriticAdvisory(input: unknown, dir: string): void {
   } catch {
     /* best effort */
   }
-  // eslint-disable-next-line no-console
   console.log(`[0016-06] e2e-critic exit=${result.status}; output → ${dir}/critic.json`)
 }

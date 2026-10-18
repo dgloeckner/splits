@@ -1,6 +1,7 @@
 import { render, screen, act, waitFor } from '@testing-library/react'
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
-import { LiveSessionProvider, useLiveSession } from './LiveSessionContext'
+import { useLiveSession } from './LiveSessionContext'
+import { LiveSessionProvider } from './LiveSessionProvider'
 import { MockChannel } from './channel'
 
 function Probe() {

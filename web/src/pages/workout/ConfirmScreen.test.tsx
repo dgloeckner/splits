@@ -4,7 +4,8 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { WorkoutFlowProvider, useWorkoutFlow } from './WorkoutFlowProvider'
+import { WorkoutFlowProvider } from './WorkoutFlowProvider'
+import { useWorkoutFlow } from './WorkoutFlowContext'
 import { ConfirmScreen } from './ConfirmScreen'
 
 vi.mock('../../api/rowers', () => ({
@@ -50,7 +51,7 @@ function Harness({
       dispatch({ type: 'SET_INTENSITY', intensity: 'moderat' })
       dispatch({ type: 'GO_TO_CONFIRM' })
     }
-  }, [setup, dispatch])
+  }, [setup, distanceMeters, dispatch])
   return state.step === 'confirm' ? <ConfirmScreen /> : null
 }
 
@@ -142,7 +143,7 @@ describe('ConfirmScreen', () => {
   })
 
   it('Start POSTs workout + attach + navigates', async () => {
-    let postedBody: any = null
+    let postedBody = null as Record<string, unknown> | null
     let attached = false
     mockRoutes({
       '/api/v1/workouts': (init) => {
@@ -160,7 +161,7 @@ describe('ConfirmScreen', () => {
   })
 
   it('save-as-favorite triggers createFavorite', async () => {
-    let favBody: any = null
+    let favBody = null as Record<string, unknown> | null
     mockRoutes({
       '/api/v1/workouts': () => ({ body: JSON.stringify({ id: 'W1', mode: 'distance', params: { meters: 5000 }, warmup_sec: 300, cooldown_sec: 300, created_at: '2026-04-23T00:00:00Z' }), status: 201 }),
       '/api/v1/session/start': () => ({ body: null, status: 204 }),
@@ -238,7 +239,7 @@ describe('ConfirmScreen', () => {
   })
 
   it('race submission forces warmup_sec=0 and cooldown_sec=0', async () => {
-    let postedBody: any = null
+    let postedBody = null as Record<string, unknown> | null
     mockRoutes({
       '/api/v1/workouts': (init) => {
         if (init?.method === 'POST') postedBody = JSON.parse(init.body as string)

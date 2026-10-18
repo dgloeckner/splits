@@ -293,7 +293,7 @@ test.describe('FinishOverlay Fertig button (0019-03)', () => {
       idleTimeout: '3s',
     })
 
-    const rower = await seedActiveRower()
+    await seedActiveRower()
     await seedPriorRaceSession(context.request, { meters: 500, intensity: 'moderat' })
 
     await raceFlow.gotoWorkoutFlow()
@@ -348,7 +348,6 @@ test.describe('FinishOverlay Fertig button (0019-03)', () => {
 function invokeCriticAdvisory(input: unknown): void {
   const which = spawnSync('which', ['claude'], { encoding: 'utf8' })
   if (which.status !== 0 || !which.stdout.trim()) {
-    // eslint-disable-next-line no-console
     console.warn('[0019-03] claude CLI not on PATH — skipping e2e-critic advisory pass.')
     return
   }
@@ -371,6 +370,5 @@ function invokeCriticAdvisory(input: unknown): void {
   } catch {
     /* best effort */
   }
-  // eslint-disable-next-line no-console
   console.log(`[0019-03] e2e-critic exit=${result.status}; output → ${SCREENSHOT_DIR}/critic.json`)
 }
