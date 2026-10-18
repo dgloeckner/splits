@@ -10,6 +10,11 @@ on:
 permissions:
   contents: read
 
+env:
+  # One Node for every job. web/README.md says "Node 20 or later"; 22 is the
+  # current LTS the lockfile was written with.
+  NODE_VERSION: '22'
+
 concurrency:
   group: ci-${{ github.ref }}
   # Supersede stale PR runs; never cancel a run on main.
@@ -17,8 +22,11 @@ concurrency:
 
 jobs:
   backend:
-    name: backend (vet, staticcheck, test -race)
-    runs-on: ubuntu-latest
+    name: backend (vet, staticcheck, test -race, coverage floor)
+    # Pinned image rather than ubuntu-latest: the caches below are keyed on
+    # what the image ships, and a silent image bump should not rotate them.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     defaults:
       run:
         working-directory: backend
@@ -35,12 +43,24 @@ jobs:
       - run: go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
       - run: staticcheck ./...
       # -race is the default locally too (scripts/backend.sh test); it has
-      # caught real concurrency bugs in the sessionizer.
-      - run: go test -race ./...
+      # caught real concurrency bugs in the sessionizer. atomic is the only
+      # cover mode -race accepts. Same command as `scripts/backend.sh coverage`.
+      - run: go test -race -covermode=atomic -coverprofile=coverage.out ./...
+      # Never-decreasing statement-coverage floor (ADR-0022). Raise
+      # backend/.coverage-floor in the PR that earns it.
+      - run: bash ../scripts/check-coverage.sh .coverage-floor coverage.out
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: backend-coverage
+          path: backend/coverage.out
+          if-no-files-found: ignore
+          retention-days: 14
 
   web:
-    name: web (lint, typecheck, vitest, build)
-    runs-on: ubuntu-latest
+    name: web (lint, typecheck, vitest + coverage, build)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: web
@@ -49,7 +69,7 @@ jobs:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
@@ -64,12 +84,30 @@ jobs:
       - run: npm run lint
         continue-on-error: true
       - run: npm run typecheck
-      - run: npm test
+      # vitest with the v8 provider; the thresholds in vite.config.ts are the
+      # web coverage floor (ADR-0022) and fail this step when undercut.
+      - run: npm run test:coverage
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: web-coverage
+          path: web/coverage/lcov.info
+          if-no-files-found: ignore
+          retention-days: 14
       - run: npm run build
 
   e2e:
-    name: e2e (playwright, advisory)
-    runs-on: ubuntu-latest
+    name: e2e (playwright, advisory, shard ${{ matrix.shard }}/2)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    # Two shards, one worker each: each test spawns Vite + Go backend +
+    # Chromium, so a second worker on one runner starves the first, while a
+    # second runner halves the wall time (~11 min -> ~6 min). Playwright
+    # shards by test count, which balances well enough here.
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     # Advisory until the full suite is green on main. At the time of writing
     # four specs fail regardless of CI (race/abort "Abort from Live",
     # race/falschstart x2, rower-onboarding); see ADR-0022 follow-ups. Drop
@@ -88,11 +126,22 @@ jobs:
           cache-dependency-path: backend/go.sum
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      # Browser binaries are ~280 MB per run; keep them between runs. Keyed on
+      # the lockfile, which pins the @playwright/test version that decides the
+      # browser build. The apt system deps are not cached (fresh runner each
+      # time) but cost ~20 s.
+      - uses: actions/cache@v4
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ hashFiles('web/package-lock.json') }}
+      - run: npx playwright install-deps chromium
+      - run: npx playwright install chromium
+        if: steps.pw-cache.outputs.cache-hit != 'true'
       # The seed helpers (tests/e2e/helpers/seedTrends.ts,
       # seedStaleOpenSession.ts) shell out to the sqlite3 CLI.
       - run: command -v sqlite3 || sudo apt-get install -y sqlite3
@@ -104,7 +153,7 @@ jobs:
       # Excluded: capture-only suites that only write PNGs for human review
       # (theme-screenshots, ux-audit). The e2e-critic regression script is
       # excluded in playwright.config.ts (testIgnore) since it runs on load.
-      - run: npx playwright test --workers=1 --grep-invert "theme-screenshots|ux-audit" --reporter=line,json
+      - run: npx playwright test --workers=1 --shard=${{ matrix.shard }}/2 --grep-invert "theme-screenshots|ux-audit" --reporter=line,json
         env:
           CI: "1"
           PLAYWRIGHT_JSON_OUTPUT_NAME: results.json
@@ -125,7 +174,7 @@ jobs:
       - uses: actions/upload-artifact@v5
         if: always()
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.shard }}
           path: |
             web/playwright-report
             web/test-results

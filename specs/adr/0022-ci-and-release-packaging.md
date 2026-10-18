@@ -89,6 +89,39 @@ more than it delivers.
   binary" claim true — today it is not; Caddy serves the PWA) or an
   install path exists for those hosts.
 
+## Coverage floors and build caches (amendment, 2026-10-18)
+
+Borrowed from `dgloeckner/clubbar`'s `build.yaml` after reviewing it.
+
+- **Coverage is a floor, not a target.** AGENTS.md rule 4 says tests
+  matter, not counts, so CI only refuses to let coverage *fall*. The
+  backend job writes an atomic coverage profile with its `-race` run and
+  `scripts/check-coverage.sh` compares the total against
+  `backend/.coverage-floor` (73.0 at introduction; measured 73.7). The web
+  job runs `vitest --coverage` with the v8 provider and the thresholds in
+  `web/vite.config.ts` are its floor (statements 85 / branches 77 /
+  functions 84 / lines 88 at introduction; measured 85.7 / 77.9 / 84.5 /
+  88.2 over `src/`, tests, `main.tsx` and type declarations excluded).
+  Both are blocking. Coverage instrumentation slows jsdom tests, so the
+  vitest `testTimeout` went from 5 s to 15 s. The rule: a
+  floor is never lowered; the PR that raises coverage raises the floor.
+  Per-package floors and a patch-coverage gate (80 % of changed lines,
+  as clubbar does) were considered and deferred; the total floor already
+  blocks regressions.
+- **Caches.** `actions/setup-go` already caches the module and build
+  caches keyed on `go.sum`, which covers `go test`, staticcheck and the
+  e2e helper's `go build`; do not add a second Go cache. Playwright's
+  browser directory is cached keyed on `web/package-lock.json`, so the
+  ~280 MB Chromium download happens once per lockfile change; the apt
+  system deps are installed every run (~20 s). The e2e job's own
+  `vite build` (offline-preview project) is not shared with the web job:
+  linking them would make e2e wait on web to save 30 s.
+- **e2e runs in two shards**, one worker each: each test spawns Vite,
+  the Go backend and Chromium, so a second worker on one runner starves
+  the first, while a second runner halves the wall time.
+- Runners are pinned to `ubuntu-24.04`, every job has `timeout-minutes`,
+  and `release.yml` grants `contents: write` only to the publish job.
+
 ## Consequences
 
 - `deploy/README.md` gains an "Install from a release" section; the
@@ -103,6 +136,7 @@ more than it delivers.
   a CI build can never be stamped `-dirty`.
 - Follow-ups, not in this ADR: fix the ESLint backlog and make the lint
   step blocking; fix the four failing e2e specs and make the e2e job
-  blocking; a `splits --version` flag populated via `-ldflags -X`;
+  blocking; a patch-coverage gate on changed lines; SHA-pinned actions
+  with Dependabot; a `splits --version` flag populated via `-ldflags -X`;
   a golden-fixture freshness check (ADR-0017); Dependabot for action
   versions; serving the PWA from the Go binary.

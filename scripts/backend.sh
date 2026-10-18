@@ -13,6 +13,13 @@ case "$cmd" in
   # platforms without -race support.
   test)        go test -race ./... ;;
   test-norace) go test ./... ;;
+  # Same run as CI: race + atomic coverage profile, then the floor check
+  # (backend/.coverage-floor, never lowered; raise it with the PR that
+  # earns it).
+  coverage)
+    go test -race -covermode=atomic -coverprofile=coverage.out ./...
+    bash ../scripts/check-coverage.sh .coverage-floor coverage.out
+    ;;
   vet)         go vet ./... ;;
   fmt)    go fmt ./... ;;
   run)    go run ./cmd/splits ;;
@@ -23,5 +30,5 @@ case "$cmd" in
     go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
     ;;
   clean)  rm -f splits splits.exe coverage.out coverage.html ;;
-  help|*) echo "usage: scripts/backend.sh {build|test|test-norace|vet|fmt|run|lint|clean}" ;;
+  help|*) echo "usage: scripts/backend.sh {build|test|test-norace|coverage|vet|fmt|run|lint|clean}" ;;
 esac

@@ -183,5 +183,25 @@ export default defineConfig({
     setupFiles: ['./src/setupTests.ts'],
     css: true,
     exclude: ['**/node_modules/**', '**/dist/**', '**/tests/e2e/**'],
+    // The 5 s default is tight for userEvent-driven page tests once v8
+    // coverage instrumentation is on (three of them timed out at 5–9 s on a
+    // 4-vCPU box). A genuine hang still fails, just later.
+    testTimeout: 15_000,
+    // Coverage floor (ADR-0022). `npm run test:coverage` fails below the
+    // thresholds. They are never lowered; the PR that raises coverage raises
+    // them. Set from the measured values at introduction, rounded down.
+    coverage: {
+      provider: 'v8',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: ['src/**/*.test.*', 'src/setupTests.ts', 'src/**/*.d.ts', 'src/main.tsx'],
+      reporter: ['text-summary', 'lcov'],
+      thresholds: {
+        // measured 2026-10-18: 85.65 / 77.89 / 84.53 / 88.18
+        statements: 85,
+        branches: 77,
+        functions: 84,
+        lines: 88,
+      },
+    },
   },
 })
