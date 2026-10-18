@@ -403,6 +403,33 @@ feature name in docs/specs.
 
 Canonical UI copy: `Ergo nicht erreichbar · Stand: 12. Juni, 18:42`.
 
+The boot is local-first (ADR-0021): the app always renders from the
+local snapshot first and treats the network as a background upgrade.
+Reachability is three-valued — `unknown`, reachable, unreachable — and
+can additionally be overridden by the user-chosen mode `offline`.
+
+### Suche Ergo…
+
+The `unknown` reachability state: every launch starts here until the
+first `/api/health` probe answers (a few seconds at most). It renders
+neutrally — local data is shown, but no offline hero, no Stand label,
+no diagnostics; start affordances are briefly held with the copy
+„Suche Ergo…". Exists so a launch at home never flashes
+„Ergo nicht erreichbar", while a launch away from home still reaches
+it without waiting on the network.
+
+### Offline weiter
+
+The action label on the prompt shown when a request fails with a
+network error while reachability still says reachable or `unknown`
+(„Ergo antwortet nicht — Offline weiter?"). Choosing it enters the
+mode `offline`: a **user decision, not an error state**. While in mode
+`offline` the app looks exactly like „Ergo nicht erreichbar" — the hero
+copy stays `Ergo nicht erreichbar · Stand: …`; the word „Offline" never
+appears in status copy, only in this action label. The mode is latched:
+it is left only via „Erneut verbinden"; a successful probe meanwhile
+shows a hint that the Ergo is back, but does not switch back by itself.
+
 ### Stand
 
 The timestamp of the data snapshot currently shown — the moment the

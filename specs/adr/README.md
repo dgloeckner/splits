@@ -19,8 +19,9 @@
 | ADR-0016 | Trends Charts Touch-Native Scrubber     | Accepted  |
 | ADR-0017 | Deterministic Replay Harness as CI Seam | Accepted  |
 | ADR-0018 | Offline History as Packed Snapshot      | Accepted (amended by 0019) |
-| ADR-0019 | Offline Reads Served from SW Cache      | Accepted  |
-| ADR-0020 | Reachability is Self-Healing and Owns Connectivity Recovery | Accepted  |
+| ADR-0019 | Offline Reads Served from SW Cache      | Accepted (amended by 0020, 0021) |
+| ADR-0020 | Reachability is Self-Healing and Owns Connectivity Recovery | Accepted (amended by 0021) |
+| ADR-0021 | Boot is Local-First; Network is a Background Upgrade | Accepted  |
 
 Future candidates:
 - **ADR-0008** — Serial protocol vs BLE FTMS (depends on firmware check)

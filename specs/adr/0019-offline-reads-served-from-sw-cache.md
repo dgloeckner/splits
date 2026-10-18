@@ -1,6 +1,6 @@
 # ADR-0019: Offline reads are served from a durable service-worker cache; reachability is an uncached probe
 
-- **Status**: Accepted
+- **Status**: Accepted — amended by [ADR-0020](0020-self-healing-reachability.md), [ADR-0021](0021-local-first-boot.md)
 - **Date**: 2026-06-13
 - **Amends**: [ADR-0018](0018-offline-as-packed-snapshot.md) (Offline history as a packed snapshot)
 
