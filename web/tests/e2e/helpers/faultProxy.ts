@@ -1,9 +1,10 @@
 import http from 'node:http'
 import type { AddressInfo } from 'node:net'
 
-/** How the proxy answers `/api/**`: forward, never answer, 502, or
- *  drop the connection at once (no network: airplane mode). */
-export type FaultMode = 'pass' | 'hang' | '502' | 'refuse'
+/** How the proxy answers `/api/**`: forward, never answer, 502, drop
+ *  the connection at once (no network: airplane mode), or hang
+ *  everything but `/api/health` (service restarting behind a live probe). */
+export type FaultMode = 'pass' | 'hang' | '502' | 'refuse' | 'hang-but-health'
 
 export type FaultProxyHandle = {
   url: string
@@ -25,7 +26,8 @@ export async function startFaultProxy(backendUrl: string): Promise<FaultProxyHan
   const hanging = new Set<http.ServerResponse>()
 
   const server = http.createServer((req, res) => {
-    if (mode === 'hang') {
+    const hang = mode === 'hang' || (mode === 'hang-but-health' && req.url !== '/api/health')
+    if (hang) {
       hanging.add(res)
       res.on('close', () => hanging.delete(res))
       return

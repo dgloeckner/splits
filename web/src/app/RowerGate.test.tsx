@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react
 import { queryDefaults } from '../api/queryDefaults'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { RowerGate } from './RowerGate'
+import { BootstrapScreen } from './BootstrapScreen'
 import { listRowers, getActiveRower } from '../api/rowers'
 import { setErgoStatus, _resetErgoStatusForTest } from '../offline/ergoStatus'
 import { recordBootstrapQuery, _resetBootstrapMirrorForTest } from '../offline/bootstrapMirror'
@@ -218,5 +219,31 @@ describe('RowerGate — local-first boot (ADR-0021)', () => {
     expect(await screen.findByTestId('bootstrap-offline')).toHaveTextContent(
       'Noch keine Unterwegs-Daten — einmal im Heimnetz öffnen',
     )
+  })
+})
+
+describe('RowerGate diagnostic — offline on request (ADR-0021 §4)', () => {
+  const rower = { id: 'r1', name: 'Daniel', color: '#5dd7e4', created_at: '2026-05-03T19:01:59Z' }
+  beforeEach(() => {
+    _resetErgoStatusForTest()
+    localStorage.clear()
+    _resetBootstrapMirrorForTest()
+  })
+
+  it('offers „Offline weiter (Stand: …)“ when the mirror has data', () => {
+    recordBootstrapQuery(['rowers'], [rower])
+    recordBootstrapQuery(['active-rower'], rower)
+    const onOffline = vi.fn()
+    render(<BootstrapScreen state="error" error={new Error('x')} onOffline={onOffline} />)
+    const btn = screen.getByRole('button', { name: /^Offline weiter \(Stand: .+\)$/ })
+    btn.click()
+    expect(onOffline).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText('Keine Unterwegs-Daten auf diesem Gerät')).not.toBeInTheDocument()
+  })
+
+  it('says there is no local data otherwise', () => {
+    render(<BootstrapScreen state="error" error={new Error('x')} onOffline={vi.fn()} />)
+    expect(screen.queryByRole('button', { name: /Offline weiter/ })).not.toBeInTheDocument()
+    expect(screen.getByText('Keine Unterwegs-Daten auf diesem Gerät')).toBeInTheDocument()
   })
 })

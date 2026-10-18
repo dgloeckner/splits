@@ -81,3 +81,36 @@ describe('QueryClient onError -> 429 toast', () => {
     })
   })
 })
+
+describe('toast with an action (ADR-0021 §4)', () => {
+  it('renders the action button, calls the handler and dismisses', () => {
+    const onClick = vi.fn()
+    render(<ToastHost />)
+    act(() => {
+      showToast('Ergo antwortet nicht — Offline-Modus?', 'warn', {
+        label: 'Offline weiter',
+        onClick,
+      })
+    })
+    act(() => {
+      screen.getByRole('button', { name: 'Offline weiter' }).click()
+    })
+    expect(onClick).toHaveBeenCalledTimes(1)
+    expect(screen.queryByText('Ergo antwortet nicht — Offline-Modus?')).toBeNull()
+  })
+
+  it('stays 8 s instead of 4 s', () => {
+    render(<ToastHost />)
+    act(() => {
+      showToast('mit Aktion', 'warn', { label: 'Los', onClick: () => {} })
+    })
+    act(() => {
+      vi.advanceTimersByTime(4_100)
+    })
+    expect(screen.getByText('mit Aktion')).toBeInTheDocument()
+    act(() => {
+      vi.advanceTimersByTime(4_000)
+    })
+    expect(screen.queryByText('mit Aktion')).toBeNull()
+  })
+})

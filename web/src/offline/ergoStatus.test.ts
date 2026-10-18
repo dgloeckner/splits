@@ -11,7 +11,12 @@ describe('ergoStatus store', () => {
 
   // ADR-0021: nothing is known until the first /api/health probe lands.
   it("starts 'unknown' with no Stand", () => {
-    expect(getErgoStatus()).toEqual({ reachable: 'unknown', packedAt: null, packedSessions: 0 })
+    expect(getErgoStatus()).toEqual({
+      reachable: 'unknown',
+      mode: 'auto',
+      packedAt: null,
+      packedSessions: 0,
+    })
   })
 
   it('patches and notifies subscribers once per change', () => {

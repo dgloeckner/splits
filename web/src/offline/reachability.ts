@@ -44,12 +44,26 @@ let started = false
 let probing = false
 let downTimer: ReturnType<typeof setTimeout> | null = null
 let onReconnect: (() => void) | null = null
+let onBackWhileOffline: (() => void) | null = null
+let hintedWhileOffline = false
 
 async function runProbe(): Promise<void> {
   if (probing) return
   probing = true
   try {
     const reachable = await probeReachable()
+    if (getErgoStatus().mode === 'offline') {
+      // Latched by the user: a successful probe only hints, once.
+      if (reachable && !hintedWhileOffline) {
+        hintedWhileOffline = true
+        try {
+          onBackWhileOffline?.()
+        } catch {
+          /* hook errors must not abort the probe */
+        }
+      }
+      return
+    }
     const was = getErgoStatus().reachable
     setErgoStatus({ reachable })
     // Only a real recovery (false → true) runs the hook; the boot's
@@ -85,13 +99,37 @@ export function retryReachabilityNow(): void {
 }
 
 /**
+ * „Offline weiter“ (ADR-0021 §4): latch the user-chosen offline mode.
+ * The down-loop keeps probing, but a success only fires the one-time
+ * `onBackWhileOffline` hint — it never switches back by itself.
+ */
+export function enterOfflineMode(): void {
+  hintedWhileOffline = false
+  setErgoStatus({ mode: 'offline', reachable: false })
+  scheduleReprobeWhileDown()
+}
+
+/**
+ * „Erneut verbinden“ / „Verbinden“: leave the latched mode and probe at
+ * once; a success is a false → true transition and runs onReconnect.
+ */
+export function leaveOfflineMode(): void {
+  setErgoStatus({ mode: 'auto' })
+  void runProbe()
+}
+
+/**
  * Probe once on boot, then re-probe on visibility/online/pageshow and
  * on an interval while unreachable. Idempotent.
  */
-export function startReachabilityProbe(opts?: { onReconnect?: () => void }): void {
+export function startReachabilityProbe(opts?: {
+  onReconnect?: () => void
+  onBackWhileOffline?: () => void
+}): void {
   if (started) return
   started = true
   onReconnect = opts?.onReconnect ?? null
+  onBackWhileOffline = opts?.onBackWhileOffline ?? null
 
   void runProbe()
 
@@ -116,6 +154,8 @@ export function _resetReachabilityForTest(): void {
   started = false
   probing = false
   onReconnect = null
+  onBackWhileOffline = null
+  hintedWhileOffline = false
   if (downTimer) {
     clearTimeout(downTimer)
     downTimer = null

@@ -2,7 +2,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom'
 import { useRowers } from '../hooks/useRowers'
 import { useActiveRower } from '../hooks/useActiveRower'
 import { useErgoStatus } from '../offline/ergoStatus'
-import { retryReachabilityNow } from '../offline/reachability'
+import { enterOfflineMode, retryReachabilityNow } from '../offline/reachability'
 import { BootstrapScreen } from './BootstrapScreen'
 
 export function RowerGate() {
@@ -33,6 +33,7 @@ export function RowerGate() {
           rowers.refetch()
           active.refetch()
         }}
+        onOffline={enterOfflineMode}
       />
     )
   }

@@ -380,3 +380,78 @@ test('local-first boot at home: no hero flash, starts live within a second', asy
   }
   await page.screenshot({ path: `${SCREENSHOT_ROOT}/local-first/03-at-home.png` })
 })
+
+// Issue #7 / ADR-0021 §4: offline on request. The probe still says
+// reachable (/api/health answers) while every other request hangs —
+// the user is asked and can latch the offline mode themselves.
+test('offline on request: „Offline weiter“ latches until „Verbinden“', async ({
+  startBackend,
+  seedActiveRower,
+  fault,
+  page,
+}) => {
+  test.setTimeout(150_000)
+  await seed(startBackend, seedActiveRower)
+  await packAtHome(page)
+  const shots = `${SCREENSHOT_ROOT}/on-request`
+
+  fault.setMode('hang-but-health')
+  await page.goto('/')
+  await expect(page.getByTestId('picker-just-row')).toBeEnabled({ timeout: 15_000 })
+  await page.getByTestId('picker-just-row').click()
+  const offlineWeiter = page.getByRole('button', { name: 'Offline weiter' }).first()
+  await expect(offlineWeiter).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText('Start fehlgeschlagen — Ergo nicht erreichbar?')).toBeVisible()
+  await page.screenshot({ path: `${shots}/01-start-failed-toast.png` })
+  await offlineWeiter.click()
+
+  await expect(page.getByTestId('ergo-offline-hero')).toBeVisible()
+  await expect(page.getByTestId('ergo-offline-hero')).toContainText('Stand:')
+  await expect(page.getByTestId('picker-just-row')).toBeDisabled()
+  await page.screenshot({ path: `${shots}/02-latched-hero.png` })
+  await page.getByTestId('ergo-offline-cta').click()
+  await page.waitForSelector('[data-testid^="verlauf-row-"]', { timeout: 15_000 })
+  await expect(page.getByTestId('ergo-stand-banner')).toContainText('Stand:')
+  await page.screenshot({ path: `${shots}/03-latched-verlauf.png` })
+
+  // A successful probe while latched only hints; the snapshot stays.
+  await page.evaluate(() => window.dispatchEvent(new Event('online')))
+  await expect(page.getByText('Ergo wieder erreichbar')).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByTestId('ergo-stand-banner')).toBeVisible()
+  await page.getByRole('link', { name: /workout/i }).click()
+  await expect(page.getByTestId('ergo-offline-hero')).toBeVisible()
+  await page.screenshot({ path: `${shots}/04-back-hint.png` })
+
+  // „Verbinden“ leaves the mode: hero gone, starts live, reads refetched.
+  fault.setMode('pass')
+  const refetched = page.waitForRequest((r) => new URL(r.url()).pathname === '/api/v1/rowers')
+  await page.getByRole('button', { name: 'Verbinden', exact: true }).click()
+  await expect(page.getByTestId('ergo-offline-hero')).toHaveCount(0, { timeout: 10_000 })
+  await expect(page.getByTestId('picker-just-row')).toBeEnabled()
+  await refetched
+  await page.screenshot({ path: `${shots}/05-reconnected.png` })
+})
+
+test('offline on request without local data: the prompt has no action', async ({
+  startBackend,
+  seedActiveRower,
+  fault,
+  page,
+}) => {
+  await seed(startBackend, seedActiveRower)
+  await packAtHome(page)
+
+  fault.setMode('hang-but-health')
+  await page.evaluate(async () => {
+    indexedDB.deleteDatabase('keyval-store')
+    localStorage.removeItem('splits:bootstrap')
+    await caches.delete('splits-api-read')
+    await caches.delete('splits-api-bootstrap')
+  })
+  await page.goto('/')
+  await expect(page.getByText('Ergo antwortet nicht — Offline-Modus?')).toBeVisible({
+    timeout: 15_000,
+  })
+  await expect(page.getByRole('button', { name: /Offline weiter/ })).toHaveCount(0)
+  await page.screenshot({ path: `${SCREENSHOT_ROOT}/on-request/06-no-local-data.png` })
+})

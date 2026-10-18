@@ -1,5 +1,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { probeReachable, startReachabilityProbe, _resetReachabilityForTest, REPROBE_WHILE_DOWN_MS, retryReachabilityNow } from './reachability'
+import {
+  probeReachable,
+  startReachabilityProbe,
+  _resetReachabilityForTest,
+  REPROBE_WHILE_DOWN_MS,
+  retryReachabilityNow,
+  enterOfflineMode,
+  leaveOfflineMode,
+} from './reachability'
 import { getErgoStatus, setErgoStatus, _resetErgoStatusForTest } from './ergoStatus'
 
 describe('reachability probe', () => {
@@ -126,5 +134,66 @@ describe('self-healing loop', () => {
     )
     retryReachabilityNow()
     await vi.waitFor(() => expect(getErgoStatus().reachable).toBe(true))
+  })
+})
+
+describe('offline mode on request (ADR-0021 §4)', () => {
+  beforeEach(() => {
+    _resetReachabilityForTest()
+    _resetErgoStatusForTest()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('starts in auto — the mode is not persisted', () => {
+    expect(getErgoStatus().mode).toBe('auto')
+  })
+
+  it('enterOfflineMode latches through a successful probe and hints once', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 200 })))
+    const onReconnect = vi.fn()
+    const onBackWhileOffline = vi.fn()
+    startReachabilityProbe({ onReconnect, onBackWhileOffline })
+    await vi.advanceTimersByTimeAsync(1)
+    expect(getErgoStatus().reachable).toBe(true)
+
+    enterOfflineMode()
+    expect(getErgoStatus()).toMatchObject({ mode: 'offline', reachable: false })
+
+    await vi.advanceTimersByTimeAsync(REPROBE_WHILE_DOWN_MS) // probe succeeds…
+    expect(getErgoStatus()).toMatchObject({ mode: 'offline', reachable: false }) // …no switch back
+    expect(onBackWhileOffline).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(REPROBE_WHILE_DOWN_MS * 2)
+    expect(onBackWhileOffline).toHaveBeenCalledTimes(1) // one-time hint
+    expect(onReconnect).not.toHaveBeenCalled()
+  })
+
+  it('leaveOfflineMode probes at once and fires onReconnect exactly once', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 200 })))
+    const onReconnect = vi.fn()
+    startReachabilityProbe({ onReconnect })
+    await vi.advanceTimersByTimeAsync(1)
+    enterOfflineMode()
+
+    leaveOfflineMode()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(getErgoStatus()).toMatchObject({ mode: 'auto', reachable: true })
+    expect(onReconnect).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(REPROBE_WHILE_DOWN_MS * 2)
+    expect(onReconnect).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaving while the Ergo is still away stays unreachable in auto', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Load failed')))
+    startReachabilityProbe()
+    enterOfflineMode()
+    leaveOfflineMode()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(getErgoStatus()).toMatchObject({ mode: 'auto', reachable: false })
   })
 })

@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { formatStand } from '../util/dates'
 import { useErgoStatus } from './ergoStatus'
-import { retryReachabilityNow } from './reachability'
+import { leaveOfflineMode } from './reachability'
 import styles from './ErgoStandNotice.module.css'
 
 export function ErgoStandNotice({ variant }: { variant: 'banner' | 'hero' }) {
@@ -10,9 +10,19 @@ export function ErgoStandNotice({ variant }: { variant: 'banner' | 'hero' }) {
 
   if (variant === 'banner') {
     return (
-      <p className={styles.banner} data-testid="ergo-stand-banner" role="status">
-        Ergo nicht erreichbar{packedAt ? ` · Stand: ${formatStand(packedAt)}` : ''}
-      </p>
+      <div className={styles.banner}>
+        <p className={styles.bannerText} data-testid="ergo-stand-banner" role="status">
+          Ergo nicht erreichbar{packedAt ? ` · Stand: ${formatStand(packedAt)}` : ''}
+        </p>
+        <button
+          type="button"
+          className={styles.bannerRetry}
+          data-testid="ergo-banner-reconnect"
+          onClick={() => leaveOfflineMode()}
+        >
+          Erneut verbinden
+        </button>
+      </div>
     )
   }
   return (
@@ -26,7 +36,7 @@ export function ErgoStandNotice({ variant }: { variant: 'banner' | 'hero' }) {
         type="button"
         className={styles.heroRetry}
         data-testid="ergo-reconnect"
-        onClick={() => retryReachabilityNow()}
+        onClick={() => leaveOfflineMode()}
       >
         Erneut verbinden
       </button>

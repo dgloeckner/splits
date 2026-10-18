@@ -27,7 +27,8 @@ import {
 import { idbPersister, PERSIST_MAX_AGE_MS } from './offline/persister'
 import { recordBootstrapQuery } from './offline/bootstrapMirror'
 import { isPersistableQuery } from './offline/persistKeys'
-import { startReachabilityProbe } from './offline/reachability'
+import { leaveOfflineMode, startReachabilityProbe } from './offline/reachability'
+import { promptOnQueryFailures } from './offline/offlinePrompt'
 import { registerPackTriggers, packIfStale } from './offline/pack'
 
 registerSW({ immediate: true })
@@ -79,7 +80,14 @@ const queryClient = new QueryClient({
 // single coordinated "back online" step (ADR-0020): refresh all
 // cached reads, flush the deferred end-session queue, refresh the
 // offline pack. The SSE channel revives via ChannelReviver.
+// ADR-0021 §4: a network failure while the Ergo seems reachable asks
+// „Offline weiter?“ (debounced) — at the first failed attempt.
+promptOnQueryFailures(queryClient.getQueryCache())
+
 startReachabilityProbe({
+  // While the user latched offline mode, a successful probe only hints.
+  onBackWhileOffline: () =>
+    showToast('Ergo wieder erreichbar', 'info', { label: 'Verbinden', onClick: leaveOfflineMode }),
   onReconnect: () => {
     void queryClient.invalidateQueries()
     void processPendingEndSessions()

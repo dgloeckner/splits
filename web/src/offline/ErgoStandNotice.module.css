@@ -5,6 +5,25 @@
   background: var(--color-surface-container, rgba(255, 255, 255, 0.06));
   color: var(--color-on-surface-variant, #9aa0a6);
   font-size: 0.85rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.bannerText {
+  margin: 0;
+}
+
+.bannerRetry {
+  padding: 2px 8px;
+  border: none;
+  background: none;
+  color: var(--color-primary, #2dd4bf);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
 }
 
 .hero {

@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { useActiveRower } from '../hooks/useActiveRower'
 import { startSession } from '../api/client'
-import { showToast } from '../app/Toast'
+import { showStartFailedToast } from '../offline/offlinePrompt'
 import { FavoritesList } from './home/FavoritesList'
 import { StaleSessionCard } from './home/StaleSessionCard'
 import { IconJustRow, IconDistance, IconTime, IconInterval, IconRace } from '../icons/workout'
@@ -20,7 +20,7 @@ export function HomePage() {
     try {
       await startSession()
     } catch {
-      showToast('Start fehlgeschlagen — Ergo nicht erreichbar?', 'warn')
+      showStartFailedToast()
       return
     }
     nav('/live')

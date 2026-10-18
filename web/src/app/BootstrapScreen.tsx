@@ -1,10 +1,15 @@
 import styles from './BootstrapScreen.module.css'
 import { ApiError, NetworkError } from '../api/error'
+import { loadBootstrapMirror } from '../offline/bootstrapMirror'
+import { getErgoStatus } from '../offline/ergoStatus'
+import { formatStand } from '../util/dates'
 
 type Props = {
   state: 'loading' | 'error' | 'offline'
   error?: unknown
   onRetry?: () => void
+  /** „Offline weiter“ on the diagnostic screen (ADR-0021 §4). */
+  onOffline?: () => void
 }
 
 function describe(err: unknown): { title: string; detail: string; url?: string } {
@@ -28,7 +33,7 @@ function describe(err: unknown): { title: string; detail: string; url?: string }
   return { title: 'Fehler', detail: String(err) }
 }
 
-export function BootstrapScreen({ state, error, onRetry }: Props) {
+export function BootstrapScreen({ state, error, onRetry, onOffline }: Props) {
   return (
     <div className={styles.root} role="status" aria-live="polite">
       <header className={styles.header}>
@@ -44,7 +49,7 @@ export function BootstrapScreen({ state, error, onRetry }: Props) {
         ) : state === 'offline' ? (
           <OfflineBlock onRetry={onRetry} />
         ) : (
-          <ErrorBlock error={error} onRetry={onRetry} />
+          <ErrorBlock error={error} onRetry={onRetry} onOffline={onOffline} />
         )}
       </main>
     </div>
@@ -72,8 +77,18 @@ function OfflineBlock({ onRetry }: { onRetry?: () => void }) {
   )
 }
 
-function ErrorBlock({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
+function ErrorBlock({
+  error,
+  onRetry,
+  onOffline,
+}: {
+  error: unknown
+  onRetry?: () => void
+  onOffline?: () => void
+}) {
   const { title, detail, url } = describe(error)
+  const mirror = onOffline ? loadBootstrapMirror() : null
+  const stand = getErgoStatus().packedAt ?? mirror?.savedAt
   return (
     <div className={styles.error}>
       <h1 className={styles.title}>{title}</h1>
@@ -85,6 +100,14 @@ function ErrorBlock({ error, onRetry }: { error: unknown; onRetry?: () => void }
           Jetzt erneut versuchen
         </button>
       )}
+      {onOffline &&
+        (mirror && stand ? (
+          <button type="button" className={styles.retry} onClick={onOffline}>
+            Offline weiter (Stand: {formatStand(stand)})
+          </button>
+        ) : (
+          <p className={styles.subtitle}>Keine Unterwegs-Daten auf diesem Gerät</p>
+        ))}
     </div>
   )
 }

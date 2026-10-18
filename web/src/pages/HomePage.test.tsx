@@ -115,9 +115,15 @@ describe('HomePage', () => {
     global.fetch = vi.fn(async () => {
       throw new TypeError('Load failed')
     }) as typeof fetch
+    setErgoStatus({ packedAt: '2026-06-12T18:42:00' })
     renderHome()
     await userEvent.click(screen.getByRole('button', { name: /nur rudern/i }))
     await waitFor(() => expect(showToast).toHaveBeenCalled())
+    // ADR-0021 §4: the start failure offers „Offline weiter“ when a
+    // local snapshot exists (here: a packed bag).
+    const [text, , action] = vi.mocked(showToast).mock.calls.at(-1)!
+    expect(text).toBe('Start fehlgeschlagen — Ergo nicht erreichbar?')
+    expect(action).toMatchObject({ label: 'Offline weiter' })
     expect(screen.queryByText('LIVE')).not.toBeInTheDocument()
   })
 })
