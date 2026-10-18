@@ -6,7 +6,7 @@ import styles from './ErgoStandNotice.module.css'
 
 export function ErgoStandNotice({ variant }: { variant: 'banner' | 'hero' }) {
   const { reachable, packedAt } = useErgoStatus()
-  if (reachable) return null
+  if (reachable !== false) return null
 
   if (variant === 'banner') {
     return (

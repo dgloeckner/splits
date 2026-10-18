@@ -50,9 +50,11 @@ async function runProbe(): Promise<void> {
   probing = true
   try {
     const reachable = await probeReachable()
-    const wasReachable = getErgoStatus().reachable
+    const was = getErgoStatus().reachable
     setErgoStatus({ reachable })
-    if (reachable && !wasReachable) {
+    // Only a real recovery (false → true) runs the hook; the boot's
+    // unknown → true is not a reconnect.
+    if (reachable && was === false) {
       try { onReconnect?.() } catch { /* hook errors must not abort the probe */ }
     }
   } finally {
@@ -66,7 +68,7 @@ function scheduleReprobeWhileDown(): void {
     clearTimeout(downTimer)
     downTimer = null
   }
-  if (getErgoStatus().reachable) return
+  if (getErgoStatus().reachable !== false) return
   downTimer = setTimeout(() => {
     downTimer = null
     void runProbe()

@@ -71,7 +71,7 @@ describe('packIfStale', () => {
     expect(cursor.rowerId).toBe('R1')
     // newest first
     expect(cursor.sessionIds).toEqual(['S2', 'S1'])
-    expect(getErgoStatus()).toMatchObject({ reachable: true, packedSessions: 2 })
+    expect(getErgoStatus()).toMatchObject({ packedSessions: 2 })
     expect(getErgoStatus().packedAt).not.toBeNull()
   })
 

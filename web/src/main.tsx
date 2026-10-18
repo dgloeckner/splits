@@ -25,6 +25,7 @@ import {
   processPendingEndSessions,
 } from './live/endSessionQueue'
 import { idbPersister, PERSIST_MAX_AGE_MS } from './offline/persister'
+import { recordBootstrapQuery } from './offline/bootstrapMirror'
 import { isPersistableQuery } from './offline/persistKeys'
 import { startReachabilityProbe } from './offline/reachability'
 import { registerPackTriggers, packIfStale } from './offline/pack'
@@ -54,6 +55,9 @@ function notifyForApiError(error: unknown) {
 const queryClient = new QueryClient({
   queryCache: new QueryCache({
     onError: notifyForApiError,
+    // Local-first boot (ADR-0021): keep the durable bootstrap mirror
+    // in step with every successful rowers / active-rower fetch.
+    onSuccess: (data, query) => recordBootstrapQuery(query.queryKey, data),
   }),
   mutationCache: new MutationCache({
     onError: notifyForApiError,

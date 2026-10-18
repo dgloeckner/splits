@@ -27,8 +27,11 @@ async function packAtHome(page: Page): Promise<void> {
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null, null, {
     timeout: 30_000,
   })
+  // Also drop the bootstrap mirror: a seconds-old mirror would keep the
+  // bootstrap queries from refetching, so they'd never reach the SW.
   await page.evaluate(() => {
     indexedDB.deleteDatabase('keyval-store')
+    localStorage.removeItem('splits:bootstrap')
   })
   await page.reload()
   // The persister is throttled and a full navigation drops unflushed
@@ -320,4 +323,60 @@ test('airplane mode mid-session: in-app navigation still reaches the SW cache', 
   await page.getByRole('link', { name: 'Rekorde' }).click()
   await expect(page.getByTestId('ergo-stand-banner')).toBeVisible({ timeout: 15_000 })
   await expect(page.getByTestId('rekorde-empty')).toHaveCount(0)
+})
+
+// Issue #5 / ADR-0021: local-first boot. After one session at home the
+// localStorage bootstrap mirror alone renders Home — IndexedDB and the
+// SW API caches evicted, the connection hanging.
+test('local-first boot: the mirror renders Home with every other cache gone', async ({
+  startBackend,
+  seedActiveRower,
+  fault,
+  page,
+}) => {
+  await seed(startBackend, seedActiveRower)
+  await packAtHome(page)
+  expect(await page.evaluate(() => localStorage.getItem('splits:bootstrap'))).not.toBeNull()
+
+  fault.setMode('hang')
+  await page.evaluate(async () => {
+    indexedDB.deleteDatabase('keyval-store')
+    await caches.delete('splits-api-read')
+    await caches.delete('splits-api-bootstrap')
+  })
+  await page.goto('/')
+
+  // First paint: the rower is there, starts held, no verdict yet.
+  await expect(page.getByTestId('ergo-searching')).toHaveText('Suche Ergo…')
+  await expect(page.getByTestId('picker-just-row')).toBeDisabled()
+  await expect(page.getByTestId('ergo-offline-hero')).toHaveCount(0)
+  await page.screenshot({ path: `${SCREENSHOT_ROOT}/local-first/01-searching.png` })
+
+  // The probe times out → the hero; never the bootstrap / diagnostic screen.
+  await expect(page.getByTestId('ergo-offline-hero')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('ergo-searching')).toHaveCount(0)
+  await expect(page.getByTestId('picker-just-row')).toBeDisabled()
+  await expect(page.getByTestId('bootstrap-offline')).toHaveCount(0)
+  await expect(page.getByText('Backend nicht erreichbar')).toHaveCount(0)
+  await page.screenshot({ path: `${SCREENSHOT_ROOT}/local-first/02-hero.png` })
+})
+
+test('local-first boot at home: no hero flash, starts live within a second', async ({
+  startBackend,
+  seedActiveRower,
+  page,
+}) => {
+  await seed(startBackend, seedActiveRower)
+  await packAtHome(page)
+
+  await page.goto('/')
+  await expect(page.getByTestId('picker-just-row')).toBeVisible()
+  await expect(page.getByTestId('ergo-searching')).toHaveCount(0, { timeout: 1_000 })
+  await expect(page.getByTestId('picker-just-row')).toBeEnabled()
+  const deadline = Date.now() + 2_000
+  while (Date.now() < deadline) {
+    expect(await page.getByTestId('ergo-offline-hero').count()).toBe(0)
+    await page.waitForTimeout(100)
+  }
+  await page.screenshot({ path: `${SCREENSHOT_ROOT}/local-first/03-at-home.png` })
 })

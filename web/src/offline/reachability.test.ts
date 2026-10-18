@@ -44,6 +44,28 @@ describe('reachability probe', () => {
   })
 })
 
+describe('boot from unknown (ADR-0021)', () => {
+  beforeEach(() => {
+    _resetReachabilityForTest()
+    _resetErgoStatusForTest()
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  it('the first successful probe resolves unknown → true without the reconnect hook', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 200 })))
+    const onReconnect = vi.fn()
+    startReachabilityProbe({ onReconnect })
+    await vi.waitFor(() => expect(getErgoStatus().reachable).toBe(true))
+    expect(onReconnect).not.toHaveBeenCalled()
+  })
+
+  it('the first failing probe resolves unknown → false', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Load failed')))
+    startReachabilityProbe()
+    await vi.waitFor(() => expect(getErgoStatus().reachable).toBe(false))
+  })
+})
+
 describe('self-healing loop', () => {
   beforeEach(() => {
     _resetReachabilityForTest()

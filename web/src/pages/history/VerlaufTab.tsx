@@ -223,7 +223,7 @@ function SessionList({ data, highlightId }: { data: TrendsResponse; highlightId:
             </div>
           </>
         )
-        const inBag = reachable || !!qc.getQueryState(['sessions', q.session_id])?.data
+        const inBag = reachable !== false || !!qc.getQueryState(['sessions', q.session_id])?.data
         if (!inBag) {
           return (
             <div

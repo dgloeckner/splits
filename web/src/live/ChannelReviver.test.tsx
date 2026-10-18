@@ -38,6 +38,11 @@ describe('ChannelReviver', () => {
     expect(reconnect).toHaveBeenCalledTimes(1)
   })
 
+  it('waits for the first probe while reachability is unknown', () => {
+    const reconnect = mount('permanently_disconnected')
+    expect(reconnect).not.toHaveBeenCalled()
+  })
+
   it('never tears down a healthy channel', () => {
     setErgoStatus({ reachable: true })
     const reconnect = mount('open')

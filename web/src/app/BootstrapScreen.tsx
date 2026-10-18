@@ -53,14 +53,15 @@ export function BootstrapScreen({ state, error, onRetry }: Props) {
 
 // Friendly away-from-home state (ADR-0020): the ergo is a LAN-only
 // backend, so "unreachable" is an expected situation, not an error.
+// With the local-first boot (ADR-0021) only a device that has never
+// been at home lands here — say so honestly.
 // No stack traces, no URLs — just the fact and a reconnect trigger.
 function OfflineBlock({ onRetry }: { onRetry?: () => void }) {
   return (
     <div className={styles.error} data-testid="bootstrap-offline">
       <h1 className={styles.title}>Ergo nicht erreichbar</h1>
       <p className={styles.subtitle}>
-        Du bist nicht im Heimnetz oder das Ergo ist aus. Verlauf und Rekorde
-        brauchen beim ersten Laden einmal eine Verbindung.
+        Noch keine Unterwegs-Daten — einmal im Heimnetz öffnen.
       </p>
       {onRetry && (
         <button type="button" className={styles.retry} onClick={onRetry}>

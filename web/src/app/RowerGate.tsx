@@ -21,9 +21,12 @@ export function RowerGate() {
   const failure = rowers.failureReason ?? active.failureReason
   const hasFailed = (rowers.failureCount ?? 0) > 0 || (active.failureCount ?? 0) > 0
   if (hasFailed && (!rowers.data || !active.data)) {
+    // Reachability still unknown: neither diagnose nor declare offline
+    // yet — the first probe decides within seconds (ADR-0021).
+    if (reachable === 'unknown') return <BootstrapScreen state="loading" />
     return (
       <BootstrapScreen
-        state={reachable ? 'error' : 'offline'}
+        state={reachable === true ? 'error' : 'offline'}
         error={failure}
         onRetry={() => {
           retryReachabilityNow()

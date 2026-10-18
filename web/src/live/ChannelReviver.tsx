@@ -19,7 +19,7 @@ export function ChannelReviver() {
   const { reachable } = useErgoStatus()
 
   useEffect(() => {
-    if (reachable && status === 'permanently_disconnected') reconnect?.()
+    if (reachable === true && status === 'permanently_disconnected') reconnect?.()
   }, [reachable, status, reconnect])
 
   return null

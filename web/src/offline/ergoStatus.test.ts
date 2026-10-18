@@ -9,8 +9,9 @@ import {
 describe('ergoStatus store', () => {
   beforeEach(() => _resetErgoStatusForTest())
 
-  it('starts reachable with no Stand', () => {
-    expect(getErgoStatus()).toEqual({ reachable: true, packedAt: null, packedSessions: 0 })
+  // ADR-0021: nothing is known until the first /api/health probe lands.
+  it("starts 'unknown' with no Stand", () => {
+    expect(getErgoStatus()).toEqual({ reachable: 'unknown', packedAt: null, packedSessions: 0 })
   })
 
   it('patches and notifies subscribers once per change', () => {

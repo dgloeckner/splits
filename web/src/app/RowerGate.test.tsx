@@ -6,6 +6,7 @@ import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { RowerGate } from './RowerGate'
 import { listRowers, getActiveRower } from '../api/rowers'
 import { setErgoStatus, _resetErgoStatusForTest } from '../offline/ergoStatus'
+import { recordBootstrapQuery, _resetBootstrapMirrorForTest } from '../offline/bootstrapMirror'
 
 vi.mock('../api/rowers', () => ({
   listRowers: vi.fn(async () => []),
@@ -67,13 +68,16 @@ describe('RowerGate', () => {
   })
 
   it('shows bootstrap error screen with details instead of redirecting to /onboarding', async () => {
+    setErgoStatus({ reachable: true })
     const { NetworkError } = await import('../api/error')
-    vi.mocked(listRowers).mockRejectedValue(new NetworkError('/api/v1/rowers', new TypeError('Load failed')))
-    vi.mocked(getActiveRower).mockRejectedValue(new NetworkError('/api/v1/active-rower', new TypeError('Load failed')))
-    wrap('/')
-    await waitFor(() =>
-      expect(screen.getByText('Backend nicht erreichbar')).toBeInTheDocument(),
+    vi.mocked(listRowers).mockRejectedValue(
+      new NetworkError('/api/v1/rowers', new TypeError('Load failed')),
     )
+    vi.mocked(getActiveRower).mockRejectedValue(
+      new NetworkError('/api/v1/active-rower', new TypeError('Load failed')),
+    )
+    wrap('/')
+    await waitFor(() => expect(screen.getByText('Backend nicht erreichbar')).toBeInTheDocument())
     expect(screen.queryByText('ONBOARD')).not.toBeInTheDocument()
     // Underlying error detail visible to tech user.
     expect(screen.getByText(/Load failed/)).toBeInTheDocument()
@@ -90,9 +94,7 @@ describe('RowerGate', () => {
       new NetworkError('/api/v1/active-rower', new TypeError('Load failed')),
     )
     wrap('/')
-    await waitFor(() =>
-      expect(screen.getByText('Ergo nicht erreichbar')).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText('Ergo nicht erreichbar')).toBeInTheDocument())
     // No developer diagnostics on the away-from-home path.
     expect(screen.queryByText(/Load failed/)).not.toBeInTheDocument()
     expect(screen.queryByText(/\/api\/v1\/rowers/)).not.toBeInTheDocument()
@@ -111,9 +113,7 @@ describe('RowerGate', () => {
       new NetworkError('/api/v1/active-rower', new TypeError('Load failed')),
     )
     wrap('/')
-    await waitFor(() =>
-      expect(screen.getByText('Backend nicht erreichbar')).toBeInTheDocument(),
-    )
+    await waitFor(() => expect(screen.getByText('Backend nicht erreichbar')).toBeInTheDocument())
     expect(screen.getByText(/Load failed/)).toBeInTheDocument()
   })
 })
@@ -154,7 +154,9 @@ describe('RowerGate in airplane mode (navigator.onLine === false)', () => {
 
   it('shows the friendly offline screen on a cache miss, not an endless loader', async () => {
     const { NetworkError } = await import('../api/error')
-    vi.mocked(listRowers).mockRejectedValue(new NetworkError('/api/v1/rowers', new TypeError('offline')))
+    vi.mocked(listRowers).mockRejectedValue(
+      new NetworkError('/api/v1/rowers', new TypeError('offline')),
+    )
     vi.mocked(getActiveRower).mockRejectedValue(
       new NetworkError('/api/v1/active-rower', new TypeError('offline')),
     )
@@ -162,5 +164,59 @@ describe('RowerGate in airplane mode (navigator.onLine === false)', () => {
     wrapWithAppDefaults()
     await waitFor(() => expect(screen.getByText('Ergo nicht erreichbar')).toBeInTheDocument())
     expect(screen.queryByText('Verbinde zum Backend…')).not.toBeInTheDocument()
+  })
+})
+
+describe('RowerGate — local-first boot (ADR-0021)', () => {
+  const rower = { id: 'r1', name: 'Daniel', color: '#5dd7e4', created_at: '2026-05-03T19:01:59Z' }
+
+  beforeEach(() => {
+    _resetErgoStatusForTest()
+    localStorage.clear()
+    _resetBootstrapMirrorForTest()
+  })
+
+  it('renders the app from the mirror when both bootstrap fetches fail', async () => {
+    const { NetworkError } = await import('../api/error')
+    recordBootstrapQuery(['rowers'], [rower])
+    recordBootstrapQuery(['active-rower'], rower)
+    vi.mocked(listRowers).mockRejectedValue(new NetworkError('/api/v1/rowers', new TypeError('x')))
+    vi.mocked(getActiveRower).mockRejectedValue(
+      new NetworkError('/api/v1/active-rower', new TypeError('x')),
+    )
+    setErgoStatus({ reachable: false })
+    wrap('/')
+    expect(screen.getByText('HOME')).toBeInTheDocument() // first render, no loader
+    await waitFor(() => expect(vi.mocked(listRowers)).toHaveBeenCalled())
+    await new Promise((r) => setTimeout(r, 20))
+    expect(screen.getByText('HOME')).toBeInTheDocument()
+    expect(screen.queryByTestId('bootstrap-offline')).not.toBeInTheDocument()
+  })
+
+  it('shows the loader, not the diagnostic, for a failure while reachability is unknown', async () => {
+    const { NetworkError } = await import('../api/error')
+    vi.mocked(listRowers).mockRejectedValue(new NetworkError('/api/v1/rowers', new TypeError('x')))
+    vi.mocked(getActiveRower).mockRejectedValue(
+      new NetworkError('/api/v1/active-rower', new TypeError('x')),
+    )
+    wrap('/')
+    await waitFor(() => expect(vi.mocked(listRowers)).toHaveBeenCalled())
+    await new Promise((r) => setTimeout(r, 20))
+    expect(screen.queryByText('Backend nicht erreichbar')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('bootstrap-offline')).not.toBeInTheDocument()
+    expect(screen.getByText('Verbinde zum Backend…')).toBeInTheDocument()
+  })
+
+  it('a never-paired device away from home gets the honest first-run copy', async () => {
+    const { NetworkError } = await import('../api/error')
+    vi.mocked(listRowers).mockRejectedValue(new NetworkError('/api/v1/rowers', new TypeError('x')))
+    vi.mocked(getActiveRower).mockRejectedValue(
+      new NetworkError('/api/v1/active-rower', new TypeError('x')),
+    )
+    setErgoStatus({ reachable: false })
+    wrap('/')
+    expect(await screen.findByTestId('bootstrap-offline')).toHaveTextContent(
+      'Noch keine Unterwegs-Daten — einmal im Heimnetz öffnen',
+    )
   })
 })

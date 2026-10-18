@@ -1,12 +1,16 @@
 import { useSyncExternalStore } from 'react'
 
+// 'unknown' until the first /api/health probe lands (ADR-0021): renders
+// neutrally — no offline hero, no diagnostics, starts held.
+export type Reachability = 'unknown' | boolean
+
 export type ErgoStatus = {
-  reachable: boolean
+  reachable: Reachability
   packedAt: string | null
   packedSessions: number
 }
 
-const INITIAL: ErgoStatus = { reachable: true, packedAt: null, packedSessions: 0 }
+const INITIAL: ErgoStatus = { reachable: 'unknown', packedAt: null, packedSessions: 0 }
 
 let status: ErgoStatus = INITIAL
 const listeners = new Set<() => void>()

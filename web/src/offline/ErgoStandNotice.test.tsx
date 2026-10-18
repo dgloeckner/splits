@@ -20,7 +20,17 @@ describe('ErgoStandNotice', () => {
   beforeEach(() => _resetErgoStatusForTest())
 
   it('renders nothing while the Ergo is reachable', () => {
+    setErgoStatus({ reachable: true, packedAt: '2026-06-12T18:42:00' })
     renderNotice('banner')
+    expect(screen.queryByTestId('ergo-stand-banner')).toBeNull()
+  })
+
+  // ADR-0021: 'unknown' renders neutrally — no flash of the hero at home.
+  it('renders nothing while reachability is still unknown', () => {
+    setErgoStatus({ packedAt: '2026-06-12T18:42:00' })
+    renderNotice('hero')
+    renderNotice('banner')
+    expect(screen.queryByTestId('ergo-offline-hero')).toBeNull()
     expect(screen.queryByTestId('ergo-stand-banner')).toBeNull()
   })
 
