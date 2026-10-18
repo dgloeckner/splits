@@ -2,10 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { act, render, screen } from '@testing-library/react'
 import { LiveSessionContext } from '../../live/LiveSessionContext'
 import { initialLiveState, type LiveState } from '../../live/reducer'
-import {
-  WorkoutOverlayProvider,
-  useWorkoutOverlay,
-} from './WorkoutOverlayContext'
+import { useWorkoutOverlay } from './WorkoutOverlayContext'
+import { WorkoutOverlayProvider } from './WorkoutOverlayProvider'
 
 function stateWith(sessionId: string | null, workoutId: string | null = 'W1'): LiveState {
   return sessionId

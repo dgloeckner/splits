@@ -2,12 +2,11 @@ import { spawnSync } from 'node:child_process'
 import { dirname, resolve } from 'node:path'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import type { BrowserContext, Page } from '@playwright/test'
+import type { BrowserContext } from '@playwright/test'
 import { test, expect } from '../fixtures'
 import { pauseFixture, resumeFixture } from '../helpers/backend'
 import type { BackendHandle, BackendOptions } from '../helpers/backend'
 import type { ViteHandle } from '../helpers/viteServer'
-import type { RaceFlowPage } from '../pages/RaceFlowPage'
 import { seedPriorRaceSession } from '../helpers/seedPriorRaceSession'
 
 /**
@@ -74,15 +73,6 @@ const AC_LIST = [
   'AC8: Critic returns no severity: blocker findings against current code.',
   'AC9: Total wall-clock under 90 s for all four sub-scenarios combined.',
 ]
-
-type ScenarioCtx = {
-  startBackend: (opts?: BackendOptions) => Promise<BackendHandle>
-  seedActiveRower: (opts?: { name?: string }) => Promise<{ id: string }>
-  raceFlow: RaceFlowPage
-  page: Page
-  context: BrowserContext
-  viteWorker: { vite: ViteHandle; viteUrl: string; backendPort: number }
-}
 
 test.describe('race-flow canonical abort-from-each-phase (0016-07)', () => {
   test.setTimeout(60_000)
@@ -503,7 +493,6 @@ function annotateWallClock(scenario: string, startedAt: number): void {
     description: `${scenario}: ${(elapsedMs / 1000).toFixed(1)} s (combined budget 90 s across all four scenarios)`,
   })
   if (elapsedMs > 30_000) {
-    // eslint-disable-next-line no-console
     console.warn(
       `[0016-07] ${scenario} took ${(elapsedMs / 1000).toFixed(1)} s — investigate runner contention.`,
     )
@@ -535,7 +524,6 @@ function buildCriticInput(
 function invokeCriticAdvisory(input: unknown, dir: string): void {
   const which = spawnSync('which', ['claude'], { encoding: 'utf8' })
   if (which.status !== 0 || !which.stdout.trim()) {
-    // eslint-disable-next-line no-console
     console.warn('[0016-07] claude CLI not on PATH — skipping e2e-critic advisory pass.')
     return
   }
@@ -558,6 +546,5 @@ function invokeCriticAdvisory(input: unknown, dir: string): void {
   } catch {
     /* best effort */
   }
-  // eslint-disable-next-line no-console
   console.log(`[0016-07] e2e-critic exit=${result.status}; output → ${dir}/critic.json`)
 }

@@ -7,8 +7,8 @@ import { HomePage } from './HomePage'
 import { setErgoStatus, _resetErgoStatusForTest } from '../offline/ergoStatus'
 
 vi.mock('../api/rowers', () => ({ getActiveRower: vi.fn(async () => null) }))
-vi.mock('../app/Toast', () => ({ showToast: vi.fn() }))
-import { showToast } from '../app/Toast'
+vi.mock('../app/toastBus', () => ({ showToast: vi.fn() }))
+import { showToast } from '../app/toastBus'
 
 const originalFetch = global.fetch
 afterEach(() => {

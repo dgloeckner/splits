@@ -130,9 +130,14 @@ function ProgressCard(p: {
   setHighlightId: (id: string | null) => void
   onOpen: (id: string) => void
 }) {
-  const eligible = p.data.series.filter((s) => s.points.length >= MIN_SERIES_POINTS)
-  const shape = p.selectedShape ?? eligible[0]?.key.shape_hash ?? null
-  const active = eligible.find((s) => s.key.shape_hash === shape) ?? null
+  // Memoized together so `active` keeps its identity across renders and the
+  // memos below only recompute when the data or the selection changes.
+  const { eligible, shape, active } = useMemo(() => {
+    const eligible = p.data.series.filter((s) => s.points.length >= MIN_SERIES_POINTS)
+    const shape = p.selectedShape ?? eligible[0]?.key.shape_hash ?? null
+    const active = eligible.find((s) => s.key.shape_hash === shape) ?? null
+    return { eligible, shape, active }
+  }, [p.data.series, p.selectedShape])
 
   const linePoints = useMemo(() =>
     (active?.points ?? []).map((q) => ({

@@ -7,6 +7,9 @@ export type BannerState =
   | { kind: 'resolved'; banners: SessionPBBanners }
   | { kind: 'timeout' }
 
+const IDLE: BannerState = { kind: 'idle' }
+const COMPUTING: BannerState = { kind: 'computing' }
+
 // usePBBanners polls /sessions/{id}/pb-banners after session_end with
 // short backoff (250 ms → 500 ms → 1 s, max 5 s) until the response
 // indicates the recompute landed (X-Stats-Version increment OR a
@@ -16,14 +19,18 @@ export type BannerState =
 // Pass `null` while the session is still open; the hook stays in
 // `idle` and does no work.
 export function usePBBanners(sessionId: string | null): BannerState {
-  const [state, setState] = useState<BannerState>({ kind: 'idle' })
+  // The outcome of the last poll, tagged with the session it belongs to: a
+  // session without an outcome yet reads as `computing`.
+  const [result, setResult] = useState<{ sessionId: string; state: BannerState } | null>(null)
+  // Closing the session forgets the outcome, so reopening polls afresh.
+  // Adjusted while rendering, React's pattern for state that follows a
+  // changing input.
+  if (!sessionId && result !== null) setResult(null)
 
   useEffect(() => {
-    if (!sessionId) {
-      setState({ kind: 'idle' })
-      return
-    }
-    setState({ kind: 'computing' })
+    if (!sessionId) return
+    const id = sessionId
+    const setState = (state: BannerState) => setResult({ sessionId: id, state })
 
     let cancelled = false
     const startedAt = Date.now()
@@ -33,7 +40,7 @@ export function usePBBanners(sessionId: string | null): BannerState {
     async function poll() {
       if (cancelled) return
       try {
-        const banners = await getSessionPBBanners(sessionId!)
+        const banners = await getSessionPBBanners(id)
         if (cancelled) return
         const hasAny = banners.distance.length > 0 || banners.window.length > 0
         if (hasAny) {
@@ -60,5 +67,6 @@ export function usePBBanners(sessionId: string | null): BannerState {
     }
   }, [sessionId])
 
-  return state
+  if (!sessionId) return IDLE
+  return result?.sessionId === sessionId ? result.state : COMPUTING
 }

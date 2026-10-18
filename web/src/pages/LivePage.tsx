@@ -49,7 +49,9 @@ function LiveBody() {
         const parts = [sel.ghost ? 'Ghost' : null, sel.pb ? 'PB' : null].filter(Boolean)
         opponentsLabel = parts.length ? parts.join(' · ') : '—'
       }
-    } catch {}
+    } catch {
+      // unreadable or malformed selection: keep the default label
+    }
     // 0019-03: Fertig button on the FinishOverlay routes through the
     // existing endSessionQueue path used by the manual abort flow
     // (see PauseDialog) — same end-point, different trigger. Idle-
@@ -244,7 +246,9 @@ function LivePageContent() {
         // Clear any stale latch and refresh the list so the row is gone.
         try {
           window.sessionStorage.removeItem(STORAGE_KEY)
-        } catch {}
+        } catch {
+          // storage unavailable: nothing was latched to clear
+        }
         qc.invalidateQueries({ queryKey: ['sessions'] })
         prevSummaryRef.current = incomingSummary
         return
@@ -255,10 +259,16 @@ function LivePageContent() {
         workoutId: incomingWorkoutId,
         workoutMode: activeWorkoutMode,
       }
+      // The latch answers a session-end event and goes together with the
+      // storage write and the cache invalidations below, which must not run
+      // while rendering; one extra render at session end is the price.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setLatched(next)
       try {
         window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-      } catch {}
+      } catch {
+        // storage unavailable: the latch lives in memory only
+      }
       // Session-end writes new PBs / lifetime totals / achievements
        // / trends rows server-side. Without invalidation here the
        // Rekorde tab keeps showing the cached pre-session PB list and
@@ -282,11 +292,16 @@ function LivePageContent() {
   const banners = usePBBanners(latched?.sessionId ?? null)
   const activeRower = useActiveRower()
   const activeRowerId = activeRower.data?.id ?? null
+  const [pbDismissed, setPbDismissed] = useState(false)
   const dismiss = () => {
     setLatched(null)
+    // The next session-end can show PBs again.
+    setPbDismissed(false)
     try {
       window.sessionStorage.removeItem(STORAGE_KEY)
-    } catch {}
+    } catch {
+      // storage unavailable: nothing was latched to clear
+    }
   }
 
   const latchedWorkoutId = latched?.workoutId ?? null
@@ -312,12 +327,6 @@ function LivePageContent() {
       !!activeRowerId,
     staleTime: 60_000,
   })
-
-  const [pbDismissed, setPbDismissed] = useState(false)
-  // Reset when latched clears (next session-end can show PBs again).
-  useEffect(() => {
-    if (!latched) setPbDismissed(false)
-  }, [latched])
 
   const pbCount =
     banners.kind === 'resolved'

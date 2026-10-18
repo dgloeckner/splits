@@ -1,6 +1,6 @@
 import type { QueryCache } from '@tanstack/react-query'
 import { NetworkError } from '../api/error'
-import { showToast, type ToastAction } from '../app/Toast'
+import { showToast, type ToastAction } from '../app/toastBus'
 import { loadBootstrapMirror } from './bootstrapMirror'
 import { getErgoStatus } from './ergoStatus'
 import { enterOfflineMode, reportUnreachable } from './reachability'

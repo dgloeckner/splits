@@ -293,7 +293,6 @@ test.describe('user-sprite occlusion + viewport containment after finish horn (0
 function invokeCriticAdvisory(input: unknown): void {
   const which = spawnSync('which', ['claude'], { encoding: 'utf8' })
   if (which.status !== 0 || !which.stdout.trim()) {
-    // eslint-disable-next-line no-console
     console.warn('[0019-06] claude CLI not on PATH — skipping e2e-critic advisory pass.')
     return
   }
@@ -318,6 +317,5 @@ function invokeCriticAdvisory(input: unknown): void {
   } catch {
     /* best effort */
   }
-  // eslint-disable-next-line no-console
   console.log(`[0019-06] e2e-critic exit=${result.status}; output → ${SCREENSHOT_DIR}/critic.json`)
 }

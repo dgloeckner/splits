@@ -1,32 +1,36 @@
 import { render } from '@testing-library/react'
 import { describe, it, expect, vi } from 'vitest'
 import { initialLiveState, type LiveState } from '../live/reducer'
+import type { RaceOpponentsResponse } from '../api/raceOpponents'
 
 class ResizeObserverStub {
   observe() {}
   unobserve() {}
   disconnect() {}
 }
-;(globalThis as any).ResizeObserver = ResizeObserverStub
+;globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver
 
 import { RaceLiveView } from './RaceLiveView'
 import * as dataHook from './useRaceData'
 import * as motionHook from './reducedMotion'
 
-const fakeOpps = {
+/** The slice of a ResizeObserver callback RaceCanvas reads. */
+type ResizeCallback = (entries: Array<{ contentRect: { width: number; height: number } }>) => void
+
+const fakeOpps: RaceOpponentsResponse = {
   ghost: { kind: 'session' as const, sourceSessionId: 'g', label: 'ghost' as const, tSec: [0,60], distM: [0, 250] },
   pb: null,
 }
 
 describe('RaceLiveView', () => {
   it('renders StatBar + RaceCanvas with workout meters', () => {
-    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps as any)
+    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps)
     vi.spyOn(motionHook, 'useReducedMotion').mockReturnValue(false)
     const { container } = render(<RaceLiveView
       liveState={{
         session: { workout_id: 'W1', rower_id: 'R1' },
         stroke: { distance_m: 100, time_sec: 30, power_w: 250, spm: 24, pace_sec_per_500m: 110 },
-      } as any}
+      } as unknown as LiveState}
       totalMeters={2000}
     />)
     expect(container.querySelector('[data-component="stat-bar"]')).toBeTruthy()
@@ -34,7 +38,7 @@ describe('RaceLiveView', () => {
   })
 
   it('after finish horn: StatBar values and Canvas user-distance freeze across post-horn rerenders', () => {
-    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps as any)
+    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps)
     vi.spyOn(motionHook, 'useReducedMotion').mockReturnValue(false)
     const baseStroke = {
       session_id: 's1', stroke: 1, time_sec: 0, distance_m: 0, spm: 0, power_w: 0,
@@ -43,7 +47,7 @@ describe('RaceLiveView', () => {
     }
     const makeState = (s: Partial<typeof baseStroke>): LiveState => ({
       ...initialLiveState,
-      session: { workout_id: 'W1', rower_id: 'R1' } as any,
+      session: { workout_id: 'W1', rower_id: 'R1' } as LiveState['session'],
       stroke: { ...baseStroke, ...s },
     })
 
@@ -65,19 +69,19 @@ describe('RaceLiveView', () => {
   })
 
   it('0019-06: user sprite stays pinned at centerX across post-horn paddle-down strokes (no drift off right edge)', () => {
-    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps as any)
+    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps)
     vi.spyOn(motionHook, 'useReducedMotion').mockReturnValue(false)
     // Tablet-width viewport so RaceCanvas computes non-zero centerX.
     class RO {
-      cb: any
-      constructor(cb: any) { this.cb = cb }
+      cb: ResizeCallback
+      constructor(cb: ResizeCallback) { this.cb = cb }
       observe(_el: Element) {
         this.cb([{ contentRect: { width: 1024, height: 600 } }])
       }
       unobserve() {}
       disconnect() {}
     }
-    ;(globalThis as any).ResizeObserver = RO
+    ;globalThis.ResizeObserver = RO as unknown as typeof ResizeObserver
     const baseStroke = {
       session_id: 's1', stroke: 1, time_sec: 0, distance_m: 0, spm: 0, power_w: 0,
       cal_per_hr: 0, level: 0, dps: 0, stroke_cycle_sec: 0, pace_sec_per_500m: 0,
@@ -85,7 +89,7 @@ describe('RaceLiveView', () => {
     }
     const makeState = (s: Partial<typeof baseStroke>): LiveState => ({
       ...initialLiveState,
-      session: { workout_id: 'W1', rower_id: 'R1' } as any,
+      session: { workout_id: 'W1', rower_id: 'R1' } as LiveState['session'],
       stroke: { ...baseStroke, ...s },
     })
 
@@ -120,16 +124,16 @@ describe('RaceLiveView', () => {
       expect(container.querySelector('[data-component="race-canvas"]')!.getAttribute('data-user-distance-m')).toBe('500')
     }
 
-    ;(globalThis as any).ResizeObserver = ResizeObserverStub
+    ;globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver
   })
 
   it('elapsed cell renders in tablet layout too (data-variant=tablet)', () => {
-    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps as any)
+    vi.spyOn(dataHook, 'useRaceData').mockReturnValue(fakeOpps)
     vi.spyOn(motionHook, 'useReducedMotion').mockReturnValue(false)
     // Force tablet width by stubbing ResizeObserver to deliver >= 768
     class RO {
-      cb: any
-      constructor(cb: any) { this.cb = cb }
+      cb: ResizeCallback
+      constructor(cb: ResizeCallback) { this.cb = cb }
       observe(_el: Element) {
         // jsdom: synthesise a contentRect ≥ 768
         this.cb([{ contentRect: { width: 1024, height: 600 } }])
@@ -137,7 +141,7 @@ describe('RaceLiveView', () => {
       unobserve() {}
       disconnect() {}
     }
-    ;(globalThis as any).ResizeObserver = RO
+    ;globalThis.ResizeObserver = RO as unknown as typeof ResizeObserver
     const baseStroke = {
       session_id: 's1', stroke: 1, time_sec: 0, distance_m: 0, spm: 0, power_w: 0,
       cal_per_hr: 0, level: 0, dps: 0, stroke_cycle_sec: 0, pace_sec_per_500m: 0,
@@ -145,7 +149,7 @@ describe('RaceLiveView', () => {
     }
     const state: LiveState = {
       ...initialLiveState,
-      session: { workout_id: 'W1', rower_id: 'R1' } as any,
+      session: { workout_id: 'W1', rower_id: 'R1' } as LiveState['session'],
       stroke: { ...baseStroke, time_sec: 65, distance_m: 200, power_w: 250, spm: 22, pace_sec_per_500m: 108 },
     }
     const { container } = render(<RaceLiveView liveState={state} totalMeters={2000} />)
@@ -153,6 +157,6 @@ describe('RaceLiveView', () => {
     expect(tabletBar).toBeTruthy()
     expect(container.querySelector('[data-testid="statbar-elapsed"]')!.textContent).toBe('1:05')
     // Restore stub
-    ;(globalThis as any).ResizeObserver = ResizeObserverStub
+    ;globalThis.ResizeObserver = ResizeObserverStub as unknown as typeof ResizeObserver
   })
 })

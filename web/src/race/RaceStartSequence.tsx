@@ -22,12 +22,17 @@ type Props = { enabled: boolean; reducedMotion?: boolean; onComplete?: () => voi
 
 export function RaceStartSequence({ enabled, reducedMotion = false, onComplete }: Props) {
   const [phase, setPhase] = useState<Phase>('idle')
+  // Disabling resets the ceremony, so enabling it again starts from idle.
+  // Adjusted while rendering, React's pattern for state that follows a
+  // changing input.
+  const [wasEnabled, setWasEnabled] = useState(enabled)
+  if (enabled !== wasEnabled) {
+    setWasEnabled(enabled)
+    if (!enabled) setPhase('idle')
+  }
 
   useEffect(() => {
-    if (!enabled) {
-      setPhase('idle')
-      return
-    }
+    if (!enabled) return
     const timers = STEPS.map((s) =>
       setTimeout(() => {
         setPhase(s.phase)
