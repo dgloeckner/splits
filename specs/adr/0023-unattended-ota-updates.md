@@ -278,6 +278,19 @@ read with `sed`/`grep` (no `jq` on stock Pi OS). `set -uo pipefail`, no
   laden", **except while a session is open or the Live view is mounted**,
   where the offer is deferred to the next navigation to Home or Verlauf.
   Closing every tab applies the update on the next launch regardless.
+- `clientsClaim` stays on (`prompt` would drop it with `skipWaiting`):
+  on the very first install there is no old worker to wait for, and an
+  unclaimed page would not route the offline pack through the SW cache
+  until a reload. It only acts on activation, so it never forces an
+  update on an open page.
+- The SSE stream (`/api/v1/stream`) is no longer routed through the SW
+  (no route, no `respondWith`). An open-ended fetch the active worker is
+  answering keeps a waiting worker from ever activating, and the stream
+  is open on every page — so „Neu laden" would never have applied an
+  update while the app was open. Found by the stage-5 Playwright spec.
+  The route was `NetworkOnly` before, so nothing about caching changes.
+- The registration also checks for a new worker hourly, so a phone that
+  stays open across the 04:30 deploy still learns about it.
 - `PERSIST_BUSTER` stays schema-based (ADR-0021 §7): a release does not
   drop the Rucksack.
 

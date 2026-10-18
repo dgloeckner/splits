@@ -13,6 +13,7 @@ import type { ChartMetric } from '../../components/charts/ticks'
 import { formatDurationHuman, pace500m, signedPct } from '../../util/format'
 import { WindowTabs } from './WindowTabs'
 import styles from './VerlaufTab.module.css'
+import { useOfferPendingUpdate } from '../../offline/swUpdate'
 
 const VALID: TrendsWindowKey[] = ['30d', '365d', 'all']
 const ROLLING_DAYS: Record<TrendsWindowKey, number> = { '30d': 14, '365d': 30, all: 90 }
@@ -57,6 +58,8 @@ const metricFmt: Record<ChartMetric, (v: number) => string> = {
 }
 
 export function VerlaufTab() {
+  // ADR-0023 §5: a build deferred during a session is offered here.
+  useOfferPendingUpdate()
   const { data: rower } = useActiveRower()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()

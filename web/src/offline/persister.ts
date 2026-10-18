@@ -5,9 +5,9 @@ export const PERSIST_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000
 
 // Version of the *shape* of everything persisted (react-query bag and
 // pack cursor). BUMP BY HAND ONLY WHEN A PERSISTED RESPONSE SHAPE
-// CHANGES — not per build: the bag must survive a deploy, which
-// autoUpdate installs at home right before the away-from-home launch
-// (ADR-0021).
+// CHANGES — not per build: the bag must survive a deploy, whose service
+// worker installs at home right before the away-from-home launch
+// (ADR-0021; activated on „Neu laden" or the next launch, ADR-0023 §5).
 export const PERSIST_SCHEMA_VERSION = 1
 export const PERSIST_BUSTER = String(PERSIST_SCHEMA_VERSION)
 

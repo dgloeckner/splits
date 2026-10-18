@@ -52,7 +52,8 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // ADR-0023 §5: activation waits for „Neu laden" (src/offline/swUpdate.ts).
+      registerType: 'prompt',
       devOptions: { enabled: true },
       includeAssets: ['favicon.svg'],
       // ADR-0019: the offline trainer-demo reads are served from a
@@ -69,6 +70,12 @@ export default defineConfig({
       // timeout outlasts it), 5xx falls back to cache, and the
       // bootstrap reads never expire.
       workbox: {
+        // `prompt` drops autoUpdate's skipWaiting *and* clientsClaim. Keep
+        // the claim: on the very first install there is no old worker to
+        // wait for, and an unclaimed page would not route the offline pack
+        // through the SW cache until a reload (ADR-0021). Updates still
+        // wait for „Neu laden" — claiming happens only on activation.
+        clientsClaim: true,
         // Fonts and logos too: with the origin hanging, any asset left to
         // the network stalls the page (fonts block rendering) — airplane
         // mode must work after first load (AGENTS.md).
@@ -156,11 +163,19 @@ export default defineConfig({
           },
           {
             // Everything else under /api — mutations, /api/health (the
-            // uncached reachability probe), session control, stale-open,
-            // and the SSE stream — must never be cached. NetworkOnly on
-            // the stream also keeps text/event-stream pass-through intact
-            // (Workbox reading the body would stall EventSource.onopen).
-            urlPattern: ({ url }) => url.pathname.startsWith('/api/'),
+            // uncached reachability probe), session control, stale-open —
+            // must never be cached.
+            //
+            // The SSE stream is not routed through the SW at all: an
+            // open-ended fetch the active worker is answering keeps a
+            // waiting worker from ever activating, so „Neu laden" would
+            // never apply an update while the app is open (ADR-0023 §5).
+            // Unmatched, it goes straight to the network — which is all
+            // NetworkOnly did for it. Keep in sync with isSwBypassPath in
+            // web/src/offline/swRoutes.ts.
+            urlPattern: ({ url }) =>
+              url.pathname.startsWith('/api/') &&
+              url.pathname.replace(/\/+$/, '') !== '/api/v1/stream',
             handler: 'NetworkOnly',
           },
         ],

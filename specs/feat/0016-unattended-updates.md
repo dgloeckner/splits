@@ -77,8 +77,8 @@ app is never reloaded under somebody's hands mid-session.
 
 ### Reload policy (stage 5)
 
-- [ ] A newly installed service worker never reloads the page by itself.
-- [ ] While a session is open or the Live view is mounted, the update
+- [x] A newly installed service worker never reloads the page by itself.
+- [x] While a session is open or the Live view is mounted, the update
       offer is deferred; on the next navigation to Home or Verlauf the
       toast „Neue Version verfügbar — Neu laden" appears and applies the
       new version.

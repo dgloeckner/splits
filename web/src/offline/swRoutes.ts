@@ -9,8 +9,13 @@
  * bootstrap (`rowers` / `active-rower`) that lets `RowerGate` pass
  * without a network round-trip.
  *
- * Everything else under `/api` stays `NetworkOnly`: mutations, the SSE
- * stream (`/api/v1/stream`), session control (`/api/v1/session/*`),
+ * The SSE stream (`/api/v1/stream`, `isSwBypassPath`) is not routed
+ * through the SW at all: an open-ended fetch the active worker answers
+ * keeps a waiting worker from ever activating, so „Neu laden" could
+ * never apply an update while the app is open (ADR-0023 §5).
+ *
+ * Everything else under `/api` stays `NetworkOnly`: mutations,
+ * session control (`/api/v1/session/*`),
  * `stale-open`, `workouts/last`, and crucially `/api/health` — the
  * uncached reachability probe that tells the app whether the ergo is
  * actually reachable (see reachability.ts).
@@ -84,4 +89,11 @@ export function isOfflineReadPath(pathname: string): boolean {
   }
 
   return false
+}
+
+/** Paths the SW leaves entirely to the network — no route, no
+ *  `respondWith` (ADR-0023 §5). Mirrors the catch-all `urlPattern` in
+ *  vite.config.ts. */
+export function isSwBypassPath(pathname: string): boolean {
+  return pathname.replace(/\/+$/, '') === '/api/v1/stream'
 }

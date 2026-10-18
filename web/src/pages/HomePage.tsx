@@ -8,8 +8,11 @@ import { IconJustRow, IconDistance, IconTime, IconInterval, IconRace } from '../
 import { ErgoStandNotice } from '../offline/ErgoStandNotice'
 import { useErgoStatus } from '../offline/ergoStatus'
 import styles from './HomePage.module.css'
+import { useOfferPendingUpdate } from '../offline/swUpdate'
 
 export function HomePage() {
+  // ADR-0023 §5: a build deferred during a session is offered here.
+  useOfferPendingUpdate()
   const active = useActiveRower()
   const nav = useNavigate()
   const { reachable } = useErgoStatus()
