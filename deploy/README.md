@@ -211,7 +211,7 @@ splits-update: stopping splits.service
 splits-update: database backed up to /var/lib/splits/update-backup/splits-v0.4.1-20261019T044107Z.db
 splits-update: current -> v0.4.2
 splits-update: waiting up to 120s for /api/health to report v0.4.2
-splits-update: WARNING: v0.4.2 did not report healthy within 120s; rolling back to v0.4.1
+splits-update: WARNING: v0.4.2 did not report healthy within 120s (last answer: none); rolling back to v0.4.1
 splits-update: database restored from /var/lib/splits/update-backup/splits-v0.4.1-20261019T044107Z.db
 splits-update: current -> v0.4.1
 splits-update: v0.4.1 is serving again

@@ -51,17 +51,17 @@ app is never reloaded under somebody's hands mid-session.
 
 ### Updater (stage 3)
 
-- [ ] `splits-update.sh --check` on an up-to-date host exits 0 and names
+- [x] `splits-update.sh --check` on an up-to-date host exits 0 and names
       the installed version and the latest Release.
-- [ ] Every refusal in ADR-0023 §3 exits 0, logs its reason and writes
+- [x] Every refusal in ADR-0023 §3 exits 0, logs its reason and writes
       `update-state.json`; a hand-managed slot exits 2.
-- [ ] A successful update moves `current`, sets `previous`, backs up the
+- [x] A successful update moves `current`, sets `previous`, backs up the
       DB with the service stopped, prunes old slots and keeps three
       backups.
-- [ ] A failed update exits 1, restores `current` and the DB
+- [x] A failed update exits 1, restores `current` and the DB
       byte-for-byte, blocks the tag and names it in `update-state.json`;
       the next run refuses it, `--clear-block` lets it retry.
-- [ ] `deploy/test/updater-flow.sh` and `deploy/test/updater-version.sh`
+- [x] `deploy/test/updater-flow.sh` and `deploy/test/updater-version.sh`
       run in CI.
 - [ ] Real hardware (Pi Zero, `PROFILE=pi-zero`): `vA` → `vB` serves
       `vB`; a deliberately broken `vC` is rolled back to `vB` and blocked;

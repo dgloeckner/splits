@@ -15,7 +15,8 @@
 #   - current names the tag, both host links exist, splits-update.timer is
 #     enabled and active, and the backend serves that tag;
 #   - re-running is idempotent, also from inside the installed slot;
-#   - a newer bundle moves current, sets previous and is the one serving.
+#   - a newer bundle moves current, sets previous and is the one serving;
+#   - the updater it ships reads that layout (--status).
 #
 # Usage (needs two bundles from deploy/bundle.sh, older first):
 #   sudo SPLITS_INSTALL_TEST=1 bash deploy/test/install-flow.sh \
@@ -161,6 +162,14 @@ run_install "upgrade" "$B/deploy/install.sh"
 expect_installed "$TAG_B" "upgrade"
 check "upgrade: previous -> releases/$TAG_A" link_is /opt/splits/previous /opt/splits/releases/"$TAG_A"
 check "upgrade: two slots" test "$(slots)" = "$TAG_A $TAG_B "
+
+echo
+echo "== the shipped updater reads the real layout =="
+status_out="$(/opt/splits/current/deploy/splits-update.sh --status 2>&1)"
+check "updater --status exits 0" test $? -eq 0
+check "updater --status names $TAG_B" grep -q "installed: *$TAG_B" <<< "$status_out"
+check "updater --status names $TAG_A as previous" grep -q "previous: *$TAG_A" <<< "$status_out"
+check "splits-update.service can run (its condition holds)" test -x /opt/splits/current/deploy/splits-update.sh
 
 echo
 if [ "$FAILURES" -gt 0 ]; then

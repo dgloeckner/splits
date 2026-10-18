@@ -85,7 +85,7 @@ for f in deploy/*; do
   esac
   cp -R "$f" "$root/deploy/$base"
 done
-chmod 0755 "$root/deploy/install.sh" "$root/deploy/splits-backup.sh"
+chmod 0755 "$root/deploy/install.sh" "$root/deploy/splits-backup.sh" "$root/deploy/splits-update.sh"
 
 printf '%s\n' "$VERSION" > "$root/VERSION"
 # Second line: the exact commit, so a "nightly" bundle still says what it is.
