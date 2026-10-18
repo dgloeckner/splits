@@ -70,15 +70,24 @@ tar xzf "splits-linux-$arch-$ver.tar.gz"
 cd "splits-linux-$arch-$ver"
 sudo HOSTNAME=homeergo.duckdns.org \
      DUCKDNS_TOKEN=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \
-     BIN=./bin/splits \
-     WEB_DIST=./web/dist \
      bash deploy/install.sh
 ```
 
-`VERSION` inside the tarball names the release and the exact commit.
-Upgrading is the same procedure with a newer tarball; `install.sh` is
-idempotent (see below). `nightly` is replaced on every push to `main`
-and is meant for trying things out, not for keeping.
+`install.sh` installs the bundle it sits in as the release slot
+`/opt/splits/releases/<ver>` and points `/opt/splits/current` at it (see
+*Unattended updates* below). `VERSION` inside the tarball names the
+release and the exact commit; `ARCH` names the board. From then on a
+tagged install updates itself every night. Installing by hand again is
+the same procedure with another tarball; `install.sh` is idempotent,
+restarts the service and keeps the slot it replaced as
+`/opt/splits/previous`. `nightly` is replaced on every push to `main`
+and is meant for trying things out, not for keeping — a `nightly` slot
+is hand-managed and never updated automatically.
+
+An install from before the slot layout (a plain binary at
+`/usr/local/bin/splits`, a real directory at `/var/www/splits`) is
+migrated by the first run of the new `install.sh`; the env file, the
+database and the Caddyfile are kept.
 
 ## Build + install from source
 
@@ -90,26 +99,13 @@ TARGET=arm bash deploy/bundle.sh   # → dist/splits-linux-armv7-<git describe>.
 ```
 
 Copy it to the Pi and follow the steps under *Install from a release*.
-Or build the pieces separately:
+`install.sh` only installs a bundle: the old `BIN=` / `WEB_DIST=`
+variables are gone. A bundle built from a working tree is named after
+`git describe` (e.g. `v0.4.1-3-gabc1234`), which is not a release tag, so
+that Pi is hand-managed until a tagged release is installed on it.
 
-```bash
-TARGET=arm deploy/build.sh        # → dist/splits-linux-armv7
-cd web && npm ci && npm run build && cd ..
-```
-
-Copy the repo (or just the deploy/, dist/, web/dist/ subtrees) to the
-Pi, then run as root on the Pi:
-
-```bash
-sudo HOSTNAME=homeergo.duckdns.org \
-     DUCKDNS_TOKEN=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx \
-     BIN=./dist/splits-linux-armv7 \
-     WEB_DIST=./web/dist \
-     bash deploy/install.sh
-```
-
-The installer is idempotent: re-running upgrades the binary, refreshes
-the PWA static files, and updates the Caddyfile. The env file
+The installer is idempotent: re-running reinstalls the slot, updates the
+Caddyfile and restarts the service. The env file
 (`/etc/splits/splits.env`) and the database (`/var/lib/splits/splits.db`)
 are preserved across upgrades.
 
@@ -249,7 +245,8 @@ again.
 | Edit env | `sudo $EDITOR /etc/splits/splits.env && sudo systemctl restart splits` |
 
 CLI subcommands (`splits invite`, `splits revoke`, `splits delete-rower`,
-`splits ls-*`) live alongside the binary at `/usr/local/bin/splits`.
+`splits ls-*`, `splits --version`) live in the binary at
+`/usr/local/bin/splits` (a link into `/opt/splits/current`).
 Run them as root with the production env loaded:
 
 ```bash
@@ -268,10 +265,12 @@ sudo systemctl start splits.service
 ## Uninstall
 
 ```bash
-sudo systemctl disable --now splits.service splits-backup.timer
+sudo systemctl disable --now splits.service splits-backup.timer splits-update.timer
 sudo rm -f /etc/systemd/system/splits.service \
            /etc/systemd/system/splits-backup.{service,timer} \
-           /usr/local/bin/splits /usr/local/bin/splits-backup.sh
+           /etc/systemd/system/splits-update.{service,timer} \
+           /usr/local/bin/splits /usr/local/bin/splits-backup.sh /var/www/splits
+sudo rm -rf /opt/splits
 # Data preserved unless you also remove these:
 #   sudo rm -rf /var/lib/splits /etc/splits
 sudo systemctl daemon-reload
@@ -310,5 +309,8 @@ deploy/
 ├── splits-backup.sh          daily SQLite backup script
 ├── splits-backup.service     oneshot systemd unit
 ├── splits-backup.timer       03:30 daily timer
-└── install.sh                idempotent installer
+├── splits-update.service     nightly updater (oneshot, root)
+├── splits-update.timer       04:30 daily timer, ±1 h jitter
+├── install.sh                idempotent installer of the bundle it sits in
+└── test/                     installer + updater suites (CI; not shipped)
 ```

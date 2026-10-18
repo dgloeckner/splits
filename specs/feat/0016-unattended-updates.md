@@ -42,11 +42,11 @@ app is never reloaded under somebody's hands mid-session.
 
 ### Slot layout (stage 2)
 
-- [ ] After `install.sh` from a tagged bundle `readlink /opt/splits/current`
+- [x] After `install.sh` from a tagged bundle `readlink /opt/splits/current`
       names the tag, `/usr/local/bin/splits` and `/var/www/splits` are
       symlinks into it, and `splits-update.timer` is enabled.
-- [ ] Re-running `install.sh` is idempotent.
-- [ ] An existing flat install is migrated; the database, `splits.env`
+- [x] Re-running `install.sh` is idempotent.
+- [x] An existing flat install is migrated; the database, `splits.env`
       and the Caddyfile survive.
 
 ### Updater (stage 3)

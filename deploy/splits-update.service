@@ -1,0 +1,27 @@
+[Unit]
+# Unattended update (ADR-0023). A *system* unit run as root: it restarts
+# splits.service and writes /opt/splits and the pre-update DB backup,
+# none of which the hardened service may touch (ProtectSystem=strict).
+#
+# It runs the updater of the release that is current, so every release
+# brings its own. Deliberately not Requires=/After= splits.service: an
+# update must be possible precisely when the backend is dead — that is
+# how a crashed backend gets fixed over the air.
+Description=splits — install the latest release, roll back if it does not come up
+Documentation=https://github.com/dgloeckner/splits/blob/main/specs/adr/0023-unattended-ota-updates.md
+Wants=network-online.target
+After=network-online.target splits-backup.service
+# A hand-installed bundle that predates the updater has no script to run.
+ConditionPathIsExecutable=/opt/splits/current/deploy/splits-update.sh
+
+[Service]
+Type=oneshot
+ExecStart=/opt/splits/current/deploy/splits-update.sh
+# Download plus the health window (SPLITS_UPDATE_HEALTH_TIMEOUT, 120 s by
+# default) plus a rollback, on a Pi Zero's uplink. Generous and still
+# bounded, so a wedged run cannot sit in tomorrow's way.
+TimeoutStartSec=1800
+# Exit 1 is "an update failed and was rolled back" — a real failure that
+# `systemctl status` should show. Nothing to restart: retrying a version
+# that just failed is the one thing worse than standing still.
+Restart=no

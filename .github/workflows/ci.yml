@@ -96,6 +96,33 @@ jobs:
           retention-days: 14
       - run: npm run build
 
+  deploy:
+    name: deploy (shellcheck, install.sh on real systemd)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+      # shellcheck ships with the runner image. Warnings and errors block;
+      # info-level notes (ls | awk in the build scripts) do not.
+      - run: shellcheck -S warning deploy/*.sh deploy/test/*.sh
+      - run: command -v sqlite3 || sudo apt-get install -y sqlite3
+      # Two bundles of the real packaging, older first. The PWA is not what
+      # is under test here, so a one-file web/dist stands in for it.
+      - name: bundles
+        run: |
+          mkdir -p web/dist && echo '<!doctype html><title>splits</title>' > web/dist/index.html
+          TARGET=amd64 VERSION=v0.0.1 WEB_SKIP=1 bash deploy/bundle.sh
+          TARGET=amd64 VERSION=v0.0.2 WEB_SKIP=1 bash deploy/bundle.sh
+      # The runner is a throwaway VM with systemd as PID 1, which is what
+      # install.sh is about (ADR-0023 §2, FEAT-0016 stage 2).
+      - run: >
+          sudo SPLITS_INSTALL_TEST=1 bash deploy/test/install-flow.sh
+          dist/splits-linux-amd64-v0.0.1.tar.gz dist/splits-linux-amd64-v0.0.2.tar.gz
+
   e2e:
     name: e2e (playwright, shard ${{ matrix.shard }}/2)
     runs-on: ubuntu-24.04

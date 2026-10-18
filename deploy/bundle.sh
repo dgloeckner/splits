@@ -76,11 +76,12 @@ install -m 0755 "$bin" "$root/bin/splits"
 cp -R web/dist "$root/web/dist"
 
 # Ship every file in deploy/ except this script + build.sh (build
-# artifacts of the workstation, not needed on the target).
+# artifacts of the workstation, not needed on the target) and the test
+# suites under deploy/test/.
 for f in deploy/*; do
   base="$(basename "$f")"
   case "$base" in
-    bundle.sh|build.sh) continue ;;
+    bundle.sh|build.sh|test) continue ;;
   esac
   cp -R "$f" "$root/deploy/$base"
 done
