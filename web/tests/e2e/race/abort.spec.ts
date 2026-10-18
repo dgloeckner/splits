@@ -4,7 +4,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type { BrowserContext, Page } from '@playwright/test'
 import { test, expect } from '../fixtures'
-import { resumeFixture } from '../helpers/backend'
+import { pauseFixture, resumeFixture } from '../helpers/backend'
 import type { BackendHandle, BackendOptions } from '../helpers/backend'
 import type { ViteHandle } from '../helpers/viteServer'
 import type { RaceFlowPage } from '../pages/RaceFlowPage'
@@ -227,12 +227,15 @@ test.describe('race-flow canonical abort-from-each-phase (0016-07)', () => {
     const dir = resolve(SCREENSHOT_ROOT, 'live')
     mkdirSync(dir, { recursive: true })
 
-    const setup = await setupBackendAndRower({
-      startBackend,
-      seedActiveRower,
-      context,
-      viteWorker,
-    })
+    // Realtime pacing, deliberately: at `fast` the whole CSV flushes
+    // within ms of the resume, the 500 m are crossed and the post screen
+    // is up before anything can be aborted "mid-race" (the pill is gone
+    // with the race surface). At ~0.5 Hz the first frame lands on resume
+    // and the race is nowhere near the finish while we abort.
+    const setup = await setupBackendAndRower(
+      { startBackend, seedActiveRower, context, viteWorker },
+      { fixtureRate: 'realtime' },
+    )
     const backend = setup.backend
 
     await raceFlow.gotoWorkoutFlow()
@@ -241,12 +244,24 @@ test.describe('race-flow canonical abort-from-each-phase (0016-07)', () => {
     await raceFlow.confirmRace({ ghost: true, pb: true })
 
     await raceFlow.tapBereit()
-    await raceFlow.waitForCeremonyStep('go', 5_000)
+    // Step through the ceremony rather than waiting for GO! alone: GO!
+    // is on screen only from ~3.0 s to ~4.5 s after the tap (relative to
+    // when the sequence mounts), so a single 5 s wait misses it whenever
+    // the mount is late on a loaded runner.
+    await raceFlow.waitForCeremonyStep('attention', 4_000)
+    await raceFlow.waitForCeremonyStep('set', 4_000)
+    await raceFlow.waitForCeremonyStep('go', 4_000)
+    await raceFlow.waitForLive()
     await resumeFixture(backend)
 
-    // Give strokes a moment to flow so we abort mid-Live.
-    await page.waitForTimeout(2_000)
-    await expect(raceFlow.raceCanvas()).toBeVisible()
+    // Mid-race: the client shows the first frame's distance right away,
+    // but the sessionizer books a stroke only once a later frame advances
+    // past it — and the sessions list carries sessions with strokes only.
+    // The fixture advances ~8 m per frame, so 30 m means several booked
+    // strokes. At realtime pacing that is a few seconds in; the finish is
+    // nowhere near.
+    await raceFlow.waitForUserDistance(30)
+    await expect(page.getByTestId('finish-overlay')).toBeHidden()
     await page.screenshot({ path: `${dir}/01-mid-live.png` })
 
     await raceFlow.tapAbbrechen()
@@ -257,9 +272,18 @@ test.describe('race-flow canonical abort-from-each-phase (0016-07)', () => {
     await expect(raceFlow.abortPill()).toBeHidden()
     await page.screenshot({ path: `${dir}/03-after-confirm.png` })
 
+    // Confirming the abort unmounts the race surface but does not end
+    // the backend session (LivePage passes the overlay-only `abort`, not
+    // the enqueueEndSession path the X-abort uses); a real rower simply
+    // stops rowing and the session closes on its own. Model that: stop
+    // the fixture, and the pause detector closes the session after
+    // PauseTimeout + ResumeWindow (see setupBackendAndRower). The `fast`
+    // variant of this test got the same effect from the fixture's EOF.
+    await pauseFixture(backend)
+
     // Some strokes arrived but the rower aborted before 500 m, so the
     // backend's ComputeRaceResult returns nil → summary.race == null.
-    await expectRaceSummaryNullOnEnded(context.request, setup.rower.id)
+    await expectRaceSummaryNullOnEnded(context.request, setup.rower.id, 40_000)
 
     invokeCriticAdvisory(
       buildCriticInput('race-abort-live', dir, [
@@ -300,7 +324,15 @@ test.describe('race-flow canonical abort-from-each-phase (0016-07)', () => {
     await raceFlow.confirmRace({ ghost: true, pb: true })
 
     await raceFlow.tapBereit()
-    await raceFlow.waitForCeremonyStep('go', 5_000)
+    // Stepwise for the same reason as in the Live scenario above, and
+    // release the fixture only once the reducer is in Live (see
+    // RaceFlowPage.waitForLive): at `fast` pacing the whole CSV flushes
+    // at once, and strokes that land while "GO!" is still on screen are
+    // pre-GO for the reducer — the race then never crosses 500 m.
+    await raceFlow.waitForCeremonyStep('attention', 4_000)
+    await raceFlow.waitForCeremonyStep('set', 4_000)
+    await raceFlow.waitForCeremonyStep('go', 4_000)
+    await raceFlow.waitForLive()
     await resumeFixture(backend)
 
     // Let the race run to finish-cross + FinishOverlay.
@@ -328,12 +360,15 @@ test.describe('race-flow canonical abort-from-each-phase (0016-07)', () => {
 
 // ── helpers ─────────────────────────────────────────────────────────
 
-async function setupBackendAndRower(ctx: {
-  startBackend: (opts?: BackendOptions) => Promise<BackendHandle>
-  seedActiveRower: (opts?: { name?: string }) => Promise<{ id: string }>
-  context: BrowserContext
-  viteWorker: { vite: ViteHandle; viteUrl: string; backendPort: number }
-}): Promise<{ backend: BackendHandle; rower: { id: string } }> {
+async function setupBackendAndRower(
+  ctx: {
+    startBackend: (opts?: BackendOptions) => Promise<BackendHandle>
+    seedActiveRower: (opts?: { name?: string }) => Promise<{ id: string }>
+    context: BrowserContext
+    viteWorker: { vite: ViteHandle; viteUrl: string; backendPort: number }
+  },
+  overrides: Partial<BackendOptions> = {},
+): Promise<{ backend: BackendHandle; rower: { id: string } }> {
   // Backend FIRST (Vite proxy needs a target before any /api/* call).
   // Fixture is paused so the test controls exactly when strokes flow.
   const backend = await ctx.startBackend({
@@ -342,7 +377,23 @@ async function setupBackendAndRower(ctx: {
     fixtureRate: 'fast',
     fixtureDelay: '0s',
     fixturePaused: true,
-    idleTimeout: '5s',
+    // Longer than the whole pre-stroke stretch (confirm → ceremony →
+    // first frame, ~8 s with the Live wait). The session the client
+    // opens on confirm has seen no frame yet; if the first one lands
+    // after IdleTimeout the sessionizer closes it as stale and opens a
+    // new one, and the client reads that session_end as the race being
+    // over (post screen, "Endzeit 0:00"). With 5 s that was a coin
+    // flip on a loaded runner.
+    idleTimeout: '20s',
+    // How the Live scenario's session ends after the abort: IdleTimeout
+    // is only evaluated on incoming frames, so once the fixture is paused
+    // the wall-clock pause detector is the path that closes it — silence
+    // for PauseTimeout enters Paused, and Paused closes after
+    // ResumeWindow (default 15 min). 10 s + 5 s keeps that inside the
+    // test budget. Pre-stroke, the detector stays off (no activity yet).
+    pauseTimeout: '10s',
+    resumeWindow: '5s',
+    ...overrides,
   })
   const rower = await ctx.seedActiveRower()
   await seedPriorRaceSession(ctx.context.request, {

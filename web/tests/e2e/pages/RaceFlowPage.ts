@@ -63,19 +63,38 @@ export class RaceFlowPage {
    * (`attention | set | go`). The ceremony component publishes
    * `data-ceremony-phase` on its overlay; we poll until it matches.
    */
-  async waitForCeremonyStep(
-    phase: 'attention' | 'set' | 'go',
-    timeoutMs = 5_000,
-  ): Promise<void> {
+  async waitForCeremonyStep(phase: 'attention' | 'set' | 'go', timeoutMs = 5_000): Promise<void> {
     await expect(
-      this.page.locator(
-        `[data-testid="race-start-sequence"][data-ceremony-phase="${phase}"]`,
-      ),
+      this.page.locator(`[data-testid="race-start-sequence"][data-ceremony-phase="${phase}"]`),
     ).toBeVisible({ timeout: timeoutMs })
   }
 
   raceCanvas(): Locator {
     return this.page.getByTestId('race-canvas')
+  }
+
+  /**
+   * Wait until the race-lifecycle reducer is in Live: the ceremony
+   * overlay unmounts on the POST_GO tick, which is 1.5 s *after* the
+   * visual "GO!" step first appears. Release the fixture only after
+   * this; strokes that land while "GO!" is still on screen are pre-GO
+   * for the reducer, and at `fast` pacing the whole CSV can flush in
+   * that window.
+   */
+  async waitForLive(timeoutMs = 8_000): Promise<void> {
+    await expect(this.page.getByTestId('race-start-sequence')).toBeHidden({ timeout: timeoutMs })
+    await expect(this.raceCanvas()).toBeVisible()
+  }
+
+  /** Wait until the user's race distance (as rendered) reaches `minMeters`. */
+  async waitForUserDistance(minMeters: number, timeoutMs = 15_000): Promise<void> {
+    const canvasHost = this.page.locator('[data-component="race-canvas"]')
+    await expect
+      .poll(async () => Number(await canvasHost.getAttribute('data-user-distance-m')), {
+        timeout: timeoutMs,
+        message: `race distance did not reach ${minMeters} m`,
+      })
+      .toBeGreaterThanOrEqual(minMeters)
   }
 
   userBoat(): Locator {
@@ -122,6 +141,40 @@ export class RaceFlowPage {
     await expect(this.page.getByTestId('race-post-screen')).toBeVisible({
       timeout: timeoutMs,
     })
+  }
+
+  /** The PB celebration stack LivePage mounts after session_end. */
+  pbOverlay(): Locator {
+    return this.page.getByTestId('pb-overlay')
+  }
+
+  /**
+   * Tap Fertig on the FinishOverlay.
+   *
+   * Once session_end lands, LivePage stacks the PBOverlay (a modal scrim)
+   * over the FinishOverlay — and in a fresh test DB the first finished
+   * distance is always a PB. The scrim intercepts the tap, so a plain
+   * `click()` retries against it until the test timeout. Dismiss the
+   * stack ("Weiter" per card) whenever it is up, then tap; the outer
+   * loop covers the overlay arriving between the check and the tap.
+   */
+  async tapFertig(): Promise<void> {
+    const fertig = this.page.getByTestId('finish-fertig')
+    await expect(fertig).toBeVisible()
+    await expect(fertig).toBeEnabled()
+    for (let attempt = 0; attempt < 5; attempt++) {
+      for (let card = 0; card < 10 && (await this.pbOverlay().isVisible()); card++) {
+        await this.pbOverlay().getByRole('button', { name: 'Weiter' }).click()
+        await this.page.waitForTimeout(50)
+      }
+      try {
+        await fertig.click({ timeout: 3_000 })
+        return
+      } catch {
+        // The PB overlay raced in front of the button; dismiss and retry.
+      }
+    }
+    await fertig.click()
   }
 
   // ── Abort affordance (0016-07) ────────────────────────────────────

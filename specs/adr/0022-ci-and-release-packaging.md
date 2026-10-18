@@ -58,16 +58,18 @@ more than it delivers.
 
 **Option A.** Specifically:
 
-- `ci.yml`: three independent jobs (backend, web, e2e). backend and web
-  are blocking; `go vet` and staticcheck are blocking, ESLint inside the
-  web job is advisory (`continue-on-error`) until the 146 pre-existing
-  errors on `main` are fixed. e2e runs with one worker (each test spawns
-  Vite + Go backend + Chromium; two workers starve each other on a
-  4-vCPU runner), excludes the capture-only suites (`theme-screenshots`,
-  `ux-audit`) via `--grep-invert`, and is advisory as a whole until the
-  suite is green on `main` — the race-timing specs (abort-from-live,
-  Falschstart x2, intermittently Fertig and happy-path) fail
-  independently of CI. A guard
+- `ci.yml`: three independent jobs (backend, web, e2e), all blocking;
+  ESLint inside the web job is advisory (`continue-on-error`) until the
+  146 pre-existing errors on `main` are fixed. e2e runs with one worker
+  per shard (each test spawns Vite + Go backend + Chromium; two workers
+  starve each other on a 4-vCPU runner), excludes the capture-only
+  suites (`theme-screenshots`, `ux-audit`) via `--grep-invert`, and
+  retries a failed test once in CI; a pass on retry is reported as
+  "flaky", never hidden. The race specs used to fail on timing; the
+  causes and fixes are recorded in the specs themselves (fixture released
+  only once the reducer is in Live, idle timeout longer than the
+  pre-stroke stretch, PB overlay dismissed before Fertig, aborted
+  session closed through the pause path). A guard
   step fails the job when Playwright reports zero tests, because a
   script that called `process.exit` on import once ended the run after
   three seconds with exit code 0. That script, the `e2e-critic`
@@ -136,8 +138,9 @@ Borrowed from `dgloeckner/clubbar`'s `build.yaml` after reviewing it.
   build time; both workflows assert the tree is clean after `npm ci` so
   a CI build can never be stamped `-dirty`.
 - Follow-ups, not in this ADR: fix the ESLint backlog and make the lint
-  step blocking; fix the failing race-timing e2e specs and make the e2e
-  job blocking; a patch-coverage gate on changed lines; SHA-pinned actions
+  step blocking; the race abort should end the backend session (today it
+  only unmounts the race surface; a rower who stops rowing is closed by
+  the pause detector); a patch-coverage gate on changed lines; SHA-pinned actions
   with Dependabot; a `splits --version` flag populated via `-ldflags -X`;
   a golden-fixture freshness check (ADR-0017); Dependabot for action
   versions; serving the PWA from the Go binary.

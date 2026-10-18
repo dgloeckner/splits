@@ -94,6 +94,10 @@ test.describe('FinishOverlay Fertig button (0019-03)', () => {
     await raceFlow.waitForCeremonyStep('attention', 4_000)
     await raceFlow.waitForCeremonyStep('set', 3_000)
     await raceFlow.waitForCeremonyStep('go', 3_000)
+    // Release only once the reducer is in Live (RaceFlowPage.waitForLive):
+    // strokes that land while "GO!" is still on screen are pre-GO, and at
+    // `fast` pacing that can be the entire CSV.
+    await raceFlow.waitForLive()
     await resumeFixture(backend)
 
     // Best-effort mid-race screenshot. At fast pacing this may already
@@ -172,13 +176,12 @@ test.describe('FinishOverlay Fertig button (0019-03)', () => {
 
     await page.screenshot({ path: `${SCREENSHOT_DIR}/03-finish-overlay-with-fertig.png` })
 
-    // Spot-check #3: tap Fertig → navigation to /. `force: true`
-    // bypasses Playwright's stability + actionability checks against
-    // the SessionEndedOverlay scrim that the PacingFast fixture EOF
-    // can race in front of the button. The button is verified
-    // visible + enabled above; the click hits the same React handler
-    // a real tap would. Without force, this is a perma-flake in the
-    // test env.
+    // Spot-check #3: tap Fertig → navigation to /. The PacingFast
+    // fixture EOF races session_end — and with it the PBOverlay scrim —
+    // in front of the button. A `force: true` click does not help: it
+    // skips the actionability checks but the pointer event still lands
+    // on the scrim, so the tap never reaches Fertig (observed in CI).
+    // tapFertig() dismisses the PB stack first and then taps for real.
     if (sessionId === null) {
       // The session-list snapshot above raced ahead of session_start —
       // probe once more now that the overlay is up.
@@ -194,7 +197,7 @@ test.describe('FinishOverlay Fertig button (0019-03)', () => {
     }
     expect(sessionId, 'expected at least one session row for the seeded rower').not.toBeNull()
 
-    await fertig.click({ force: true })
+    await raceFlow.tapFertig()
     await page.waitForURL((url) => url.pathname === '/', { timeout: 10_000 })
     // FinishOverlay must be gone (race surface dismissed).
     await expect(overlay).toBeHidden({ timeout: 5_000 })
