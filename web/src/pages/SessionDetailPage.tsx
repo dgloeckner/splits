@@ -106,6 +106,7 @@ export function SessionDetailPage() {
   const splitPts = samples.map((x) => ({ x: x.time_sec, y: x.pace_sec_per_500m })).filter((p) => p.y > 0)
   const wattPts = samples.map((x) => ({ x: x.time_sec, y: x.power_w }))
   const spmPts = samples.map((x) => ({ x: x.time_sec, y: x.spm }))
+  const dpsPts = samples.map((x) => ({ x: x.time_sec, y: x.dps })).filter((p) => p.y > 0)
 
   return (
     <div className={styles.page}>
@@ -194,6 +195,8 @@ export function SessionDetailPage() {
           fmt={(v) => `${Math.round(v)}`} avgValue={s.summary?.avg_power_w ?? null} />
         <SessionChart title="SPM-Verlauf" points={spmPts} metric="spm"
           fmt={(v) => `${Math.round(v)}`} avgValue={s.summary?.avg_spm ?? null} />
+        <SessionChart title="DPS-Verlauf (m / Schlag)" points={dpsPts} metric="dps"
+          fmt={(v) => v.toFixed(1)} avgValue={s.summary?.avg_dps ?? null} />
       </div>
 
       <div className={styles.actions}>
