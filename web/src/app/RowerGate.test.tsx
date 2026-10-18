@@ -70,14 +70,12 @@ describe('RowerGate', () => {
   it('shows bootstrap error screen with details instead of redirecting to /onboarding', async () => {
     setErgoStatus({ reachable: true })
     const { NetworkError } = await import('../api/error')
-    vi.mocked(listRowers).mockRejectedValue(
-      new NetworkError('/api/v1/rowers', new TypeError('Load failed')),
-    )
-    vi.mocked(getActiveRower).mockRejectedValue(
-      new NetworkError('/api/v1/active-rower', new TypeError('Load failed')),
-    )
+    vi.mocked(listRowers).mockRejectedValue(new NetworkError('/api/v1/rowers', new TypeError('Load failed')))
+    vi.mocked(getActiveRower).mockRejectedValue(new NetworkError('/api/v1/active-rower', new TypeError('Load failed')))
     wrap('/')
-    await waitFor(() => expect(screen.getByText('Backend nicht erreichbar')).toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.getByText('Backend nicht erreichbar')).toBeInTheDocument(),
+    )
     expect(screen.queryByText('ONBOARD')).not.toBeInTheDocument()
     // Underlying error detail visible to tech user.
     expect(screen.getByText(/Load failed/)).toBeInTheDocument()
@@ -94,7 +92,9 @@ describe('RowerGate', () => {
       new NetworkError('/api/v1/active-rower', new TypeError('Load failed')),
     )
     wrap('/')
-    await waitFor(() => expect(screen.getByText('Ergo nicht erreichbar')).toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.getByText('Ergo nicht erreichbar')).toBeInTheDocument(),
+    )
     // No developer diagnostics on the away-from-home path.
     expect(screen.queryByText(/Load failed/)).not.toBeInTheDocument()
     expect(screen.queryByText(/\/api\/v1\/rowers/)).not.toBeInTheDocument()
@@ -113,7 +113,9 @@ describe('RowerGate', () => {
       new NetworkError('/api/v1/active-rower', new TypeError('Load failed')),
     )
     wrap('/')
-    await waitFor(() => expect(screen.getByText('Backend nicht erreichbar')).toBeInTheDocument())
+    await waitFor(() =>
+      expect(screen.getByText('Backend nicht erreichbar')).toBeInTheDocument(),
+    )
     expect(screen.getByText(/Load failed/)).toBeInTheDocument()
   })
 })
@@ -154,9 +156,7 @@ describe('RowerGate in airplane mode (navigator.onLine === false)', () => {
 
   it('shows the friendly offline screen on a cache miss, not an endless loader', async () => {
     const { NetworkError } = await import('../api/error')
-    vi.mocked(listRowers).mockRejectedValue(
-      new NetworkError('/api/v1/rowers', new TypeError('offline')),
-    )
+    vi.mocked(listRowers).mockRejectedValue(new NetworkError('/api/v1/rowers', new TypeError('offline')))
     vi.mocked(getActiveRower).mockRejectedValue(
       new NetworkError('/api/v1/active-rower', new TypeError('offline')),
     )
