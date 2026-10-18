@@ -1,5 +1,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { probeReachable, startReachabilityProbe, _resetReachabilityForTest, REPROBE_WHILE_DOWN_MS, retryReachabilityNow } from './reachability'
+import {
+  probeReachable,
+  startReachabilityProbe,
+  _resetReachabilityForTest,
+  REPROBE_WHILE_DOWN_MS,
+  retryReachabilityNow,
+  enterOfflineMode,
+  leaveOfflineMode,
+  reportUnreachable,
+} from './reachability'
 import { getErgoStatus, setErgoStatus, _resetErgoStatusForTest } from './ergoStatus'
 
 describe('reachability probe', () => {
@@ -41,6 +50,28 @@ describe('reachability probe', () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{"status":"ok"}', { status: 200 })))
     startReachabilityProbe()
     await vi.waitFor(() => expect(getErgoStatus().reachable).toBe(true))
+  })
+})
+
+describe('boot from unknown (ADR-0021)', () => {
+  beforeEach(() => {
+    _resetReachabilityForTest()
+    _resetErgoStatusForTest()
+  })
+  afterEach(() => vi.restoreAllMocks())
+
+  it('the first successful probe resolves unknown → true without the reconnect hook', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 200 })))
+    const onReconnect = vi.fn()
+    startReachabilityProbe({ onReconnect })
+    await vi.waitFor(() => expect(getErgoStatus().reachable).toBe(true))
+    expect(onReconnect).not.toHaveBeenCalled()
+  })
+
+  it('the first failing probe resolves unknown → false', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Load failed')))
+    startReachabilityProbe()
+    await vi.waitFor(() => expect(getErgoStatus().reachable).toBe(false))
   })
 })
 
@@ -104,5 +135,125 @@ describe('self-healing loop', () => {
     )
     retryReachabilityNow()
     await vi.waitFor(() => expect(getErgoStatus().reachable).toBe(true))
+  })
+})
+
+describe('offline mode on request (ADR-0021 §4)', () => {
+  beforeEach(() => {
+    _resetReachabilityForTest()
+    _resetErgoStatusForTest()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('starts in auto — the mode is not persisted', () => {
+    expect(getErgoStatus().mode).toBe('auto')
+  })
+
+  it('enterOfflineMode latches through a successful probe and hints once', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 200 })))
+    const onReconnect = vi.fn()
+    const onBackWhileOffline = vi.fn()
+    startReachabilityProbe({ onReconnect, onBackWhileOffline })
+    await vi.advanceTimersByTimeAsync(1)
+    expect(getErgoStatus().reachable).toBe(true)
+
+    enterOfflineMode()
+    expect(getErgoStatus()).toMatchObject({ mode: 'offline', reachable: false })
+
+    await vi.advanceTimersByTimeAsync(REPROBE_WHILE_DOWN_MS) // probe succeeds…
+    expect(getErgoStatus()).toMatchObject({ mode: 'offline', reachable: false }) // …no switch back
+    expect(onBackWhileOffline).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(REPROBE_WHILE_DOWN_MS * 2)
+    expect(onBackWhileOffline).toHaveBeenCalledTimes(1) // one-time hint
+    expect(onReconnect).not.toHaveBeenCalled()
+  })
+
+  it('leaveOfflineMode probes at once and fires onReconnect exactly once', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 200 })))
+    const onReconnect = vi.fn()
+    startReachabilityProbe({ onReconnect })
+    await vi.advanceTimersByTimeAsync(1)
+    enterOfflineMode()
+
+    leaveOfflineMode()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(getErgoStatus()).toMatchObject({ mode: 'auto', reachable: true })
+    expect(onReconnect).toHaveBeenCalledTimes(1)
+    await vi.advanceTimersByTimeAsync(REPROBE_WHILE_DOWN_MS * 2)
+    expect(onReconnect).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaving while the Ergo is still away stays unreachable in auto', async () => {
+    vi.useFakeTimers()
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Load failed')))
+    startReachabilityProbe()
+    enterOfflineMode()
+    leaveOfflineMode()
+    await vi.advanceTimersByTimeAsync(1)
+    expect(getErgoStatus()).toMatchObject({ mode: 'auto', reachable: false })
+  })
+})
+
+describe('reportUnreachable — evidence from real requests (ADR-0021 §3)', () => {
+  beforeEach(() => {
+    _resetReachabilityForTest()
+    _resetErgoStatusForTest()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('flips true → false, arms the loop, and the recovery fires onReconnect once', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const onReconnect = vi.fn()
+    startReachabilityProbe({ onReconnect })
+    await vi.advanceTimersByTimeAsync(1)
+    expect(getErgoStatus().reachable).toBe(true)
+
+    reportUnreachable()
+    expect(getErgoStatus().reachable).toBe(false)
+    await vi.advanceTimersByTimeAsync(REPROBE_WHILE_DOWN_MS) // loop probe succeeds
+    expect(getErgoStatus().reachable).toBe(true)
+    expect(onReconnect).toHaveBeenCalledTimes(1)
+  })
+
+  it('leaves a latched offline mode alone', () => {
+    setErgoStatus({ reachable: true })
+    enterOfflineMode()
+    setErgoStatus({ reachable: false })
+    reportUnreachable()
+    expect(getErgoStatus()).toMatchObject({ mode: 'offline', reachable: false })
+  })
+
+  it('does not restart a loop that is already running', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn().mockRejectedValue(new TypeError('Load failed'))
+    vi.stubGlobal('fetch', fetchMock)
+    startReachabilityProbe()
+    await vi.advanceTimersByTimeAsync(1) // boot probe fails → loop armed
+    const calls = fetchMock.mock.calls.length
+    await vi.advanceTimersByTimeAsync(REPROBE_WHILE_DOWN_MS - 1_000)
+    reportUnreachable() // must not push the pending probe back
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(fetchMock.mock.calls.length).toBe(calls + 1)
+  })
+
+  it('runs no timer while reachable: zero fetches over 3 × 25 s when up', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    startReachabilityProbe()
+    await vi.advanceTimersByTimeAsync(1)
+    const calls = fetchMock.mock.calls.length
+    await vi.advanceTimersByTimeAsync(REPROBE_WHILE_DOWN_MS * 3)
+    expect(fetchMock.mock.calls.length).toBe(calls)
   })
 })

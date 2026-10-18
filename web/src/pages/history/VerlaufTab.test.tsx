@@ -96,11 +96,13 @@ describe('VerlaufTab', () => {
     expect(screen.getAllByTestId('progress-line-dot')).toHaveLength(2)
   })
 
-  it('unreachable: rows without cached detail are dimmed, cached rows stay links', async () => {
+  // Issue #9 (option B): the in-memory bag is not the only offline store
+  // — the SW cache holds the packed details too — so no row is dimmed;
+  // the detail page explains a miss instead.
+  it('unreachable: every row stays a link, cached in the bag or not', async () => {
     _resetErgoStatusForTest()
     setErgoStatus({ reachable: false, packedAt: '2026-06-12T10:00:00' })
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-    // Seed s3 as cached (navigable), s2 and s1 as not cached (dimmed)
     qc.setQueryData(['sessions', 's3'], { id: 's3' })
     render(
       <QueryClientProvider client={qc}>
@@ -111,9 +113,10 @@ describe('VerlaufTab', () => {
     )
     const cached = await screen.findByTestId('verlauf-row-s3')
     expect(cached.tagName).toBe('A')
-    const missing = screen.getByTestId('verlauf-row-s2')
-    expect(missing.tagName).toBe('DIV')
-    expect(missing).toHaveAttribute('aria-disabled', 'true')
+    const notInBag = screen.getByTestId('verlauf-row-s2')
+    expect(notInBag.tagName).toBe('A')
+    expect(notInBag).toHaveAttribute('href', '/historie/s2')
+    expect(notInBag).not.toHaveAttribute('aria-disabled')
   })
 
   it('unreachable with restored data: no error placeholder', async () => {

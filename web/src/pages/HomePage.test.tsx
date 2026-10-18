@@ -36,7 +36,10 @@ function renderHome() {
 }
 
 describe('HomePage', () => {
-  beforeEach(() => _resetErgoStatusForTest())
+  beforeEach(() => {
+    _resetErgoStatusForTest()
+    setErgoStatus({ reachable: true })
+  })
 
   it('renders the page heading', () => {
     renderHome()
@@ -83,17 +86,44 @@ describe('HomePage', () => {
   })
 
   it('reachable: no hero card', async () => {
+    setErgoStatus({ reachable: true })
     renderHome()
     expect(screen.queryByTestId('ergo-offline-hero')).toBeNull()
+  })
+
+  // ADR-0021: until the first probe lands, starts are held neutrally —
+  // no hero, no tap that runs into a timeout.
+  it('unknown: starts held with „Suche Ergo…“, no hero', async () => {
+    setErgoStatus({ reachable: 'unknown', packedAt: '2026-06-12T18:42:00' })
+    renderHome()
+    expect(screen.getByTestId('ergo-searching')).toHaveTextContent('Suche Ergo…')
+    expect(screen.getByTestId('picker-just-row')).toBeDisabled()
+    expect(screen.getByTestId('picker-race')).toBeDisabled()
+    expect(screen.queryByTestId('ergo-offline-hero')).toBeNull()
+    // Visibly held too, not just disabled in the DOM.
+    expect(screen.getByTestId('picker-just-row').closest('section')!.className).toMatch(/startDimmed/)
+  })
+
+  it('reachable: starts enabled, no „Suche Ergo…“', async () => {
+    setErgoStatus({ reachable: true })
+    renderHome()
+    expect(screen.getByTestId('picker-just-row')).toBeEnabled()
+    expect(screen.queryByTestId('ergo-searching')).toBeNull()
   })
 
   it('shows a toast instead of hanging when session start fails', async () => {
     global.fetch = vi.fn(async () => {
       throw new TypeError('Load failed')
     }) as typeof fetch
+    setErgoStatus({ packedAt: '2026-06-12T18:42:00' })
     renderHome()
     await userEvent.click(screen.getByRole('button', { name: /nur rudern/i }))
     await waitFor(() => expect(showToast).toHaveBeenCalled())
+    // ADR-0021 §4: the start failure offers „Offline weiter“ when a
+    // local snapshot exists (here: a packed bag).
+    const [text, , action] = vi.mocked(showToast).mock.calls.at(-1)!
+    expect(text).toBe('Start fehlgeschlagen — Ergo nicht erreichbar?')
+    expect(action).toMatchObject({ label: 'Offline weiter' })
     expect(screen.queryByText('LIVE')).not.toBeInTheDocument()
   })
 })

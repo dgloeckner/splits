@@ -44,15 +44,31 @@ let started = false
 let probing = false
 let downTimer: ReturnType<typeof setTimeout> | null = null
 let onReconnect: (() => void) | null = null
+let onBackWhileOffline: (() => void) | null = null
+let hintedWhileOffline = false
 
 async function runProbe(): Promise<void> {
   if (probing) return
   probing = true
   try {
     const reachable = await probeReachable()
-    const wasReachable = getErgoStatus().reachable
+    if (getErgoStatus().mode === 'offline') {
+      // Latched by the user: a successful probe only hints, once.
+      if (reachable && !hintedWhileOffline) {
+        hintedWhileOffline = true
+        try {
+          onBackWhileOffline?.()
+        } catch {
+          /* hook errors must not abort the probe */
+        }
+      }
+      return
+    }
+    const was = getErgoStatus().reachable
     setErgoStatus({ reachable })
-    if (reachable && !wasReachable) {
+    // Only a real recovery (false → true) runs the hook; the boot's
+    // unknown → true is not a reconnect.
+    if (reachable && was === false) {
       try { onReconnect?.() } catch { /* hook errors must not abort the probe */ }
     }
   } finally {
@@ -66,7 +82,7 @@ function scheduleReprobeWhileDown(): void {
     clearTimeout(downTimer)
     downTimer = null
   }
-  if (getErgoStatus().reachable) return
+  if (getErgoStatus().reachable !== false) return
   downTimer = setTimeout(() => {
     downTimer = null
     void runProbe()
@@ -83,13 +99,50 @@ export function retryReachabilityNow(): void {
 }
 
 /**
+ * Evidence from a real request that the Ergo is gone (ADR-0021 §3): an
+ * exhausted SSE channel, a session start/end network failure. Flips to
+ * unreachable and arms the down-loop — no polling while reachable, the
+ * next real request reports. The latched offline mode owns the status,
+ * and a loop already running is not pushed back.
+ */
+export function reportUnreachable(): void {
+  if (getErgoStatus().mode === 'offline') return
+  setErgoStatus({ reachable: false })
+  if (!downTimer && !probing) scheduleReprobeWhileDown()
+}
+
+/**
+ * „Offline weiter“ (ADR-0021 §4): latch the user-chosen offline mode.
+ * The down-loop keeps probing, but a success only fires the one-time
+ * `onBackWhileOffline` hint — it never switches back by itself.
+ */
+export function enterOfflineMode(): void {
+  hintedWhileOffline = false
+  setErgoStatus({ mode: 'offline', reachable: false })
+  scheduleReprobeWhileDown()
+}
+
+/**
+ * „Erneut verbinden“ / „Verbinden“: leave the latched mode and probe at
+ * once; a success is a false → true transition and runs onReconnect.
+ */
+export function leaveOfflineMode(): void {
+  setErgoStatus({ mode: 'auto' })
+  void runProbe()
+}
+
+/**
  * Probe once on boot, then re-probe on visibility/online/pageshow and
  * on an interval while unreachable. Idempotent.
  */
-export function startReachabilityProbe(opts?: { onReconnect?: () => void }): void {
+export function startReachabilityProbe(opts?: {
+  onReconnect?: () => void
+  onBackWhileOffline?: () => void
+}): void {
   if (started) return
   started = true
   onReconnect = opts?.onReconnect ?? null
+  onBackWhileOffline = opts?.onBackWhileOffline ?? null
 
   void runProbe()
 
@@ -114,6 +167,8 @@ export function _resetReachabilityForTest(): void {
   started = false
   probing = false
   onReconnect = null
+  onBackWhileOffline = null
+  hintedWhileOffline = false
   if (downTimer) {
     clearTimeout(downTimer)
     downTimer = null

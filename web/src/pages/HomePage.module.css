@@ -124,3 +124,10 @@
   opacity: 0.45;
   pointer-events: none;
 }
+
+/* ADR-0021: neutral hold while the first reachability probe runs. */
+.searching {
+  margin: 0;
+  font-size: var(--text-label-sm);
+  color: var(--color-on-surface);
+}

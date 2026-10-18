@@ -430,6 +430,16 @@ appears in status copy, only in this action label. The mode is latched:
 it is left only via „Erneut verbinden"; a successful probe meanwhile
 shows a hint that the Ergo is back, but does not switch back by itself.
 
+### Rucksack
+
+The informal name for what the device carries away from home: the
+packed snapshot (the last ten sessions with detail and samples, Verlauf,
+Rekorde), held in the service-worker cache and the IndexedDB bag. Away
+from home every Verlauf row stays tappable; a session outside the
+Rucksack opens to the note `Nicht im Rucksack — zuhause öffnet sich die
+Session wieder.` with a way back — never a dimmed row or an error
+screen.
+
 ### Stand
 
 The timestamp of the data snapshot currently shown — the moment the

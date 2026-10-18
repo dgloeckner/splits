@@ -20,9 +20,38 @@
  * fetch fails. Staleness is then labelled in the app via the "Stand: …"
  * notice, driven off the reachability probe — not off query success.
  *
- * Kept in sync with the inline `urlPattern` in vite.config.ts, which
- * must be self-contained so Workbox can inline it into the generated SW.
+ * Hardening (ADR-0021):
+ * - The SW gives up on the network after `SW_NETWORK_TIMEOUT_SECONDS`;
+ *   the client GET timeout (`GET_TIMEOUT_MS`, api/error.ts) must outlast
+ *   it by a margin, or a hanging connection aborts the page fetch before
+ *   the SW serves its cache (epic #1, B1).
+ * - A 5xx (`isServerFailureStatus`) counts as a network failure, so
+ *   Caddy's 502 (Pi up, service down) falls back to the cache (B3).
+ *   Only ≥ 500: a 403 (pairing required) or 404 must reach the page, or
+ *   an unpaired device would see another rower's stale data.
+ * - The bootstrap reads (`isBootstrapPath`) live in their own SW route
+ *   without expiration, so RowerGate's data never ages out or gets
+ *   LRU-evicted by samples.
+ *
+ * Kept in sync with the inline `urlPattern`s / plugin in vite.config.ts,
+ * which must be self-contained so Workbox can inline them into the SW.
  */
+
+/** Seconds the SW `NetworkFirst` waits for the network before serving
+ *  its cache. Imported by vite.config.ts at config time. */
+export const SW_NETWORK_TIMEOUT_SECONDS = 4
+
+/** The reads that let `RowerGate` pass — cached without expiration. */
+export function isBootstrapPath(pathname: string): boolean {
+  const p = pathname.replace(/\/+$/, '')
+  return p === '/api/v1/rowers' || p === '/api/v1/active-rower'
+}
+
+/** Responses the SW treats as a failed fetch (→ cache fallback). */
+export function isServerFailureStatus(status: number): boolean {
+  return status >= 500
+}
+
 export function isOfflineReadPath(pathname: string): boolean {
   const p = pathname.replace(/\/+$/, '')
   if (

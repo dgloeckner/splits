@@ -65,10 +65,6 @@
   cursor: pointer;
 }
 
-.rowOffline {
-  opacity: 0.45;
-}
-
 @media (min-width: 768px) {
   .layout {
     display: grid;

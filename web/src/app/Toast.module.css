@@ -22,3 +22,15 @@
 .warn {
   background: #b34a00;
 }
+.action {
+  pointer-events: auto;
+  margin-left: 12px;
+  padding: 4px 10px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}

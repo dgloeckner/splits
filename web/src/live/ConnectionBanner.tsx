@@ -1,4 +1,6 @@
+import { useNavigate } from 'react-router-dom'
 import { useLiveSession } from './LiveSessionContext'
+import { enterOfflineMode } from '../offline/reachability'
 import styles from './ConnectionBanner.module.css'
 
 /**
@@ -14,6 +16,7 @@ import styles from './ConnectionBanner.module.css'
  */
 export function ConnectionBanner() {
   const { status, reconnect, deviceConnected } = useLiveSession()
+  const nav = useNavigate()
 
   if (status === 'permanently_disconnected') {
     return (
@@ -21,6 +24,17 @@ export function ConnectionBanner() {
         <span className={styles.text}>Verbindung verloren.</span>
         <button type="button" className={styles.btn} onClick={() => reconnect?.()}>
           Erneut verbinden
+        </button>
+        {/* ADR-0021 §4: continue with the local snapshot instead. */}
+        <button
+          type="button"
+          className={styles.btn}
+          onClick={() => {
+            enterOfflineMode()
+            nav('/')
+          }}
+        >
+          Offline-Modus
         </button>
       </div>
     )

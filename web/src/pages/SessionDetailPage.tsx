@@ -19,6 +19,7 @@ import { DeleteSessionDialog } from './history/DeleteSessionDialog'
 import { showToast } from '../app/Toast'
 import { InsightsSection } from './session/InsightsSection'
 import { ErgoStandNotice } from '../offline/ErgoStandNotice'
+import { useErgoStatus } from '../offline/ergoStatus'
 import { ApiError } from '../api/error'
 import styles from './SessionDetailPage.module.css'
 
@@ -26,6 +27,7 @@ export function SessionDetailPage() {
   const { sessionId = '' } = useParams()
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const { reachable } = useErgoStatus()
 
   const sessionQ = useQuery<SessionRow>({
     queryKey: ['sessions', sessionId],
@@ -73,8 +75,15 @@ export function SessionDetailPage() {
         <Link to="/historie" className={styles.back}>
           ← Zurück
         </Link>
+        <ErgoStandNotice variant="banner" />
         {notFound ? (
           <p>Session nicht gefunden.</p>
+        ) : reachable === false ? (
+          // Away from home and in neither the bag nor the SW cache: a
+          // session outside the pack — explain, no dead end (issue #9).
+          <p data-testid="session-not-packed">
+            Nicht im Rucksack — zuhause öffnet sich die Session wieder.
+          </p>
         ) : (
           <>
             <p>Session konnte nicht geladen werden — Ergo nicht erreichbar?</p>

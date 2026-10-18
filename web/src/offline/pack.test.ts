@@ -41,8 +41,9 @@ vi.mock('../api/workouts', () => ({
 
 import * as client from '../api/client'
 import * as rowers from '../api/rowers'
-import { packIfStale, onAppVisible, _resetPackForTest } from './pack'
-import { getErgoStatus, _resetErgoStatusForTest } from './ergoStatus'
+import { PERSIST_SCHEMA_VERSION } from './persister'
+import { packIfStale, onAppVisible, registerPackTriggers, _resetPackForTest } from './pack'
+import { getErgoStatus, setErgoStatus, _resetErgoStatusForTest } from './ergoStatus'
 import type { OfflineCursor } from './cursor'
 
 const CURSOR_KEY = 'splits:offline-cursor'
@@ -55,8 +56,37 @@ describe('packIfStale', () => {
     vi.useFakeTimers({ now: new Date('2026-06-12T10:00:00Z') })
     _resetPackForTest()
     _resetErgoStatusForTest()
+    setErgoStatus({ reachable: true }) // the probe confirmed: at home
   })
   afterEach(() => vi.useRealTimers())
+
+  // A pack served from the SW cache while away would write a fresh
+  // „Stand: now“ over stale data. Only a confirmed-reachable Ergo packs.
+  it.each([['unknown' as const], [false as const]])(
+    'never packs while reachability is %s; the cursor Stand survives',
+    async (reachable) => {
+      setErgoStatus({ reachable })
+      store.set(CURSOR_KEY, {
+        rowerId: 'R1', statsVersion: 4, schemaVersion: PERSIST_SCHEMA_VERSION,
+        packedAt: '2026-06-01T09:00:00.000Z', sessionIds: ['S1'],
+      } satisfies OfflineCursor)
+      const qc = new QueryClient(qcOpts)
+      await packIfStale(qc)
+      expect(client.getRowerTrends).not.toHaveBeenCalled()
+      expect((store.get(CURSOR_KEY) as OfflineCursor).packedAt).toBe('2026-06-01T09:00:00.000Z')
+      expect(getErgoStatus().packedAt).toBe('2026-06-01T09:00:00.000Z')
+    },
+  )
+
+  it('packs as soon as the probe confirms the Ergo (boot at home)', async () => {
+    setErgoStatus({ reachable: 'unknown' })
+    const qc = new QueryClient(qcOpts)
+    registerPackTriggers(qc)
+    await vi.advanceTimersByTimeAsync(2_000) // idle trigger: still unknown → skipped
+    expect(client.getRowerTrends).not.toHaveBeenCalled()
+    setErgoStatus({ reachable: true })
+    await vi.waitFor(() => expect(client.getRowerTrends).toHaveBeenCalledTimes(3))
+  })
 
   it('full pack on empty cursor: trends ×3, records, last sessions, cursor written', async () => {
     const qc = new QueryClient(qcOpts)
@@ -71,7 +101,7 @@ describe('packIfStale', () => {
     expect(cursor.rowerId).toBe('R1')
     // newest first
     expect(cursor.sessionIds).toEqual(['S2', 'S1'])
-    expect(getErgoStatus()).toMatchObject({ reachable: true, packedSessions: 2 })
+    expect(getErgoStatus()).toMatchObject({ packedSessions: 2 })
     expect(getErgoStatus().packedAt).not.toBeNull()
   })
 
@@ -100,12 +130,35 @@ describe('packIfStale', () => {
     expect(client.getSession).not.toHaveBeenCalled()
   })
 
-  it('buildSha mismatch forces a full pack despite matching version', async () => {
+  // Issue #6 / ADR-0021: a deploy must not force a re-pack — only a
+  // change of the persisted shape (PERSIST_SCHEMA_VERSION) does.
+  it('a fresh pack from another build is kept: probe only', async () => {
     const qc = new QueryClient(qcOpts)
     store.set(CURSOR_KEY, {
-      rowerId: 'R1', statsVersion: 5, buildSha: 'someone-elses-build',
+      rowerId: 'R1', statsVersion: 5, schemaVersion: PERSIST_SCHEMA_VERSION,
       packedAt: '2026-06-12T09:00:00.000Z', sessionIds: ['S2', 'S1'],
     } satisfies OfflineCursor)
+    await packIfStale(qc)
+    expect(client.getRowerLifetime).toHaveBeenCalledTimes(1)
+    expect(client.getRowerTrends).not.toHaveBeenCalled()
+  })
+
+  it('a schema-version change forces a full pack despite matching stats', async () => {
+    const qc = new QueryClient(qcOpts)
+    store.set(CURSOR_KEY, {
+      rowerId: 'R1', statsVersion: 5, schemaVersion: PERSIST_SCHEMA_VERSION - 1,
+      packedAt: '2026-06-12T09:00:00.000Z', sessionIds: ['S2', 'S1'],
+    } satisfies OfflineCursor)
+    await packIfStale(qc)
+    expect(client.getRowerTrends).toHaveBeenCalledTimes(3)
+  })
+
+  it('an old-shape cursor (buildSha) yields one full pack', async () => {
+    const qc = new QueryClient(qcOpts)
+    store.set(CURSOR_KEY, {
+      rowerId: 'R1', statsVersion: 5, buildSha: 'abc1234',
+      packedAt: '2026-06-12T09:00:00.000Z', sessionIds: ['S2', 'S1'],
+    })
     await packIfStale(qc)
     expect(client.getRowerTrends).toHaveBeenCalledTimes(3)
   })
@@ -132,7 +185,7 @@ describe('packIfStale', () => {
     // /api/health probe's job). It just stops on a failed fetch and
     // leaves the Stand label hydrated from the cursor.
     store.set(CURSOR_KEY, {
-      rowerId: 'R1', statsVersion: 5, buildSha: 'x',
+      rowerId: 'R1', statsVersion: 5, schemaVersion: PERSIST_SCHEMA_VERSION,
       packedAt: '2026-06-11T09:00:00.000Z', sessionIds: ['S2'],
     } satisfies OfflineCursor)
     const qc = new QueryClient(qcOpts)

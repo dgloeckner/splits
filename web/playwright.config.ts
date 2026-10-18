@@ -34,6 +34,20 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
+      testIgnore: ['preview/**'],
+    },
+    // Issue #3 / ADR-0021: the production service worker under test.
+    // `vite build` once, then each worker serves it with `vite preview`
+    // (see tests/e2e/preview/fixtures.ts). Service workers allowed.
+    {
+      name: 'offline-preview-build',
+      testMatch: 'preview/build.setup.ts',
+    },
+    {
+      name: 'offline-preview',
+      testMatch: 'preview/**/*.spec.ts',
+      dependencies: ['offline-preview-build'],
+      use: { ...devices['Desktop Chrome'], serviceWorkers: 'allow' },
     },
   ],
 })
