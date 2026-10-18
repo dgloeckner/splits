@@ -1,22 +1,29 @@
-# Issue tracker: Local Markdown
+# Issue tracker: GitHub Issues
 
-Issues and PRDs for this repo live as markdown files in `.scratch/`. This repo has no git remote configured; there is no GitHub/GitLab tracker.
+Issues and PRDs for this repo live as GitHub Issues on
+[`dgloeckner/splits`](https://github.com/dgloeckner/splits/issues).
+
+`.scratch/` holds the PRDs and issue files written before the repo had a
+remote. It is read-only history: link to it, do not add to it.
 
 ## Conventions
 
-- One feature per directory: `.scratch/<feature-slug>/`
-- The PRD is `.scratch/<feature-slug>/PRD.md`
-- Implementation issues are `.scratch/<feature-slug>/issues/<NN>-<slug>.md`, numbered from `01`
-- Triage state is recorded as a `Status:` line near the top of each issue file (see `triage-labels.md` for the role strings)
-- Comments and conversation history append to the bottom of the file under a `## Comments` heading
+- One issue per independently shippable slice. A PRD or a multi-stage feature
+  is an issue labelled `epic`, and its stages link back to it ("Part of #1").
+- Triage state and priority are labels (see `triage-labels.md`). Area labels
+  such as `offline` group related issues.
+- A PR closes its issue with a closing keyword (`Closes #25`).
+- Agents have no `gh` in a cloud session; use the GitHub MCP tools.
 
 ## When a skill says "publish to the issue tracker"
 
-Create a new file under `.scratch/<feature-slug>/` (creating the directory if needed).
+Create a GitHub issue on `dgloeckner/splits` with the template below, and
+apply `needs-triage` (or the triage label the skill names).
 
 ## When a skill says "fetch the relevant ticket"
 
-Read the file at the referenced path. The user will normally pass the path or the issue number directly.
+Read the GitHub issue and its comments. The user will normally pass the issue
+number or URL.
 
 ## Canonical issue template
 
@@ -28,12 +35,10 @@ the `Type:` line to decide which gates apply. The architectural rationale for
 the E2E gate lives in [ADR-0014](../../specs/adr/0014-e2e-per-slice-gate-with-llm-critique.md).
 
 ```text
-# <NNNN-NN> — <title>
-
-Status: ready-for-agent
+<title>                       ← the issue title; triage state is a label
 
 - **Type**: AFK · UI | AFK · Backend | AFK · Docs | AFK · Infra | HITL
-- **Parent**: [PRD-NNNN](../PRD.md)
+- **Parent**: #<epic issue>
 
 ## What to build
 
@@ -59,7 +64,7 @@ renders their boat at the start line and animates forward.">
 
 ## Blocked by
 
-- <other issue ID, or "None — can start immediately.">
+- <#issue, or "None — can start immediately.">
 ```
 
 ### Soft `data-testid` convention
@@ -72,7 +77,7 @@ resistance.
 
 ## Related conventions in this repo
 
-Long-lived feature specs and ADRs live under `specs/feat/` and `specs/adr/` (see `specs/README.md`). Those are durable design records, not triage tickets — keep `.scratch/` for in-flight issues and PRDs that haven't yet been promoted to a spec.
+Long-lived feature specs and ADRs live under `specs/feat/` and `specs/adr/` (see `specs/README.md`). Those are durable design records, not triage tickets — keep GitHub issues for in-flight work that hasn't yet been promoted to a spec.
 
 The agent's Definition of Done — the checklist that closes an AFK issue —
 lives in [`definition-of-done.md`](./definition-of-done.md).

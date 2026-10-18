@@ -2,7 +2,7 @@
 
 The skills speak in terms of five canonical triage roles. This file maps those roles to the actual label strings used in this repo's issue tracker.
 
-Because issues live as local markdown files (see `issue-tracker.md`), the "label" is the value of the `Status:` line at the top of each issue file.
+Issues live on GitHub (see `issue-tracker.md`), so each role is a GitHub label of the same name. Priority is a separate label, `P0` (highest) to `P2`.
 
 | Label in mattpocock/skills | Label in our tracker | Meaning                                  |
 | -------------------------- | -------------------- | ---------------------------------------- |
@@ -12,4 +12,4 @@ Because issues live as local markdown files (see `issue-tracker.md`), the "label
 | `ready-for-human`          | `ready-for-human`    | Requires human implementation            |
 | `wontfix`                  | `wontfix`            | Will not be actioned                     |
 
-When a skill mentions a role (e.g. "apply the AFK-ready triage label"), set the `Status:` line in the issue file to the corresponding label string from this table.
+When a skill mentions a role (e.g. "apply the AFK-ready triage label"), apply the corresponding GitHub label from this table and remove the previous triage label.

@@ -131,15 +131,90 @@ splits/
 - Protocol notes: `docs/protocol-notes.md`
 - Roadmap: `ROADMAP.md`
 
+## Cloud sessions
+
+Applies to Claude Code cloud sessions (`CLAUDE_CODE_REMOTE=true`). On a laptop
+none of this runs; the hook below is a no-op there.
+
+### What gets a session ready
+
+`scripts/cloud-setup.sh` does all of it, idempotently, and always exits 0:
+
+| Step | Why |
+|------|-----|
+| Go at the `backend/go.mod` version, swapped in at `/usr/local/go` | The image ships an older Go; without this every session pays a `GOTOOLCHAIN` download |
+| `staticcheck` binary at `STATICCHECK_VERSION` (`scripts/backend.sh`) | `scripts/backend.sh lint` uses it instead of `go run …@v0.7.0` |
+| `go mod download` | Warm module cache |
+| `sqlite3` CLI | The e2e seed helpers shell out to it |
+| `npm ci` in `web/`, skipped while `package-lock.json` is unchanged | `npm run lint` and friends need `node_modules` |
+| Playwright Chromium for the pinned `@playwright/test`, plus system deps | The image's `/opt/pw-browsers` holds an older build; every spec failed at launch |
+| A verify pass that **runs** `go`, `staticcheck`, `sqlite3` and launches Chromium | A binary on disk can still refuse to start |
+
+It has two callers:
+
+- **SessionStart hook** (`.claude/settings.json`, on `startup|resume`). With a
+  warm cache it takes about 2 s. Without one it installs what is missing, which
+  takes about a minute once.
+- **Environment setup script** (cloud environment settings → Edit → Setup
+  script). It runs once per environment image, so the downloads land in the
+  environment cache and the hook finds them done:
+
+  ```bash
+  #!/bin/bash
+  bash /home/user/splits/scripts/cloud-setup.sh --force || true
+  ```
+
+Egress it needs: `proxy.golang.org`, `sum.golang.org`, `registry.npmjs.org`,
+`cdn.playwright.dev`, and the Ubuntu archive for apt.
+
+**Did the hook run?** `tail -8 logs/cloud-setup.log` should end in `ready:`;
+`MISSING:` lines name what is not. Re-run by hand at any time:
+`scripts/cloud-setup.sh`.
+
+### Checking a change
+
+```bash
+scripts/check.sh            # the CI web and backend jobs: lint, typecheck,
+                            # vitest + coverage, build; vet, staticcheck,
+                            # go test -race, coverage floor
+scripts/check.sh --web      # web job only (~2 min)
+scripts/check.sh --backend  # backend job only (~3 min)
+```
+
+Every step runs even after one fails, and a summary lists what passed and
+failed. It does not run e2e.
+
+### E2E subsets
+
+Each test spawns Vite, a Go backend and Chromium. On a 4-vCPU sandbox run one
+worker; the full suite (`npm run e2e:ci`, what CI runs, unsharded) takes
+20+ minutes. Run the subset that covers what you touched, from `web/`:
+
+| You touched | Run |
+|-------------|-----|
+| Race mode: hooks, canvas, start sequence, finish | `npm run e2e:race` |
+| Live view, pause/resume, discarding a session | `npm run e2e:live` |
+| Offline mode, service worker, bootstrap mirror | `npm run e2e:offline` |
+| One spec | `npx playwright test tests/e2e/race/freeze.spec.ts` |
+| Everything, as CI does | `npm run e2e:ci` |
+
+- **Do not edit `web/src` while an e2e run is in progress.** Vite reloads the
+  page under the running tests, which then fail for reasons unrelated to your
+  change.
+- If the browsers on disk and the pinned `@playwright/test` drift apart again
+  and a reinstall is not possible, set `PW_CHROMIUM_EXECUTABLE` to any Chromium
+  or Chrome binary. `playwright.config.ts` uses it as `executablePath`. It has
+  no effect when unset.
+
 ## Agent skills
 
 ### Issue tracker
 
-Local markdown under `.scratch/<feature-slug>/` — no remote tracker. See `docs/agents/issue-tracker.md`.
+GitHub Issues on `dgloeckner/splits`. `.scratch/` holds earlier PRDs and is read-only history. See `docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
-Default vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`); recorded as a `Status:` line in each issue file. See `docs/agents/triage-labels.md`.
+Default vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`) as GitHub labels, alongside the priority labels (`P0`–`P2`). See `docs/agents/triage-labels.md`.
 
 ### Definition of Done
 

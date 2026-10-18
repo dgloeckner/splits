@@ -22,12 +22,21 @@ const webServer = process.env.PLAYWRIGHT_BASE_URL
       timeout: 60_000,
     }
 
+// Optional escape hatch for when the pinned @playwright/test and the browsers
+// on disk drift apart (a sandbox image ships one build, the lockfile wants
+// another): point it at any Chromium/Chrome binary. Unset in CI and on
+// laptops, where it changes nothing. See AGENTS.md "Cloud sessions".
+const CHROMIUM_EXECUTABLE = process.env.PW_CHROMIUM_EXECUTABLE
+
 export default defineConfig({
   testDir: './tests/e2e',
   timeout: 30_000,
   use: {
     baseURL: BASE_URL,
     trace: 'retain-on-failure',
+    // Projects spread a device preset, which sets no launchOptions, so this
+    // reaches every project.
+    ...(CHROMIUM_EXECUTABLE ? { launchOptions: { executablePath: CHROMIUM_EXECUTABLE } } : {}),
   },
   webServer,
   projects: [

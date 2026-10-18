@@ -14,7 +14,11 @@
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "e2e:ci": "playwright test --workers=1 --grep-invert \"theme-screenshots|ux-audit\"",
+    "e2e:race": "playwright test --project=chromium tests/e2e/race",
+    "e2e:live": "playwright test --project=chromium tests/e2e/live-view-real-backend.spec.ts tests/e2e/pause-resume.spec.ts tests/e2e/discard-session.spec.ts",
+    "e2e:offline": "playwright test --project=chromium --project=offline-preview tests/e2e/offline.spec.ts tests/e2e/preview/"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",
