@@ -60,11 +60,9 @@ export function HomePage() {
             <span className={styles.heroHint}>Schnellstart ohne Ziel</span>
           </span>
           {/* F7: chevron signals "tap to act" so the teal-fill doesn't
-           * read as "this mode is already selected" (it's a sibling
-           * mode, not a current selection). */}
-          <span className={styles.heroChevron} aria-hidden="true">
-            ›
-          </span>
+            * read as "this mode is already selected" (it's a sibling
+            * mode, not a current selection). */}
+          <span className={styles.heroChevron} aria-hidden="true">›</span>
         </button>
 
         <div className={styles.modes}>
@@ -75,9 +73,7 @@ export function HomePage() {
             data-testid="picker-distance"
             disabled={!canStart}
           >
-            <span className={styles.modeIcon}>
-              <IconDistance size={24} />
-            </span>
+            <span className={styles.modeIcon}><IconDistance size={24} /></span>
             <span className={styles.modeLabel}>Distanz</span>
           </button>
           <button
@@ -87,9 +83,7 @@ export function HomePage() {
             data-testid="picker-time"
             disabled={!canStart}
           >
-            <span className={styles.modeIcon}>
-              <IconTime size={24} />
-            </span>
+            <span className={styles.modeIcon}><IconTime size={24} /></span>
             <span className={styles.modeLabel}>Zeit</span>
           </button>
           <button
@@ -99,9 +93,7 @@ export function HomePage() {
             data-testid="picker-intervals"
             disabled={!canStart}
           >
-            <span className={styles.modeIcon}>
-              <IconInterval size={24} />
-            </span>
+            <span className={styles.modeIcon}><IconInterval size={24} /></span>
             <span className={styles.modeLabel}>Intervalle</span>
           </button>
         </div>
@@ -114,9 +106,7 @@ export function HomePage() {
             data-testid="picker-race"
             disabled={!canStart}
           >
-            <span className={styles.modeIcon}>
-              <IconRace size={24} />
-            </span>
+            <span className={styles.modeIcon}><IconRace size={24} /></span>
             <span className={styles.modeLabel}>Rennen</span>
           </button>
         </div>
