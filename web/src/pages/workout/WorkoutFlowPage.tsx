@@ -1,5 +1,6 @@
 import { Navigate, useNavigate, useParams } from 'react-router-dom'
-import { WorkoutFlowProvider, useWorkoutFlow, type FlowMode } from './WorkoutFlowProvider'
+import { useWorkoutFlow, type FlowMode } from './WorkoutFlowContext'
+import { WorkoutFlowProvider } from './WorkoutFlowProvider'
 import { Step2Dimension } from './Step2Dimension'
 import { Step3Intensity } from './Step3Intensity'
 import { ConfirmScreen } from './ConfirmScreen'

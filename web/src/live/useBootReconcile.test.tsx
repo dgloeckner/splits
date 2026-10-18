@@ -200,7 +200,7 @@ describe('useBootReconcile', () => {
     const { BottomNav } = await import('../app/BottomNav')
     const { HomePage } = await import('../pages/HomePage')
     const { MemoryRouter } = await import('react-router-dom')
-    const { WorkoutOverlayProvider } = await import('../pages/live/WorkoutOverlayContext')
+    const { WorkoutOverlayProvider } = await import('../pages/live/WorkoutOverlayProvider')
     const { QueryClient, QueryClientProvider } = await import('@tanstack/react-query')
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -323,7 +323,7 @@ describe('useBootReconcile', () => {
   it('integration: BottomNav stays locked when BE confirms session is still active (AC7)', async () => {
     const { BottomNav } = await import('../app/BottomNav')
     const { MemoryRouter } = await import('react-router-dom')
-    const { WorkoutOverlayProvider } = await import('../pages/live/WorkoutOverlayContext')
+    const { WorkoutOverlayProvider } = await import('../pages/live/WorkoutOverlayProvider')
     const { useReducer } = await import('react')
     const { liveReducer } = await import('./reducer')
 

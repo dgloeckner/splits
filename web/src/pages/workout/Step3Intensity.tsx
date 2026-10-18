@@ -1,4 +1,4 @@
-import { useWorkoutFlow, type FlowIntensity } from './WorkoutFlowProvider'
+import { useWorkoutFlow, type FlowIntensity } from './WorkoutFlowContext'
 import { intensityRanges, formatSpmRange, formatSplitRange } from './intensityRanges'
 import styles from './Step3Intensity.module.css'
 

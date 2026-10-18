@@ -1,19 +1,35 @@
 import { describe, it, expect } from 'vitest'
+import { useEffect } from 'react'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
-import { WorkoutFlowProvider, useWorkoutFlow, type FlowMode } from './WorkoutFlowProvider'
+import { WorkoutFlowProvider } from './WorkoutFlowProvider'
+import { useWorkoutFlow, type FlowMode, type FlowState } from './WorkoutFlowContext'
 import { Step2Dimension } from './Step2Dimension'
 
-function Harness({ out }: { out: { step: unknown; state: any } }) {
+type Out = { step: unknown; state: FlowState | null }
+
+// Reports the flow state after each commit, so the test can read what the
+// last interaction produced without the component mutating its props.
+function Harness({ report }: { report: (state: FlowState) => void }) {
   const { state } = useWorkoutFlow()
-  out.step = state.step
-  out.state = state
+  useEffect(() => report(state))
   return <Step2Dimension />
 }
 
+function newOut(): { out: Out; report: (state: FlowState) => void } {
+  const out: Out = { step: 0, state: null }
+  return {
+    out,
+    report: (state) => {
+      out.step = state.step
+      out.state = state
+    },
+  }
+}
+
 function renderHarness(mode: FlowMode) {
-  const out = { step: 0 as unknown, state: null as any }
+  const { out, report } = newOut()
   render(
     <MemoryRouter initialEntries={['/flow']}>
       <Routes>
@@ -21,7 +37,7 @@ function renderHarness(mode: FlowMode) {
           path="/flow"
           element={
             <WorkoutFlowProvider mode={mode}>
-              <Harness out={out} />
+              <Harness report={report} />
             </WorkoutFlowProvider>
           }
         />
@@ -36,14 +52,14 @@ describe('Step2Dimension – distance', () => {
   it('preset tap sets meters and advances to step 3', async () => {
     const out = renderHarness('distance')
     await userEvent.click(await screen.findByRole('button', { name: '5 km' }))
-    expect(out.state.distanceMeters).toBe(5000)
+    expect(out.state?.distanceMeters).toBe(5000)
     expect(out.step).toBe(3)
   })
 
   it('2 km preset sets correct meters', async () => {
     const out = renderHarness('distance')
     await userEvent.click(await screen.findByRole('button', { name: '2 km' }))
-    expect(out.state.distanceMeters).toBe(2000)
+    expect(out.state?.distanceMeters).toBe(2000)
     expect(out.step).toBe(3)
   })
 
@@ -54,7 +70,7 @@ describe('Step2Dimension – distance', () => {
     const plus = screen.getByRole('button', { name: /^\+$/ })
     await userEvent.click(plus)
     await userEvent.click(screen.getByRole('button', { name: /übernehmen/i }))
-    expect(out.state.distanceMeters).toBe(3500)
+    expect(out.state?.distanceMeters).toBe(3500)
     expect(out.step).toBe(3)
   })
 
@@ -65,7 +81,7 @@ describe('Step2Dimension – distance', () => {
     const minus = screen.getByRole('button', { name: /^−$/ })
     await userEvent.click(minus)
     await userEvent.click(screen.getByRole('button', { name: /übernehmen/i }))
-    expect(out.state.distanceMeters).toBe(2500)
+    expect(out.state?.distanceMeters).toBe(2500)
     expect(out.step).toBe(3)
   })
 
@@ -76,7 +92,7 @@ describe('Step2Dimension – distance', () => {
     const minus = screen.getByRole('button', { name: /^−$/ })
     for (let i = 0; i < 20; i++) await userEvent.click(minus)
     await userEvent.click(screen.getByRole('button', { name: /übernehmen/i }))
-    expect(out.state.distanceMeters).toBe(500)
+    expect(out.state?.distanceMeters).toBe(500)
     expect(out.step).toBe(3)
   })
 
@@ -90,7 +106,7 @@ describe('Step2Dimension – distance', () => {
     const plus = screen.getByRole('button', { name: /^\+$/ })
     for (let i = 0; i < 100; i++) await userEvent.click(plus)
     await userEvent.click(screen.getByRole('button', { name: /übernehmen/i }))
-    expect(out.state.distanceMeters).toBe(20000)
+    expect(out.state?.distanceMeters).toBe(20000)
     expect(out.step).toBe(3)
   })
 
@@ -98,7 +114,7 @@ describe('Step2Dimension – distance', () => {
   // custom Eigene distance, the panel should reopen on that value
   // rather than reset to the default 3000 m placeholder.
   it('reopens Eigene panel with previously committed custom distance', async () => {
-    const out = { step: 0 as unknown, state: null as any }
+    const { out, report } = newOut()
     render(
       <MemoryRouter initialEntries={['/flow']}>
         <Routes>
@@ -106,7 +122,7 @@ describe('Step2Dimension – distance', () => {
             path="/flow"
             element={
               <WorkoutFlowProvider mode="distance">
-                <Harness out={out} />
+                <Harness report={report} />
               </WorkoutFlowProvider>
             }
           />
@@ -117,7 +133,7 @@ describe('Step2Dimension – distance', () => {
     await userEvent.click(await screen.findByRole('button', { name: /eigene/i }))
     await userEvent.click(screen.getByRole('button', { name: /^\+$/ }))
     await userEvent.click(screen.getByRole('button', { name: /übernehmen/i }))
-    expect(out.state.distanceMeters).toBe(3500)
+    expect(out.state?.distanceMeters).toBe(3500)
     // Returning to Step2 on a re-render reads the committed value and
     // pre-opens the Eigene stepper at 3500 m (= "3.5 km").
     // We assert by tapping Übernehmen immediately and getting the
@@ -130,7 +146,7 @@ describe('Step2Dimension – time', () => {
   it('preset tap sets seconds and advances to step 3', async () => {
     const out = renderHarness('time')
     await userEvent.click(await screen.findByRole('button', { name: '30 min' }))
-    expect(out.state.timeSeconds).toBe(1800)
+    expect(out.state?.timeSeconds).toBe(1800)
     expect(out.step).toBe(3)
   })
 
@@ -140,7 +156,7 @@ describe('Step2Dimension – time', () => {
     // default 15 min = 900 s; + once → 1200 s
     await userEvent.click(screen.getByRole('button', { name: /^\+$/ }))
     await userEvent.click(screen.getByRole('button', { name: /übernehmen/i }))
-    expect(out.state.timeSeconds).toBe(1200)
+    expect(out.state?.timeSeconds).toBe(1200)
     expect(out.step).toBe(3)
   })
 
@@ -150,7 +166,7 @@ describe('Step2Dimension – time', () => {
     const minus = screen.getByRole('button', { name: /^−$/ })
     for (let i = 0; i < 20; i++) await userEvent.click(minus)
     await userEvent.click(screen.getByRole('button', { name: /übernehmen/i }))
-    expect(out.state.timeSeconds).toBe(60) // 1 min min
+    expect(out.state?.timeSeconds).toBe(60) // 1 min min
     expect(out.step).toBe(3)
   })
 })
@@ -159,14 +175,14 @@ describe('Step2Dimension – intervals', () => {
   it('preset tap sets intervals and advances to step 3', async () => {
     const out = renderHarness('intervals')
     await userEvent.click(await screen.findByRole('button', { name: '4×2000 m' }))
-    expect(out.state.intervals).toEqual({ reps: 4, length: { unit: 'm', value: 2000 }, rest_sec: 300 })
+    expect(out.state?.intervals).toEqual({ reps: 4, length: { unit: 'm', value: 2000 }, rest_sec: 300 })
     expect(out.step).toBe(3)
   })
 
   it('8×500 m preset sets correct state', async () => {
     const out = renderHarness('intervals')
     await userEvent.click(await screen.findByRole('button', { name: '8×500 m' }))
-    expect(out.state.intervals).toEqual({ reps: 8, length: { unit: 'm', value: 500 }, rest_sec: 120 })
+    expect(out.state?.intervals).toEqual({ reps: 8, length: { unit: 'm', value: 500 }, rest_sec: 120 })
     expect(out.step).toBe(3)
   })
 
@@ -192,7 +208,7 @@ describe('Step2Dimension – intervals', () => {
     // rest = 90 s
 
     await userEvent.click(screen.getByRole('button', { name: /übernehmen/i }))
-    expect(out.state.intervals).toEqual({ reps: 5, length: { unit: 'm', value: 1500 }, rest_sec: 90 })
+    expect(out.state?.intervals).toEqual({ reps: 5, length: { unit: 'm', value: 1500 }, rest_sec: 90 })
     expect(out.step).toBe(3)
   })
 
@@ -208,8 +224,8 @@ describe('Step2Dimension – intervals', () => {
     await userEvent.click(allPlus[1])
 
     await userEvent.click(screen.getByRole('button', { name: /übernehmen/i }))
-    expect(out.state.intervals?.length.unit).toBe('min')
-    expect(out.state.intervals?.length.value).toBe(3)
+    expect(out.state?.intervals?.length.unit).toBe('min')
+    expect(out.state?.intervals?.length.value).toBe(3)
     expect(out.step).toBe(3)
   })
 })
@@ -230,7 +246,7 @@ describe('Step2Dimension – race', () => {
   it('preset tap sets meters and advances to step 3', async () => {
     const out = renderHarness('race')
     await userEvent.click(await screen.findByRole('button', { name: '2 km' }))
-    expect(out.state.distanceMeters).toBe(2000)
+    expect(out.state?.distanceMeters).toBe(2000)
     expect(out.step).toBe(3)
   })
 })

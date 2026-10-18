@@ -3,7 +3,6 @@ import { mkdtempSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { pickFreePort } from './ports'
 
 // ESM helpers don't have __dirname.
 const __dirname = dirname(fileURLToPath(import.meta.url))

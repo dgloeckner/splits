@@ -1,8 +1,7 @@
 import type { ActiveSegment } from '../../live/segments'
 import type { Workout } from '../../api/workouts'
 import { useWorkoutProgress } from '../../live/useWorkoutProgress'
-import { useLiveSession } from '../../live/LiveSessionContext'
-import { useExtrapolatedDistanceM, useExtrapolatedTimeSec } from '../../live/useLiveDisplay'
+import { useExtrapolatedActiveSegment } from './useExtrapolatedActiveSegment'
 import styles from './SegmentStatus.module.css'
 
 export type ViewProps = { active: ActiveSegment | null; workout: Workout | null }
@@ -25,7 +24,7 @@ function fmtMmSs(sec: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`
 }
 
-export function formatLabel(active: ActiveSegment, workout: Workout): string {
+function formatLabel(active: ActiveSegment, workout: Workout): string {
   const seg = active.segment
   if (seg.kind === 'warmup') return `Warm-up · ${fmtMmSs(active.remainingSec ?? 0)}`
   if (seg.kind === 'cooldown') return `Cool-down · ${fmtMmSs(active.remainingSec ?? 0)}`
@@ -69,35 +68,6 @@ function countWorkUpTo(includingIndex: number, workout: Workout): number {
     }
   }
   return count
-}
-
-/**
- * Returns an ActiveSegment whose remainingSec / remainingM / progressRatio
- * are recomputed from the dead-reckoned extrapolated time/distance, so
- * countdowns and the progress marker tick smoothly between strokes.
- */
-export function useExtrapolatedActiveSegment(active: ActiveSegment | null): ActiveSegment | null {
-  const state = useLiveSession()
-  const extT = useExtrapolatedTimeSec(state)
-  const extD = useExtrapolatedDistanceM(state)
-  if (!active) return null
-  const seg = active.segment
-  const stroke = state.stroke
-  if (seg.durationSec != null && extT.value != null && stroke != null) {
-    // Subtract elapsed time since last stroke from the stamped remaining.
-    const extraDelta = Math.max(0, extT.value - stroke.time_sec)
-    const remaining = Math.max(0, (active.remainingSec ?? 0) - extraDelta)
-    const elapsed = seg.durationSec - remaining
-    return { ...active, remainingSec: remaining, progressRatio: Math.min(1, elapsed / seg.durationSec) }
-  }
-  if (seg.distanceM != null && extD.value != null && stroke != null) {
-    // Dead-reckon phase_distance_m: add the distance-extrapolation delta on top.
-    const phaseDistM = stroke.phase_distance_m + Math.max(0, extD.value - stroke.distance_m)
-    const consumed = Math.max(0, phaseDistM - seg.startDistanceM)
-    const remaining = Math.max(0, seg.distanceM - consumed)
-    return { ...active, remainingM: remaining, progressRatio: Math.min(1, consumed / seg.distanceM) }
-  }
-  return active
 }
 
 export function SegmentStatus() {
