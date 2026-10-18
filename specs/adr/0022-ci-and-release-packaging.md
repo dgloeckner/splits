@@ -65,8 +65,9 @@ more than it delivers.
   Vite + Go backend + Chromium; two workers starve each other on a
   4-vCPU runner), excludes the capture-only suites (`theme-screenshots`,
   `ux-audit`) via `--grep-invert`, and is advisory as a whole until the
-  suite is green on `main` — four specs (race abort-from-live,
-  Falschstart x2, rower-onboarding) fail independently of CI. A guard
+  suite is green on `main` — the race-timing specs (abort-from-live,
+  Falschstart x2, intermittently Fertig and happy-path) fail
+  independently of CI. A guard
   step fails the job when Playwright reports zero tests, because a
   script that called `process.exit` on import once ended the run after
   three seconds with exit code 0. That script, the `e2e-critic`
@@ -135,8 +136,8 @@ Borrowed from `dgloeckner/clubbar`'s `build.yaml` after reviewing it.
   build time; both workflows assert the tree is clean after `npm ci` so
   a CI build can never be stamped `-dirty`.
 - Follow-ups, not in this ADR: fix the ESLint backlog and make the lint
-  step blocking; fix the four failing e2e specs and make the e2e job
-  blocking; a patch-coverage gate on changed lines; SHA-pinned actions
+  step blocking; fix the failing race-timing e2e specs and make the e2e
+  job blocking; a patch-coverage gate on changed lines; SHA-pinned actions
   with Dependabot; a `splits --version` flag populated via `-ldflags -X`;
   a golden-fixture freshness check (ADR-0017); Dependabot for action
   versions; serving the PWA from the Go binary.

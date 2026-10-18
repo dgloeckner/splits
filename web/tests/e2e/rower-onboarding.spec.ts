@@ -48,7 +48,9 @@ test.afterAll(async () => {
   backend = null
   for (let i = 0; i < 30; i++) {
     try {
-      const r = await fetch('http://localhost:8080/api/health', { signal: AbortSignal.timeout(200) })
+      const r = await fetch('http://localhost:8080/api/health', {
+        signal: AbortSignal.timeout(200),
+      })
       r.body?.cancel()
     } catch {
       return
@@ -60,17 +62,33 @@ test.afterAll(async () => {
 test('fresh install → onboarding → live view → history badge', async ({ page, context }) => {
   await context.clearCookies()
   await page.goto('/')
-  await expect(page).toHaveURL(/\/onboarding/)
+  // The gate only redirects once a fresh rowers fetch and the first
+  // reachability probe have both answered (ADR-0021), which right after a
+  // cold `go run` + Vite start can take longer than the 5 s default.
+  await expect(page).toHaveURL(/\/onboarding/, { timeout: 15_000 })
 
   await page.getByLabel(/name/i).fill('Alice')
-  await page.getByLabel(/gewicht/i).fill('70')
-  await page.getByLabel(/größe/i).fill('172')
+  // Anchor on the field labels: the stepper buttons are also labelled
+  // "Gewicht verringern" / "Gewicht erhöhen", so a bare /gewicht/ matches
+  // three elements and fails strict mode.
+  await page.getByLabel(/gewicht \(kg\)/i).fill('70')
+  await page.getByLabel(/größe \(cm\)/i).fill('172')
   await page.getByRole('button', { name: /weiter/i }).click()
 
-  await expect(page).toHaveURL('/')
+  // Home renders for the new active rower (create + activate are two
+  // round-trips on a cold backend; same allowance as above).
+  await expect(page).toHaveURL('/', { timeout: 15_000 })
+  await expect(page.getByTestId('picker-just-row')).toBeVisible()
+
+  // The rower strip lives on /profil now (not on Home); the new rower is
+  // listed and active.
+  await page.goto('/profil')
   await expect(page.getByRole('toolbar', { name: /rudernde/i })).toBeVisible()
-  await expect(page.getByRole('button', { name: /aktivieren: alice/i })).toBeVisible()
+  await expect(page.getByRole('button', { name: /aktivieren: alice/i })).toHaveAttribute(
+    'data-active',
+    'true',
+  )
 
   await page.goto('/historie')
-  await expect(page.getByRole('button', { name: /aktivieren: alice/i })).toBeVisible()
+  await expect(page).toHaveURL(/\/historie/)
 })

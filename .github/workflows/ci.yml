@@ -109,9 +109,10 @@ jobs:
       matrix:
         shard: [1, 2]
     # Advisory until the full suite is green on main. At the time of writing
-    # four specs fail regardless of CI (race/abort "Abort from Live",
-    # race/falschstart x2, rower-onboarding); see ADR-0022 follow-ups. Drop
-    # continue-on-error once they pass.
+    # the race-timing specs fail regardless of CI (race/abort "Abort from
+    # Live", race/falschstart x2, and intermittently race/fertig and
+    # race/happy-path); see ADR-0022 follow-ups. Drop continue-on-error once
+    # they pass.
     continue-on-error: true
     defaults:
       run:
