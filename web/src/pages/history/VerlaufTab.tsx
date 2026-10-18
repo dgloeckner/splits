@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import {
   getRowerTrends,
   type TrendsPoint,
@@ -11,7 +11,6 @@ import { useActiveRower } from '../../hooks/useActiveRower'
 import { ProgressChart } from '../../components/charts/ProgressChart'
 import type { ChartMetric } from '../../components/charts/ticks'
 import { formatDurationHuman, pace500m, signedPct } from '../../util/format'
-import { useErgoStatus } from '../../offline/ergoStatus'
 import { WindowTabs } from './WindowTabs'
 import styles from './VerlaufTab.module.css'
 
@@ -193,8 +192,6 @@ function ProgressCard(p: {
 }
 
 function SessionList({ data, highlightId }: { data: TrendsResponse; highlightId: string | null }) {
-  const qc = useQueryClient()
-  const { reachable } = useErgoStatus()
   const labelByShape = new Map(data.series.map((s) => [s.key.shape_hash, s.display_name]))
   const rows = [...data.points].sort((a, b) => (a.t < b.t ? 1 : -1))
 
@@ -223,19 +220,9 @@ function SessionList({ data, highlightId }: { data: TrendsResponse; highlightId:
             </div>
           </>
         )
-        const inBag = reachable !== false || !!qc.getQueryState(['sessions', q.session_id])?.data
-        if (!inBag) {
-          return (
-            <div
-              key={q.session_id}
-              data-testid={`verlauf-row-${q.session_id}`}
-              aria-disabled="true"
-              className={`${styles.row} ${styles.rowOffline}`}
-            >
-              {body}
-            </div>
-          )
-        }
+        // Every row stays navigable, also away from home: the packed
+        // details live in the SW cache, which the in-memory bag cannot
+        // see; a miss is explained on the detail page (issue #9).
         return (
           <Link key={q.session_id} to={`/historie/${q.session_id}`}
             data-testid={`verlauf-row-${q.session_id}`}

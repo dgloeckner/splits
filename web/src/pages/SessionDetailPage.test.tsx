@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { SessionDetailPage } from './SessionDetailPage'
 import * as insightsApi from '../api/insights'
-import { _resetErgoStatusForTest } from '../offline/ergoStatus'
+import { _resetErgoStatusForTest, setErgoStatus } from '../offline/ergoStatus'
 
 function wrap(initial = '/historie/S1', qc?: QueryClient) {
   const client = qc ?? new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -163,5 +163,19 @@ describe('SessionDetailPage', () => {
     expect(screen.getByTestId('delete-session-dialog')).toBeInTheDocument()
     await userEvent.click(screen.getByTestId('delete-session-confirm'))
     await waitFor(() => expect(screen.getByText('Historie')).toBeInTheDocument())
+  })
+
+  // Issue #9 (option B): away from home, a session outside the pack is
+  // a friendly note, not an error screen.
+  it('away from home: a session in neither store is „Nicht im Rucksack“', async () => {
+    setErgoStatus({ reachable: false, packedAt: '2026-06-12T10:00:00' })
+    vi.stubGlobal('fetch', () => Promise.reject(new TypeError('unreachable')))
+    render(wrap())
+    expect(await screen.findByTestId('session-not-packed')).toHaveTextContent(
+      'Nicht im Rucksack — zuhause öffnet sich die Session wieder',
+    )
+    expect(screen.queryByText(/konnte nicht geladen werden/)).toBeNull()
+    expect(screen.getByRole('link', { name: /Zurück/ })).toHaveAttribute('href', '/historie')
+    expect(screen.getByTestId('ergo-stand-banner')).toBeInTheDocument()
   })
 })

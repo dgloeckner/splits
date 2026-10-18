@@ -42,8 +42,8 @@ vi.mock('../api/workouts', () => ({
 import * as client from '../api/client'
 import * as rowers from '../api/rowers'
 import { PERSIST_SCHEMA_VERSION } from './persister'
-import { packIfStale, onAppVisible, _resetPackForTest } from './pack'
-import { getErgoStatus, _resetErgoStatusForTest } from './ergoStatus'
+import { packIfStale, onAppVisible, registerPackTriggers, _resetPackForTest } from './pack'
+import { getErgoStatus, setErgoStatus, _resetErgoStatusForTest } from './ergoStatus'
 import type { OfflineCursor } from './cursor'
 
 const CURSOR_KEY = 'splits:offline-cursor'
@@ -56,8 +56,37 @@ describe('packIfStale', () => {
     vi.useFakeTimers({ now: new Date('2026-06-12T10:00:00Z') })
     _resetPackForTest()
     _resetErgoStatusForTest()
+    setErgoStatus({ reachable: true }) // the probe confirmed: at home
   })
   afterEach(() => vi.useRealTimers())
+
+  // A pack served from the SW cache while away would write a fresh
+  // „Stand: now“ over stale data. Only a confirmed-reachable Ergo packs.
+  it.each([['unknown' as const], [false as const]])(
+    'never packs while reachability is %s; the cursor Stand survives',
+    async (reachable) => {
+      setErgoStatus({ reachable })
+      store.set(CURSOR_KEY, {
+        rowerId: 'R1', statsVersion: 4, schemaVersion: PERSIST_SCHEMA_VERSION,
+        packedAt: '2026-06-01T09:00:00.000Z', sessionIds: ['S1'],
+      } satisfies OfflineCursor)
+      const qc = new QueryClient(qcOpts)
+      await packIfStale(qc)
+      expect(client.getRowerTrends).not.toHaveBeenCalled()
+      expect((store.get(CURSOR_KEY) as OfflineCursor).packedAt).toBe('2026-06-01T09:00:00.000Z')
+      expect(getErgoStatus().packedAt).toBe('2026-06-01T09:00:00.000Z')
+    },
+  )
+
+  it('packs as soon as the probe confirms the Ergo (boot at home)', async () => {
+    setErgoStatus({ reachable: 'unknown' })
+    const qc = new QueryClient(qcOpts)
+    registerPackTriggers(qc)
+    await vi.advanceTimersByTimeAsync(2_000) // idle trigger: still unknown → skipped
+    expect(client.getRowerTrends).not.toHaveBeenCalled()
+    setErgoStatus({ reachable: true })
+    await vi.waitFor(() => expect(client.getRowerTrends).toHaveBeenCalledTimes(3))
+  })
 
   it('full pack on empty cursor: trends ×3, records, last sessions, cursor written', async () => {
     const qc = new QueryClient(qcOpts)

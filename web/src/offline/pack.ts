@@ -13,7 +13,7 @@ import {
 import { getActiveRower } from '../api/rowers'
 import { getWorkout } from '../api/workouts'
 import { loadCursor, saveCursor } from './cursor'
-import { setErgoStatus } from './ergoStatus'
+import { getErgoStatus, setErgoStatus, subscribeErgoStatus } from './ergoStatus'
 import { PERSIST_SCHEMA_VERSION } from './persister'
 
 export const OFFLINE_SESSION_DEPTH = 10
@@ -23,10 +23,14 @@ const FULL_PACK_MAX_AGE_MS = 24 * 60 * 60_000
 let inFlight = false
 let lastProbeOkAt = 0
 let triggersRegistered = false
+let unsubscribeStatus: (() => void) | null = null
 
 export function _resetPackForTest(): void {
   inFlight = false
   lastProbeOkAt = 0
+  triggersRegistered = false
+  unsubscribeStatus?.()
+  unsubscribeStatus = null
 }
 
 export async function packIfStale(qc: QueryClient): Promise<void> {
@@ -37,6 +41,11 @@ export async function packIfStale(qc: QueryClient): Promise<void> {
     if (cursor) {
       setErgoStatus({ packedAt: cursor.packedAt, packedSessions: cursor.sessionIds.length })
     }
+    // Only pack against a confirmed-reachable Ergo: away from home every
+    // read below succeeds from the SW cache, and a "pack" would stamp a
+    // fresh Stand on stale data. registerPackTriggers re-runs us once
+    // the probe confirms.
+    if (getErgoStatus().reachable !== true) return
 
     let rid: string
     let lifetime: RowerLifetime
@@ -189,4 +198,12 @@ export function registerPackTriggers(qc: QueryClient): void {
       : w.setTimeout(fn, 1500)
   idle(() => void packIfStale(qc))
   document.addEventListener('visibilitychange', () => onAppVisible(qc))
+  // The boot's idle trigger usually beats the first probe: pack as soon
+  // as the Ergo is confirmed reachable (unknown/false → true).
+  let wasReachable = getErgoStatus().reachable === true
+  unsubscribeStatus = subscribeErgoStatus(() => {
+    const now = getErgoStatus().reachable === true
+    if (now && !wasReachable) void packIfStale(qc)
+    wasReachable = now
+  })
 }

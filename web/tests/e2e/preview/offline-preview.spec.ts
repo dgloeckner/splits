@@ -22,11 +22,15 @@ test.setTimeout(120_000)
 // At home: the SW controls the page *before* the pack runs, so every
 // pack read lands in the SW runtime cache. Wiping keyval-store (cursor
 // + bag) forces a full re-pack on the reload.
-async function packAtHome(page: Page): Promise<void> {
+// `beforeRepack` runs once the SW controls the page, before the real
+// pack: seed bulk data there so only one pack hits the backend's rate
+// limit (burst 60).
+async function packAtHome(page: Page, beforeRepack?: () => void): Promise<void> {
   await page.goto('/')
   await page.waitForFunction(() => navigator.serviceWorker.controller !== null, null, {
     timeout: 30_000,
   })
+  beforeRepack?.()
   // Also drop the bootstrap mirror: a seconds-old mirror would keep the
   // bootstrap queries from refetching, so they'd never reach the SW.
   await page.evaluate(() => {
@@ -67,6 +71,26 @@ function persistedSessionCount(): Promise<number> {
       }
     }
   })
+}
+
+// Drop only the react-query bag (`splits:rq-cache`), keep the pack
+// cursor — the shape of a flushed bag after a deploy.
+async function deleteBag(page: Page): Promise<void> {
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve, reject) => {
+        const open = indexedDB.open('keyval-store')
+        open.onerror = () => reject(open.error)
+        open.onsuccess = () => {
+          const tx = open.result.transaction('keyval', 'readwrite')
+          tx.objectStore('keyval').delete('splits:rq-cache')
+          tx.oncomplete = () => {
+            open.result.close()
+            resolve()
+          }
+        }
+      }),
+  )
 }
 
 async function airplaneMode(
@@ -299,21 +323,7 @@ test('airplane mode mid-session: in-app navigation still reaches the SW cache', 
   // pack does not refill memory): only the SW cache holds the history,
   // nothing beyond the bootstrap is in react-query's memory.
   fault.setMode('refuse')
-  await page.evaluate(
-    () =>
-      new Promise<void>((resolve, reject) => {
-        const open = indexedDB.open('keyval-store')
-        open.onerror = () => reject(open.error)
-        open.onsuccess = () => {
-          const tx = open.result.transaction('keyval', 'readwrite')
-          tx.objectStore('keyval').delete('splits:rq-cache')
-          tx.oncomplete = () => {
-            open.result.close()
-            resolve()
-          }
-        }
-      }),
-  )
+  await deleteBag(page)
   await page.goto('/')
   await expect(page.getByTestId('ergo-offline-hero')).toBeVisible({ timeout: 15_000 })
 
@@ -482,4 +492,46 @@ test('the Ergo goes away with the app open: the next failed request shows the he
   await expect(page.getByTestId('ergo-offline-hero')).toHaveCount(0, { timeout: 30_000 })
   await expect(page.getByTestId('picker-just-row')).toBeEnabled()
   await page.screenshot({ path: `${SCREENSHOT_ROOT}/evidence/02-recovered.png` })
+})
+
+// Issue #9 (option B): after a deploy / iOS eviction the bag is gone but
+// the SW cache holds the packed details — no row is dimmed; a session
+// outside the pack depth (10) opens to a friendly note, not an error.
+test('Rucksack: rows stay tappable without the bag; unpacked sessions explain themselves', async ({
+  startBackend,
+  seedActiveRower,
+  fault,
+  page,
+}) => {
+  const handle = await startBackend({ idleTimeout: '2s' })
+  const rower = await seedActiveRower()
+  // 12 > pack depth (10), 60…5 days ago.
+  await packAtHome(page, () => seedTrendsSessions(handle.dbPath, rower.id, 500, 12, 60))
+
+  fault.setMode('refuse')
+  await deleteBag(page)
+  await page.goto('/historie')
+  await page.waitForSelector('[data-testid^="verlauf-row-"]', { timeout: 15_000 })
+  await expect(page.getByTestId('ergo-stand-banner')).toContainText('Stand:', { timeout: 15_000 })
+  await page.getByText('Alles', { exact: true }).click() // the pack's window
+  const rows = page.locator('[data-testid^="verlauf-row-"]')
+  await expect.poll(() => rows.count(), { timeout: 15_000 }).toBeGreaterThan(10)
+  expect(await page.locator('[data-testid^="verlauf-row-"][aria-disabled]').count()).toBe(0)
+  expect(await page.locator('div[data-testid^="verlauf-row-"]').count()).toBe(0)
+  await page.screenshot({ path: `${SCREENSHOT_ROOT}/rucksack/01-verlauf-all-tappable.png` })
+
+  // A packed session opens from the SW cache.
+  await rows.first().click()
+  await expect(page.getByTestId('detail-total-distance')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('ergo-stand-banner')).toContainText('Stand:')
+  await page.screenshot({ path: `${SCREENSHOT_ROOT}/rucksack/02-packed-detail.png` })
+
+  // The oldest one is outside the pack: a friendly note with a way back.
+  await page.getByRole('link', { name: /Zurück/ }).click()
+  await page.getByText('Alles', { exact: true }).click()
+  await expect.poll(() => rows.count(), { timeout: 15_000 }).toBeGreaterThan(10)
+  await rows.last().click()
+  await expect(page.getByTestId('session-not-packed')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText(/konnte nicht geladen werden/)).toHaveCount(0)
+  await page.screenshot({ path: `${SCREENSHOT_ROOT}/rucksack/03-not-packed.png` })
 })
