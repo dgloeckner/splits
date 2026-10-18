@@ -58,11 +58,13 @@ more than it delivers.
 
 **Option A.** Specifically:
 
-- `ci.yml`: three independent jobs (backend, web, e2e), all blocking;
-  ESLint inside the web job is advisory (`continue-on-error`) until the
-  146 pre-existing errors on `main` are fixed. e2e runs with one worker
-  per shard (each test spawns Vite + Go backend + Chromium; two workers
-  starve each other on a 4-vCPU runner), excludes the capture-only
+- `ci.yml`: three independent jobs (backend, web, e2e), all blocking.
+  ESLint inside the web job is blocking too: it started advisory
+  (`continue-on-error`) while `main` carried a backlog of pre-existing
+  errors, and became blocking once that backlog was fixed. e2e runs
+  with one worker per shard (each test spawns Vite + Go backend +
+  Chromium; two workers starve each other on a 4-vCPU runner),
+  excludes the capture-only
   suites (`theme-screenshots`, `ux-audit`) via `--grep-invert`, and
   retries a failed test once in CI; a pass on retry is reported as
   "flaky", never hidden. The race specs used to fail on timing; the
@@ -137,10 +139,10 @@ Borrowed from `dgloeckner/clubbar`'s `build.yaml` after reviewing it.
 - `__BUILD_SHA__` in `web/vite.config.ts` is derived from `git` at
   build time; both workflows assert the tree is clean after `npm ci` so
   a CI build can never be stamped `-dirty`.
-- Follow-ups, not in this ADR: fix the ESLint backlog and make the lint
-  step blocking; the race abort should end the backend session (today it
-  only unmounts the race surface; a rower who stops rowing is closed by
-  the pause detector); a patch-coverage gate on changed lines; SHA-pinned actions
-  with Dependabot; a `splits --version` flag populated via `-ldflags -X`;
-  a golden-fixture freshness check (ADR-0017); Dependabot for action
-  versions; serving the PWA from the Go binary.
+- Follow-ups, not in this ADR: the race abort should end the backend
+  session (today it only unmounts the race surface; a rower who stops
+  rowing is closed by the pause detector); a patch-coverage gate on
+  changed lines; SHA-pinned actions with Dependabot; a
+  `splits --version` flag populated via `-ldflags -X`; a golden-fixture
+  freshness check (ADR-0017); Dependabot for action versions; serving
+  the PWA from the Go binary.
