@@ -21,6 +21,11 @@
 #     deploy/splits.env.template
 #     deploy/README.md
 #     VERSION                      # line 1: version, line 2: git commit (if known)
+#     ARCH                         # linux-armv6|linux-armv7|linux-arm64|linux-amd64
+#
+# The binary and the PWA are stamped with the same VERSION (ADR-0023 §1);
+# the updater picks its asset by ARCH and never reads VERSION — the
+# installed slot's name is the only record of what is installed.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -40,9 +45,11 @@ esac
 
 bin="dist/splits-${suffix}"
 
+COMMIT="$(git rev-parse --short=7 HEAD 2>/dev/null || echo unknown)"
+
 # 1. Backend (delegates to build.sh; same flags + output path).
 echo "==> build backend ($TARGET)"
-TARGET="$TARGET" bash deploy/build.sh
+TARGET="$TARGET" VERSION="$VERSION" COMMIT="$COMMIT" bash deploy/build.sh
 
 # 2. Frontend.
 if [ "${WEB_SKIP:-0}" = "1" ]; then
@@ -53,7 +60,7 @@ if [ "${WEB_SKIP:-0}" = "1" ]; then
   fi
 else
   echo "==> build web (npm ci + npm run build)"
-  (cd web && npm ci && npm run build)
+  (cd web && npm ci && VERSION="$VERSION" npm run build)
 fi
 
 # 3. Stage into temp tree, then tar.
@@ -69,21 +76,23 @@ install -m 0755 "$bin" "$root/bin/splits"
 cp -R web/dist "$root/web/dist"
 
 # Ship every file in deploy/ except this script + build.sh (build
-# artifacts of the workstation, not needed on the target).
+# artifacts of the workstation, not needed on the target) and the test
+# suites under deploy/test/.
 for f in deploy/*; do
   base="$(basename "$f")"
   case "$base" in
-    bundle.sh|build.sh) continue ;;
+    bundle.sh|build.sh|test) continue ;;
   esac
   cp -R "$f" "$root/deploy/$base"
 done
-chmod 0755 "$root/deploy/install.sh" "$root/deploy/splits-backup.sh"
+chmod 0755 "$root/deploy/install.sh" "$root/deploy/splits-backup.sh" "$root/deploy/splits-update.sh"
 
 printf '%s\n' "$VERSION" > "$root/VERSION"
 # Second line: the exact commit, so a "nightly" bundle still says what it is.
 if sha="$(git rev-parse HEAD 2>/dev/null)"; then
   printf '%s\n' "$sha" >> "$root/VERSION"
 fi
+printf '%s\n' "$suffix" > "$root/ARCH"
 
 mkdir -p dist
 tar -C "$stage" -czf "$out" "$name"

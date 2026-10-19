@@ -1,0 +1,20 @@
+[Unit]
+Description=splits — nightly check for a new release
+Documentation=https://github.com/dgloeckner/splits/blob/main/specs/adr/0023-unattended-ota-updates.md
+
+[Timer]
+# 04:30 local, an hour after the 03:30 backup: nobody is rowing, which is
+# what makes restoring the pre-update database safe on the rollback path.
+# Anything faster than nightly is a drop-in (`systemctl edit
+# splits-update.timer`), not a config key — see deploy/README.md.
+OnCalendar=*-*-* 04:30:00
+
+# Every Pi would otherwise ask GitHub for the same release at the same
+# second. An hour of jitter costs nothing; nobody is waiting.
+RandomizedDelaySec=3600
+
+# A Pi that was switched off overnight catches up at the next boot.
+Persistent=true
+
+[Install]
+WantedBy=timers.target

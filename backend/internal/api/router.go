@@ -45,6 +45,13 @@ type Inputs struct {
 	// the /test/fixture/resume endpoint. nil + DevMode=true is valid:
 	// the handler then reports {"started":false,"reason":"no_fixture"}.
 	FixtureControl FixtureResumer
+	// Version and Commit are the build stamp reported by /api/health
+	// (ADR-0023 §1). Empty reads as "dev" / "unknown".
+	Version string
+	Commit  string
+	// UpdateStatePath is the updater's update-state.json behind
+	// GET /api/v1/update-status. Empty → the route is not mounted.
+	UpdateStatePath string
 }
 
 func NewRouter(in Inputs) http.Handler {
@@ -56,7 +63,11 @@ func NewRouter(in Inputs) http.Handler {
 	// are registered without it. See ADR-0005.
 	gate := RequireRower(in.DeviceLink)
 
-	mux.HandleFunc("GET /api/health", healthHandler)
+	health := HealthInfo{Version: in.Version, Commit: in.Commit}
+	if p, ok := in.SessionSnapshot.(SessionActiveProvider); ok {
+		health.Sessions = p
+	}
+	mux.Handle("GET /api/health", HealthHandler(health))
 	mux.Handle("GET /api/v1/stream",
 		gate(stream.NewHandler(in.Ring, in.Broadcaster, in.SessionSnapshot, in.DeviceMonitor)))
 	if in.DeviceMonitor != nil {
@@ -135,6 +146,14 @@ func NewRouter(in Inputs) http.Handler {
 		if p, ok := in.SessionSnapshot.(SessionActiveProvider); ok {
 			mux.Handle("GET /api/v1/session/active", gate(SessionActiveHandler(p)))
 		}
+	}
+
+	if in.UpdateStatePath != "" {
+		running := in.Version
+		if running == "" {
+			running = "dev"
+		}
+		mux.Handle("GET /api/v1/update-status", gate(UpdateStatusHandler(in.UpdateStatePath, running)))
 	}
 
 	registerFixtureRoutes(mux, in.DevMode, in.FixtureControl)

@@ -8,6 +8,7 @@ import { RowerStrip } from '../app/RowerStrip'
 import { PairingModal } from '../app/PairingModal'
 import { ThemeSwitcher } from './profile/ThemeSwitcher'
 import { Wartung } from './profile/Wartung'
+import { UpdateStatusCard } from './profile/UpdateStatusCard'
 import { useErgoStatus } from '../offline/ergoStatus'
 import { formatStand } from '../util/dates'
 import styles from './ProfilePage.module.css'
@@ -211,6 +212,11 @@ export function ProfilePage() {
       </section>
 
       <section className={styles.section}>
+        <h2 className={styles.sectionLabel}>Updates</h2>
+        <UpdateStatusCard />
+      </section>
+
+      <section className={styles.section}>
         <h2 className={styles.sectionLabel}>Konto</h2>
         <button
           type="button"
@@ -230,14 +236,17 @@ export function ProfilePage() {
       )}
 
       <footer className={styles.footer}>
-        <p className={styles.footerLine}>splits</p>
         {ergo.packedAt && (
           <p className={styles.footerLine} data-testid="offline-stand">
             Unterwegs-Daten: Stand {formatStand(ergo.packedAt)} · {ergo.packedSessions} Sessions
           </p>
         )}
-        <p className={styles.footerLine} data-testid="build-version">
-          Build {__BUILD_SHA__} · {new Date(__BUILD_TIME__).toLocaleString('de-DE')}
+        <p
+          className={styles.footerLine}
+          data-testid="build-version"
+          title={new Date(__BUILD_TIME__).toLocaleString('de-DE')}
+        >
+          splits {__BUILD_VERSION__} · Build {__BUILD_SHA__}
         </p>
       </footer>
     </main>

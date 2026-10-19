@@ -43,6 +43,10 @@ type Config struct {
 	// URLs encoded into QR codes. Empty means "derive from request Host".
 	// Primary env: SPLITS_PUBLIC_URL; legacy: HOMEERGO_PUBLIC_URL.
 	PublicURL string
+	// UpdateStatePath is the unattended updater's update-state.json,
+	// served by GET /api/v1/update-status (ADR-0023 §4). Env:
+	// SPLITS_UPDATE_STATE; default /opt/splits/update-state.json.
+	UpdateStatePath string
 }
 
 // Lookup mirrors os.LookupEnv: it reports whether the key was set and,
@@ -101,6 +105,7 @@ func Load(env Lookup) (*Config, error) {
 	c.DevMode = get(env, "SPLITS_DEV_MODE", "") == "1"
 	c.FixturePaused = parseBool(get(env, "SPLITS_FIXTURE_PAUSED", ""))
 	c.PublicURL = get2(env, "SPLITS_PUBLIC_URL", "HOMEERGO_PUBLIC_URL", "")
+	c.UpdateStatePath = get(env, "SPLITS_UPDATE_STATE", "/opt/splits/update-state.json")
 
 	switch c.FixtureRate {
 	case "realtime", "fast":

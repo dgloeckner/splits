@@ -46,8 +46,10 @@ Only live data and write actions require the local backend.
       backend is unreachable.
 - [ ] Live view cleanly degrades to a "no connection" state when offline
       and reconnects automatically when the backend returns.
-- [ ] Service worker updates itself without breaking existing sessions
-      (skipWaiting + "reload to update" banner).
+- [x] Service worker updates itself without breaking existing sessions
+      (skipWaiting + "reload to update" banner). Shipped as ADR-0023 §5:
+      `registerType: 'prompt'`, the toast „Neue Version verfügbar — Neu
+      laden", deferred while a session is open or Live is mounted.
 
 ### Data offline
 

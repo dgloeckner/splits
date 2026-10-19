@@ -21,12 +21,9 @@ type SessionActiveProvider interface {
 func SessionActiveHandler(p SessionActiveProvider) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		snap := p.Snapshot()
-		var sessionStart *event.Event
+		sessionStart := openSessionStart(snap)
 		var lastEventID uint64
 		for i := range snap {
-			if snap[i].Kind == event.KindSessionStart {
-				sessionStart = &snap[i]
-			}
 			if snap[i].ID > lastEventID {
 				lastEventID = snap[i].ID
 			}

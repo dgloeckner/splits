@@ -25,16 +25,17 @@ func TestLoad_AllDefaults(t *testing.T) {
 		t.Errorf("DBPath = %q, want ./splits.db or ./homeergo.db", wantDB)
 	}
 	want := &Config{
-		Addr:         ":8080",
-		SerialPort:   "",
-		SerialBaud:   9600,
-		DBPath:       wantDB,
-		Fixture:      "",
-		FixtureRate:  "realtime",
-		LogLevel:     "info",
-		IdleTimeout:  60 * time.Second,
-		PauseTimeout: 10 * time.Second,
-		ResumeWindow: 15 * time.Minute,
+		Addr:            ":8080",
+		SerialPort:      "",
+		SerialBaud:      9600,
+		DBPath:          wantDB,
+		Fixture:         "",
+		FixtureRate:     "realtime",
+		LogLevel:        "info",
+		IdleTimeout:     60 * time.Second,
+		PauseTimeout:    10 * time.Second,
+		ResumeWindow:    15 * time.Minute,
+		UpdateStatePath: "/opt/splits/update-state.json",
 	}
 	if *got != *want {
 		t.Errorf("Load() = %+v, want %+v", got, want)
@@ -118,16 +119,17 @@ func TestLoad_EnvOverrides(t *testing.T) {
 		t.Fatalf("Load() unexpected error: %v", err)
 	}
 	want := &Config{
-		Addr:         ":9090",
-		SerialPort:   "/dev/cu.usbserial-AB0JKG07",
-		SerialBaud:   19200,
-		DBPath:       "/var/lib/homeergo.db",
-		Fixture:      "./session-m1.csv",
-		FixtureRate:  "fast",
-		LogLevel:     "debug",
-		IdleTimeout:  30 * time.Second,
-		PauseTimeout: 10 * time.Second,
-		ResumeWindow: 15 * time.Minute,
+		Addr:            ":9090",
+		SerialPort:      "/dev/cu.usbserial-AB0JKG07",
+		SerialBaud:      19200,
+		DBPath:          "/var/lib/homeergo.db",
+		Fixture:         "./session-m1.csv",
+		FixtureRate:     "fast",
+		LogLevel:        "debug",
+		IdleTimeout:     30 * time.Second,
+		PauseTimeout:    10 * time.Second,
+		ResumeWindow:    15 * time.Minute,
+		UpdateStatePath: "/opt/splits/update-state.json",
 	}
 	if *got != *want {
 		t.Errorf("Load() = %+v, want %+v", got, want)
@@ -266,5 +268,15 @@ func TestLoad_ResumeWindow_Default(t *testing.T) {
 func TestLoad_InvalidResumeWindow(t *testing.T) {
 	if _, err := Load(mapLookup(map[string]string{"SPLITS_RESUME_WINDOW": "not-a-duration"})); err == nil {
 		t.Fatal("Load() expected error for bad resume window, got nil")
+	}
+}
+
+func TestLoad_UpdateStatePath(t *testing.T) {
+	cfg, err := Load(mapLookup(map[string]string{"SPLITS_UPDATE_STATE": "/tmp/state.json"}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.UpdateStatePath != "/tmp/state.json" {
+		t.Fatalf("got %q", cfg.UpdateStatePath)
 	}
 }

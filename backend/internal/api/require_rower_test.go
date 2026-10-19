@@ -26,6 +26,8 @@ func newAuthTestRouter(t *testing.T) (http.Handler, *rower.DeviceLink) {
 		RowerRepo:   repo,
 		RowerHolder: holder,
 		DeviceLink:  link,
+		// Any path: only the gate is under test here.
+		UpdateStatePath: "/nonexistent/update-state.json",
 	})
 	return r, link
 }
@@ -72,6 +74,7 @@ func TestRequireRower_GatedRoutesReject(t *testing.T) {
 		{"GET", "/api/v1/stream"},
 		{"GET", "/debug/ingest"},
 		{"PATCH", "/api/v1/rowers/abc"},
+		{"GET", "/api/v1/update-status"},
 	}
 	for _, c := range gated {
 		req := httptest.NewRequest(c.method, c.path, nil)

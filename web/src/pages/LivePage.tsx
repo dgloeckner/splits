@@ -13,6 +13,7 @@ import { LiveHero } from './LiveHero'
 import { TileGrid } from './TileGrid'
 import { RaceFlow } from '../race/RaceFlow'
 import { enqueueEndSession, processPendingEndSessions } from '../live/endSessionQueue'
+import { useLiveViewHoldsUpdate } from '../offline/swUpdate'
 import { useWorkoutOverlay } from './live/WorkoutOverlayContext'
 import { WorkoutProgressStrip } from './live/WorkoutProgressStrip'
 import { SegmentStatus } from './live/SegmentStatus'
@@ -166,6 +167,8 @@ function LiveBody() {
 }
 
 export function LivePage() {
+  // ADR-0023 §5: a new build is never offered while the Live view is up.
+  useLiveViewHoldsUpdate()
   // 0017-05: gate the entire LivePage on the workout query's loaded
   // state. While the active session's workout is still loading,
   // `workout?.mode` is undefined and the LiveBody falls through to

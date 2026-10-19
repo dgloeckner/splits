@@ -3,6 +3,7 @@ import {
   isBootstrapPath,
   isOfflineReadPath,
   isServerFailureStatus,
+  isSwBypassPath,
   SW_NETWORK_TIMEOUT_SECONDS,
 } from './swRoutes'
 
@@ -93,5 +94,17 @@ describe('SW_NETWORK_TIMEOUT_SECONDS', () => {
   it('falls back to the cache within a few seconds', () => {
     expect(SW_NETWORK_TIMEOUT_SECONDS).toBeGreaterThan(0)
     expect(SW_NETWORK_TIMEOUT_SECONDS).toBeLessThanOrEqual(5)
+  })
+})
+
+describe('isSwBypassPath — the SSE stream never goes through the SW (ADR-0023 §5)', () => {
+  it('bypasses the stream, with or without a trailing slash', () => {
+    expect(isSwBypassPath('/api/v1/stream')).toBe(true)
+    expect(isSwBypassPath('/api/v1/stream/')).toBe(true)
+  })
+  it('keeps everything else routed', () => {
+    expect(isSwBypassPath('/api/health')).toBe(false)
+    expect(isSwBypassPath('/api/v1/sessions')).toBe(false)
+    expect(isSwBypassPath('/api/v1/streams')).toBe(false)
   })
 })

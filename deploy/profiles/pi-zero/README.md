@@ -8,9 +8,7 @@ running `deploy/install.sh`:
 sudo PROFILE=pi-zero \
      HOSTNAME=homeergo.duckdns.org \
      DUCKDNS_TOKEN=xxx \
-     BIN=./dist/splits-linux-armv6 \
-     WEB_DIST=./web/dist \
-     bash deploy/install.sh
+     bash deploy/install.sh     # from inside splits-linux-armv6-<ver>/
 ```
 
 ## What it changes

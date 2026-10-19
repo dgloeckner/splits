@@ -7,11 +7,19 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const webDir = resolve(__dirname, '..', '..', '..')
 
 /** Production build (precached shell + generated SW) into `web/dist`.
- *  Run once per Playwright run by the `offline-preview-build` project. */
-export function buildProductionBundle(): void {
-  const r = spawnSync('npx', ['vite', 'build'], { cwd: webDir, stdio: 'inherit' })
+ *  Run once per Playwright run by the `offline-preview-build` project.
+ *  `outDir` + `version` build a second, distinguishable bundle — the
+ *  "next release" a service-worker update test switches to. */
+export function buildProductionBundle(opts: { outDir?: string; version?: string } = {}): void {
+  const args = ['vite', 'build', ...(opts.outDir ? ['--outDir', opts.outDir] : [])]
+  const env = opts.version ? { ...process.env, VERSION: opts.version } : process.env
+  const r = spawnSync('npx', args, { cwd: webDir, stdio: 'inherit', env })
   if (r.status !== 0) throw new Error(`vite build failed: status ${r.status}`)
 }
+
+/** The version the next-release bundle (`dist-next`) is stamped with. */
+export const NEXT_BUILD_VERSION = 'v99.0.0-e2e'
+export const NEXT_BUILD_DIR = 'dist-next'
 
 /**
  * Serve `web/dist` with `vite preview`. Its `/api` proxy (inherited
@@ -20,10 +28,21 @@ export function buildProductionBundle(): void {
 export async function spawnPreviewServer(opts: {
   port: number
   backendUrl: string
+  /** Serve this build instead of `dist` (e.g. NEXT_BUILD_DIR). */
+  outDir?: string
 }): Promise<ViteHandle> {
   const proc = spawn(
     'npx',
-    ['vite', 'preview', '--port', String(opts.port), '--strictPort', '--host', '127.0.0.1'],
+    [
+      'vite',
+      'preview',
+      '--port',
+      String(opts.port),
+      '--strictPort',
+      '--host',
+      '127.0.0.1',
+      ...(opts.outDir ? ['--outDir', opts.outDir] : []),
+    ],
     {
       cwd: webDir,
       env: { ...process.env, VITE_BACKEND_URL: opts.backendUrl, FORCE_COLOR: '0' },

@@ -13,7 +13,10 @@ name: release
 on:
   push:
     branches: [main]
-    tags: ['v*']
+    # Every tag, not only `v*`, so a mistyped one (`1.1.7`, `v1.2`) fails
+    # the tag gate below instead of silently publishing nothing.
+    # `nightly` is moved by this workflow itself.
+    tags: ['*', '!nightly']
 
 # Read-only by default: the build jobs run npm-installed code, and a
 # compromised package should not get a token that can write releases. Only
@@ -31,8 +34,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # The updater on every Pi refuses a tag that is not `vX.Y.Z` (ADR-0023
+  # §1). clubbar once shipped `1.1.7` without the `v` and every updater
+  # refused it; nothing in CI had checked. Check before anything builds.
+  tag-gate:
+    name: tag format
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: refuse a tag that is not vMAJOR.MINOR.PATCH[-suffix]
+        if: github.ref_type == 'tag'
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "::error::tag '$TAG' is not vMAJOR.MINOR.PATCH[-suffix]; no Pi would install it. Delete it and tag again."
+            exit 1
+          fi
+          echo "tag $TAG ok"
+
   web:
     name: build web/dist
+    needs: tag-gate
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
@@ -47,7 +70,11 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: npm ci
       - run: git diff --exit-code -- package-lock.json
+      # Same VERSION the bundle job stamps into the binary, so the PWA in a
+      # tagged bundle reports that tag in the Profil footer.
       - run: npm run build
+        env:
+          VERSION: ${{ github.ref_type == 'tag' && github.ref_name || 'nightly' }}
       - uses: actions/upload-artifact@v5
         with:
           name: web-dist

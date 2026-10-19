@@ -6,10 +6,17 @@
 # 64-bit Pi OS or TARGET=amd64 for x86 hosts (NAS/Docker).
 #
 # Output: dist/splits-${OS}-${ARCH}{ -armv7} so multiple builds coexist.
+#
+# VERSION and COMMIT are stamped into the binary (`splits --version`,
+# GET /api/health; ADR-0023 §1). bundle.sh passes both down; a bare
+# build.sh run reports "dev", which the unattended updater never treats
+# as a release.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 TARGET="${TARGET:-arm}"
+VERSION="${VERSION:-dev}"
+COMMIT="${COMMIT:-$(git rev-parse --short=7 HEAD 2>/dev/null || echo unknown)}"
 
 case "$TARGET" in
   armv6)
@@ -39,9 +46,11 @@ mkdir -p dist
 out="dist/splits-${suffix}"
 
 cd backend
-echo "Building → $out (GOOS=$GOOS GOARCH=$GOARCH${GOARM:+ GOARM=$GOARM})"
+echo "Building → $out (GOOS=$GOOS GOARCH=$GOARCH${GOARM:+ GOARM=$GOARM} version=$VERSION commit=$COMMIT)"
 env GOOS="$GOOS" GOARCH="$GOARCH" ${GOARM:+GOARM="$GOARM"} CGO_ENABLED=0 \
-  go build -trimpath -ldflags="-s -w" -o "../$out" ./cmd/splits
+  go build -trimpath \
+    -ldflags="-s -w -X main.version=$VERSION -X main.commit=$COMMIT" \
+    -o "../$out" ./cmd/splits
 cd ..
 
 echo "$(ls -lh "$out" | awk '{print $5}')  $out"

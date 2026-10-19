@@ -31,8 +31,19 @@ import { isPersistableQuery } from './offline/persistKeys'
 import { leaveOfflineMode, reportUnreachable, startReachabilityProbe } from './offline/reachability'
 import { promptOnQueryFailures } from './offline/offlinePrompt'
 import { registerPackTriggers, packIfStale } from './offline/pack'
+import { updateWaiting } from './offline/swUpdate'
 
-registerSW({ immediate: true })
+// ADR-0023 §5: `prompt`, not `autoUpdate`. A new build installs at once
+// (its precache warms at home) but takes over only when the user taps
+// „Neu laden" — never mid-session — or once every tab is closed. The
+// hourly check finds a 04:30 deploy on a phone that never reloads.
+const updateSW = registerSW({
+  immediate: true,
+  onNeedRefresh: () => updateWaiting(() => void updateSW(true)),
+  onRegisteredSW: (_url, registration) => {
+    if (registration) setInterval(() => void registration.update(), 60 * 60 * 1000)
+  },
+})
 
 // Map known HTTP error statuses to user-facing toasts.
 // - 429: rate-limited; suppress retry, briefly inform user.

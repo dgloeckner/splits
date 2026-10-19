@@ -6,6 +6,7 @@ import { RowerGate } from './RowerGate'
 import { LiveSessionProvider } from '../live/LiveSessionProvider'
 import { useBootReconcile } from '../live/useBootReconcile'
 import { ChannelReviver } from '../live/ChannelReviver'
+import { useSessionHoldsUpdate } from '../offline/swUpdate'
 import { WorkoutOverlayProvider } from '../pages/live/WorkoutOverlayProvider'
 import { LivePage } from '../pages/LivePage'
 import { HomePage } from '../pages/HomePage'
@@ -23,6 +24,8 @@ import { WorkoutFlowPage } from '../pages/workout/WorkoutFlowPage'
 // a sibling of the router so it is not torn down on navigation.
 function BootReconciler() {
   useBootReconcile()
+  // ADR-0023 §5: no new build takes over while a session is open.
+  useSessionHoldsUpdate()
   return null
 }
 
