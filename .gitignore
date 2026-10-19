@@ -63,7 +63,13 @@ target/
 Cargo.lock
 
 # --- splits-specific ---
+# Claude Code per-machine and runtime state. The shared, committed config is
+# .claude/settings.json.
 .claude/worktrees/
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+# scripts/cloud-setup.sh writes its log here
+/logs/
 backend/splits
 dev/caddy_darwin_amd64_custom
 

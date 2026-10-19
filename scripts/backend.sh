@@ -4,6 +4,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/../backend"
 
+# Pinned to the newest release that supports the go.mod toolchain (v0.8.x
+# needs Go 1.26). Keep in sync with .github/workflows/ci.yml;
+# scripts/cloud-setup.sh reads it from here.
+STATICCHECK_VERSION=v0.7.0
+
 cmd="${1:-help}"
 case "$cmd" in
   build)  go build -o splits ./cmd/splits ;;
@@ -25,9 +30,13 @@ case "$cmd" in
   run)    go run ./cmd/splits ;;
   lint)
     go vet ./...
-    # Pinned to the newest release that supports the go.mod toolchain
-    # (v0.8.x needs Go 1.26). Keep in sync with .github/workflows/ci.yml.
-    go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
+    # An installed binary at the pin (cloud sessions get one from
+    # scripts/cloud-setup.sh) saves a download per run; otherwise fetch it.
+    if staticcheck -version 2>/dev/null | grep -qF "($STATICCHECK_VERSION)"; then
+      staticcheck ./...
+    else
+      go run "honnef.co/go/tools/cmd/staticcheck@$STATICCHECK_VERSION" ./...
+    fi
     ;;
   clean)  rm -f splits splits.exe coverage.out coverage.html ;;
   help|*) echo "usage: scripts/backend.sh {build|test|test-norace|coverage|vet|fmt|run|lint|clean}" ;;

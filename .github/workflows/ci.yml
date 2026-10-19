@@ -39,7 +39,8 @@ jobs:
       - run: go vet ./...
       # Pinned: staticcheck@latest (v0.8.x / 2026.2) requires Go 1.26, and
       # setup-go runs the go.mod toolchain (1.25.x) with GOTOOLCHAIN=local.
-      # v0.7.0 is staticcheck 2026.1. Keep in sync with scripts/backend.sh.
+      # v0.7.0 is staticcheck 2026.1. Keep in sync with STATICCHECK_VERSION in
+      # scripts/backend.sh.
       - run: go install honnef.co/go/tools/cmd/staticcheck@v0.7.0
       - run: staticcheck ./...
       # -race is the default locally too (scripts/backend.sh test); it has
