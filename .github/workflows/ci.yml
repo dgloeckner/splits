@@ -100,13 +100,31 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
+      # Tripwire, not a secret scanner (issue #23): a DuckDNS token once sat
+      # in dev/Caddyfile. Fails on a duckdns DNS-provider / `api_token` argument
+      # that is not a {{PLACEHOLDER}}, and on a UUID-shaped value on any
+      # line that mentions duckdns (the all-zero test dummy is allowed).
+      # Matches are printed with UUIDs masked.
+      - name: no DuckDNS token in the tree
+        run: |
+          hits="$( {
+            git grep -nIE 'dns[[:space:]]+duckdns[[:space:]]+[^[:space:]{]' || true
+            git grep -nIE 'api_token[[:space:]]+[^[:space:]{]' || true
+            git grep -nIiE 'duckdns.*[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}' \
+              | grep -v '00000000-0000-0000-0000-000000000000' || true
+          } | sort -u )"
+          if [ -n "$hits" ]; then
+            echo "::error::DuckDNS token in the tree — use {{DUCKDNS_TOKEN}} and rotate the leaked one"
+            printf '%s\n' "$hits" | sed -E 's/[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}/<redacted>/g'
+            exit 1
+          fi
       - uses: actions/setup-go@v6
         with:
           go-version-file: backend/go.mod
           cache-dependency-path: backend/go.sum
       # shellcheck ships with the runner image. Warnings and errors block;
       # info-level notes (ls | awk in the build scripts) do not.
-      - run: shellcheck -S warning deploy/*.sh deploy/test/*.sh
+      - run: shellcheck -S warning deploy/*.sh deploy/test/*.sh dev/*.sh
       # The updater against a sandbox: fake curl/systemctl/cp, temp install
       # root (ADR-0023 §3, FEAT-0016 stage 3). GNU mv -T and sha256sum are
       # what the runner and Pi OS both ship.

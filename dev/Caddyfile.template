@@ -1,0 +1,22 @@
+# Developer-machine Caddy config for splits.
+# Render with dev/render-caddyfile.sh, which fills in the HOSTNAME,
+# DUCKDNS_TOKEN and WEB_ROOT placeholders from the environment and writes
+# the git-ignored dev/Caddyfile. Never commit the rendered file: it carries the
+# DuckDNS token. Production uses deploy/Caddyfile.template instead.
+
+{{HOSTNAME}} {
+    tls {
+        dns duckdns {{DUCKDNS_TOKEN}}
+    }
+    # API requests go to the Go backend
+    handle /api/* {
+        reverse_proxy localhost:8080
+    }
+
+    # Everything else: serve the PWA
+    handle {
+        root * {{WEB_ROOT}}
+        try_files {path} /index.html
+        file_server
+    }
+}

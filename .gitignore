@@ -72,6 +72,8 @@ Cargo.lock
 /logs/
 backend/splits
 dev/caddy_darwin_amd64_custom
+# Rendered from dev/Caddyfile.template; carries the DuckDNS token (#23)
+dev/Caddyfile
 
 # Playwright + audit artefacts
 test-results/
