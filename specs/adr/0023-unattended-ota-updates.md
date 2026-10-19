@@ -1,6 +1,6 @@
 # ADR-0023: Unattended OTA Updates for the Pi
 
-- **Status**: Proposed
+- **Status**: Accepted
 - **Date**: 2026-10-18
 - **Relates to**: [ADR-0001](0001-deployment-targets.md) (Deployment Targets), [ADR-0004](0004-local-first-persistence.md) (Local-First Persistence), [ADR-0021](0021-local-first-boot.md) (Local-first boot), [ADR-0022](0022-ci-and-release-packaging.md) (CI and Release Packaging)
 - **Feature**: [FEAT-0016](../feat/0016-unattended-updates.md)
