@@ -6,8 +6,7 @@ Pi runs it: Caddy terminates TLS for the DuckDNS hostname via DNS-01
 the built PWA from `web/dist`.
 
 The config is a template. The rendered `dev/Caddyfile` carries the DuckDNS
-token and is git-ignored — **never commit it** (issue #23; CI fails on a
-literal token in a DuckDNS line).
+token and is git-ignored — **never commit it** (issue #23).
 
 ## Render
 
