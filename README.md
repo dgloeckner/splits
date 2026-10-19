@@ -59,6 +59,11 @@ are fully decoded in
 
 Each tarball bundles a static Go binary, the PWA and a systemd installer.
 
+**Set and forget.** A Pi installed from a tagged release updates itself
+overnight. It never updates while someone is rowing, and it rolls back on
+its own if the new version doesn't come up. See
+[Unattended updates](deploy/README.md#unattended-updates).
+
 ## Goals (v1)
 
 - Real-time live display during workouts via PWA
