@@ -6,14 +6,6 @@ splits turns a water rower into a live training display on any phone,
 tablet or laptop in the room, and keeps every stroke you've ever pulled.
 It's a self-hosted PWA, so there's no app store, no sign-up and no cloud.
 
-<p align="center">
-  <img src="docs/img/row-gx-trainer.jpg" alt="Life Fitness Row GX Trainer water rower" width="560" />
-  <br />
-  <sub>Life Fitness Row GX Trainer. Photo: Benjamín Núñez González,
-  <a href="https://commons.wikimedia.org/wiki/File:Life_Fitness,_waterrower,_Spain,_2016.JPG">Wikimedia Commons</a>,
-  <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a></sub>
-</p>
-
 ## Why
 
 The Row GX ships with a console that shows numbers for the current workout
@@ -94,5 +86,4 @@ binary ([ADR-0003](specs/adr/0003-tech-stack-go-react.md)).
 
 ## License
 
-Apache License 2.0, see [`LICENSE`](LICENSE). The Row GX photo is
-CC BY-SA 4.0 (credit above).
+Apache License 2.0, see [`LICENSE`](LICENSE).
