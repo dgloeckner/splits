@@ -106,7 +106,7 @@ jobs:
           cache-dependency-path: backend/go.sum
       # shellcheck ships with the runner image. Warnings and errors block;
       # info-level notes (ls | awk in the build scripts) do not.
-      - run: shellcheck -S warning deploy/*.sh deploy/test/*.sh
+      - run: shellcheck -S warning deploy/*.sh deploy/test/*.sh dev/*.sh
       # The updater against a sandbox: fake curl/systemctl/cp, temp install
       # root (ADR-0023 §3, FEAT-0016 stage 3). GNU mv -T and sha256sum are
       # what the runner and Pi OS both ship.

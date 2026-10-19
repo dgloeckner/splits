@@ -314,3 +314,6 @@ deploy/
 ├── install.sh                idempotent installer of the bundle it sits in
 └── test/                     installer + updater suites (CI; not shipped)
 ```
+
+The developer-machine Caddy config lives in `dev/` (template + renderer,
+see `dev/README.md`), not here.
