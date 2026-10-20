@@ -173,6 +173,19 @@ type SessionSamples struct {
 	Watt          []int     `json:"watt"`
 	SPM           []int     `json:"spm"`
 	DPS           []float64 `json:"dps"`
+
+	// Window is the analysis window (Analysefenster, FEAT-0011): the
+	// bucket range that represents the piece itself, without the
+	// start-up bucket and the strokes rowed after the workout goal.
+	// Nil for sessions finalised before the window existed.
+	Window *SamplesWindow `json:"window,omitempty"`
+}
+
+// SamplesWindow is a half-open bucket range [From, To) into the
+// SessionSamples arrays: the analysed buckets are Split[From:To].
+type SamplesWindow struct {
+	From int `json:"from"`
+	To   int `json:"to"`
 }
 
 type LevelChangePayload struct {

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gloeckner-daniel/splits/internal/event"
+	"github.com/gloeckner-daniel/splits/internal/stats"
 )
 
 // seedSession inserts a sessions row + n work strokes and returns the
@@ -377,4 +378,92 @@ func TestFinaliseSession_WorkoutPBCandidate(t *testing.T) {
 			t.Errorf("too-short session: expected 0 workout candidates, got %d", n)
 		}
 	})
+}
+
+// TestFinaliseSession_AnalysisWindow verifies finalise persists the
+// analysis window on the summary samples, ending it at the bucket that
+// reaches a distance goal, and that a second computation agrees.
+func TestFinaliseSession_AnalysisWindow(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	h := db.Handle()
+	if _, err := h.Exec(`
+		INSERT INTO workout(id, mode, params_json, shape_hash, warmup_sec, cooldown_sec, created_at)
+		VALUES('WDIST', 'distance', '{"meters":200}', 'HASH200', 0, 0, '2026-01-01T00:00:00Z')`); err != nil {
+		t.Fatalf("seed workout: %v", err)
+	}
+	started := time.Date(2026, 1, 1, 10, 0, 0, 0, time.UTC)
+	if err := InsertSession(ctx, h, "sw1", "r1", started, 3, "WDIST"); err != nil {
+		t.Fatalf("InsertSession: %v", err)
+	}
+	// 28 strokes at 8 m: 200 m is stroke 25 (bucket index 4), strokes
+	// 26–28 are the overrun bucket 5.
+	for i := 1; i <= 28; i++ {
+		if err := InsertStroke(ctx, h, uint64(i+100), "sw1", started, event.StrokePayload{
+			StrokeNo: i, TimeSec: float64(i) * 2.0, DistanceM: i * 8,
+			SPM: 24, PowerW: 200, PaceSecPer500m: 130, DPS: 8, Phase: "work",
+		}); err != nil {
+			t.Fatalf("InsertStroke %d: %v", i, err)
+		}
+	}
+
+	base := event.SessionSummary{TotalDistanceM: 224, TotalTimeSec: 56, TotalStrokes: 28}
+	got, err := FinaliseSession(ctx, h, "sw1", started.Add(time.Minute), base, nil, 0, FinaliseEnded, nil)
+	if err != nil {
+		t.Fatalf("FinaliseSession: %v", err)
+	}
+	want := event.SamplesWindow{From: 1, To: 5}
+	if got.Samples == nil || got.Samples.Window == nil || *got.Samples.Window != want {
+		t.Fatalf("returned window = %+v, want %+v", got.Samples, want)
+	}
+
+	row, err := GetSession(ctx, h, "sw1")
+	if err != nil {
+		t.Fatalf("GetSession: %v", err)
+	}
+	if row.Summary == nil || row.Summary.Samples == nil || row.Summary.Samples.Window == nil {
+		t.Fatalf("persisted summary has no window: %+v", row.Summary)
+	}
+	if *row.Summary.Samples.Window != want {
+		t.Errorf("persisted window = %+v, want %+v", *row.Summary.Samples.Window, want)
+	}
+
+	// A re-finalise recomputes the same window (the DB row is already
+	// ended, so only the returned summary is fresh).
+	again, err := FinaliseSession(ctx, h, "sw1", started.Add(time.Minute), base, nil, 0, FinaliseEnded, nil)
+	if err != nil {
+		t.Fatalf("re-FinaliseSession: %v", err)
+	}
+	if again.Samples.Window == nil || *again.Samples.Window != want {
+		t.Errorf("re-finalise window = %+v, want %+v", again.Samples.Window, want)
+	}
+}
+
+func TestWorkoutGoal(t *testing.T) {
+	warmup := []event.StrokePayload{
+		{TimeSec: 10, DistanceM: 40, Phase: "warmup"},
+		{TimeSec: 20, DistanceM: 90, Phase: "warmup"},
+		{TimeSec: 22, DistanceM: 99, Phase: "work"},
+	}
+	cases := []struct {
+		name    string
+		mode    string
+		params  string
+		strokes []event.StrokePayload
+		want    stats.WorkoutGoal
+	}{
+		{"distance", "distance", `{"meters":5000}`, nil, stats.WorkoutGoal{Mode: "distance", Target: 5000}},
+		{"time", "time", `{"seconds":1200}`, nil, stats.WorkoutGoal{Mode: "time", Target: 1200}},
+		{"just_row", "just_row", `{}`, nil, stats.WorkoutGoal{Mode: "just_row"}},
+		{"bad params", "distance", `not json`, nil, stats.WorkoutGoal{Mode: "distance"}},
+		{"warmup origin", "distance", `{"meters":2000}`, warmup,
+			stats.WorkoutGoal{Mode: "distance", Target: 2000, OriginDistanceM: 90, OriginTimeSec: 20}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := workoutGoal(tc.mode, tc.params, tc.strokes); got != tc.want {
+				t.Errorf("workoutGoal = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
 }

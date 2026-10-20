@@ -188,6 +188,70 @@ func TestGetSessionSamplesFromSummary(t *testing.T) {
 	}
 }
 
+// TestGetSessionSamplesWindow: the analysis window is returned next to
+// the samples when the summary carries one, and the key is absent (not
+// a zero range) for sessions finalised before it existed.
+func TestGetSessionSamplesWindow(t *testing.T) {
+	db, err := storage.Open(filepath.Join(t.TempDir(), "t.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	ctx := context.Background()
+	started := time.Date(2026, 4, 21, 10, 0, 0, 0, time.UTC)
+
+	seed := func(id string, win *event.SamplesWindow) {
+		t.Helper()
+		if err := storage.InsertSession(ctx, db.Handle(), id, "R1", started, 3, ""); err != nil {
+			t.Fatal(err)
+		}
+		summary := event.SessionSummary{
+			TotalDistanceM: 100, TotalTimeSec: 60, TotalStrokes: 15,
+			Samples: &event.SessionSamples{
+				BucketStrokes: 5,
+				T:             []float64{10, 20, 30},
+				Split:         []int{160, 110, 108},
+				Watt:          []int{150, 300, 310},
+				SPM:           []int{20, 28, 28},
+				DPS:           []float64{8, 9.5, 9.6},
+				Window:        win,
+			},
+		}
+		if err := storage.UpdateSessionEnd(ctx, db.Handle(), id, started.Add(time.Minute), summary); err != nil {
+			t.Fatal(err)
+		}
+	}
+	seed("SW", &event.SamplesWindow{From: 1, To: 3})
+	seed("SOLD", nil)
+
+	h := SessionsHandler(db.Handle(), nil, nil)
+	decode := func(id string) map[string]json.RawMessage {
+		t.Helper()
+		rec := doReq(t, h, "GET", "/api/v1/sessions/"+id+"/samples")
+		if rec.Code != 200 {
+			t.Fatalf("%s: status = %d, body=%s", id, rec.Code, rec.Body.String())
+		}
+		var body map[string]json.RawMessage
+		if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		return body
+	}
+
+	withWin := decode("SW")
+	var win event.SamplesWindow
+	if err := json.Unmarshal(withWin["window"], &win); err != nil {
+		t.Fatalf("window: %v (raw %s)", err, withWin["window"])
+	}
+	if win != (event.SamplesWindow{From: 1, To: 3}) {
+		t.Errorf("window = %+v, want {1 3}", win)
+	}
+
+	if raw, ok := decode("SOLD")["window"]; ok {
+		t.Errorf("old session: window key present (%s), want absent", raw)
+	}
+}
+
 type fakeActive struct{ id string }
 
 func (f fakeActive) ActiveSessionID() string { return f.id }

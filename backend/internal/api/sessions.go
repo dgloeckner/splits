@@ -181,9 +181,15 @@ func getSamples(db *sql.DB) http.HandlerFunc {
 		// FEAT-0009 Mode 0: ended sessions have no per-stroke rows;
 		// the downsampled series lives in summary_json.samples and is
 		// expanded back into the per-sample wire shape the frontend
-		// already expects.
+		// already expects. The analysis window travels alongside as
+		// bucket indices into that list; sessions finalised before it
+		// existed omit the key.
 		if row.EndedAt != nil && row.Summary != nil && row.Summary.Samples != nil {
-			writeJSON(w, http.StatusOK, map[string]any{"samples": expandSamples(row.Summary.Samples)})
+			body := map[string]any{"samples": expandSamples(row.Summary.Samples)}
+			if win := row.Summary.Samples.Window; win != nil {
+				body["window"] = win
+			}
+			writeJSON(w, http.StatusOK, body)
 			return
 		}
 		samples, err := storage.ListSamples(r.Context(), db, id)
