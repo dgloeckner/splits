@@ -103,8 +103,10 @@ Tempokonstanz; kein Gedankenstrich-Paar (" " als Konnektiv). Kein
 Widerspruchs-Paar: Drift neben EVEN_SPLIT ist genau das Muster.
 
 **Karte.** Label "Effizienz", Headline Schlaglänge in Prozent
-(`−5,1%`), Stichwort `9,97 → 9,47 m · 27,5 → 29,6 SPM`, Sparkline DPS
-und SPM über das Fenster (je eigene Skala).
+(`DPS −5,0%`, gerechnet aus den zweistelligen DPS-Werten, die der
+Synthese-Satz zeigt — sonst stünde `9,97 → 9,47` neben `−5,1%`), Stichwort die Kompensation (`SPM 27,5 → 29,6`) — die
+absoluten DPS-Werte stehen im Synthese-Satz, die Karte bleibt bei zwei
+Zeilen. Sparkline DPS und SPM über das Fenster (je eigene Skala).
 
 ### Analysefenster
 

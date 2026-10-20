@@ -65,4 +65,15 @@ describe('findingVisual', () => {
     const v = findingVisual(finding('EVEN_SPLIT', 'PACING', {}))
     expect(v.headline).toBe('— / —')
   })
+
+  it('efficiency drift: DPS change headline, DPS with SPM overlay', () => {
+    const v = findingVisual(finding('EFFICIENCY_DRIFT', 'EFFICIENCY',
+      { dps1: 9.97, dps2: 9.47, dps_pct: -5.07, spm1: 27.5, spm2: 29.6 }), samples)
+    expect(v.label).toBe('Effizienz')
+    // From the printed 9,97 → 9,47, not the raw −5,07.
+    expect(v.headline).toBe('DPS −5,0%')
+    expect(v.tag).toBe('SPM 27,5 → 29,6')
+    expect(v.spark!.series).toHaveLength(10)
+    expect(v.spark!.overlay).toHaveLength(10)
+  })
 })

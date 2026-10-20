@@ -23,13 +23,14 @@ const (
 type Code string
 
 const (
-	CodePositiveSplit  Code = "POSITIVE_SPLIT"
-	CodeNegativeSplit  Code = "NEGATIVE_SPLIT"
-	CodeEvenSplit      Code = "EVEN_SPLIT"
-	CodeFade           Code = "FADE"
-	CodeConsistentHigh Code = "CONSISTENT_HIGH"
-	CodeConsistentMid  Code = "CONSISTENT_MID"
-	CodeInconsistent   Code = "INCONSISTENT"
+	CodePositiveSplit   Code = "POSITIVE_SPLIT"
+	CodeNegativeSplit   Code = "NEGATIVE_SPLIT"
+	CodeEvenSplit       Code = "EVEN_SPLIT"
+	CodeFade            Code = "FADE"
+	CodeConsistentHigh  Code = "CONSISTENT_HIGH"
+	CodeConsistentMid   Code = "CONSISTENT_MID"
+	CodeInconsistent    Code = "INCONSISTENT"
+	CodeEfficiencyDrift Code = "EFFICIENCY_DRIFT"
 )
 
 // Finding is the unit emitted by every detector.

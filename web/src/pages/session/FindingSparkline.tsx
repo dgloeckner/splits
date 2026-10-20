@@ -12,7 +12,7 @@ const PAD = 2
  * flat lines. Decorative — the card's headline carries the number.
  */
 export function FindingSparkline({ spec }: { spec: SparkSpec }) {
-  const { series, shade, band, levels = [] } = spec
+  const { series, shade, band, levels = [], overlay } = spec
   const ys = [...series, ...levels.map((l) => l.y), ...(band ? [band.lo, band.hi] : [])]
   const yMin = Math.min(...ys)
   const yMax = Math.max(...ys)
@@ -34,6 +34,14 @@ export function FindingSparkline({ spec }: { spec: SparkSpec }) {
         <rect className={styles.sparkBand} x={PAD} width={WIDTH - 2 * PAD}
           y={toY(band.hi)} height={Math.max(0, toY(band.lo) - toY(band.hi))} />
       )}
+      {overlay && overlay.length === n && (() => {
+        // Own scale: the second series fills the same height.
+        const oMin = Math.min(...overlay)
+        const oMax = Math.max(...overlay)
+        const toOY = (y: number) => PAD + (1 - (y - oMin) / Math.max(1e-6, oMax - oMin)) * (HEIGHT - 2 * PAD)
+        return <path className={styles.sparkOverlay}
+          d={monotonePath(overlay.map((y, i) => ({ x: toX(i), y: toOY(y) })))} />
+      })()}
       <path className={styles.sparkPath} d={monotonePath(series.map((y, i) => ({ x: toX(i), y: toY(y) })))} />
       {levels.map((l, i) => (
         <line key={i} className={styles.sparkLevel} x1={toX(l.from)} x2={xEnd(l.to)} y1={toY(l.y)} y2={toY(l.y)} />

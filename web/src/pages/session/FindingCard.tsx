@@ -26,7 +26,7 @@ export function FindingCard({ finding, samples }: { finding: Finding; samples?: 
       data-code={finding.code}
     >
       <div className={styles.text}>
-        <span className={styles.label}>{categoryLabel[finding.category]}</span>
+        <span className={styles.label}>{v.label ?? categoryLabel[finding.category]}</span>
         <span className={styles.headline} data-testid="finding-headline">{v.headline}</span>
         {v.tag && <span className={styles.tag}>{v.tag}</span>}
       </div>
