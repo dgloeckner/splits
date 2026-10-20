@@ -37,16 +37,57 @@ nötig nach session_end.
 ### Detector-Pipeline
 
 Drei Detectors für v1, jeder als reine Funktion über
-`summary_json.samples` plus Session-Metadaten (workout, intensity):
+`summary_json.samples` plus Session-Metadaten (workout, intensity).
+Alle drei werten nur das **Analysefenster** aus (siehe unten):
 
 - `PacingDetector` — Mittelwert der Splits in erster vs zweiter
-  Hälfte. Delta `> +2s` → POSITIVE_SPLIT (NOTABLE),
+  Hälfte des Fensters. Delta `> +2s` → POSITIVE_SPLIT (NOTABLE),
   `< -2s` → NEGATIVE_SPLIT (INFO), sonst EVEN_SPLIT (INFO).
-- `FadeDetector` — Watt-Mittel im letzten 20%-Segment vs
-  Gesamt-Mittel. Drop `> 5%` → FADE (ATTENTION).
-- `ConsistencyDetector` — Variationskoeffizient (CV) der Splits.
-  `< 2%` → "sehr gleichmäßig" (INFO), `< 5%` → "gleichmäßig" (INFO),
-  `≥ 5%` → "ungleichmäßig" (NOTABLE).
+- `FadeDetector` — Watt-Mittel im letzten 20%-Segment des Fensters
+  vs Fenster-Mittel. Drop `> 5%` → FADE (ATTENTION).
+- `ConsistencyDetector` — Variationskoeffizient (CV) der Splits im
+  Fenster. `< 2%` → "sehr gleichmäßig" (INFO), `< 5%` →
+  "gleichmäßig" (INFO), `≥ 5%` → "ungleichmäßig" (NOTABLE).
+
+### Analysefenster
+
+Zwei Teile jeder Session zeigen nicht, wie gerudert wurde, und
+bleiben deshalb per Domänenregel (nicht per statistischem Trimmen)
+außen vor:
+
+- **Anrudern.** Der erste Bucket bringt das Boot (das
+  Wasser-Schwungrad) auf Tempo; die Konsole meldet den Split aus dem
+  Stand. Auf der 5000-m-Session vom 11.06.2026 liegt er bei ~2:40
+  gegen 1:48 im Rest und trägt allein ~4,5 der gemeldeten 6,0 % CV.
+- **Auslaufen.** Bei Distanz- und Zeit-Workouts zieht der Ruderer
+  nach dem Ziel noch ein paar Schläge (5000 m Ziel, 5006 m geloggt).
+
+Das Fenster ist ein halboffener Bucket-Bereich `[from, to)`:
+
+| Grenze | Regel |
+|--------|-------|
+| `from` | immer `1` — der erste Bucket (`bucket_strokes` Schläge) fällt weg. Kein Tuning-Parameter (Entscheidung auf #37). |
+| `to`   | `distance`: nach dem Bucket mit dem ersten Schlag, dessen Arbeitsdistanz ≥ Ziel ist. `time`: dito mit der Arbeitszeit. `just_row`, `race` (Schläge nach dem Zielhorn sind bereits Cooldown) und eine Session, die vor dem Ziel endet: letzter Bucket. Der Bucket, der das Ziel erreicht, gehört dazu. |
+
+Ziel-Distanz und -Zeit zählen ab Ende des Warmups. Bliebe ein
+Fenster mit weniger als zwei Buckets, gilt die volle Reihe.
+
+Berechnet bei Finalise aus den Arbeitsschlägen und gespeichert als
+`summary_json.samples.window = {"from": 1, "to": 104}`; der
+Samples-Endpoint liefert es mit aus. Die volle Reihe bleibt für die
+Charts erhalten. Sessions, die vor dem Fenster finalisiert wurden,
+haben keins — die Detectors werten dann wie bisher die volle Reihe
+aus. Bestehende `session_insights`-Rows werden nicht migriert; ein
+erneutes Finalise berechnet sie neu, solange die Stroke-Rows noch
+existieren.
+
+Jedes Finding trägt die verwendeten Grenzen als `window_from` /
+`window_to` in `evidence`.
+
+Die CV-Schwellen 2 % / 5 % bleiben. Nachgeprüft auf der (bis zum
+Export aus #46 rekonstruierten) 11.06.2026-Session: volle Reihe
+5,7 % "ungleichmäßig", im Fenster 2,0 % — das passt zur
+EVEN_SPLIT-Pacing-Aussage derselben Session.
 
 Jeder Detector emittiert ein `Finding`:
 
@@ -142,7 +183,8 @@ Komma-Dezimal, Split-Format `m:ss,t`). UI rendert nur den String.
       "severity": "NOTABLE",
       "category": "PACING",
       "message_de": "Positiver Split: …",
-      "evidence": {"h1": 119.6, "h2": 123.2, "delta": 3.6}
+      "evidence": {"h1": 119.6, "h2": 123.2, "delta": 3.6,
+                   "window_from": 1, "window_to": 104}
     }
   ],
   "synthesis_de": "Konstanter Schlagrhythmus zu Beginn, aber Tempoabfall …"
@@ -225,6 +267,10 @@ Alle Zahlen mit Komma-Dezimal, Splits als `m:ss,t`.
 
 ## Open questions
 
+- ~~Anrudern und Auslaufen verfälschen Pacing, Fade und CV — trimmen
+  oder per Regel ausschließen?~~ Entschieden (#37): Analysefenster,
+  erster Bucket fällt weg, Ende am Ziel. Kein statistisches Trimmen,
+  keine neuen Schwellen.
 - Sparkline pro Karte aus `evidence` — Stretch oder Cut?
 - Soll die Synthese die Session-Distanz erwähnen ("über 2480 m")
   oder rein qualitativ bleiben?
