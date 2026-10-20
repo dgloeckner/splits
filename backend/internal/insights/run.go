@@ -23,10 +23,15 @@ func Run(meta SessionMeta, samples *event.SessionSamples) Result {
 	if f, ok := DetectPacing(samples); ok {
 		findings = append(findings, f)
 	}
-	if f, ok := DetectFade(samples); ok {
-		findings = append(findings, f)
+	fade, faded := DetectFade(samples)
+	if faded {
+		findings = append(findings, fade)
 	}
 	if f, ok := DetectConsistency(samples); ok {
+		findings = append(findings, f)
+	}
+	// A fade already explains the watt drop; drift would double it.
+	if f, ok := DetectDrift(samples); ok && !faded {
 		findings = append(findings, f)
 	}
 	findings = Reconcile(findings)

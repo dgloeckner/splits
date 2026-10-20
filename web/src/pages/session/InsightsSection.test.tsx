@@ -40,6 +40,23 @@ describe('InsightsSection', () => {
     }
   })
 
+  it('renders the efficiency drift card', async () => {
+    vi.spyOn(api, 'getSessionInsights').mockResolvedValue({
+      findings: [
+        { detector_id: 'drift', code: 'EFFICIENCY_DRIFT', severity: 'NOTABLE', category: 'EFFICIENCY',
+          message_de: 'Effizienzdrift: Schlaglänge von 9,97 auf 9,47 m gesunken, Schlagzahl von 27,5 auf 29,6 gestiegen.',
+          evidence: { dps1: 9.97, dps2: 9.47, dps_pct: -5.07, spm1: 27.5, spm2: 29.6 } },
+      ],
+      synthesisDe: 'Effizienzdrift: Schlaglänge von 9,97 auf 9,47 m gesunken, Schlagzahl von 27,5 auf 29,6 gestiegen.',
+    })
+    render(<InsightsSection sessionId="s1" />)
+    const card = await screen.findByTestId('finding-card')
+    expect(card.dataset.code).toBe('EFFICIENCY_DRIFT')
+    expect(card).toHaveTextContent('Effizienz')
+    expect(card).toHaveTextContent('DPS −5,0%')
+    expect(card).not.toHaveTextContent('gesunken')
+  })
+
   it('renders intervals placeholder', async () => {
     vi.spyOn(api, 'getSessionInsights').mockResolvedValue({
       findings: [], synthesisDe: '', reason: 'intervals',

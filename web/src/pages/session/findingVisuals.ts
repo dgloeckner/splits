@@ -16,9 +16,13 @@ export type SparkSpec = {
   band?: { lo: number; hi: number }
   /** Flat reference lines over index ranges [from, to). */
   levels?: { y: number; from: number; to: number }[]
+  /** A second series drawn on its own scale (SPM next to DPS). */
+  overlay?: number[]
 }
 
 export type FindingVisual = {
+  /** Overrides the category label (drift shares EFFICIENCY with fade). */
+  label?: string
   /** Key number, e.g. "Variation 2,0%" or "1:48,3 / 1:47,8". */
   headline: string
   /** One- or two-word reading of the number, e.g. "gleichmäßig". */
@@ -120,6 +124,28 @@ export function findingVisual(f: Finding, s?: SessionSamples | null): FindingVis
             ...(final != null ? [{ y: final, from: ys.length - tail, to: ys.length }] : []),
           ],
         },
+      }
+    }
+    case 'EFFICIENCY_DRIFT': {
+      // Absolute DPS values are in the synthesis sentence; the card keeps
+      // to one line of number and one of compensation (#40: ≤ 2 lines).
+      // The percentage is taken from the two-decimal DPS values that
+      // sentence prints, so "9,97 → 9,47" and "−5,0%" agree on screen.
+      const d1 = ev(f, 'dps1')
+      const d2 = ev(f, 'dps2')
+      const round2 = (v: number) => Math.round(v * 100) / 100
+      const p = d1 != null && d2 != null && round2(d1) > 0
+        ? (round2(d2) - round2(d1)) / round2(d1) * 100
+        : ev(f, 'dps_pct')
+      const r1 = ev(f, 'spm1')
+      const r2 = ev(f, 'spm2')
+      const dps = series(f, s, (x) => x.dps)
+      const spm = series(f, s, (x) => x.spm)
+      return {
+        label: 'Effizienz',
+        headline: p != null ? `DPS ${p < 0 ? '−' : '+'}${pct(Math.abs(p))}` : '—',
+        tag: r1 != null && r2 != null ? `SPM ${formatMetric.spm(r1)} → ${formatMetric.spm(r2)}` : 'Effizienzdrift',
+        spark: dps && { series: dps, ...(spm ? { overlay: spm } : {}) },
       }
     }
     default:

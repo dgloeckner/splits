@@ -121,8 +121,10 @@ test('session insights: eligible session renders cards + synthesis', async ({
 
 // #40: on the 11.06.2026 5000 m session the Auswertung reads one short
 // paragraph, then compact evidence cards (label, number, sparkline);
-// no sentence appears twice. The findings are what the detectors
-// produce on the reconstructed fixture (insights/fixture_test.go).
+// no sentence appears twice. The pacing and consistency rows are what
+// the detectors produce on the reconstructed fixture
+// (insights/fixture_test.go); the drift row is seeded to exercise the
+// card — with the two-sided pace condition the fixture does not fire it.
 test('session insights: synthesis is the only prose, cards carry number + sparkline', async ({
   startBackend,
   seedActiveRower,
@@ -148,7 +150,11 @@ test('session insights: synthesis is the only prose, cards carry number + sparkl
         '{"h1":107.8,"h2":106.6,"delta":-1.2,"window_from":1,"window_to":104}', '2026-06-11T21:45:00Z'),
        ('${rower.id}', '${ended.id}', 'consistency', 'CONSISTENT_HIGH', 'INFO', 'CONSISTENCY',
         'Tempokonstanz: sehr gleichmäßig (Split-Variation 2,0%).',
-        '{"cv":1.96,"mean":107.2,"std":2.1,"window_from":1,"window_to":104}', '2026-06-11T21:45:00Z');`,
+        '{"cv":1.96,"mean":107.2,"std":2.1,"window_from":1,"window_to":104}', '2026-06-11T21:45:00Z'),
+       ('${rower.id}', '${ended.id}', 'drift', 'EFFICIENCY_DRIFT', 'NOTABLE', 'EFFICIENCY',
+        'Effizienzdrift: Schlaglänge von 9,97 auf 9,47 m gesunken, Schlagzahl von 27,5 auf 29,6 gestiegen.',
+        '{"dps1":9.97,"dps2":9.47,"dps_pct":-5.07,"spm1":27.48,"spm2":29.6,"split1":107.7,"split2":105.6,"window_from":1,"window_to":104}',
+        '2026-06-11T21:45:00Z');`,
   ].join('\n')
   const r = spawnSync('sqlite3', [handle.dbPath, sql], { encoding: 'utf8' })
   if (r.status !== 0) throw new Error(`sqlite3 seed failed: ${r.stderr}`)
@@ -162,12 +168,16 @@ test('session insights: synthesis is the only prose, cards carry number + sparkl
   await page.evaluate(() => window.scrollBy(0, 200)) // clear the bottom nav
   await page.screenshot({ path: testInfo.outputPath('01-auswertung.png') })
 
-  await expect(cards).toHaveCount(2)
-  // Pacing before consistency when both are INFO.
-  await expect(cards.nth(0)).toHaveAttribute('data-category', 'PACING')
-  await expect(cards.nth(1)).toHaveAttribute('data-category', 'CONSISTENCY')
-  await expect(cards.nth(0).getByTestId('finding-headline')).toHaveText('1:47,8 / 1:46,6')
-  await expect(cards.nth(1).getByTestId('finding-headline')).toHaveText('Variation 2,0%')
+  await expect(cards).toHaveCount(3)
+  // Drift (NOTABLE) first; pacing before consistency when both are INFO.
+  await expect(cards.nth(0)).toHaveAttribute('data-code', 'EFFICIENCY_DRIFT')
+  await expect(cards.nth(1)).toHaveAttribute('data-category', 'PACING')
+  await expect(cards.nth(2)).toHaveAttribute('data-category', 'CONSISTENCY')
+  await expect(cards.nth(0).getByTestId('finding-headline')).toHaveText('DPS −5,0%')
+  await expect(cards.nth(0)).toContainText('SPM 27,5 → 29,6')
+  await expect(cards.nth(1).getByTestId('finding-headline')).toHaveText('1:47,8 / 1:46,6')
+  await expect(cards.nth(2).getByTestId('finding-headline')).toHaveText('Variation 2,0%')
+  await expect(synthesis).toContainText(/^Effizienzdrift: Schlaglänge von 9,97 auf 9,47 m gesunken/)
 
   // The synthesis is not a substring of any card, and no card repeats a sentence.
   const synthText = (await synthesis.textContent())!
@@ -175,10 +185,11 @@ test('session insights: synthesis is the only prose, cards carry number + sparkl
     expect(synthText).not.toContain(body)
     expect(body).not.toContain('Gleichmäßiges Tempo')
     expect(body).not.toContain('Split-Variation')
+    expect(body).not.toContain('gesunken')
   }
 
   // Each card draws its sparkline, and stays within two text lines at 390 px.
-  await expect(page.getByTestId('finding-sparkline')).toHaveCount(2)
+  await expect(page.getByTestId('finding-sparkline')).toHaveCount(3)
   for (const box of await cards.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) {
     expect(box).toBeLessThan(90)
   }

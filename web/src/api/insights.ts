@@ -6,6 +6,7 @@ export type FindingCode =
   | 'POSITIVE_SPLIT' | 'NEGATIVE_SPLIT' | 'EVEN_SPLIT'
   | 'FADE'
   | 'CONSISTENT_HIGH' | 'CONSISTENT_MID' | 'INCONSISTENT'
+  | 'EFFICIENCY_DRIFT'
 
 export type Finding = {
   detector_id: string
