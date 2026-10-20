@@ -48,6 +48,88 @@ Alle drei werten nur das **Analysefenster** aus (siehe unten):
 - `ConsistencyDetector` — Variationskoeffizient (CV) der Splits im
   Fenster. `< 2%` → "sehr gleichmäßig" (INFO), `< 5%` →
   "gleichmäßig" (INFO), `≥ 5%` → "ungleichmäßig" (NOTABLE).
+- `EfficiencyDriftDetector` (v1.1, #39) — Schlaglänge sinkt, Schlagzahl
+  steigt, Tempo hält. Siehe nächster Abschnitt.
+
+### Effizienzdrift (v1.1)
+
+Das Muster "Schlag wird kürzer, Frequenz gleicht aus": DPS fällt über
+das Stück, SPM steigt, der Split bleibt stehen. Pacing (EVEN_SPLIT)
+und Fade (der Schlussspurt hebt die letzten 20 % über den Schnitt)
+schweigen dazu, weil keiner von beiden auf Schlaglänge und Frequenz
+schaut.
+
+**Messung.** Über das Analysefenster wird das Mittel des ersten
+Viertels der Buckets mit dem Mittel des letzten Viertels verglichen
+(Viertel = `⌊n/4⌋` Buckets, mindestens 2; Fenster < 8 Buckets → kein
+Finding):
+
+| Größe | Definition |
+|-------|------------|
+| `dps1`, `dps2` | DPS-Mittel erstes / letztes Viertel |
+| `dps_pct` | `(dps2 − dps1) / dps1 · 100` |
+| `spm1`, `spm2` | SPM-Mittel erstes / letztes Viertel |
+| `split1`, `split2` | Split-Mittel erstes / letztes Viertel |
+
+Viertel-Mittel statt Regressions-Steigung: robust gegen die
+Bucket-zu-Bucket-Streuung (±0,2 m DPS auf der synthetischen Fixture), ohne
+Ausreißer-Sonderfälle, und direkt in der Nachricht vorlesbar
+("von 9,97 auf 9,47 m"). Eine Steigung müsste erst in Anfangs- und
+Endwert zurückübersetzt werden.
+
+**Auslöser (alle drei):**
+
+| Bedingung | Schwelle v1 | Warum |
+|-----------|-------------|-------|
+| Schlaglänge sinkt | `dps_pct ≤ −4 %` | Vorsichtig gewählt: liegt unter allen gemessenen Sessions (Sweep, siehe unten) |
+| Frequenz gleicht aus | `spm2 − spm1 ≥ +1,0` | Ohne SPM-Anstieg ist sinkende DPS ein Leistungsverlust, kein Drift |
+| Tempo hält | `\|split2 − split1\| ≤ 2 s` (= Pacing-Schwelle) | Wird der Split langsamer, erzählen POSITIVE_SPLIT bzw. FADE die Geschichte schon. Wird er schneller, ist der kürzere Schlag Folge einer gewollten Temposteigerung, kein Drift |
+
+Zusätzlich: hat `FadeDetector` gefeuert, unterdrückt `Run` den Drift —
+der Wattabfall ist dann bereits erklärt, kein Doppel-Finding.
+
+**Sweep (20.10.2026, `cmd/insights-sweep`, alle gespeicherten
+Sessions, Analysefenster aus den Stroke-Rows nachberechnet).**
+8 Sessions, 6 messbar, **keine feuert**:
+
+| Session | `dps_pct` | SPM-Anstieg | Split-Änderung | Fade |
+|---------|-----------|-------------|----------------|------|
+| 09.05.¹ | −2,7 % | +2,6 | −6,5 s | |
+| 15.05. | −4,0 % | +2,4 | −5,2 s | |
+| 17.05. | −2,3 % | +0,9 | ±0,0 s | |
+| 23.05. | −2,2 % | +0,7 | −0,4 s | |
+| 31.05. | +0,4 % | −3,8 | +16,1 s | ja |
+| 11.06. | −2,4 % | +0,7 | +0,2 s | |
+
+¹ ohne Stroke-Rows, daher ohne Fenster (volle Reihe).
+
+Die 11.06.2026-Session, an der der Detector ursprünglich motiviert
+wurde, misst auf den gespeicherten Daten −2,4 % / +0,7 — die früher
+genannten −5,1 % / +2,1 stammten aus einer Rekonstruktion, die die
+echten Daten nicht trifft. Die beiden Sessions mit dem stärksten
+DPS-Abfall (09.05., 15.05.) sind gewollte Temposteigerungen; deshalb
+ist die Tempo-Bedingung zweiseitig. Bei gehaltenem Tempo (17.05.,
+23.05., 11.06.) liegt der Drift eng beieinander bei −2,2 bis −2,4 %
+DPS und +0,7 bis +0,9 SPM — ein reales, wiederkehrendes Muster, aber
+bei n = 3 und einem Ruderer noch keine Grundlage für eine Schwelle.
+
+Die Schwellen sind daher **vorläufig (v1)**: vorsichtig, ohne
+Fehlalarm, die Karte erscheint auf den bisherigen Daten nie. Neu
+justieren, sobald ≥ 20 Sessions gespeichert sind (Sweep erneut
+laufen lassen).
+
+**Finding.** `detector_id: "drift"`, Code `EFFICIENCY_DRIFT`,
+Severity NOTABLE, Kategorie EFFICIENCY. `evidence`: `dps1`, `dps2`,
+`dps_pct`, `spm1`, `spm2`, `split1`, `split2`, `window_from`,
+`window_to`.
+
+**Synthese.** NOTABLE sortiert vor die INFO-Findings von Pacing und
+Tempokonstanz; kein Gedankenstrich-Paar (" " als Konnektiv). Kein
+Widerspruchs-Paar: Drift neben EVEN_SPLIT ist genau das Muster.
+
+**Karte.** Label "Effizienz", Headline Schlaglänge in Prozent
+(Beispiel mit Fixture-Werten: `−5,1%`), Stichwort `9,97 → 9,47 m · 27,5 → 29,6 SPM`, Sparkline DPS
+und SPM über das Fenster (je eigene Skala).
 
 ### Analysefenster
 
@@ -270,14 +352,16 @@ Alle Zahlen mit Komma-Dezimal, Splits als `m:ss,t`.
 | CONSISTENT_HIGH | `Tempokonstanz: sehr gleichmäßig (Split-Variation {cv}%).` |
 | CONSISTENT_MID  | `Tempokonstanz: gleichmäßig (Split-Variation {cv}%).` |
 | INCONSISTENT    | `Tempokonstanz: ungleichmäßig (Split-Variation {cv}%).` |
+| EFFICIENCY_DRIFT | `Effizienzdrift: Schlaglänge von {dps1} auf {dps2} m gesunken, Schlagzahl von {spm1} auf {spm2} gestiegen.` (DPS zwei, SPM eine Nachkommastelle) |
 
 ## Non-goals
 
 - **Coaching-Empfehlungen / Suggestion-Engine** — der
   Empfehlungs-Block aus dem Brainstorming (POSITIVE_SPLIT+FADE →
   Cue) ist FEAT-0011a, nicht v1.
-- **EfficiencyDriftDetector** (Watt/SZ-Trend) — später, sobald
-  Schwellen mit echten Daten getunt sind.
+- ~~**EfficiencyDriftDetector** (Watt/SZ-Trend) — später, sobald
+  Schwellen mit echten Daten getunt sind.~~ Mit v1.1 drin (#39), siehe
+  §Effizienzdrift; Schwellen vorläufig bis ≥ 20 Sessions.
 - **BaselineComparisonDetector** (30-Tage-Schnitt) — später als
   FEAT-0011b.
 - **Intervall-spezifische Insights** (per-Intervall Pacing/Fade) —
