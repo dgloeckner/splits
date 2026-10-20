@@ -171,10 +171,10 @@ Detectors werten die volle Reihe aus.
 Jedes Finding trägt die verwendeten Grenzen als `window_from` /
 `window_to` in `evidence`.
 
-Die CV-Schwellen 2 % / 5 % bleiben. Nachgeprüft auf der (bis zum
-Export aus #46 rekonstruierten) 11.06.2026-Session: volle Reihe
-5,7 % "ungleichmäßig", im Fenster 2,0 % — das passt zur
-EVEN_SPLIT-Pacing-Aussage derselben Session.
+Die CV-Schwellen 2 % / 5 % bleiben. Nachgeprüft auf der echten
+11.06.2026-Session (Fixture aus #46): volle Reihe 6,0 % "ungleichmäßig",
+im Fenster 3,0 % "gleichmäßig" — das passt zur EVEN_SPLIT-Pacing-Aussage
+derselben Session.
 
 Jeder Detector emittiert ein `Finding`:
 

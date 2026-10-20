@@ -3,12 +3,12 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
 /**
- * The reconstructed 11.06.2026 5000 m session (#36): bucket-level
- * samples with a 2:45 start bucket, a 1:46–1:50 body and an analysis
- * window [1, 104). Shared with the Go detector tests.
+ * The real 11.06.2026 5000 m session (#36, #46): bucket-level samples
+ * with a 2:45 start bucket, a 1:46–1:50 body and an analysis window
+ * [1, 105). Shared with the Go detector tests.
  */
 export const FIXTURE_5000M = fileURLToPath(
-  new URL('../../../../backend/internal/insights/testdata/2026-06-11-5000m-reconstructed.json', import.meta.url),
+  new URL('../../../../backend/internal/insights/testdata/2026-06-11-5000m.json', import.meta.url),
 )
 
 /** Session totals of the 11.06.2026 session, as the hero panel shows them. */
