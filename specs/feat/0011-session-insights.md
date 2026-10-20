@@ -210,11 +210,25 @@ Bei nicht-eligibler Session: `findings: []`, `synthesis_de: ""`,
 Auf Session-Detail-Page neue Sektion "Auswertung" zwischen Header
 und Charts:
 
-- **Synthese-Absatz** als Lead-Text (1-2 Sätze).
-- **Karten-Reihe** darunter: eine Karte pro Finding. Karte zeigt
-  Severity-Farbe (INFO grau, NOTABLE blau, ATTENTION orange),
-  Detector-Icon, `message_de` als Body. Optional kleines Sparkline
-  aus `evidence` (Stretch).
+- **Synthese-Absatz** als Lead-Text (1-2 Sätze) — die **einzige
+  Prosa** der Sektion.
+- **Karten-Reihe** darunter, die **Evidenz-Ebene**: eine Karte pro
+  Finding mit Severity-Streifen (INFO grau, NOTABLE primär, ATTENTION
+  tertiär), Kategorie-Label, der Schlüsselzahl als Headline und einem
+  kurzen Stichwort — nie `message_de`, damit kein Satz doppelt auf der
+  Seite steht (#40):
+
+  | Code | Headline | Stichwort | Sparkline |
+  |------|----------|-----------|-----------|
+  | EVEN/POSITIVE/NEGATIVE_SPLIT | `1:48,3 / 1:47,8` bzw. `h1 → h2` | gleichmäßig / positiver / negativer Split | Split-Reihe, zweite Hälfte schattiert, h1/h2 als flache Linien |
+  | CONSISTENT_HIGH/MID, INCONSISTENT | `Variation 2,0%` (wie „Split-Variation" im Template) | sehr gleichmäßig / gleichmäßig / ungleichmäßig | Split-Reihe mit Band Mittel ± 1 Std |
+  | FADE | `−6,8%` | `378 → 352 W` | Watt-Reihe, letzte 20 % schattiert, Schnitt und Schlusswert als Linien |
+
+- **Sparkline** (SVG, `components/charts/path.ts`) aus den Samples,
+  die die Detail-Seite ohnehin lädt — kein Backend-Change, `evidence`
+  bleibt skalar. Die Reihe ist auf das Analysefenster geschnitten
+  (`window_from`/`window_to` aus `evidence`, sonst `samples.window`,
+  sonst volle Reihe). Ohne Samples: Karte ohne Sparkline.
 - Bei nicht-eligibler Session: stattdessen ein Hinweis-Block.
 
 Synthese und Karten teilen sich dieselbe `findings`-Liste — eine
@@ -282,7 +296,10 @@ Alle Zahlen mit Komma-Dezimal, Splits als `m:ss,t`.
   oder per Regel ausschließen?~~ Entschieden (#37): Analysefenster,
   erster Bucket fällt weg, Ende am Ziel. Kein statistisches Trimmen,
   keine neuen Schwellen.
-- Sparkline pro Karte aus `evidence` — Stretch oder Cut?
+- ~~Sparkline pro Karte aus `evidence` — Stretch oder Cut?~~
+  Entschieden (#40): drin. Karten sind die Evidenz-Ebene (Label,
+  Schlüsselzahl, Sparkline aus den Session-Samples), die Synthese ist
+  die einzige Prosa.
 - Soll die Synthese die Session-Distanz erwähnen ("über 2480 m")
   oder rein qualitativ bleiben?
 - ATTENTION-Schwelle bei Fade evtl. zweistufig (5% NOTABLE,

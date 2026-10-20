@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import styles from './InsightsSection.module.css'
 import { getSessionInsights, type Insights } from '../../api/insights'
+import type { SessionSamples } from '../../api/client'
 import { FindingCard } from './FindingCard'
 
 const placeholderForReason: Record<string, string> = {
@@ -8,7 +9,7 @@ const placeholderForReason: Record<string, string> = {
   too_short: 'Session zu kurz für Auswertung.',
 }
 
-export function InsightsSection({ sessionId }: { sessionId: string }) {
+export function InsightsSection({ sessionId, samples }: { sessionId: string; samples?: SessionSamples | null }) {
   const [data, setData] = useState<Insights | null>(null)
   const [errored, setErrored] = useState(false)
 
@@ -36,10 +37,10 @@ export function InsightsSection({ sessionId }: { sessionId: string }) {
   return (
     <section className={styles.section}>
       <h2 className={styles.heading}>Auswertung</h2>
-      <p className={styles.synthesis}>{data.synthesisDe}</p>
+      <p className={styles.synthesis} data-testid="insights-synthesis">{data.synthesisDe}</p>
       <div className={styles.cards}>
         {data.findings.map((f) => (
-          <FindingCard key={f.detector_id} finding={f} />
+          <FindingCard key={f.detector_id} finding={f} samples={samples} />
         ))}
       </div>
     </section>

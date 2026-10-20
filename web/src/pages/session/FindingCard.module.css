@@ -1,15 +1,26 @@
+/* Tokens from styles/tokens.css (FEAT-0008); the previous
+   --color-border/--color-muted/--color-text-muted do not exist, which
+   dropped the whole border-left declaration and hid the severity. */
 .card {
   border-radius: 12px;
-  padding: 12px 14px;
-  background: var(--color-surface);
-  border-left: 4px solid var(--color-border);
+  padding: 10px 14px;
+  background: var(--color-surface-container-low);
+  border-left: 4px solid var(--color-outline-variant);
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  align-items: center;
+  gap: 12px;
 }
-.card[data-severity="ATTENTION"] { border-left-color: var(--color-warning, #d98700); }
-.card[data-severity="NOTABLE"]   { border-left-color: var(--color-accent,  #2b6cb0); }
-.card[data-severity="INFO"]      { border-left-color: var(--color-muted,   #888); }
+.card[data-severity="ATTENTION"] { border-left-color: var(--color-tertiary); }
+.card[data-severity="NOTABLE"]   { border-left-color: var(--color-primary); }
+.card[data-severity="INFO"]      { border-left-color: var(--color-outline-variant); }
 
-.message { font-size: 0.95rem; line-height: 1.35; }
-.label   { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted); }
+.text     { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
+.label    { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-on-surface-variant); }
+.headline { font-size: 1.1rem; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tag      { font-size: 0.85rem; color: var(--color-on-surface-variant); }
+
+.sparkline  { flex: 0 0 auto; width: 120px; height: 32px; }
+.sparkPath  { fill: none; stroke: var(--color-primary); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
+.sparkLevel { stroke: var(--color-on-surface-variant); stroke-width: 1; stroke-dasharray: 3 2; vector-effect: non-scaling-stroke; }
+.sparkShade { fill: var(--color-on-surface-variant); opacity: 0.12; }
+.sparkBand  { fill: var(--color-primary); opacity: 0.15; }

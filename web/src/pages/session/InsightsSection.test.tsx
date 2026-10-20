@@ -19,6 +19,27 @@ describe('InsightsSection', () => {
     expect(screen.getAllByTestId('finding-card')).toHaveLength(2)
   })
 
+  it('the synthesis is the only prose: no card repeats it', async () => {
+    vi.spyOn(api, 'getSessionInsights').mockResolvedValue({
+      findings: [
+        { detector_id: 'pacing', code: 'EVEN_SPLIT', severity: 'INFO', category: 'PACING',
+          message_de: 'Gleichmäßiges Tempo über beide Hälften (1:48,3 / 1:47,8).', evidence: { h1: 108.3, h2: 107.8 } },
+        { detector_id: 'consistency', code: 'CONSISTENT_MID', severity: 'INFO', category: 'CONSISTENCY',
+          message_de: 'Tempokonstanz: gleichmäßig (Split-Variation 2,0%).', evidence: { cv: 2, mean: 108, std: 2.2 } },
+      ],
+      synthesisDe: 'Gleichmäßiges Tempo über beide Hälften (1:48,3 / 1:47,8). Tempokonstanz: gleichmäßig (Split-Variation 2,0%).',
+    })
+    render(<InsightsSection sessionId="s1" />)
+    const synthesis = (await screen.findByTestId('insights-synthesis')).textContent!
+    const cards = screen.getAllByTestId('finding-card')
+    expect(cards.map((c) => c.dataset.category)).toEqual(['PACING', 'CONSISTENCY'])
+    for (const c of cards) {
+      expect(synthesis).not.toContain(c.textContent)
+      expect(c.textContent).not.toContain('Gleichmäßiges Tempo')
+      expect(c.textContent).not.toContain('Split-Variation')
+    }
+  })
+
   it('renders intervals placeholder', async () => {
     vi.spyOn(api, 'getSessionInsights').mockResolvedValue({
       findings: [], synthesisDe: '', reason: 'intervals',
