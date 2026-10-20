@@ -1,4 +1,4 @@
-import { fmtFloat, fmtInt, pace500m } from '../../util/format'
+import { decimalComma, fmtFloat, fmtInt, pace500m } from '../../util/format'
 import type { ChartMetric } from './ticks'
 
 const SHORT_MONTH_DE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
@@ -51,12 +51,20 @@ export function formatRollingDelta(
 /**
  * One formatter per session metric, shared by the session hero panel
  * and the chart Ø labels so the same average reads the same on the
- * same screen (#45): split m:ss.t, watt whole watts, SPM one decimal,
- * DPS two decimals.
+ * same screen (#45): split m:ss,t, watt whole watts, SPM one decimal,
+ * DPS two decimals — all with the decimal comma (FEAT-0008 §Copy, #40).
  */
 export const formatMetric: Record<ChartMetric, (v: number | null | undefined) => string> = {
-  split: (v) => pace500m(v),
+  split: (v) => decimalComma(pace500m(v)),
   watt: (v) => fmtInt(v == null ? v : Math.round(v)),
-  spm: (v) => fmtFloat(v, 1),
-  dps: (v) => fmtFloat(v, 2),
+  spm: (v) => decimalComma(fmtFloat(v, 1)),
+  dps: (v) => decimalComma(fmtFloat(v, 2)),
+}
+
+/** Y-axis tick labels per metric: as formatMetric, DPS at one decimal (ticks sit on 0.5 m steps). */
+export const formatTick: Record<ChartMetric, (v: number) => string> = {
+  split: (v) => formatMetric.split(v),
+  watt: (v) => formatMetric.watt(v),
+  spm: (v) => fmtInt(Math.round(v)),
+  dps: (v) => decimalComma(fmtFloat(v, 1)),
 }

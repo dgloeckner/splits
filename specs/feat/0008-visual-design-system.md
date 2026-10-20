@@ -200,6 +200,13 @@ Three-part stack, no dividers:
 - Authoritative, objective, unfussy. No emoji in chrome (a PB ribbon
   `🏆` is the documented exception).
 - Labels uppercase + tracked. Body copy sentence-case.
+- **Numbers use the German decimal comma** — `1:48,0`, `28,6`, `9,55`
+  — wherever the app prints a fraction, so the server-rendered insight
+  texts (FEAT-0011) and the client-rendered values read alike on one
+  screen. One formatter per metric (`formatMetric`,
+  `web/src/components/charts/format.ts`) owns precision and separator;
+  call sites never format a metric by hand. Applied on the session
+  detail page first (#40); other screens follow as they are touched.
 
 ## Responsive strategy
 

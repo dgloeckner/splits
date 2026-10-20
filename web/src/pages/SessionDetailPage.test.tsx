@@ -96,7 +96,7 @@ describe('SessionDetailPage', () => {
     const avgLabels = screen.getAllByTestId('session-chart-avg').map((g) => g.textContent?.replace(/^Ø /, ''))
     const hero = ['split', 'watt', 'spm', 'dps'].map((m) => screen.getByTestId(`detail-avg-${m}`).textContent)
     expect(avgLabels).toEqual(hero)
-    expect(hero).toEqual(['2:17.0', '259', '26.3', '8.35'])
+    expect(hero).toEqual(['2:17,0', '259', '26,3', '8,35'])
   })
 
   it('renders Auswertung section when insights are available', async () => {

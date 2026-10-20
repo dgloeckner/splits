@@ -106,7 +106,7 @@ export class HistoryPage {
     expect(avgSplitSec).toBeLessThan(fx.avgPaceSecPer500m + 30)
 
     const avgSpm = Number(
-      (await this.page.getByTestId('detail-avg-spm').textContent())!.trim(),
+      (await this.page.getByTestId('detail-avg-spm').textContent())!.trim().replace(',', '.'),
     )
     expect(Number.isFinite(avgSpm)).toBe(true)
     expect(avgSpm).toBeGreaterThan(fx.avgSPM - 5)

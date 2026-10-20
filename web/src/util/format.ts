@@ -1,5 +1,12 @@
 const DASH = '—'
 
+// Decimal comma (FEAT-0008 §Copy): swaps the decimal point of an
+// already-formatted number for a comma. Strings without a decimal
+// point pass through unchanged.
+export function decimalComma(s: string): string {
+  return s.replace('.', ',')
+}
+
 export function mmss(seconds: number | null | undefined): string {
   if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return DASH
   const s = Math.max(0, seconds)

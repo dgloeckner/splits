@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mmss, mmssWhole, pace500m, fmtInt, fmtFloat, fmtMeters, hhmm, signedPct, signedNum, formatDurationHuman } from './format'
+import { mmss, mmssWhole, pace500m, fmtInt, fmtFloat, fmtMeters, hhmm, signedPct, signedNum, formatDurationHuman, decimalComma } from './format'
 
 describe('mmss', () => {
   it.each([
@@ -122,4 +122,15 @@ describe('formatDurationHuman', () => {
   it('carry-safe at the hour boundary', () => expect(formatDurationHuman(3599)).toBe('1 h'))
   it('sub-minute rounds to minutes', () => expect(formatDurationHuman(40)).toBe('1 min'))
   it('zero', () => expect(formatDurationHuman(0)).toBe('0 min'))
+})
+
+describe('decimalComma', () => {
+  it('swaps the decimal point for a comma', () => {
+    expect(decimalComma('1:48.0')).toBe('1:48,0')
+    expect(decimalComma('3.5 km · moderat')).toBe('3,5 km · moderat')
+  })
+  it('leaves strings without a decimal point alone', () => {
+    expect(decimalComma('378')).toBe('378')
+    expect(decimalComma('—')).toBe('—')
+  })
 })

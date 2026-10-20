@@ -34,10 +34,11 @@ test('session charts: split axis spans the working range, start spike clipped', 
   await splitChart.scrollIntoViewIfNeeded()
   await page.screenshot({ path: testInfo.outputPath('01-split-chart.png'), fullPage: true })
 
-  // Y-tick labels are the left-edge <text> nodes in m:ss.t form.
+  // Y-tick labels are the left-edge <text> nodes in m:ss,t form.
   const labels = await splitChart.locator('svg text').allTextContents()
   const ySecs = labels
-    .filter((t) => /^\d:\d\d\.\d$/.test(t))
+    .filter((t) => /^\d:\d\d,\d$/.test(t))
+    .map((t) => t.replace(',', '.'))
     .map((t) => Number(t.slice(0, 1)) * 60 + Number(t.slice(2)))
   expect(ySecs.length).toBeGreaterThan(1)
   expect(Math.max(...ySecs)).toBeLessThanOrEqual(130) // no tick above 2:10
@@ -55,6 +56,10 @@ test('session charts: split axis spans the working range, start spike clipped', 
     const hero = await page.getByTestId(`detail-avg-${metric}`).textContent()
     expect(avgLabels[i].replace(/^Ø /, '')).toBe(hero)
   }
+
+  // #40: one decimal separator on the whole page — no "1.5"-style number.
+  const pageText = await page.locator('main, #root').first().innerText()
+  expect(pageText).not.toMatch(/\d\.\d/)
 
   // No horizontal overflow at phone width.
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
