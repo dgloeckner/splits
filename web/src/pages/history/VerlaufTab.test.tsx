@@ -168,4 +168,37 @@ describe('VerlaufTab', () => {
     expect(chip.textContent).toBe(rowChip.textContent)
     expect(screen.queryByTestId('progress-strip-delta')).toBeNull()
   })
+
+  it('365d: one month header per month, newest first, with count and km', async () => {
+    mount('/historie?window=365d')
+    const headers = await screen.findAllByTestId(/^verlauf-month-\d{4}-\d{2}$/)
+    expect(headers.map((h) => h.textContent)).toEqual([
+      'Juni 2026 · 2 Sessions · 10 km',
+      'Mai 2026 · 1 Session · 2 km',
+    ])
+    expect(within(headers[0].parentElement as HTMLElement).getByTestId('verlauf-row-s3')).toBeInTheDocument()
+  })
+
+  it('365d: chip row with one chip per month, newest first; tap selects', async () => {
+    mount('/historie?window=365d')
+    const chips = await screen.findAllByTestId(/^verlauf-month-chip-/)
+    expect(chips.map((c) => c.textContent)).toEqual(['Jun ’26', 'Mai ’26'])
+    expect(chips[0]).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(chips[1])
+    expect(chips[1]).toHaveAttribute('aria-selected', 'true')
+    expect(chips[0]).toHaveAttribute('aria-selected', 'false')
+  })
+
+  it('30d: no month headers, no chip row', async () => {
+    mount('/historie?window=30d')
+    await screen.findAllByTestId(/^verlauf-row-/)
+    expect(screen.queryAllByTestId(/^verlauf-month-/)).toHaveLength(0)
+  })
+
+  it('a single month: headers but no chip row', async () => {
+    vi.mocked(getRowerTrends).mockResolvedValueOnce({ ...trends, points: trends.points.slice(0, 2) })
+    mount('/historie?window=all')
+    expect(await screen.findAllByTestId(/^verlauf-month-\d{4}-\d{2}$/)).toHaveLength(1)
+    expect(screen.queryAllByTestId(/^verlauf-month-chip-/)).toHaveLength(0)
+  })
 })

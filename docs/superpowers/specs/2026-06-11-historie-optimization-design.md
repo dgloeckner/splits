@@ -130,6 +130,16 @@ stops appearing on virtually every row.
 Chart dots and list rows are two views of the same items: selecting
 either highlights both.
 
+**Month grouping (#49).** In Jahr and Alles the list is grouped by
+calendar month (local time): one sticky header per month with
+sessions, `Juni 2026 · 6 Sessions · 18,2 km`. Above the list a
+horizontally scrolling chip row (`Jun ’26`, `Mai ’26`, …, newest
+first, only with ≥ 2 months) scrolls a month's header to the top of
+the list; scrolling by hand moves the selected chip. Monat stays a
+flat list. Headers are navigation inside the window: the rolling
+windows and the footnote delta are untouched, and dot ↔ row
+highlighting works across groups.
+
 ### 4. Volume footnote
 
 One quiet line: `Letzte 30 Tage: 12 km · 6 Sessions · 1 h 30 min`

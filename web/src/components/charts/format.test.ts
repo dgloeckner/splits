@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatChartDate, formatStripDate, formatRollingDelta, formatMetric, formatRangeCaption } from './format'
+import { formatChartDate, formatStripDate, formatRollingDelta, formatMetric, formatRangeCaption, formatMonthHeading, formatMonthChip } from './format'
 
 // All dates in Berlin local for stability (the app already assumes Berlin TZ).
 const MAY_17_2026 = new Date('2026-05-17T10:00:00+02:00').getTime() // Sunday
@@ -49,6 +49,13 @@ describe('formatRangeCaption', () => {
   it('"all" starts at the oldest point, or names no range without points', () => {
     expect(formatRangeCaption(at('2025-05-03'), at('2026-10-20'), 'all')).toBe('seit 3. Mai 2025')
     expect(formatRangeCaption(null, at('2026-10-20'), 'all')).toBe('Alle Sessions')
+  })
+})
+
+describe('formatMonthHeading / formatMonthChip', () => {
+  it('long month and year; short month and two-digit year', () => {
+    expect(formatMonthHeading(MAY_17_2026)).toBe('Mai 2026')
+    expect(formatMonthChip(JAN_3_2025)).toBe('Jan ’25')
   })
 })
 

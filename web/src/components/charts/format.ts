@@ -47,6 +47,18 @@ export function formatRangeCaption(fromMs: number | null, toMs: number, window: 
   return `${start} – ${day(t)} ${t.getFullYear()}`
 }
 
+/** "Juni 2026": a month heading in the session list (#49). */
+export function formatMonthHeading(t: number): string {
+  const d = new Date(t)
+  return `${LONG_MONTH_DE[d.getMonth()]} ${d.getFullYear()}`
+}
+
+/** "Jun ’26": a month jump chip, like the cross-year x-axis ticks (#49). */
+export function formatMonthChip(t: number): string {
+  const d = new Date(t)
+  return `${SHORT_MONTH_DE[d.getMonth()]} ’${String(d.getFullYear()).slice(2)}`
+}
+
 /**
  * Format the "vs N-d Ø" chip text. The arrow direction follows the raw
  * delta sign (↑ if current > avg, ↓ if current < avg, regardless of

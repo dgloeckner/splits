@@ -41,6 +41,9 @@ Replaces the plain list described in FEAT-0003 with a filterable, richer list.
 
 - **Filter-Chips**: User · Zeitraum · Distanz · Intensität. Multiple chips
   combine with AND. Active filters are pinned and clearable.
+  *Note (#49):* month jump-navigation (sticky month headers plus month
+  chips in Jahr/Alles) landed inside the rolling window. It moves the
+  list, it does not filter it; a Zeitraum filter is still deferred.
 - **Summary-Strip** (above the list) with aggregates for the currently
   filtered set: Sessions, Gesamt-Distanz, Gesamt-Zeit, Ø Split.
 - **Session-Cards**:
