@@ -380,6 +380,30 @@ the session's average SPM, since technique meaning depends on
 rate, not piece type: Paddle (≤ 20 spm), Steady (20–26), Hard
 (≥ 26). Used for per-dot color encoding on the Effizienz chart.
 
+## Session insights
+
+The rules-based Auswertung on the session-detail page (FEAT-0011).
+
+### Analysefenster (analysis window)
+
+The part of a session that represents the piece itself, as a bucket
+range `[from, to)` over the session's samples. Two parts of every
+session are not how the rower rowed and fall outside it:
+
+- **Start-up.** The first bucket gets the boat (the water flywheel)
+  up to speed; the console reports pace from standstill, so it reads
+  far slower than the body of the piece. `from` is always 1.
+- **Overrun.** On a distance or time workout the rower keeps pulling
+  a few strokes after the goal. `to` ends after the bucket holding the
+  first stroke that reaches the goal (work distance for `distance`,
+  work time for `time`). `just_row`, `race` (whose post-horn strokes
+  are already Cooldown) and a session that stops short of its goal
+  end at the last bucket.
+
+A window that would hold fewer than two buckets is the full series
+instead. Computed at finalise, stored as `samples.window`; sessions
+finalised before it existed have none.
+
 ## Ergo nicht erreichbar
 
 The app state in which the backend (the Ergo at home) cannot be

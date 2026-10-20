@@ -106,14 +106,8 @@ func FinaliseSession(
 		summary = buildSummary(strokes)
 	}
 
-	// Step 5: compute samples from work strokes.
-	summary.Samples = stats.ComputeSamples(workStrokes, stats.BucketStrokesFor(len(workStrokes)))
-
-	// Step 6: compute PB candidates (internal filtering is work-only).
-	summary.PBCandidates = stats.ComputeCandidates(strokes)
-
-	// Pre-load rower + workout context (needed for race result, insights,
-	// and the recompute trigger).
+	// Pre-load rower + workout context (needed for the analysis window,
+	// race result, insights, and the recompute trigger).
 	var rowerID, workoutMode, workoutID, workoutShapeHash, workoutParams string
 	if err := db.QueryRowContext(ctx, `
 		SELECT s.rower_id, COALESCE(w.mode, ''), COALESCE(s.workout_id, ''),
@@ -123,6 +117,15 @@ func FinaliseSession(
 		WHERE s.id = ?`, sessionID).Scan(&rowerID, &workoutMode, &workoutID, &workoutShapeHash, &workoutParams); err != nil {
 		return event.SessionSummary{}, err
 	}
+
+	// Step 5: compute samples and their analysis window from work strokes.
+	bucketStrokes := stats.BucketStrokesFor(len(workStrokes))
+	summary.Samples = stats.ComputeSamples(workStrokes, bucketStrokes)
+	summary.Samples.Window = stats.ComputeAnalysisWindow(workStrokes, bucketStrokes,
+		workoutGoal(workoutMode, workoutParams, strokes))
+
+	// Step 6: compute PB candidates (internal filtering is work-only).
+	summary.PBCandidates = stats.ComputeCandidates(strokes)
 
 	// Step 7 & 8: reason-specific gates.
 	switch reason {
@@ -250,6 +253,34 @@ func FinaliseSession(
 	}
 
 	return summary, nil
+}
+
+// workoutGoal resolves the goal the analysis window ends at from the
+// workout's mode and params. The origin is the cumulative distance and
+// time of the last stroke before the first work stroke, so a warmup
+// does not count towards the goal. Unparseable params yield a goal
+// without a target, i.e. a window that runs to the last bucket.
+func workoutGoal(mode, paramsJSON string, strokes []event.StrokePayload) stats.WorkoutGoal {
+	goal := stats.WorkoutGoal{Mode: mode}
+	var params struct {
+		Meters  int `json:"meters"`
+		Seconds int `json:"seconds"`
+	}
+	if paramsJSON != "" && json.Unmarshal([]byte(paramsJSON), &params) == nil {
+		switch mode {
+		case "distance":
+			goal.Target = float64(params.Meters)
+		case "time":
+			goal.Target = float64(params.Seconds)
+		}
+	}
+	for _, s := range strokes {
+		if s.Phase == "" || s.Phase == "work" {
+			break
+		}
+		goal.OriginDistanceM, goal.OriginTimeSec = s.DistanceM, s.TimeSec
+	}
+	return goal
 }
 
 // computeInsightsSafely runs the insights pipeline with panic recovery.
