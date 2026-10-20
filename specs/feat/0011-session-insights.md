@@ -126,6 +126,17 @@ die Top 2-3 über eine deterministische Konnektiv-Map verbunden:
 
 Komplett hardcoded in `splits/insights/synthesis.go`. Kein LLM.
 
+**Widersprüche.** Manche Finding-Paare dürfen nicht gleichrangig
+nebeneinanderstehen. Feuern beide, wird das zweite auf INFO
+herabgestuft und direkt hinter das erste gestellt — in der Synthese
+und in der Karten-Reihe (`insights.Reconcile`, tabellengetrieben wie
+die Konnektiv-Map; läuft in `Run` und beim Lesen über die API, damit
+auch vor dem Guard gespeicherte Rows ihn bekommen):
+
+| Behalten     | Herabstufen  | Warum |
+|--------------|--------------|-------|
+| EVEN_SPLIT   | INCONSISTENT | Der CV ist dann fast immer randgetrieben (Anrudern, s. Analysefenster); die Hälften sind die robustere Aussage. |
+
 ### Storage
 
 Neue Tabelle `session_insights` (Migration 0013):

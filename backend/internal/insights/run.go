@@ -29,6 +29,7 @@ func Run(meta SessionMeta, samples *event.SessionSamples) Result {
 	if f, ok := DetectConsistency(samples); ok {
 		findings = append(findings, f)
 	}
+	findings = Reconcile(findings)
 	return Result{
 		Eligible:    true,
 		Findings:    findings,

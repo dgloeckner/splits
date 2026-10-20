@@ -24,13 +24,13 @@ var dashedPairs = map[[2]Code]bool{
 }
 
 // Synthesize joins the top-N findings into a single German paragraph.
-// Sorted by severity (ATTENTION > NOTABLE > INFO), capped at 3.
+// Contradicting pairs are reconciled first (see Reconcile), then sorted
+// by severity (ATTENTION > NOTABLE > INFO), capped at 3.
 func Synthesize(findings []Finding) string {
 	if len(findings) == 0 {
 		return ""
 	}
-	sorted := make([]Finding, len(findings))
-	copy(sorted, findings)
+	sorted := Reconcile(findings)
 	sort.SliceStable(sorted, func(i, j int) bool {
 		return severityRank[sorted[i].Severity] < severityRank[sorted[j].Severity]
 	})

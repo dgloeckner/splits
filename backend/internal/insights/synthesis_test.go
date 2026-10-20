@@ -44,7 +44,7 @@ func TestSynthesizeCapsAtThree(t *testing.T) {
 		{Code: CodeFade, Severity: SeverityAttention, MessageDE: "A."},
 		{Code: CodePositiveSplit, Severity: SeverityNotable, MessageDE: "B."},
 		{Code: CodeInconsistent, Severity: SeverityNotable, MessageDE: "C."},
-		{Code: CodeEvenSplit, Severity: SeverityInfo, MessageDE: "D."},
+		{Code: CodeNegativeSplit, Severity: SeverityInfo, MessageDE: "D."},
 	})
 	if got != "A. B. C." {
 		t.Errorf("got %q", got)
