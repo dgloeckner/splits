@@ -15,21 +15,25 @@ const (
 )
 
 // DetectConsistency reports the coefficient of variation of the split
-// series, bucketed into three labels.
+// series inside the analysis window, bucketed into three labels.
 func DetectConsistency(s *event.SessionSamples) (Finding, bool) {
-	if s == nil || len(s.Split) < 3 {
+	if s == nil {
 		return Finding{}, false
 	}
-	mean := meanInt(s.Split)
+	a := analysedSamples(s)
+	if len(a.Split) < 3 {
+		return Finding{}, false
+	}
+	mean := meanInt(a.Split)
 	if mean <= 0 {
 		return Finding{}, false
 	}
 	var sumSq float64
-	for _, v := range s.Split {
+	for _, v := range a.Split {
 		d := float64(v) - mean
 		sumSq += d * d
 	}
-	std := math.Sqrt(sumSq / float64(len(s.Split)))
+	std := math.Sqrt(sumSq / float64(len(a.Split)))
 	cv := std / mean * 100
 
 	var code Code
@@ -51,10 +55,10 @@ func DetectConsistency(s *event.SessionSamples) (Finding, bool) {
 		Severity:   sev,
 		Category:   CategoryConsistency,
 		MessageDE:  msg,
-		Evidence: map[string]float64{
+		Evidence: a.withWindow(map[string]float64{
 			"cv":   cv,
 			"mean": mean,
 			"std":  std,
-		},
+		}),
 	}, true
 }

@@ -12,15 +12,19 @@ import (
 const PacingThresholdSec = 2.0
 
 // DetectPacing compares the mean split of the first vs second half
-// of the session. Returns (Finding, true) on success, or (_, false)
-// when the input is too short to evaluate (≤1 bucket).
+// of the analysis window. Returns (Finding, true) on success, or
+// (_, false) when the input is too short to evaluate (≤1 bucket).
 func DetectPacing(s *event.SessionSamples) (Finding, bool) {
-	if s == nil || len(s.Split) < 2 {
+	if s == nil {
 		return Finding{}, false
 	}
-	mid := len(s.Split) / 2
-	h1 := meanInt(s.Split[:mid])
-	h2 := meanInt(s.Split[mid:])
+	a := analysedSamples(s)
+	if len(a.Split) < 2 {
+		return Finding{}, false
+	}
+	mid := len(a.Split) / 2
+	h1 := meanInt(a.Split[:mid])
+	h2 := meanInt(a.Split[mid:])
 	delta := h2 - h1
 
 	var code Code
@@ -53,11 +57,11 @@ func DetectPacing(s *event.SessionSamples) (Finding, bool) {
 		Severity:   sev,
 		Category:   CategoryPacing,
 		MessageDE:  msg,
-		Evidence: map[string]float64{
+		Evidence: a.withWindow(map[string]float64{
 			"h1":    h1,
 			"h2":    h2,
 			"delta": delta,
-		},
+		}),
 	}, true
 }
 

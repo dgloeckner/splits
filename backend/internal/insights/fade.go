@@ -15,21 +15,26 @@ const FadePct = 5.0
 const FadeFinalFraction = 0.20
 
 // DetectFade flags a watt drop in the trailing FadeFinalFraction of
-// the session. Severity is ATTENTION (it's actionable) once
+// the analysis window, so strokes after the goal can neither create
+// nor hide a fade. Severity is ATTENTION (it's actionable) once
 // triggered.
 func DetectFade(s *event.SessionSamples) (Finding, bool) {
-	if s == nil || len(s.Watt) < 5 {
+	if s == nil {
 		return Finding{}, false
 	}
-	avg := meanInt(s.Watt)
+	a := analysedSamples(s)
+	if len(a.Watt) < 5 {
+		return Finding{}, false
+	}
+	avg := meanInt(a.Watt)
 	if avg <= 0 {
 		return Finding{}, false
 	}
-	tail := int(float64(len(s.Watt)) * FadeFinalFraction)
+	tail := int(float64(len(a.Watt)) * FadeFinalFraction)
 	if tail < 1 {
 		tail = 1
 	}
-	final := meanInt(s.Watt[len(s.Watt)-tail:])
+	final := meanInt(a.Watt[len(a.Watt)-tail:])
 	dropPct := (avg - final) / avg * 100
 	if dropPct < FadePct {
 		return Finding{}, false
@@ -44,10 +49,10 @@ func DetectFade(s *event.SessionSamples) (Finding, bool) {
 		Severity:   SeverityAttention,
 		Category:   CategoryEfficiency,
 		MessageDE:  msg,
-		Evidence: map[string]float64{
+		Evidence: a.withWindow(map[string]float64{
 			"avg":   avg,
 			"final": final,
 			"pct":   dropPct,
-		},
+		}),
 	}, true
 }
