@@ -89,25 +89,29 @@ Zusätzlich: hat `FadeDetector` gefeuert, unterdrückt `Run` den Drift —
 der Wattabfall ist dann bereits erklärt, kein Doppel-Finding.
 
 **Sweep (20.10.2026, `cmd/insights-sweep`, alle gespeicherten
-Sessions).** 8 Sessions, 6 messbar, **keine feuert**:
+Sessions, Analysefenster aus den Stroke-Rows nachberechnet).**
+8 Sessions, 6 messbar, **keine feuert**:
 
 | Session | `dps_pct` | SPM-Anstieg | Split-Änderung | Fade |
 |---------|-----------|-------------|----------------|------|
-| 09.05. | −2,7 % | +2,6 | −6,5 s | |
-| 15.05. | −3,9 % | +2,3 | −4,8 s | |
-| 17.05. | −2,1 % | +0,8 | −0,3 s | |
-| 23.05. | −1,6 % | +0,9 | +0,8 s | |
-| 31.05. | +1,7 % | −3,2 | +14,6 s | ja |
-| 11.06. | −1,2 % | +0,7 | −1,8 s | |
+| 09.05.¹ | −2,7 % | +2,6 | −6,5 s | |
+| 15.05. | −4,0 % | +2,4 | −5,2 s | |
+| 17.05. | −2,3 % | +0,9 | ±0,0 s | |
+| 23.05. | −2,2 % | +0,7 | −0,4 s | |
+| 31.05. | +0,4 % | −3,8 | +16,1 s | ja |
+| 11.06. | −2,4 % | +0,7 | +0,2 s | |
+
+¹ ohne Stroke-Rows, daher ohne Fenster (volle Reihe).
 
 Die 11.06.2026-Session, an der der Detector ursprünglich motiviert
-wurde, misst auf den gespeicherten Daten nur −1,2 % / +0,7 — die
-früher genannten −5,1 % / +2,1 stammten aus einer Rekonstruktion, die
-die echten Daten nicht trifft. Die beiden Sessions nächst an der
-Schwelle (09.05., 15.05.) sind gewollte Temposteigerungen; deshalb ist
-die Tempo-Bedingung zweiseitig. Bei gehaltenem Tempo liegt der Drift
-real bei −1 bis −2 % DPS und < +1 SPM — bei n = 6 und einem Ruderer
-nicht von Streuung zu unterscheiden.
+wurde, misst auf den gespeicherten Daten −2,4 % / +0,7 — die früher
+genannten −5,1 % / +2,1 stammten aus einer Rekonstruktion, die die
+echten Daten nicht trifft. Die beiden Sessions mit dem stärksten
+DPS-Abfall (09.05., 15.05.) sind gewollte Temposteigerungen; deshalb
+ist die Tempo-Bedingung zweiseitig. Bei gehaltenem Tempo (17.05.,
+23.05., 11.06.) liegt der Drift eng beieinander bei −2,2 bis −2,4 %
+DPS und +0,7 bis +0,9 SPM — ein reales, wiederkehrendes Muster, aber
+bei n = 3 und einem Ruderer noch keine Grundlage für eine Schwelle.
 
 Die Schwellen sind daher **vorläufig (v1)**: vorsichtig, ohne
 Fehlalarm, die Karte erscheint auf den bisherigen Daten nie. Neu
