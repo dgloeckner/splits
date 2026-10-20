@@ -46,7 +46,15 @@ describe('api client', () => {
       return new Response(JSON.stringify({ samples: [{ stroke_no: 1 }] }), { status: 200 })
     })
     const out = await getSamples('S1')
-    expect(out[0].stroke_no).toBe(1)
+    expect(out.samples[0].stroke_no).toBe(1)
+    expect(out.window).toBeNull()
+  })
+
+  it('getSamples carries the analysis window when present', async () => {
+    mockFetch(async () =>
+      new Response(JSON.stringify({ samples: [{ stroke_no: 1 }], window: { from: 1, to: 104 } }), { status: 200 }))
+    const out = await getSamples('S1')
+    expect(out.window).toEqual({ from: 1, to: 104 })
   })
 
   it('deleteSession resolves on 204', async () => {

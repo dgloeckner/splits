@@ -6,9 +6,10 @@ import {
   getSamples,
   getSession,
   getSessionPBBanners,
-  type Sample,
+  windowTimeRange,
   type SessionPBBanners,
   type SessionRow,
+  type SessionSamples,
 } from '../api/client'
 import { getWorkout, type Workout } from '../api/workouts'
 import { workoutChipLabel } from '../util/workoutLabel'
@@ -34,7 +35,7 @@ export function SessionDetailPage() {
     queryFn: () => getSession(sessionId),
     enabled: sessionId !== '',
   })
-  const samplesQ = useQuery<Sample[]>({
+  const samplesQ = useQuery<SessionSamples>({
     queryKey: ['sessions', sessionId, 'samples'],
     queryFn: () => getSamples(sessionId),
     enabled: sessionId !== '',
@@ -101,7 +102,8 @@ export function SessionDetailPage() {
   }
 
   const s = sessionQ.data
-  const samples = samplesQ.data ?? []
+  const samples = samplesQ.data?.samples ?? []
+  const focus = samplesQ.data ? windowTimeRange(samplesQ.data) : null
 
   const splitPts = samples.map((x) => ({ x: x.time_sec, y: x.pace_sec_per_500m })).filter((p) => p.y > 0)
   const wattPts = samples.map((x) => ({ x: x.time_sec, y: x.power_w }))
@@ -190,13 +192,13 @@ export function SessionDetailPage() {
 
       <div className={styles.charts}>
         <SessionChart title="Split-Verlauf (s / 500 m)" points={splitPts} metric="split"
-          fmt={(v) => mmss(v)} avgValue={s.summary?.avg_pace_sec_per_500m ?? null} />
+          fmt={(v) => mmss(v)} avgValue={s.summary?.avg_pace_sec_per_500m ?? null} focus={focus} />
         <SessionChart title="Watt-Verlauf" points={wattPts} metric="watt"
-          fmt={(v) => `${Math.round(v)}`} avgValue={s.summary?.avg_power_w ?? null} />
+          fmt={(v) => `${Math.round(v)}`} avgValue={s.summary?.avg_power_w ?? null} focus={focus} />
         <SessionChart title="SPM-Verlauf" points={spmPts} metric="spm"
-          fmt={(v) => `${Math.round(v)}`} avgValue={s.summary?.avg_spm ?? null} />
+          fmt={(v) => `${Math.round(v)}`} avgValue={s.summary?.avg_spm ?? null} focus={focus} />
         <SessionChart title="DPS-Verlauf (m / Schlag)" points={dpsPts} metric="dps"
-          fmt={(v) => v.toFixed(1)} avgValue={s.summary?.avg_dps ?? null} />
+          fmt={(v) => v.toFixed(1)} avgValue={s.summary?.avg_dps ?? null} focus={focus} />
       </div>
 
       <div className={styles.actions}>
