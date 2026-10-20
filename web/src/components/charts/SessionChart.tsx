@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { clampY, workingYRange, type XRange } from './domain'
+import { formatMetric } from './format'
 import { monotonePath } from './path'
 import { selectTimeAxisTicks, selectYTicksRound, type ChartMetric } from './ticks'
 import styles from './ProgressChart.module.css'
@@ -7,7 +8,7 @@ import styles from './ProgressChart.module.css'
 const WIDTH = 300
 const HEIGHT = 120
 const LEFT_PAD = 34
-const RIGHT_PAD = 40
+const RIGHT_PAD = 46
 const TOP_PAD = 6
 const BOTTOM_PAD = 14
 
@@ -16,8 +17,9 @@ export type SessionChartProps = {
   /** x = seconds into the session, y = metric value. */
   points: { x: number; y: number }[]
   metric: ChartMetric
+  /** Y-axis tick labels. */
   fmt: (v: number) => string
-  /** Session average — grey dashed reference, direct-labeled. */
+  /** Session average — grey dashed reference, direct-labeled with the metric's formatter. */
   avgValue?: number | null
   /**
    * The analysis window as an x-range. The y-domain is the working
@@ -72,7 +74,7 @@ export function SessionChart({ title, points, metric, fmt, avgValue, focus }: Se
             <line className={styles.rollingPath} x1={LEFT_PAD} x2={plotRight}
               y1={toY(avgValue)} y2={toY(avgValue)} />
             <text className={styles.rollingLabel} x={plotRight + 2} y={toY(avgValue) + 3}>
-              {`Ø ${fmt(avgValue)}`}
+              {`Ø ${formatMetric[metric](avgValue)}`}
             </text>
           </g>
         )}

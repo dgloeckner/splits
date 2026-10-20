@@ -1,3 +1,6 @@
+import { fmtFloat, fmtInt, pace500m } from '../../util/format'
+import type { ChartMetric } from './ticks'
+
 const SHORT_MONTH_DE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
 const LONG_MONTH_DE  = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember']
 const SHORT_DAY_DE   = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa']
@@ -43,4 +46,17 @@ export function formatRollingDelta(
   if (delta === 0) return '—'
   const arrow = delta > 0 ? '↑' : '↓'
   return `${arrow}${fmt(Math.abs(delta))} vs ${windowDays}-d Ø`
+}
+
+/**
+ * One formatter per session metric, shared by the session hero panel
+ * and the chart Ø labels so the same average reads the same on the
+ * same screen (#45): split m:ss.t, watt whole watts, SPM one decimal,
+ * DPS two decimals.
+ */
+export const formatMetric: Record<ChartMetric, (v: number | null | undefined) => string> = {
+  split: (v) => pace500m(v),
+  watt: (v) => fmtInt(v == null ? v : Math.round(v)),
+  spm: (v) => fmtFloat(v, 1),
+  dps: (v) => fmtFloat(v, 2),
 }

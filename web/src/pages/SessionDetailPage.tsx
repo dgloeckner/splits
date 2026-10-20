@@ -14,7 +14,8 @@ import {
 import { getWorkout, type Workout } from '../api/workouts'
 import { workoutChipLabel } from '../util/workoutLabel'
 import { SessionChart } from '../components/charts/SessionChart'
-import { fmtFloat, fmtInt, fmtMeters, mmss, mmssWhole, pace500m } from '../util/format'
+import { formatMetric } from '../components/charts/format'
+import { fmtInt, fmtMeters, mmss, mmssWhole } from '../util/format'
 import { formatSessionStart } from '../util/dates'
 import { DeleteSessionDialog } from './history/DeleteSessionDialog'
 import { showToast } from '../app/toastBus'
@@ -158,25 +159,25 @@ export function SessionDetailPage() {
           <div className={styles.heroSecondaryRow}>
             <span className={`label-sm ${styles.heroSecondaryKey}`}>Ø Split</span>
             <span className={styles.heroSecondaryValue} data-testid="detail-avg-split">
-              {pace500m(s.summary?.avg_pace_sec_per_500m ?? null)}
+              {formatMetric.split(s.summary?.avg_pace_sec_per_500m)}
             </span>
           </div>
           <div className={styles.heroSecondaryRow}>
             <span className={`label-sm ${styles.heroSecondaryKey}`}>Ø SPM</span>
             <span className={styles.heroSecondaryValue} data-testid="detail-avg-spm">
-              {fmtFloat(s.summary?.avg_spm ?? null, 1)}
+              {formatMetric.spm(s.summary?.avg_spm)}
             </span>
           </div>
           <div className={styles.heroSecondaryRow}>
             <span className={`label-sm ${styles.heroSecondaryKey}`}>Ø Watt</span>
             <span className={styles.heroSecondaryValue} data-testid="detail-avg-watt">
-              {fmtInt(s.summary?.avg_power_w ?? null)}
+              {formatMetric.watt(s.summary?.avg_power_w)}
             </span>
           </div>
           <div className={styles.heroSecondaryRow}>
             <span className={`label-sm ${styles.heroSecondaryKey}`}>Ø DPS</span>
             <span className={styles.heroSecondaryValue} data-testid="detail-avg-dps">
-              {fmtFloat(s.summary?.avg_dps ?? null, 2)}
+              {formatMetric.dps(s.summary?.avg_dps)}
             </span>
           </div>
           <div className={styles.heroSecondaryRow}>
