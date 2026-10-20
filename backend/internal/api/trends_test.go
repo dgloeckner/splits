@@ -108,9 +108,13 @@ type trendsOut struct {
 			AvgSPM            float64 `json:"avg_spm"`
 		} `json:"points"`
 	} `json:"series"`
-	Totals       totalsOut  `json:"totals"`
-	Prior        *totalsOut `json:"prior"`
-	StatsVersion int        `json:"stats_version"`
+	Totals        totalsOut  `json:"totals"`
+	Prior         *totalsOut `json:"prior"`
+	StatsVersion  int        `json:"stats_version"`
+	LatestSession *struct {
+		SessionID string `json:"session_id"`
+		T         string `json:"t"`
+	} `json:"latest_session"`
 }
 
 type totalsOut struct {
@@ -456,5 +460,54 @@ func TestTrendsHandlerReturnsSeriesByShape(t *testing.T) {
 		if s.Key.ShapeHash == "H_500" {
 			t.Fatalf("abandoned 134m piece leaked into series: %+v", s)
 		}
+	}
+}
+
+func TestTrendsLatestSession(t *testing.T) {
+	day := 24 * time.Hour
+	sess := func(id string, ago time.Duration, distM int) seedSession {
+		start := time.Now().Add(-ago)
+		return seedSession{id: id, startedAt: start, endedAt: start.Add(10 * time.Minute),
+			distM: distM, timeSec: 600, avgPower: 150, avgPace: 125}
+	}
+	cases := []struct {
+		name   string
+		seed   []seedSession
+		window string
+		want   string // "" = field absent
+	}{
+		{"outside 30d, inside the prior window", []seedSession{sess("old", 40*day, 2000)}, "30d", "old"},
+		{"older than the scan", []seedSession{sess("older", 400*day, 2000)}, "30d", "older"},
+		{"older than the 365d scan", []seedSession{sess("ancient", 800*day, 2000)}, "365d", "ancient"},
+		{"newest inside the window", []seedSession{sess("a", 40*day, 2000), sess("b", 3*day, 2000)}, "30d", "b"},
+		{"zero-work session is never the latest", []seedSession{sess("real", 40*day, 2000), sess("zero", 1*day, 0)}, "30d", "real"},
+		{"zero-work only, past the scan", []seedSession{sess("zero", 100*day, 0)}, "30d", ""},
+		{"all", []seedSession{sess("a", 800*day, 2000), sess("b", 40*day, 2000)}, "all", "b"},
+		{"no sessions", nil, "30d", ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			db, err := storage.Open(filepath.Join(t.TempDir(), "test.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer db.Close()
+			seedRower(t, db, "R1")
+			seedSessions(t, db, "R1", c.seed)
+
+			out := mustGetTrendsTyped(t, db, "R1", c.window)
+			if c.want == "" {
+				if out.LatestSession != nil {
+					t.Fatalf("want no latest_session, got %+v", *out.LatestSession)
+				}
+				return
+			}
+			if out.LatestSession == nil || out.LatestSession.SessionID != c.want {
+				t.Fatalf("want latest_session %q, got %+v", c.want, out.LatestSession)
+			}
+			if _, err := time.Parse(time.RFC3339, out.LatestSession.T); err != nil {
+				t.Fatalf("latest_session.t not RFC3339: %q", out.LatestSession.T)
+			}
+		})
 	}
 }

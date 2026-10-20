@@ -85,6 +85,14 @@
 .footnoteDelta { color: var(--color-on-surface-variant); }
 .placeholder { color: var(--color-on-surface-variant); font-family: var(--font-body); font-size: var(--text-label-md); }
 .empty { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.latestLink {
+  color: var(--color-primary);
+  font-family: var(--font-body);
+  font-size: var(--text-label-md);
+  font-weight: 600;
+  text-decoration: none;
+}
+.nowrap { white-space: nowrap; }
 .widenBtn {
   appearance: none;
   background: var(--color-primary-container);

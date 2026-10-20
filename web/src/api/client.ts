@@ -231,6 +231,8 @@ export type TrendsResponse = {
   totals: TrendsTotals
   prior?: TrendsTotals
   stats_version: number
+  /** The rower's newest session with work, whatever the window (#50). */
+  latest_session?: { session_id: string; t: string }
 }
 
 export type TrendsSeriesKey = {

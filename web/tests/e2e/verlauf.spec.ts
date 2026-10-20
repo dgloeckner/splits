@@ -345,3 +345,76 @@ test('#49: scrubbing still highlights the row inside its month group', async ({
   await expect(page.locator('[data-month] [data-testid^="verlauf-row-"][class*="rowActive"]')).toHaveCount(1)
   await page.mouse.up()
 })
+
+// ── #50: auto-select a non-empty window, latest-session link ─────────────────
+
+test('#50 walkthrough: empty Monat opens on Jahr; Monat links the latest session', async ({
+  startBackend,
+  seedActiveRower,
+  page,
+}, testInfo) => {
+  await page.setViewportSize(PHONE)
+  const handle = await startBackend({ idleTimeout: '2s' })
+  const rower = await seedActiveRower()
+  // 50, 45 and 40 days ago: all outside the 30-day window.
+  const { newestSessionId } = seedTrendsSessions(handle.dbPath, rower.id, 500, 3, 50)
+  // Record whether the empty state is ever attached during the switch.
+  await page.addInitScript(() => {
+    const w = window as unknown as { __sawEmpty: boolean }
+    w.__sawEmpty = false
+    new MutationObserver(() => {
+      if (document.querySelector('[data-testid="verlauf-empty"]')) w.__sawEmpty = true
+    }).observe(document, { childList: true, subtree: true })
+  })
+
+  await page.goto('/historie')
+  await expect(page).toHaveURL(/window=365d/, { timeout: 15_000 })
+  await expect(page.getByRole('tab', { name: 'Jahr' })).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByTestId('progress-line-dot')).toHaveCount(3)
+  // The switch replaced the entry: about:blank plus /historie, nothing pushed.
+  expect(await page.evaluate(() => history.length)).toBe(2)
+  expect(await page.evaluate(() => (window as unknown as { __sawEmpty: boolean }).__sawEmpty)).toBe(false)
+  await page.screenshot({ path: testInfo.outputPath('01-auto-jahr.png'), fullPage: true })
+
+  await page.getByRole('tab', { name: 'Monat' }).click()
+  await expect(page.getByTestId('verlauf-empty')).toBeVisible()
+  await expect(page.getByText('Noch keine Sessions im Zeitraum.')).toBeVisible()
+  const link = page.getByTestId('verlauf-latest-link')
+  await expect(link).toHaveText(/^Letzte Session: \d{1,2}\. \S+ \d{4} → öffnen$/)
+  await expect(page.getByTestId('verlauf-widen')).toBeVisible()
+  // No auto-widen loop once a tab was tapped.
+  await page.waitForTimeout(500)
+  await expect(page).toHaveURL(/window=30d/)
+  await page.screenshot({ path: testInfo.outputPath('02-monat-empty-link.png'), fullPage: true })
+
+  await link.click()
+  await expect(page).toHaveURL(new RegExp(`/historie/${newestSessionId}$`))
+  await page.screenshot({ path: testInfo.outputPath('03-latest-session.png'), fullPage: true })
+})
+
+test('#50: explicit ?window=30d stays on Monat with the latest-session link', async ({
+  startBackend,
+  seedActiveRower,
+  page,
+}) => {
+  const handle = await startBackend({ idleTimeout: '2s' })
+  const rower = await seedActiveRower()
+  const { newestSessionId } = seedTrendsSessions(handle.dbPath, rower.id, 500, 3, 50)
+
+  await page.goto('/historie?window=30d')
+  await expect(page.getByTestId('verlauf-empty')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByRole('tab', { name: 'Monat' })).toHaveAttribute('aria-selected', 'true')
+  expect(await page.getByTestId('verlauf-latest-link').getAttribute('href')).toMatch(new RegExp(`/${newestSessionId}$`))
+  await page.waitForTimeout(500)
+  await expect(page).toHaveURL(/window=30d/)
+})
+
+test('#50: a rower without sessions gets no latest-session link', async ({ startBackend, seedActiveRower, page }) => {
+  await startBackend({ idleTimeout: '2s' })
+  await seedActiveRower()
+
+  await page.goto('/historie')
+  await expect(page.getByTestId('verlauf-empty')).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByTestId('verlauf-widen')).toBeVisible()
+  await expect(page.getByTestId('verlauf-latest-link')).toHaveCount(0)
+})
