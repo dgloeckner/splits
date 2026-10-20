@@ -47,6 +47,12 @@ export function formatRangeCaption(fromMs: number | null, toMs: number, window: 
   return `${start} – ${day(t)} ${t.getFullYear()}`
 }
 
+/** "11. Juni 2026". */
+export function formatLongDate(t: number): string {
+  const d = new Date(t)
+  return `${d.getDate()}. ${LONG_MONTH_DE[d.getMonth()]} ${d.getFullYear()}`
+}
+
 /** "Juni 2026": a month heading in the session list (#49). */
 export function formatMonthHeading(t: number): string {
   const d = new Date(t)

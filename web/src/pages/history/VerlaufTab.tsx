@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   getRowerTrends,
@@ -9,11 +9,12 @@ import {
 import { useActiveRower } from '../../hooks/useActiveRower'
 import { ProgressChart } from '../../components/charts/ProgressChart'
 import type { ChartMetric } from '../../components/charts/ticks'
-import { formatRangeCaption } from '../../components/charts/format'
+import { formatLongDate, formatRangeCaption } from '../../components/charts/format'
 import { formatDurationHuman, pace500m, signedPct } from '../../util/format'
 import { WindowTabs } from './WindowTabs'
 import { SessionList } from './SessionList'
 import { shapeChip } from './shapeChip'
+import { pickWindowFor } from './pickWindow'
 import styles from './VerlaufTab.module.css'
 import { useOfferPendingUpdate } from '../../offline/swUpdate'
 
@@ -80,6 +81,21 @@ export function VerlaufTab() {
     enabled: !!rowerId,
   })
 
+  // First visit after a break: an empty Monat with an older session
+  // switches to the narrowest window holding it. Only without a window
+  // in the URL: the switch and every tab tap write one, so it fires at
+  // most once and an explicit Monat stays.
+  const urlNamesWindow = params.has('window') || params.has('range')
+  const widenTo =
+    !urlNamesWindow && window_ === '30d' && data && data.points.length === 0 && data.latest_session
+      ? pickWindowFor(new Date(data.latest_session.t).getTime(), new Date(data.to).getTime())
+      : null
+  useEffect(() => {
+    if (widenTo) setWindow(widenTo)
+    // setWindow is recreated each render; widenTo alone decides.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [widenTo])
+
   const [metric, setMetric] = useState<ChartMetric>('split')
   const [selectedShape, setSelectedShape] = useState<string | null>(null)
   const [highlightId, setHighlightId] = useState<string | null>(null)
@@ -96,9 +112,11 @@ export function VerlaufTab() {
           <WindowTabs value={window_} onChange={setWindow} />
           {data && <RangeCaption data={data} window_={window_} />}
         </div>
-        {isPending && <p className={styles.placeholder}>Lädt …</p>}
+        {(isPending || widenTo) && <p className={styles.placeholder}>Lädt …</p>}
         {error && !data && <p className={styles.placeholder}>Konnte Verlauf nicht laden.</p>}
-        {data && data.points.length === 0 && <EmptyState window_={window_} onWiden={setWindow} />}
+        {data && data.points.length === 0 && !widenTo && (
+          <EmptyState window_={window_} latest={data.latest_session} onWiden={setWindow} />
+        )}
         {data && data.points.length > 0 && (
           <>
             <ProgressCard
@@ -132,11 +150,21 @@ function RangeCaption({ data, window_ }: { data: TrendsResponse; window_: Trends
   )
 }
 
-function EmptyState({ window_, onWiden }: { window_: TrendsWindowKey; onWiden: (w: TrendsWindowKey) => void }) {
+function EmptyState({ window_, latest, onWiden }: {
+  window_: TrendsWindowKey
+  latest: TrendsResponse['latest_session']
+  onWiden: (w: TrendsWindowKey) => void
+}) {
   const wider: TrendsWindowKey | null = window_ === '30d' ? '365d' : window_ === '365d' ? 'all' : null
   return (
     <div className={styles.empty} data-testid="verlauf-empty">
       <p className={styles.placeholder}>Noch keine Sessions im Zeitraum.</p>
+      {latest && (
+        <Link to={`/historie/${latest.session_id}`} className={styles.latestLink} data-testid="verlauf-latest-link">
+          Letzte Session: {formatLongDate(new Date(latest.t).getTime())}{' '}
+          <span className={styles.nowrap}>→ öffnen</span>
+        </Link>
+      )}
       {wider && (
         <button type="button" className={styles.widenBtn} onClick={() => onWiden(wider)} data-testid="verlauf-widen">
           Zeitraum erweitern → {wider === '365d' ? 'Jahr' : 'Alles'}

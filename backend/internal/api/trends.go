@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"net/http"
@@ -76,6 +77,14 @@ type trendsResponse struct {
 	Totals       trendsTotals   `json:"totals"`
 	Prior        *trendsTotals  `json:"prior,omitempty"`
 	StatsVersion int            `json:"stats_version"`
+	// LatestSession is the rower's newest session with work, regardless
+	// of window, so an empty window can point at it (#50).
+	LatestSession *trendsLatest `json:"latest_session,omitempty"`
+}
+
+type trendsLatest struct {
+	SessionID string `json:"session_id"`
+	T         string `json:"t"` // RFC3339, Berlin, like points[].t
 }
 
 // berlinLoc is the timezone period bounds operate in. session display
@@ -145,6 +154,7 @@ func getTrends(db *sql.DB) http.HandlerFunc {
 		var totals, prior trendsTotals
 		var points []trendsPoint
 		var seriesRows []sessionRow
+		var latest *trendsLatest
 
 		for rows.Next() {
 			var (
@@ -165,6 +175,8 @@ func getTrends(db *sql.DB) http.HandlerFunc {
 				continue
 			}
 			tBerlin := t.In(berlinLoc)
+			// Ascending scan: the last row is the newest session with work.
+			latest = &trendsLatest{SessionID: id, T: tBerlin.Format(time.RFC3339)}
 			distM := int(dist.Int64)
 			secs := timeSec.Float64
 
@@ -230,6 +242,12 @@ func getTrends(db *sql.DB) http.HandlerFunc {
 			return
 		}
 
+		// The scan starts at the prior window, so a rower whose newest
+		// session is older than that needs one more lookup.
+		if latest == nil && win.Key != "all" {
+			latest = latestSessionWithWork(r.Context(), db, rid)
+		}
+
 		series := assembleSeries(seriesRows)
 		attachPBs(r.Context(), db, rid, series)
 
@@ -248,6 +266,7 @@ func getTrends(db *sql.DB) http.HandlerFunc {
 			p := prior
 			out.Prior = &p
 		}
+		out.LatestSession = latest
 		var sv sql.NullInt64
 		_ = db.QueryRowContext(r.Context(),
 			`SELECT stats_version FROM rower_lifetime_stats WHERE rower_id = ?`, rid).Scan(&sv)
@@ -256,4 +275,22 @@ func getTrends(db *sql.DB) http.HandlerFunc {
 		}
 		writeJSON(w, http.StatusOK, out)
 	}
+}
+
+// latestSessionWithWork returns the rower's newest session that the
+// trends scan would count (ended, not deleted, distance > 0), or nil.
+func latestSessionWithWork(ctx context.Context, db *sql.DB, rid string) *trendsLatest {
+	var id, startedStr string
+	if err := db.QueryRowContext(ctx, `
+		SELECT id, started_at FROM sessions
+		WHERE rower_id = ? AND deleted_at IS NULL AND ended_at IS NOT NULL
+		  AND COALESCE(total_distance_m, 0) > 0
+		ORDER BY started_at DESC LIMIT 1`, rid).Scan(&id, &startedStr); err != nil {
+		return nil
+	}
+	t, err := time.Parse(time.RFC3339Nano, startedStr)
+	if err != nil {
+		return nil
+	}
+	return &trendsLatest{SessionID: id, T: t.In(berlinLoc).Format(time.RFC3339)}
 }

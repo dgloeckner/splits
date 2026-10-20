@@ -1,7 +1,7 @@
 import { render, screen, fireEvent, within } from '@testing-library/react'
-import { MemoryRouter } from 'react-router-dom'
+import { MemoryRouter, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { TrendsResponse } from '../../api/client'
 import { setErgoStatus, _resetErgoStatusForTest } from '../../offline/ergoStatus'
 import { getRowerTrends } from '../../api/client'
@@ -45,12 +45,18 @@ vi.mock('../../api/client', async (orig) => ({
   getRowerTrends: vi.fn(async () => trends),
 }))
 
+function LocationProbe() {
+  const { search } = useLocation()
+  return <output data-testid="search">{search}</output>
+}
+
 function mount(entry = '/historie') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
       <MemoryRouter initialEntries={[entry]}>
         <VerlaufTab />
+        <LocationProbe />
       </MemoryRouter>
     </QueryClientProvider>,
   )
@@ -200,5 +206,68 @@ describe('VerlaufTab', () => {
     mount('/historie?window=all')
     expect(await screen.findAllByTestId(/^verlauf-month-\d{4}-\d{2}$/)).toHaveLength(1)
     expect(screen.queryAllByTestId(/^verlauf-month-chip-/)).toHaveLength(0)
+  })
+
+  describe('empty Monat after a break (#50)', () => {
+    const latest = { session_id: 's3', t: '2026-04-20T08:00:00+02:00' }
+    const emptyMonth: TrendsResponse = { ...trends, points: [], series: [], latest_session: latest }
+    const byWindow = (w: string) => (w === '30d' ? emptyMonth : { ...trends, window: w as '365d', latest_session: latest })
+
+    beforeEach(() => {
+      vi.mocked(getRowerTrends).mockImplementation(async (_id, w) => byWindow(w))
+    })
+    afterEach(() => {
+      vi.mocked(getRowerTrends).mockImplementation(async () => trends)
+    })
+
+    it('no window in the URL: switches to Jahr without the empty state', async () => {
+      mount('/historie')
+      await screen.findAllByTestId(/^verlauf-row-/)
+      expect(screen.getByTestId('search').textContent).toBe('?window=365d')
+      expect(screen.getByRole('tab', { name: 'Jahr' })).toHaveAttribute('aria-selected', 'true')
+      expect(screen.queryByTestId('verlauf-empty')).toBeNull()
+    })
+
+    it('latest older than a year: switches to Alles', async () => {
+      const old = { session_id: 's1', t: '2024-01-10T08:00:00+01:00' }
+      vi.mocked(getRowerTrends).mockImplementation(async (_id, w) =>
+        w === '30d' ? { ...emptyMonth, latest_session: old } : { ...trends, window: w as 'all', latest_session: old })
+      mount('/historie')
+      await screen.findAllByTestId(/^verlauf-row-/)
+      expect(screen.getByTestId('search').textContent).toBe('?window=all')
+    })
+
+    it('explicit ?window=30d stays on Monat and links the latest session', async () => {
+      mount('/historie?window=30d')
+      expect(await screen.findByTestId('verlauf-empty')).toBeInTheDocument()
+      const link = screen.getByTestId('verlauf-latest-link')
+      expect(link).toHaveAttribute('href', '/historie/s3')
+      expect(link.textContent).toBe('Letzte Session: 20. April 2026 → öffnen')
+      expect(screen.getByTestId('verlauf-widen')).toBeInTheDocument()
+      expect(screen.getByTestId('search').textContent).toBe('?window=30d')
+    })
+
+    it('legacy ?range=month counts as explicit: no auto-widen', async () => {
+      mount('/historie?range=month')
+      expect(await screen.findByTestId('verlauf-empty')).toBeInTheDocument()
+      expect(screen.getByTestId('search').textContent).toBe('?range=month')
+    })
+
+    it('tapping Monat after the switch shows the empty state, no loop', async () => {
+      mount('/historie')
+      await screen.findAllByTestId(/^verlauf-row-/)
+      fireEvent.click(screen.getByRole('tab', { name: 'Monat' }))
+      expect(await screen.findByTestId('verlauf-empty')).toBeInTheDocument()
+      expect(screen.getByTestId('search').textContent).toBe('?window=30d')
+    })
+
+    it('no sessions at all: today\'s empty state, no link, no switch', async () => {
+      vi.mocked(getRowerTrends).mockImplementation(async () => ({ ...trends, points: [], series: [] }))
+      mount('/historie')
+      expect(await screen.findByTestId('verlauf-empty')).toBeInTheDocument()
+      expect(screen.queryByTestId('verlauf-latest-link')).toBeNull()
+      expect(screen.getByTestId('verlauf-widen')).toBeInTheDocument()
+      expect(screen.getByTestId('search').textContent).toBe('')
+    })
   })
 })

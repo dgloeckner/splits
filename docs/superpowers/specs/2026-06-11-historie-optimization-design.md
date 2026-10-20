@@ -75,7 +75,11 @@ Top to bottom (iPhone, single column):
 
 `Monat · Jahr · Alles`. **Woche is dropped.** One window scopes
 everything on the surface — chart, session list, volume footnote.
-Persisted in the URL query (`?window=`), default Monat.
+Persisted in the URL query (`?window=`), default Monat. Exception
+(#50): with no window in the URL, an empty Monat whose rower has an
+older session switches once, with `replace`, to the narrowest window
+holding it (Jahr if within 365 days of the window end, else Alles).
+An explicit `?window=` (or legacy `?range=`) is never overridden.
 
 Windows are **rolling and end today**: Monat = last 30 days, Jahr =
 last 365 days, Alles = everything. Consequences:
@@ -150,7 +154,9 @@ oversized percent chip). Durations use real units (`1 h 30 min`,
 ### Empty states
 
 Keep the existing pattern: copy + widen-range action
-("Zeitraum erweitern → Jahr"). With context dots, the chart is
+("Zeitraum erweitern → Jahr"). When the rower has any session with
+work, a link above the button opens the newest one: `Letzte Session:
+11. Juni 2026 → öffnen` (#50). With context dots, the chart is
 non-empty whenever any session with work strokes exists in the
 window (zero-work sessions are API-filtered and don't count).
 
@@ -265,7 +271,12 @@ Targets: iPhone (~390 pt) and iPad (~768 pt+).
     preconditions);
   - per-shape series of completed sessions (existing grouping),
     each with `pb_pace_sec_per_500m`;
-  - window totals + prior-equal-window totals for the footnote delta.
+  - window totals + prior-equal-window totals for the footnote delta;
+  - `latest_session` `{session_id, t}`: the newest session with work,
+    regardless of window (omitted when there is none). It is the last
+    row of the scan; only when the scan, which starts at the prior
+    window, finds nothing does one `LIMIT 1` query look further back
+    (#50).
   The never-rendered `performance`/`efficiency` aggregate blocks and
   all SPI fields are removed from the response.
   Implementation note: this is a **rewrite of the handler, not a
