@@ -1,7 +1,9 @@
 // Command insights-sweep runs the efficiency drift measurement
 // (FEAT-0011 §Effizienzdrift) over every stored session and prints one
 // row per session plus the distribution, so the v1 thresholds can be
-// tuned on real data. Read-only: nothing is written.
+// tuned on real data. Sessions stored without an analysis window get
+// one computed from their stroke rows, as insights-backfill does.
+// Read-only: nothing is written.
 //
 // Usage: insights-sweep -db /path/to/splits.db
 package main
@@ -70,6 +72,9 @@ func main() {
 			!insights.CheckEligibility(insights.SessionMeta{WorkoutMode: r.Mode, DurationSec: dur, DistanceM: dist}).OK {
 			skipped++
 			continue
+		}
+		if _, err := storage.BackfillAnalysisWindow(context.Background(), db.Handle(), r.ID, parsed.Samples); err != nil {
+			log.Printf("window %s: %v", r.ID, err)
 		}
 		m, ok := insights.MeasureDrift(parsed.Samples)
 		if !ok {

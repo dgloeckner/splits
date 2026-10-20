@@ -1,5 +1,7 @@
 // Command insights-backfill runs the FEAT-0011 insights pipeline
 // against every session that already has summary_json populated.
+// Sessions finalised before the analysis window existed get one
+// computed from their stroke rows first, persisted into summary_json.
 // Idempotent: ReplaceForSession deletes-then-inserts.
 //
 // Usage: insights-backfill -db /path/to/splits.db
@@ -44,7 +46,7 @@ func main() {
 	defer rows.Close()
 
 	store := insights.NewStore(db.Handle())
-	var done, skipped, errored int
+	var done, skipped, errored, windowed int
 	for rows.Next() {
 		var id, rowerID, mode, summary string
 		var dur float64
@@ -61,6 +63,16 @@ func main() {
 			skipped++
 			continue
 		}
+		if ok, err := storage.BackfillAnalysisWindow(ctx, db.Handle(), id, parsed.Samples); err != nil {
+			log.Printf("window %s: %v", id, err)
+		} else if ok {
+			if err := storage.PersistSamplesWindow(ctx, db.Handle(), id, parsed.Samples.Window); err != nil {
+				log.Printf("persist window %s: %v", id, err)
+				errored++
+				continue
+			}
+			windowed++
+		}
 		res := insights.Run(insights.SessionMeta{
 			WorkoutMode: mode,
 			DurationSec: dur,
@@ -73,5 +85,5 @@ func main() {
 		}
 		done++
 	}
-	log.Printf("backfill done: %d processed, %d skipped, %d errored", done, skipped, errored)
+	log.Printf("backfill done: %d processed (%d newly windowed), %d skipped, %d errored", done, windowed, skipped, errored)
 }
