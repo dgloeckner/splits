@@ -14,8 +14,8 @@ import {
 import { getWorkout, type Workout } from '../api/workouts'
 import { workoutChipLabel } from '../util/workoutLabel'
 import { SessionChart } from '../components/charts/SessionChart'
-import { formatMetric } from '../components/charts/format'
-import { fmtInt, fmtMeters, mmss, mmssWhole } from '../util/format'
+import { formatMetric, formatTick } from '../components/charts/format'
+import { decimalComma, fmtInt, fmtMeters, mmss, mmssWhole } from '../util/format'
 import { formatSessionStart } from '../util/dates'
 import { DeleteSessionDialog } from './history/DeleteSessionDialog'
 import { showToast } from '../app/toastBus'
@@ -127,7 +127,7 @@ export function SessionDetailPage() {
           <div className={styles.bannersStrip} data-testid="session-pb-banners">
             {dist.map((d) => (
               <span key={`d-${d.distance_m}`} className={styles.banner}>
-                🏆 Neue Bestzeit · {d.distance_m / 1000} km · {mmssWhole(d.time_sec)}
+                🏆 Neue Bestzeit · {decimalComma(String(d.distance_m / 1000))} km · {mmssWhole(d.time_sec)}
               </span>
             ))}
             {win.map((w) => (
@@ -141,7 +141,7 @@ export function SessionDetailPage() {
 
       <header className={styles.titleBlock}>
         <h1 className={styles.workoutTitle} data-testid="session-workout-title">
-          {workoutChipLabel(workoutQ.data ?? null)}
+          {decimalComma(workoutChipLabel(workoutQ.data ?? null))}
         </h1>
         <span className={`label-sm ${styles.dateSub}`}>{formatSessionStart(s.started_at)}</span>
       </header>
@@ -152,7 +152,7 @@ export function SessionDetailPage() {
             {fmtMeters(s.total_distance_m ?? null)} m
           </span>
           <span className={styles.heroValue} data-testid="detail-total-time">
-            {mmss(s.total_time_sec ?? null)}
+            {decimalComma(mmss(s.total_time_sec ?? null))}
           </span>
         </div>
         <div className={styles.heroSecondary}>
@@ -193,13 +193,13 @@ export function SessionDetailPage() {
 
       <div className={styles.charts}>
         <SessionChart title="Split-Verlauf (s / 500 m)" points={splitPts} metric="split"
-          fmt={(v) => mmss(v)} avgValue={s.summary?.avg_pace_sec_per_500m ?? null} focus={focus} />
+          fmt={formatTick.split} avgValue={s.summary?.avg_pace_sec_per_500m ?? null} focus={focus} />
         <SessionChart title="Watt-Verlauf" points={wattPts} metric="watt"
-          fmt={(v) => `${Math.round(v)}`} avgValue={s.summary?.avg_power_w ?? null} focus={focus} />
+          fmt={formatTick.watt} avgValue={s.summary?.avg_power_w ?? null} focus={focus} />
         <SessionChart title="SPM-Verlauf" points={spmPts} metric="spm"
-          fmt={(v) => `${Math.round(v)}`} avgValue={s.summary?.avg_spm ?? null} focus={focus} />
+          fmt={formatTick.spm} avgValue={s.summary?.avg_spm ?? null} focus={focus} />
         <SessionChart title="DPS-Verlauf (m / Schlag)" points={dpsPts} metric="dps"
-          fmt={(v) => v.toFixed(1)} avgValue={s.summary?.avg_dps ?? null} focus={focus} />
+          fmt={formatTick.dps} avgValue={s.summary?.avg_dps ?? null} focus={focus} />
       </div>
 
       <div className={styles.actions}>

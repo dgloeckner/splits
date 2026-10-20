@@ -76,7 +76,7 @@ export function loadFixtureStats(absPath: string): FixtureStats {
 
 /** Parse "m:ss.d" or "m:ss" into seconds. */
 export function paceToSeconds(text: string): number {
-  const m = /^(\d+):(\d{2}(?:\.\d)?)$/.exec(text.trim())
+  const m = /^(\d+):(\d{2}(?:[.,]\d)?)$/.exec(text.trim().replace(',', '.'))
   if (!m) return NaN
   return Number(m[1]) * 60 + Number(m[2])
 }
