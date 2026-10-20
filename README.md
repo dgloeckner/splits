@@ -80,8 +80,56 @@ its own if the new version doesn't come up. See
 
 ## Under the hood
 
-Go backend and React (Vite, TS) frontend, shipped as a single embedded
-binary ([ADR-0003](specs/adr/0003-tech-stack-go-react.md)).
+Go backend and React (Vite, TS) frontend
+([ADR-0003](specs/adr/0003-tech-stack-go-react.md)). Caddy terminates TLS,
+serves the built PWA and proxies `/api` to the backend.
+
+```mermaid
+flowchart TB
+    subgraph rower["Rowing machine"]
+        IPM["IPM console<br/>USB serial, 9600 8N1"]
+    end
+
+    subgraph host["Host: Pi / Mac / PC"]
+        PROD["producer<br/>serial reader + parser"]
+        SES["sessionizer<br/>sessions, metrics, ids"]
+        DISP["dispatcher<br/>fan-out"]
+        RING["ring buffer<br/>reconnect replay"]
+        PERS["persister"]
+        DB[("SQLite")]
+        BC["SSE broadcaster"]
+        API["HTTP API<br/>/api/v1"]
+        CADDY["Caddy<br/>TLS + PWA assets"]
+
+        PROD -- "ipm.Frame" --> SES
+        SES -- "event.Event" --> DISP
+        DISP --> RING
+        DISP -- "never drops" --> PERS
+        DISP --> BC
+        PERS --> DB
+        DB --> API
+        RING --> API
+        BC --> API
+        API --> CADDY
+    end
+
+    subgraph devices["Phones, tablets, laptops"]
+        PWA["PWA<br/>live view, history, stats"]
+        IDB[("Service worker cache<br/>+ IndexedDB")]
+        PWA <--> IDB
+    end
+
+    IPM -- "A8 stroke stream" --> PROD
+    CADDY -- "HTTPS + SSE (LAN)" --> PWA
+```
+
+Every stroke takes one path from the console's serial port to SQLite. The
+live view reads the same events over Server-Sent Events, so what you saw
+while rowing is what gets stored
+([ADR-0007](specs/adr/0007-event-ingestion-pipeline.md),
+[ARCH-0001](specs/arch/0001-backend-pipeline.md)). The PWA caches history
+on the device, so it still works offline
+([ADR-0018](specs/adr/0018-offline-as-packed-snapshot.md)).
 
 - 🤖 [`AGENTS.md`](AGENTS.md): start here as a contributor, human or AI
 - 🗺️ [`ROADMAP.md`](ROADMAP.md): milestones
