@@ -88,7 +88,7 @@ func main() {
 
 // report prints the per-session table and the distribution summary.
 func report(w io.Writer, rows []row, skipped int) {
-	fmt.Fprintf(w, "thresholds v1: dps_pct <= %.1f, spm rise >= %.1f, split change <= +%.1f s, suppressed by fade\n\n",
+	fmt.Fprintf(w, "thresholds v1: dps_pct <= %.1f, spm rise >= %.1f, |split change| <= %.1f s, suppressed by fade\n\n",
 		insights.DriftDPSPct, insights.DriftSPMRise, insights.PacingThresholdSec)
 	fmt.Fprintf(w, "%-26s %-9s %7s %7s %8s %6s %6s %7s %5s %5s\n",
 		"session", "mode", "dps1", "dps2", "dps_pct", "spm1", "spm2", "dsplit", "fade", "FIRE")

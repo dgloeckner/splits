@@ -22,16 +22,34 @@ func driftSamples(n int, dps [2]float64, spm [2]float64, split [2]int) *event.Se
 	return s
 }
 
-func TestDriftFiresOnFixture(t *testing.T) {
-	mode, s := loadSamplesFixture(t, fixture5000m)
+func TestDriftSilentOnFixture(t *testing.T) {
+	// The reconstructed 11.06.2026 fixture shows DPS −5 % and SPM +2,
+	// but its split gets 2.1 s faster: a deliberate speed-up, not drift.
+	// (The stored session measures only −1.2 % / +0.7, FEAT-0011 §Sweep.)
+	_, s := loadSamplesFixture(t, fixture5000m)
+	m, ok := MeasureDrift(s)
+	if !ok {
+		t.Fatal("fixture not measurable")
+	}
+	if m.Split2-m.Split1 >= -PacingThresholdSec {
+		t.Fatalf("split change = %.1f s, want faster than −%.0f s", m.Split2-m.Split1, PacingThresholdSec)
+	}
+	if f, ok := DetectDrift(s); ok {
+		t.Errorf("fired on a speed-up: %s", f.MessageDE)
+	}
+}
+
+func TestDriftFinding(t *testing.T) {
+	s := driftSamples(104, [2]float64{10, 9.4}, [2]float64{27, 29}, [2]int{108, 108})
 	f, ok := DetectDrift(s)
 	if !ok {
-		t.Fatal("expected a drift finding on the 11.06.2026 session")
+		t.Fatal("expected a drift finding")
 	}
 	if f.Code != CodeEfficiencyDrift || f.Severity != SeverityNotable || f.Category != CategoryEfficiency {
 		t.Errorf("finding = %s/%s/%s", f.Code, f.Severity, f.Category)
 	}
-	if !strings.HasPrefix(f.MessageDE, "Effizienzdrift: Schlaglänge von 9,97 auf 9,47 m gesunken, Schlagzahl von ") ||
+	if !strings.HasPrefix(f.MessageDE, "Effizienzdrift: Schlaglänge von ") ||
+		!strings.Contains(f.MessageDE, " m gesunken, Schlagzahl von ") ||
 		!strings.HasSuffix(f.MessageDE, " gestiegen.") {
 		t.Errorf("message = %q", f.MessageDE)
 	}
@@ -40,11 +58,8 @@ func TestDriftFiresOnFixture(t *testing.T) {
 			t.Errorf("evidence lacks %q", k)
 		}
 	}
-	if f.Evidence["window_from"] != 1 || f.Evidence["window_to"] != 104 {
-		t.Errorf("window = [%v, %v), want [1, 104)", f.Evidence["window_from"], f.Evidence["window_to"])
-	}
 
-	res := Run(SessionMeta{WorkoutMode: mode, DurationSec: 1087, DistanceM: 5006}, s)
+	res := Run(SessionMeta{WorkoutMode: "distance", DurationSec: 1200, DistanceM: 5000}, s)
 	if res.Findings[len(res.Findings)-1].Code != CodeEfficiencyDrift {
 		t.Errorf("findings = %v, want EFFICIENCY_DRIFT from Run", codes(res.Findings))
 	}
@@ -65,6 +80,7 @@ func TestDriftCases(t *testing.T) {
 		{"DPS down without rate rise is not drift", driftSamples(40, [2]float64{10, 9.4}, [2]float64{28, 28.3}, [2]int{108, 108}), false},
 		{"DPS down, SPM flat, split up is fade/positive split", driftSamples(40, [2]float64{10, 9.4}, [2]float64{28, 28}, [2]int{106, 114}), false},
 		{"drift while slowing is a positive split", driftSamples(40, [2]float64{10, 9.4}, [2]float64{27, 29}, [2]int{106, 112}), false},
+		{"drift while speeding up is a deliberate rate rise", driftSamples(40, [2]float64{10, 9.4}, [2]float64{26, 29}, [2]int{110, 104}), false},
 		{"small DPS change", driftSamples(40, [2]float64{10, 9.7}, [2]float64{27, 29}, [2]int{108, 108}), false},
 		{"window too short", driftSamples(DriftMinBuckets-1, [2]float64{10, 9}, [2]float64{26, 30}, [2]int{108, 108}), false},
 	}

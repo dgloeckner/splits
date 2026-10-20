@@ -8,8 +8,9 @@ import (
 )
 
 // v1 thresholds of the efficiency drift detector (FEAT-0011
-// §Effizienzdrift), chosen on the 11.06.2026 session and to be tuned
-// with cmd/insights-sweep.
+// §Effizienzdrift). Provisional: the 20.10.2026 sweep over all stored
+// sessions fires on none; re-tune with cmd/insights-sweep at >= 20
+// sessions.
 const (
 	// DriftDPSPct is the DPS change (first → last quarter, percent) at
 	// or below which stroke length counts as fallen.
@@ -32,8 +33,10 @@ type DriftMeasure struct {
 }
 
 // Fires reports whether the measure crosses all three v1 thresholds.
+// The pace condition is two-sided: a faster split means the shorter
+// stroke came from a deliberate speed-up, not drift.
 func (m DriftMeasure) Fires() bool {
-	return m.DPSPct <= DriftDPSPct && m.SPM2-m.SPM1 >= DriftSPMRise && m.Split2-m.Split1 <= PacingThresholdSec
+	return m.DPSPct <= DriftDPSPct && m.SPM2-m.SPM1 >= DriftSPMRise && math.Abs(m.Split2-m.Split1) <= PacingThresholdSec
 }
 
 // MeasureDrift compares the first and last quarter of the analysis
