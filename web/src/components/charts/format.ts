@@ -1,4 +1,5 @@
 import { decimalComma, fmtFloat, fmtInt, pace500m } from '../../util/format'
+import type { TrendsWindowKey } from '../../api/client'
 import type { ChartMetric } from './ticks'
 
 const SHORT_MONTH_DE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez']
@@ -25,6 +26,25 @@ export function formatChartDate(t: number, range: string): string {
 export function formatStripDate(t: number): string {
   const d = new Date(t)
   return `${d.getDate()}. ${LONG_MONTH_DE[d.getMonth()]} · ${LONG_DAY_DE[d.getDay()]}`
+}
+
+/**
+ * The resolved range of a rolling window, shown under the window tabs
+ * so "Monat" does not read as a calendar month (#48):
+ * "20. Sep – 20. Okt 2026", the start year only when it differs.
+ * For "all", fromMs is the oldest point (null when there are none).
+ */
+export function formatRangeCaption(fromMs: number | null, toMs: number, window: TrendsWindowKey): string {
+  if (window === 'all') {
+    if (fromMs === null) return 'Alle Sessions'
+    const f = new Date(fromMs)
+    return `seit ${f.getDate()}. ${SHORT_MONTH_DE[f.getMonth()]} ${f.getFullYear()}`
+  }
+  const f = new Date(fromMs ?? toMs)
+  const t = new Date(toMs)
+  const day = (d: Date) => `${d.getDate()}. ${SHORT_MONTH_DE[d.getMonth()]}`
+  const start = f.getFullYear() === t.getFullYear() ? day(f) : `${day(f)} ${f.getFullYear()}`
+  return `${start} – ${day(t)} ${t.getFullYear()}`
 }
 
 /**

@@ -86,6 +86,11 @@ last 365 days, Alles = everything. Consequences:
 - There is exactly one window. The current split between "headline
   period" and "silently wider chart window" is removed.
 
+Under the tabs a muted caption names the resolved range, so Monat
+does not read as a calendar month (#48): `20. Sep – 20. Okt 2026`,
+`20. Okt 2025 – 20. Okt 2026`, `seit 3. Mai 2025` (oldest point) or
+`Alle Sessions`. It shows in the empty state too. The tab labels stay.
+
 ### 2. Progress card
 
 One chart card.
@@ -101,13 +106,18 @@ One chart card.
   free-rower sees dots instead of an empty chart. Exception:
   zero-work sessions (warmup-only, race false-start) are filtered by
   the API and never appear — as dot, list row, or footnote
-  contribution (§Backend & data).
+  contribution (§Backend & data). A legend under the chart explains
+  them (`● 5 k  ● andere Sessions`; a free-rower sees only
+  `● Sessions`); it is absent when there are no context dots (#48).
 - **Metric toggle**: `Split | Watt | SPM | DPS`. Split is default.
   DPS folds in here — there is no separate Effizienz chart anymore.
   Data is already in the API per point (avg_pace / avg_power_w /
   avg_spm / avg_dps).
 - **Scrubber** (existing) stays: drag shows per-point strip values,
   tap on a dot opens the session AND highlights the matching list row.
+  On a context dot the strip adds the session's workout chip (same
+  text as its list row) and drops the delta, which compares against
+  the line's rolling average and says nothing about that dot (#48).
 
 ### 3. Session list
 
