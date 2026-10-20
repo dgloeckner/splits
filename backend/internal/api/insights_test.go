@@ -99,3 +99,42 @@ func TestGetSessionInsightsTooShort(t *testing.T) {
 		t.Errorf("reason = %q, want %q", body.Reason, insights.ReasonTooShort)
 	}
 }
+
+// Rows stored before the contradiction guard (#40) still hold
+// INCONSISTENT as NOTABLE; the API reconciles them on read so the
+// cards list pacing first and both read as INFO.
+func TestGetSessionInsightsReconcilesStoredContradiction(t *testing.T) {
+	db := seedDB(t)
+	h := SessionsHandler(db.Handle(), nil, nil)
+	if _, err := db.Handle().Exec(
+		`INSERT INTO rowers(id, name, color, created_at) VALUES('R1','Test','#fff',datetime('now'))`); err != nil {
+		t.Fatal(err)
+	}
+	store := insights.NewStore(db.Handle())
+	if err := store.ReplaceForSession(t.Context(), "R1", "S1", []insights.Finding{
+		{DetectorID: "pacing", Code: insights.CodeEvenSplit, Severity: insights.SeverityInfo,
+			Category: insights.CategoryPacing, MessageDE: "Gleichmäßiges Tempo.", Evidence: map[string]float64{}},
+		{DetectorID: "consistency", Code: insights.CodeInconsistent, Severity: insights.SeverityNotable,
+			Category: insights.CategoryConsistency, MessageDE: "Tempokonstanz: ungleichmäßig.", Evidence: map[string]float64{}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := doReq(t, h, "GET", "/api/v1/sessions/S1/insights")
+	var body struct {
+		Findings    []insights.Finding `json:"findings"`
+		SynthesisDE string             `json:"synthesis_de"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Findings) != 2 || body.Findings[0].Code != insights.CodeEvenSplit {
+		t.Fatalf("findings = %+v, want EVEN_SPLIT first", body.Findings)
+	}
+	if body.Findings[1].Severity != insights.SeverityInfo {
+		t.Errorf("INCONSISTENT severity = %s, want INFO", body.Findings[1].Severity)
+	}
+	if want := "Gleichmäßiges Tempo. Tempokonstanz: ungleichmäßig."; body.SynthesisDE != want {
+		t.Errorf("synthesis = %q, want %q", body.SynthesisDE, want)
+	}
+}

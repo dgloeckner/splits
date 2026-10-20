@@ -30,6 +30,9 @@ func getSessionInsights(db *sql.DB) http.HandlerFunc {
 		if findings == nil {
 			findings = []insights.Finding{}
 		}
+		// Rows stored before the contradiction guard existed get it on
+		// read, so the cards and the synthesis agree.
+		findings = insights.Reconcile(findings)
 
 		body := map[string]any{
 			"findings":     findings,
