@@ -26,6 +26,38 @@
   border-color: var(--color-primary);
 }
 .list { display: flex; flex-direction: column; gap: 8px; }
+.listPane { display: flex; flex-direction: column; gap: 8px; min-width: 0; --month-chips-h: 0px; }
+/* Phone: the page scrolls, so the chip row sticks and headers park below it. */
+.withChips { --month-chips-h: 40px; }
+.monthChips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: 0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--color-surface);
+}
+.monthChips::-webkit-scrollbar { display: none; }
+.monthChips .chip { flex: none; }
+.monthGroup { display: flex; flex-direction: column; gap: 8px; }
+.monthHeader {
+  position: sticky;
+  top: var(--month-chips-h);
+  scroll-margin-top: var(--month-chips-h);
+  z-index: 1;
+  margin: 0;
+  padding: 6px 2px;
+  background: var(--color-surface);
+  color: var(--color-on-surface-variant);
+  font-family: var(--font-body);
+  font-size: var(--text-label-md);
+  font-weight: 600;
+}
 .row {
   display: flex;
   justify-content: space-between;
@@ -75,4 +107,7 @@
   }
   .leftPane { position: sticky; top: 12px; }
   .list { max-height: calc(100vh - 160px); overflow-y: auto; }
+  /* iPad: the list is its own pane below the chips. */
+  .listPane, .withChips { --month-chips-h: 0px; }
+  .monthChips { position: static; }
 }

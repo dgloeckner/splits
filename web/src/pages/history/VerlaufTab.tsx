@@ -1,9 +1,8 @@
 import { useMemo, useState } from 'react'
-import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
   getRowerTrends,
-  type TrendsPoint,
   type TrendsResponse,
   type TrendsWindowKey,
 } from '../../api/client'
@@ -13,6 +12,8 @@ import type { ChartMetric } from '../../components/charts/ticks'
 import { formatRangeCaption } from '../../components/charts/format'
 import { formatDurationHuman, pace500m, signedPct } from '../../util/format'
 import { WindowTabs } from './WindowTabs'
+import { SessionList } from './SessionList'
+import { shapeChip } from './shapeChip'
 import styles from './VerlaufTab.module.css'
 import { useOfferPendingUpdate } from '../../offline/swUpdate'
 
@@ -112,7 +113,7 @@ export function VerlaufTab() {
         )}
       </div>
       {data && data.points.length > 0 && (
-        <SessionList data={data} highlightId={highlightId} labelByShape={labelByShape} />
+        <SessionList data={data} window_={window_} highlightId={highlightId} labelByShape={labelByShape} />
       )}
     </div>
   )
@@ -227,65 +228,6 @@ function ProgressCard(p: {
       </div>
     </section>
   )
-}
-
-function SessionList({ data, highlightId, labelByShape }: {
-  data: TrendsResponse
-  highlightId: string | null
-  labelByShape: Map<string, string>
-}) {
-  const rows = [...data.points].sort((a, b) => (a.t < b.t ? 1 : -1))
-
-  const fmtTime = (sec: number) => {
-    const m = Math.floor(sec / 60)
-    const s = Math.floor(sec % 60)
-    return `${m}:${s.toString().padStart(2, '0')}`
-  }
-
-  return (
-    <section className={styles.list} aria-label="Sessions">
-      {rows.map((q) => {
-        const body = (
-          <>
-            <div className={styles.rowMain}>
-              <span className={styles.rowDate}>{new Date(q.t).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
-              <span className={styles.rowChip}>{shapeChip(q, labelByShape)}</span>
-              {q.distance_pb && (
-                <span data-testid={`verlauf-pb-${q.session_id}`} role="img" aria-label="Neue Bestleistung">🏆</span>
-              )}
-            </div>
-            <div className={styles.rowStats}>
-              <span>{q.distance_m} m</span>
-              <span>{fmtTime(q.time_sec)}</span>
-              <span className={styles.rowSplit}>{pace500m(q.avg_pace_sec_per_500m)}</span>
-            </div>
-          </>
-        )
-        // Every row stays navigable, also away from home: the packed
-        // details live in the SW cache, which the in-memory bag cannot
-        // see; a miss is explained on the detail page (issue #9).
-        return (
-          <Link key={q.session_id} to={`/historie/${q.session_id}`}
-            data-testid={`verlauf-row-${q.session_id}`}
-            className={q.session_id === highlightId ? `${styles.row} ${styles.rowActive}` : styles.row}>
-            {body}
-          </Link>
-        )
-      })}
-    </section>
-  )
-}
-
-function shapeChip(q: TrendsPoint, labels: Map<string, string>): string {
-  const fromSeries = q.shape_hash ? labels.get(q.shape_hash) : undefined
-  if (fromSeries) return fromSeries
-  switch (q.mode) {
-    case 'just_row': return 'Just Row'
-    case 'intervals': return 'Intervalle'
-    case 'time': return 'Zeit'
-    case 'distance': return 'Distanz'
-  }
-  return q.mode || 'Just Row'
 }
 
 function VolumeFootnote({ data, window_ }: { data: TrendsResponse; window_: TrendsWindowKey }) {
