@@ -121,8 +121,10 @@ test('session insights: eligible session renders cards + synthesis', async ({
 
 // #40: on the 11.06.2026 5000 m session the Auswertung reads one short
 // paragraph, then compact evidence cards (label, number, sparkline);
-// no sentence appears twice. The findings are what the detectors
-// produce on the reconstructed fixture (insights/fixture_test.go).
+// no sentence appears twice. The pacing and consistency rows are what
+// the detectors produce on the reconstructed fixture
+// (insights/fixture_test.go); the drift row is seeded to exercise the
+// card — with the two-sided pace condition the fixture does not fire it.
 test('session insights: synthesis is the only prose, cards carry number + sparkline', async ({
   startBackend,
   seedActiveRower,
