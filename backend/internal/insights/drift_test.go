@@ -23,19 +23,20 @@ func driftSamples(n int, dps [2]float64, spm [2]float64, split [2]int) *event.Se
 }
 
 func TestDriftSilentOnFixture(t *testing.T) {
-	// The reconstructed 11.06.2026 fixture shows DPS −5 % and SPM +2,
-	// but its split gets 2.1 s faster: a deliberate speed-up, not drift.
-	// (The stored session measures only −1.2 % / +0.7, FEAT-0011 §Sweep.)
+	// The 11.06.2026 session holds pace (split +0.2 s) while DPS falls
+	// 2.4 % and SPM rises 0.7: the pattern, but well inside the v1
+	// thresholds (FEAT-0011 §Sweep).
 	_, s := loadSamplesFixture(t, fixture5000m)
 	m, ok := MeasureDrift(s)
 	if !ok {
 		t.Fatal("fixture not measurable")
 	}
-	if m.Split2-m.Split1 >= -PacingThresholdSec {
-		t.Fatalf("split change = %.1f s, want faster than −%.0f s", m.Split2-m.Split1, PacingThresholdSec)
+	if m.DPSPct >= 0 || m.SPM2 <= m.SPM1 || m.DPSPct <= DriftDPSPct {
+		t.Errorf("measure = DPS %.1f %%, SPM %.1f → %.1f; want a fall above %.0f %% with a rate rise",
+			m.DPSPct, m.SPM1, m.SPM2, DriftDPSPct)
 	}
 	if f, ok := DetectDrift(s); ok {
-		t.Errorf("fired on a speed-up: %s", f.MessageDE)
+		t.Errorf("fired below the v1 thresholds: %s", f.MessageDE)
 	}
 }
 

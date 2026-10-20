@@ -9,7 +9,7 @@ test.setTimeout(60_000)
 // #43: the session-detail charts take their y-domain from the working
 // range (the analysis window), so the start-up bucket of a long piece
 // no longer stretches the split axis to 1:20–3:00. A real fixture
-// session is rowed, then its samples are replaced by the reconstructed
+// session is rowed, then its samples are replaced by the real
 // 11.06.2026 5000 m session (start bucket 2:45, body ~1:48).
 test('session charts: split axis spans the working range, start spike clipped', async ({
   startBackend,
@@ -42,7 +42,9 @@ test('session charts: split axis spans the working range, start spike clipped', 
     .map((t) => Number(t.slice(0, 1)) * 60 + Number(t.slice(2)))
   expect(ySecs.length).toBeGreaterThan(1)
   expect(Math.max(...ySecs)).toBeLessThanOrEqual(130) // no tick above 2:10
-  expect(Math.min(...ySecs)).toBeGreaterThanOrEqual(95)
+  // The real session's finishing sprint reaches 1:38, so the lowest tick
+  // is 1:30; the 2:45 start bucket stays out of the domain.
+  expect(Math.min(...ySecs)).toBeGreaterThanOrEqual(90)
 
   await page.locator('figure').filter({ hasText: 'DPS-Verlauf' }).scrollIntoViewIfNeeded()
   await page.screenshot({ path: testInfo.outputPath('02-all-charts.png') })
