@@ -156,10 +156,13 @@ Berechnet bei Finalise aus den Arbeitsschlägen und gespeichert als
 `summary_json.samples.window = {"from": 1, "to": 104}`; der
 Samples-Endpoint liefert es mit aus. Die volle Reihe bleibt für die
 Charts erhalten. Sessions, die vor dem Fenster finalisiert wurden,
-haben keins — die Detectors werten dann wie bisher die volle Reihe
-aus. Bestehende `session_insights`-Rows werden nicht migriert; ein
-erneutes Finalise berechnet sie neu, solange die Stroke-Rows noch
-existieren.
+haben keins. `cmd/insights-backfill` berechnet es für sie aus den
+Stroke-Rows nach (gleiche Bucket-Größe wie die gespeicherten Samples),
+schreibt es nach `summary_json.samples.window` und rechnet die
+Insights neu; `cmd/insights-sweep` tut dasselbe nur lesend. Ohne
+Stroke-Rows (kompaktiert) oder wenn die Arbeitsschläge nicht mehr in
+die gespeicherte Reihe passen, bleibt die Session ohne Fenster und die
+Detectors werten die volle Reihe aus.
 
 Jedes Finding trägt die verwendeten Grenzen als `window_from` /
 `window_to` in `evidence`.
