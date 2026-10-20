@@ -108,7 +108,9 @@ export function ProgressChart(p: ProgressChartProps) {
   )
 
   const { scrubX, handlers } = useChartScrubber({
-    getPlotRect: () => captureRef.current?.getBoundingClientRect() ?? null,
+    // Dot x positions are SVG coordinates (they include PLOT_LEFT), so the
+    // pointer is measured from the SVG's left edge, not the capture rect's.
+    getPlotRect: () => captureRef.current?.ownerSVGElement?.getBoundingClientRect() ?? null,
     dots,
     onDotTap: p.onDotTap,
   })
