@@ -189,7 +189,7 @@ export function SessionDetailPage() {
         </div>
       </section>
 
-      <InsightsSection sessionId={sessionId} />
+      <InsightsSection sessionId={sessionId} samples={samplesQ.data} />
 
       <div className={styles.charts}>
         <SessionChart title="Split-Verlauf (s / 500 m)" points={splitPts} metric="split"

@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process'
 import { test, expect } from './fixtures'
+import { seedSessionSamples } from './helpers/seedSessionSamples'
 
 const FIXTURE_M3 = '../specs/int/fixtures/ipm/session-m3-long.csv'
 
@@ -105,13 +106,10 @@ test('session insights: eligible session renders cards + synthesis', async ({
   await expect(cards.nth(0)).toHaveAttribute('data-severity', 'ATTENTION')
   await expect(cards.nth(1)).toHaveAttribute('data-severity', 'NOTABLE')
 
-  // Card-body content (both detector messages render in their own card).
-  await expect(
-    cards.nth(0).getByText(/Leistungsabfall von 6,8%/),
-  ).toBeVisible()
-  await expect(
-    cards.nth(1).getByText(/Positiver Split: Zweite Hälfte/),
-  ).toBeVisible()
+  // Cards are the evidence layer (#40): label + key number, no sentence.
+  await expect(cards.nth(0).getByTestId('finding-headline')).toHaveText('−6,8%')
+  await expect(cards.nth(1).getByTestId('finding-headline')).toHaveText('1:59,6 → 2:03,2')
+  await expect(cards.nth(0)).not.toContainText('Schlussabschnitt')
 
   // Synthesis paragraph: FADE + POSITIVE_SPLIT triggers em-dash join.
   await expect(
@@ -119,4 +117,71 @@ test('session insights: eligible session renders cards + synthesis', async ({
       hasText: /Leistungsabfall von 6,8% .* — Positiver Split: Zweite Hälfte/,
     }),
   ).toBeVisible()
+})
+
+// #40: on the 11.06.2026 5000 m session the Auswertung reads one short
+// paragraph, then compact evidence cards (label, number, sparkline);
+// no sentence appears twice. The findings are what the detectors
+// produce on the reconstructed fixture (insights/fixture_test.go).
+test('session insights: synthesis is the only prose, cards carry number + sparkline', async ({
+  startBackend,
+  seedActiveRower,
+  home,
+  history,
+  page,
+  waitForEndedSession,
+}, testInfo) => {
+  const handle = await startBackend({ fixture: FIXTURE_M3, idleTimeout: '20s', fixtureDelay: '4s' })
+  const rower = await seedActiveRower()
+  await home.open()
+  await home.startFreeRow()
+  const ended = await waitForEndedSession(rower.id, 30_000)
+  seedSessionSamples(handle.dbPath, ended.id)
+
+  const sql = [
+    `DELETE FROM session_insights WHERE session_id = '${ended.id}';`,
+    `INSERT INTO session_insights
+       (rower_id, session_id, detector_id, code, severity, category, message_de, evidence_json, computed_at)
+     VALUES
+       ('${rower.id}', '${ended.id}', 'pacing', 'EVEN_SPLIT', 'INFO', 'PACING',
+        'Gleichmäßiges Tempo über beide Hälften (1:47,8 / 1:46,6).',
+        '{"h1":107.8,"h2":106.6,"delta":-1.2,"window_from":1,"window_to":104}', '2026-06-11T21:45:00Z'),
+       ('${rower.id}', '${ended.id}', 'consistency', 'CONSISTENT_HIGH', 'INFO', 'CONSISTENCY',
+        'Tempokonstanz: sehr gleichmäßig (Split-Variation 2,0%).',
+        '{"cv":1.96,"mean":107.2,"std":2.1,"window_from":1,"window_to":104}', '2026-06-11T21:45:00Z');`,
+  ].join('\n')
+  const r = spawnSync('sqlite3', [handle.dbPath, sql], { encoding: 'utf8' })
+  if (r.status !== 0) throw new Error(`sqlite3 seed failed: ${r.stderr}`)
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await history.openSessions()
+  await history.openFirstSession()
+  const synthesis = page.getByTestId('insights-synthesis')
+  const cards = page.getByTestId('finding-card')
+  await cards.last().scrollIntoViewIfNeeded()
+  await page.evaluate(() => window.scrollBy(0, 200)) // clear the bottom nav
+  await page.screenshot({ path: testInfo.outputPath('01-auswertung.png') })
+
+  await expect(cards).toHaveCount(2)
+  // Pacing before consistency when both are INFO.
+  await expect(cards.nth(0)).toHaveAttribute('data-category', 'PACING')
+  await expect(cards.nth(1)).toHaveAttribute('data-category', 'CONSISTENCY')
+  await expect(cards.nth(0).getByTestId('finding-headline')).toHaveText('1:47,8 / 1:46,6')
+  await expect(cards.nth(1).getByTestId('finding-headline')).toHaveText('Variation 2,0%')
+
+  // The synthesis is not a substring of any card, and no card repeats a sentence.
+  const synthText = (await synthesis.textContent())!
+  for (const body of await cards.allTextContents()) {
+    expect(synthText).not.toContain(body)
+    expect(body).not.toContain('Gleichmäßiges Tempo')
+    expect(body).not.toContain('Split-Variation')
+  }
+
+  // Each card draws its sparkline, and stays within two text lines at 390 px.
+  await expect(page.getByTestId('finding-sparkline')).toHaveCount(2)
+  for (const box of await cards.evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) {
+    expect(box).toBeLessThan(90)
+  }
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+  expect(overflow).toBeLessThanOrEqual(0)
 })
