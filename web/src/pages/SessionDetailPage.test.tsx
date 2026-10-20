@@ -81,6 +81,24 @@ describe('SessionDetailPage', () => {
     expect(screen.getByText(/DPS-Verlauf/)).toBeInTheDocument()
   })
 
+  it('chart Ø labels read exactly like the hero panel', async () => {
+    vi.stubGlobal(
+      'fetch',
+      mockFetch({
+        '/api/v1/sessions/S1/samples': () => new Response(JSON.stringify({ samples: SAMPLES }), { status: 200 }),
+        '/api/v1/sessions/S1/pb-banners': () =>
+          new Response(JSON.stringify({ distance: [], window: [] }), { status: 200 }),
+        '/api/v1/sessions/S1': () => new Response(JSON.stringify(SESSION), { status: 200 }),
+      }),
+    )
+    render(wrap())
+    await waitFor(() => expect(screen.getAllByTestId('session-chart-avg')).toHaveLength(4))
+    const avgLabels = screen.getAllByTestId('session-chart-avg').map((g) => g.textContent?.replace(/^Ø /, ''))
+    const hero = ['split', 'watt', 'spm', 'dps'].map((m) => screen.getByTestId(`detail-avg-${m}`).textContent)
+    expect(avgLabels).toEqual(hero)
+    expect(hero).toEqual(['2:17.0', '259', '26.3', '8.35'])
+  })
+
   it('renders Auswertung section when insights are available', async () => {
     vi.spyOn(insightsApi, 'getSessionInsights').mockResolvedValue({
       findings: [

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatChartDate, formatStripDate, formatRollingDelta } from './format'
+import { formatChartDate, formatStripDate, formatRollingDelta, formatMetric } from './format'
 
 // All dates in Berlin local for stability (the app already assumes Berlin TZ).
 const MAY_17_2026 = new Date('2026-05-17T10:00:00+02:00').getTime() // Sunday
@@ -63,5 +63,30 @@ describe('formatRollingDelta', () => {
 
   it('returns "—" when delta is exactly zero', () => {
     expect(formatRollingDelta(10, 10, 14, fmt)).toBe('—')
+  })
+})
+
+describe('formatMetric', () => {
+  it('split as m:ss.t', () => {
+    expect(formatMetric.split(108)).toBe('1:48.0')
+    expect(formatMetric.split(107.84)).toBe('1:47.8')
+  })
+  it('watt as whole watts, rounded', () => {
+    expect(formatMetric.watt(378)).toBe('378')
+    expect(formatMetric.watt(377.6)).toBe('378')
+  })
+  it('SPM with one decimal', () => {
+    expect(formatMetric.spm(28.6)).toBe('28.6')
+    expect(formatMetric.spm(29)).toBe('29.0')
+  })
+  it('DPS with two decimals', () => {
+    expect(formatMetric.dps(9.55)).toBe('9.55')
+    expect(formatMetric.dps(9.6)).toBe('9.60')
+  })
+  it('missing values render a dash', () => {
+    for (const f of Object.values(formatMetric)) {
+      expect(f(null)).toBe('—')
+      expect(f(undefined)).toBe('—')
+    }
   })
 })

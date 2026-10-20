@@ -49,6 +49,13 @@ test('session charts: split axis spans the working range, start spike clipped', 
   // All four charts keep their Ø line.
   await expect(page.getByTestId('session-chart-avg')).toHaveCount(4)
 
+  // #45: each chart's Ø label reads exactly like the hero panel value.
+  const avgLabels = await page.getByTestId('session-chart-avg').allTextContents()
+  for (const [i, metric] of ['split', 'watt', 'spm', 'dps'].entries()) {
+    const hero = await page.getByTestId(`detail-avg-${metric}`).textContent()
+    expect(avgLabels[i].replace(/^Ø /, '')).toBe(hero)
+  }
+
   // No horizontal overflow at phone width.
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
   expect(overflow).toBeLessThanOrEqual(0)
