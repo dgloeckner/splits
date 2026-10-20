@@ -66,10 +66,30 @@ export async function getSession(id: string): Promise<SessionRow> {
   return json<SessionRow>(r)
 }
 
-export async function getSamples(id: string): Promise<Sample[]> {
+/**
+ * Analysis window (FEAT-0011 §Analysefenster): half-open bucket range
+ * [from, to) into `samples` — the piece without its start-up bucket and
+ * the strokes after the goal. Absent for sessions finalised before it
+ * existed, and for live sessions.
+ */
+export type SamplesWindow = { from: number; to: number }
+
+export type SessionSamples = {
+  samples: Sample[]
+  window: SamplesWindow | null
+}
+
+export async function getSamples(id: string): Promise<SessionSamples> {
   const r = await getFetch(`/api/v1/sessions/${encodeURIComponent(id)}/samples`)
-  const body = await json<{ samples: Sample[] }>(r)
-  return body.samples
+  const body = await json<{ samples: Sample[]; window?: SamplesWindow }>(r)
+  return { samples: body.samples, window: body.window ?? null }
+}
+
+/** The analysis window as a time range over the samples, for the charts. */
+export function windowTimeRange(s: SessionSamples): { fromX: number; toX: number } | null {
+  const w = s.window
+  if (!w || w.from < 0 || w.to > s.samples.length || w.from >= w.to) return null
+  return { fromX: s.samples[w.from].time_sec, toX: s.samples[w.to - 1].time_sec }
 }
 
 export async function deleteSession(id: string): Promise<void> {

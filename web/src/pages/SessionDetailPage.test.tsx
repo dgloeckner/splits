@@ -114,7 +114,7 @@ describe('SessionDetailPage', () => {
     _resetErgoStatusForTest()
     const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
     qc.setQueryData(['sessions', 'S1'], SESSION)
-    qc.setQueryData(['sessions', 'S1', 'samples'], [])
+    qc.setQueryData(['sessions', 'S1', 'samples'], { samples: [], window: null })
     vi.stubGlobal('fetch', () => Promise.reject(new TypeError('unreachable')))
 
     render(wrap('/historie/S1', qc))

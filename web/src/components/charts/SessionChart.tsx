@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { clampY, workingYRange, type XRange } from './domain'
 import { monotonePath } from './path'
 import { selectTimeAxisTicks, selectYTicksRound, type ChartMetric } from './ticks'
 import styles from './ProgressChart.module.css'
@@ -18,17 +19,24 @@ export type SessionChartProps = {
   fmt: (v: number) => string
   /** Session average — grey dashed reference, direct-labeled. */
   avgValue?: number | null
+  /**
+   * The analysis window as an x-range. The y-domain is the working
+   * range inside it (a trimmed range of all points without one);
+   * points outside the domain are clipped to the plot edge.
+   */
+  focus?: XRange | null
 }
 
-export function SessionChart({ title, points, metric, fmt, avgValue }: SessionChartProps) {
+export function SessionChart({ title, points, metric, fmt, avgValue, focus }: SessionChartProps) {
   const xMin = points[0]?.x ?? 0
   const xMax = points[points.length - 1]?.x ?? 1
   const yTicks = useMemo(() => {
-    const ys = points.map((p) => p.y)
+    const range = workingYRange(points, focus)
+    const ys = range ? [range.min, range.max] : []
     if (avgValue != null) ys.push(avgValue)
     if (ys.length === 0) return []
     return selectYTicksRound(Math.min(...ys), Math.max(...ys), metric)
-  }, [points, avgValue, metric])
+  }, [points, avgValue, metric, focus])
   const yMin = yTicks[0] ?? 0
   const yMax = yTicks[yTicks.length - 1] ?? 1
   const plotRight = WIDTH - RIGHT_PAD
@@ -70,7 +78,7 @@ export function SessionChart({ title, points, metric, fmt, avgValue }: SessionCh
         )}
         {points.length > 1 && (
           <path className={styles.seriesPath}
-            d={monotonePath(points.map((p) => ({ x: toX(p.x), y: toY(p.y) })))} />
+            d={monotonePath(points.map((p) => ({ x: toX(p.x), y: toY(clampY(p.y, yMin, yMax)) })))} />
         )}
       </svg>
     </figure>
