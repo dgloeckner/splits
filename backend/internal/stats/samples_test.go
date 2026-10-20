@@ -57,9 +57,31 @@ func TestComputeSamplesExactBucket(t *testing.T) {
 	if s.Watt[0] != wantWatt {
 		t.Errorf("watt = %d, want %d", s.Watt[0], wantWatt)
 	}
-	wantSPM := (24 + 26 + 28 + 28 + 30) / 5
-	if s.SPM[0] != wantSPM {
-		t.Errorf("spm = %d, want %d", s.SPM[0], wantSPM)
+	if want := 27.2; s.SPM[0] != want { // (24+26+28+28+30)/5
+		t.Errorf("spm = %v, want %v", s.SPM[0], want)
+	}
+}
+
+// TestComputeSamplesSPMDecimal: the SPM bucket mean keeps one decimal
+// instead of truncating, so the SPM chart follows the real rating.
+func TestComputeSamplesSPMDecimal(t *testing.T) {
+	cases := []struct {
+		spms []int
+		want float64
+	}{
+		{[]int{28, 28, 29, 29, 29}, 28.6},
+		{[]int{27, 27, 27, 27, 28}, 27.2},
+		{[]int{30, 30, 30, 30, 30}, 30},
+		{[]int{25, 26, 26}, 25.7}, // partial bucket: 77/3 = 25.67
+	}
+	for _, tc := range cases {
+		strokes := make([]event.StrokePayload, len(tc.spms))
+		for i, spm := range tc.spms {
+			strokes[i] = mkStroke(i+1, float64(i+1)*2, 110, 300, spm)
+		}
+		if got := ComputeSamples(strokes, 5).SPM[0]; got != tc.want {
+			t.Errorf("spm %v → %v, want %v", tc.spms, got, tc.want)
+		}
 	}
 }
 

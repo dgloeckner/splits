@@ -171,7 +171,7 @@ type SessionSamples struct {
 	T             []float64 `json:"t_sec"`
 	Split         []int     `json:"split"`
 	Watt          []int     `json:"watt"`
-	SPM           []int     `json:"spm"`
+	SPM           []float64 `json:"spm"` // bucket mean, one decimal; older summaries hold integers
 	DPS           []float64 `json:"dps"`
 
 	// Window is the analysis window (Analysefenster, FEAT-0011): the

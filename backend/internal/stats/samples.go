@@ -3,7 +3,11 @@
 // compacted away. See FEAT-0009 (cleanup) and FEAT-0010 (PBs).
 package stats
 
-import "github.com/gloeckner-daniel/splits/internal/event"
+import (
+	"math"
+
+	"github.com/gloeckner-daniel/splits/internal/event"
+)
 
 // DefaultBucketStrokes is the bucket size used by ComputeSamples when
 // the caller does not specify one. Five strokes is roughly 6–10 s of
@@ -36,7 +40,8 @@ func BucketStrokesFor(totalStrokes int) int {
 // has at least one stroke.
 //
 // The returned series carries one entry per bucket: the bucket's
-// final TimeSec, its rounded mean PaceSecPer500m, PowerW, and SPM.
+// final TimeSec, its truncated mean PaceSecPer500m and PowerW, its
+// mean SPM rounded to one decimal, and its mean DPS.
 func ComputeSamples(strokes []event.StrokePayload, bucketStrokes int) *event.SessionSamples {
 	if bucketStrokes <= 0 {
 		bucketStrokes = DefaultBucketStrokes
@@ -51,7 +56,7 @@ func ComputeSamples(strokes []event.StrokePayload, bucketStrokes int) *event.Ses
 		T:             make([]float64, 0, nBuckets),
 		Split:         make([]int, 0, nBuckets),
 		Watt:          make([]int, 0, nBuckets),
-		SPM:           make([]int, 0, nBuckets),
+		SPM:           make([]float64, 0, nBuckets),
 		DPS:           make([]float64, 0, nBuckets),
 	}
 
@@ -73,7 +78,7 @@ func ComputeSamples(strokes []event.StrokePayload, bucketStrokes int) *event.Ses
 		out.T = append(out.T, strokes[end-1].TimeSec)
 		out.Split = append(out.Split, paceSum/n)
 		out.Watt = append(out.Watt, wattSum/n)
-		out.SPM = append(out.SPM, spmSum/n)
+		out.SPM = append(out.SPM, math.Round(float64(spmSum)/float64(n)*10)/10)
 		out.DPS = append(out.DPS, dpsSum/float64(n))
 	}
 	return out

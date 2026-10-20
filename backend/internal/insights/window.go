@@ -7,8 +7,8 @@ import "github.com/gloeckner-daniel/splits/internal/event"
 // carry one, the full series otherwise. From/To are the window bounds
 // in the full series and go into every finding's evidence.
 type analysed struct {
-	Split, Watt, SPM []int
-	DPS              []float64
+	Split, Watt []int
+	SPM, DPS    []float64
 	From, To         int
 }
 
