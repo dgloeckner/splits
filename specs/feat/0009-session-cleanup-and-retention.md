@@ -96,7 +96,7 @@ Effect, all inside the same DB transaction that closes the session:
        "t_sec":  [0, 5, 10, 15, …],       // ~1 sample / 5 s, capped at 360 points
        "split":  [128.4, 124.0, …],       // sec / 500 m
        "watt":   [185, 210, …],
-       "spm":    [22, 24, …],
+       "spm":    [22.4, 24.0, …],         // bucket mean, one decimal (integers before #44)
        "hr":     [null, 142, …]           // optional, present iff HR data exists
      },
      "consistency": { "power_stddev": 18.4 },

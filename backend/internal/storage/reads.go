@@ -33,7 +33,7 @@ type SampleRow struct {
 	StrokeNo       int     `json:"stroke_no"`
 	TimeSec        float64 `json:"time_sec"`
 	DistanceM      int     `json:"distance_m"`
-	SPM            int     `json:"spm"`
+	SPM            float64 `json:"spm"` // integer per stroke; a bucket mean for compacted sessions
 	PowerW         int     `json:"power_w"`
 	CalPerHr       int     `json:"cal_per_hr"`
 	Level          int     `json:"level"`

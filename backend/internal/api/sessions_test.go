@@ -159,7 +159,7 @@ func TestGetSessionSamplesFromSummary(t *testing.T) {
 			T:             []float64{10.0, 20.0},
 			Split:         []int{125, 130},
 			Watt:          []int{200, 210},
-			SPM:           []int{25, 26},
+			SPM:           []float64{25, 26},
 			DPS:           []float64{8.5, 9.0},
 		},
 	}
@@ -180,6 +180,10 @@ func TestGetSessionSamplesFromSummary(t *testing.T) {
 	}
 	if len(body.Samples) != 2 {
 		t.Fatalf("got %d samples, want 2", len(body.Samples))
+	}
+	// SPM is the stored bucket mean; integer summaries still parse.
+	if spm0, _ := body.Samples[0]["spm"].(float64); spm0 != 25 {
+		t.Errorf("samples[0].spm = %v, want 25", spm0)
 	}
 	// DPS should be non-zero.
 	dps0, _ := body.Samples[0]["dps"].(float64)
@@ -212,7 +216,7 @@ func TestGetSessionSamplesWindow(t *testing.T) {
 				T:             []float64{10, 20, 30},
 				Split:         []int{160, 110, 108},
 				Watt:          []int{150, 300, 310},
-				SPM:           []int{20, 28, 28},
+				SPM:           []float64{20, 28, 28},
 				DPS:           []float64{8, 9.5, 9.6},
 				Window:        win,
 			},

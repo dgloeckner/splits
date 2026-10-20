@@ -28,6 +28,7 @@ export type Sample = {
   stroke_no: number
   time_sec: number
   distance_m: number
+  /** Integer per live stroke; for an ended session a bucket mean with one decimal. */
   spm: number
   power_w: number
   cal_per_hr: number
