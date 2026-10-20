@@ -10,6 +10,7 @@ import {
 import { useActiveRower } from '../../hooks/useActiveRower'
 import { ProgressChart } from '../../components/charts/ProgressChart'
 import type { ChartMetric } from '../../components/charts/ticks'
+import { formatRangeCaption } from '../../components/charts/format'
 import { formatDurationHuman, pace500m, signedPct } from '../../util/format'
 import { WindowTabs } from './WindowTabs'
 import styles from './VerlaufTab.module.css'
@@ -81,11 +82,19 @@ export function VerlaufTab() {
   const [metric, setMetric] = useState<ChartMetric>('split')
   const [selectedShape, setSelectedShape] = useState<string | null>(null)
   const [highlightId, setHighlightId] = useState<string | null>(null)
+  // Shared by the list-row chips and the strip chip of a context dot.
+  const labelByShape = useMemo(
+    () => new Map((data?.series ?? []).map((s) => [s.key.shape_hash, s.display_name])),
+    [data?.series],
+  )
 
   return (
     <div className={styles.layout}>
       <div className={styles.leftPane}>
-        <WindowTabs value={window_} onChange={setWindow} />
+        <div className={styles.windowHead}>
+          <WindowTabs value={window_} onChange={setWindow} />
+          {data && <RangeCaption data={data} window_={window_} />}
+        </div>
         {isPending && <p className={styles.placeholder}>Lädt …</p>}
         {error && !data && <p className={styles.placeholder}>Konnte Verlauf nicht laden.</p>}
         {data && data.points.length === 0 && <EmptyState window_={window_} onWiden={setWindow} />}
@@ -95,6 +104,7 @@ export function VerlaufTab() {
               data={data} window_={window_} metric={metric} setMetric={setMetric}
               selectedShape={selectedShape} setSelectedShape={setSelectedShape}
               highlightId={highlightId} setHighlightId={setHighlightId}
+              labelByShape={labelByShape}
               onOpen={(id) => navigate(`/historie/${id}`)}
             />
             <VolumeFootnote data={data} window_={window_} />
@@ -102,9 +112,22 @@ export function VerlaufTab() {
         )}
       </div>
       {data && data.points.length > 0 && (
-        <SessionList data={data} highlightId={highlightId} />
+        <SessionList data={data} highlightId={highlightId} labelByShape={labelByShape} />
       )}
     </div>
+  )
+}
+
+// Monat and Jahr are rolling (last 30 / 365 days), not calendar periods;
+// the caption says which days they cover. "all" has no start bound, so it
+// starts at the oldest point.
+function RangeCaption({ data, window_ }: { data: TrendsResponse; window_: TrendsWindowKey }) {
+  const oldest = data.points.length > 0 ? Math.min(...data.points.map((q) => new Date(q.t).getTime())) : null
+  const from = window_ === 'all' ? oldest : new Date(data.from).getTime()
+  return (
+    <p className={styles.footnote} data-testid="verlauf-range-caption">
+      {formatRangeCaption(from, new Date(data.to).getTime(), window_)}
+    </p>
   )
 }
 
@@ -131,6 +154,7 @@ function ProgressCard(p: {
   setSelectedShape: (s: string | null) => void
   highlightId: string | null
   setHighlightId: (id: string | null) => void
+  labelByShape: Map<string, string>
   onOpen: (id: string) => void
 }) {
   // Memoized together so `active` keeps its identity across renders and the
@@ -152,9 +176,14 @@ function ProgressCard(p: {
   const contextDots = useMemo(() =>
     p.data.points
       .filter((q) => !lineIds.has(q.session_id))
-      .map((q) => ({ t: new Date(q.t).getTime(), y: metricValue[p.metric](q), sessionId: q.session_id }))
+      .map((q) => ({
+        t: new Date(q.t).getTime(),
+        y: metricValue[p.metric](q),
+        sessionId: q.session_id,
+        label: shapeChip(q, p.labelByShape),
+      }))
       .filter((q) => q.y > 0),
-    [p.data.points, lineIds, p.metric])
+    [p.data.points, lineIds, p.metric, p.labelByShape])
 
   const pb = p.metric === 'split' && active?.pb_pace_sec_per_500m ? active.pb_pace_sec_per_500m : null
 
@@ -175,6 +204,7 @@ function ProgressCard(p: {
       <ProgressChart
         linePoints={linePoints}
         contextDots={contextDots}
+        lineLabel={active?.display_name}
         metric={p.metric}
         fmt={metricFmt[p.metric]}
         windowFromMs={new Date(p.data.from).getTime()}
@@ -199,8 +229,11 @@ function ProgressCard(p: {
   )
 }
 
-function SessionList({ data, highlightId }: { data: TrendsResponse; highlightId: string | null }) {
-  const labelByShape = new Map(data.series.map((s) => [s.key.shape_hash, s.display_name]))
+function SessionList({ data, highlightId, labelByShape }: {
+  data: TrendsResponse
+  highlightId: string | null
+  labelByShape: Map<string, string>
+}) {
   const rows = [...data.points].sort((a, b) => (a.t < b.t ? 1 : -1))
 
   const fmtTime = (sec: number) => {
@@ -243,7 +276,7 @@ function SessionList({ data, highlightId }: { data: TrendsResponse; highlightId:
   )
 }
 
-function shapeChip(q: TrendsPoint, labels: Map<string | undefined, string>): string {
+function shapeChip(q: TrendsPoint, labels: Map<string, string>): string {
   const fromSeries = q.shape_hash ? labels.get(q.shape_hash) : undefined
   if (fromSeries) return fromSeries
   switch (q.mode) {

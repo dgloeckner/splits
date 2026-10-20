@@ -1,9 +1,10 @@
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { TrendsResponse } from '../../api/client'
 import { setErgoStatus, _resetErgoStatusForTest } from '../../offline/ergoStatus'
+import { getRowerTrends } from '../../api/client'
 import { VerlaufTab } from './VerlaufTab'
 
 const trends: TrendsResponse = {
@@ -44,11 +45,11 @@ vi.mock('../../api/client', async (orig) => ({
   getRowerTrends: vi.fn(async () => trends),
 }))
 
-function mount() {
+function mount(entry = '/historie') {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
-      <MemoryRouter initialEntries={['/historie']}>
+      <MemoryRouter initialEntries={[entry]}>
         <VerlaufTab />
       </MemoryRouter>
     </QueryClientProvider>,
@@ -126,5 +127,45 @@ describe('VerlaufTab', () => {
     // data is present from mock, error placeholder should not appear
     await screen.findByTestId('verlauf-row-s3')
     expect(screen.queryByText('Konnte Verlauf nicht laden.')).toBeNull()
+  })
+
+  it('legend names the selected series and the other sessions', async () => {
+    mount()
+    const legend = await screen.findByTestId('progress-legend')
+    expect(legend.textContent).toContain('5 k')
+    expect(legend.textContent).toContain('andere Sessions')
+  })
+
+  it('range caption shows the resolved 30-day range', async () => {
+    mount()
+    const caption = await screen.findByTestId('verlauf-range-caption')
+    expect(caption.textContent).toMatch(/^1[23]\. Mai – 1[12]\. Jun 2026$/)
+  })
+
+  it('range caption for "all" starts at the oldest point', async () => {
+    vi.mocked(getRowerTrends).mockResolvedValueOnce({ ...trends, window: 'all', from: '0001-01-01T00:00:00Z' })
+    mount('/historie?window=all')
+    const caption = await screen.findByTestId('verlauf-range-caption')
+    expect(caption.textContent).toBe('seit 20. Mai 2026')
+  })
+
+  it('range caption also shows in the empty state', async () => {
+    vi.mocked(getRowerTrends).mockResolvedValueOnce({ ...trends, points: [], series: [] })
+    mount()
+    const empty = await screen.findByTestId('verlauf-empty')
+    expect(empty).toBeInTheDocument()
+    expect(screen.getByTestId('verlauf-range-caption').textContent).toMatch(/Mai – .* 2026$/)
+  })
+
+  it('scrubbing onto a context dot shows the row chip text in the strip, no delta', async () => {
+    mount()
+    const capture = await screen.findByTestId('progress-capture')
+    // jsdom: plot rect at 0, chart 300 px wide; s1 (20 May) is the leftmost dot.
+    fireEvent.pointerDown(capture, { clientX: 60, clientY: 50 })
+    fireEvent.pointerMove(capture, { clientX: 40, clientY: 50 })
+    const chip = await screen.findByTestId('progress-strip-shape')
+    const rowChip = within(screen.getByTestId('verlauf-row-s1')).getByText('Just Row')
+    expect(chip.textContent).toBe(rowChip.textContent)
+    expect(screen.queryByTestId('progress-strip-delta')).toBeNull()
   })
 })

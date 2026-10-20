@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { formatChartDate, formatStripDate, formatRollingDelta, formatMetric } from './format'
+import { formatChartDate, formatStripDate, formatRollingDelta, formatMetric, formatRangeCaption } from './format'
 
 // All dates in Berlin local for stability (the app already assumes Berlin TZ).
 const MAY_17_2026 = new Date('2026-05-17T10:00:00+02:00').getTime() // Sunday
@@ -31,6 +31,24 @@ describe('formatStripDate', () => {
   it('returns "D. Month · Weekday" in German', () => {
     expect(formatStripDate(MAY_17_2026)).toBe('17. Mai · Sonntag')
     expect(formatStripDate(JAN_3_2025)).toBe('3. Januar · Freitag')
+  })
+})
+
+describe('formatRangeCaption', () => {
+  const at = (iso: string) => new Date(`${iso}T12:00:00`).getTime()
+
+  it('omits the start year when both dates share a year', () => {
+    expect(formatRangeCaption(at('2026-09-20'), at('2026-10-20'), '30d')).toBe('20. Sep – 20. Okt 2026')
+  })
+
+  it('names both years across a year boundary', () => {
+    expect(formatRangeCaption(at('2025-10-20'), at('2026-10-20'), '365d')).toBe('20. Okt 2025 – 20. Okt 2026')
+    expect(formatRangeCaption(at('2025-12-21'), at('2026-01-20'), '30d')).toBe('21. Dez 2025 – 20. Jan 2026')
+  })
+
+  it('"all" starts at the oldest point, or names no range without points', () => {
+    expect(formatRangeCaption(at('2025-05-03'), at('2026-10-20'), 'all')).toBe('seit 3. Mai 2025')
+    expect(formatRangeCaption(null, at('2026-10-20'), 'all')).toBe('Alle Sessions')
   })
 })
 

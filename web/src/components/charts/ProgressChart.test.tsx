@@ -18,7 +18,7 @@ describe('ProgressChart', () => {
     { t: T('2026-05-27T08:00:00'), y: 116, sessionId: 'b' },
     { t: T('2026-06-10T08:00:00'), y: 114, sessionId: 'c' },
   ]
-  const ctx = [{ t: T('2026-06-01T08:00:00'), y: 130, sessionId: 'jr' }]
+  const ctx = [{ t: T('2026-06-01T08:00:00'), y: 130, sessionId: 'jr', label: 'Just Row' }]
 
   it('renders line dots, context dots, and Monday x-ticks', () => {
     render(<ProgressChart {...base} linePoints={line} contextDots={ctx} />)
@@ -57,5 +57,34 @@ describe('ProgressChart', () => {
     const pbY = Number(screen.getByText('PB 1:56').getAttribute('y'))
     const avgY = Number(screen.getByText('Ø 14 T').getAttribute('y'))
     expect(Math.abs(pbY - avgY)).toBeGreaterThanOrEqual(10)
+  })
+
+  it('legend names the line and the context dots', () => {
+    render(<ProgressChart {...base} linePoints={line} contextDots={ctx} lineLabel="5 k" />)
+    const legend = screen.getByTestId('progress-legend')
+    expect(legend.textContent).toContain('5 k')
+    expect(legend.textContent).toContain('andere Sessions')
+  })
+
+  it('no legend without context dots', () => {
+    render(<ProgressChart {...base} linePoints={line} contextDots={[]} lineLabel="5 k" />)
+    expect(screen.queryByTestId('progress-legend')).toBeNull()
+  })
+
+  it('free rower: legend has only the grey swatch, labelled "Sessions"', () => {
+    render(<ProgressChart {...base} linePoints={[]} contextDots={ctx} />)
+    expect(screen.getByTestId('progress-legend').textContent).toBe('Sessions')
+  })
+
+  it('a context dot shows its workout chip in the strip and no delta', () => {
+    render(<ProgressChart {...base} linePoints={line} contextDots={ctx} selectedSessionId="jr" />)
+    expect(screen.getByTestId('progress-strip-shape').textContent).toBe('Just Row')
+    expect(screen.queryByTestId('progress-strip-delta')).toBeNull()
+  })
+
+  it('a line dot shows the delta and no workout chip', () => {
+    render(<ProgressChart {...base} linePoints={line} contextDots={ctx} selectedSessionId="b" />)
+    expect(screen.queryByTestId('progress-strip-shape')).toBeNull()
+    expect(screen.getByTestId('progress-strip-delta')).toBeInTheDocument()
   })
 })

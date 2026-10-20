@@ -21,13 +21,16 @@ const PLOT_H = PLOT_BOTTOM - PLOT_TOP
 // Minimum vertical gap between the right-edge direct labels (PB, Ø).
 const LABEL_GAP = 11
 
-export type ProgressPoint = { t: number; y: number; sessionId: string }
+/** label: the workout chip shown in the strip; set on context dots only. */
+export type ProgressPoint = { t: number; y: number; sessionId: string; label?: string }
 
 export type ProgressChartProps = {
   /** Completed sessions of the selected shape — the line. */
   linePoints: ProgressPoint[]
   /** Every other session in the window — faint dots. */
   contextDots: ProgressPoint[]
+  /** Legend label of the line, the series' display name. */
+  lineLabel?: string
   metric: ChartMetric
   fmt: (v: number) => string
   /** Window bounds (ms) — the x-domain; ticks derive from these. */
@@ -108,7 +111,9 @@ export function ProgressChart(p: ProgressChartProps) {
   )
 
   const { scrubX, handlers } = useChartScrubber({
-    getPlotRect: () => captureRef.current?.getBoundingClientRect() ?? null,
+    // Dot x positions are SVG coordinates (they include PLOT_LEFT), so the
+    // pointer is measured from the SVG's left edge, not the capture rect's.
+    getPlotRect: () => captureRef.current?.ownerSVGElement?.getBoundingClientRect() ?? null,
     dots,
     onDotTap: p.onDotTap,
   })
@@ -134,6 +139,10 @@ export function ProgressChart(p: ProgressChartProps) {
     p.onScrubSession?.(activeId)
   }
 
+  const contextIds = useMemo(() => new Set(p.contextDots.map((q) => q.sessionId)), [p.contextDots])
+  // The delta compares against the line's rolling average, which says
+  // nothing about a 500 m dot on a 5 k line.
+  const activeIsContext = active !== null && contextIds.has(active.sessionId)
   const ravg = active ? (rolling.find((r) => r.t === active.t)?.y ?? null) : null
   const lastRolling = rolling[rolling.length - 1]
   const showPb = p.pbValue != null && p.pbValue >= yMin && p.pbValue <= yMax
@@ -146,20 +155,33 @@ export function ProgressChart(p: ProgressChartProps) {
   return (
     <div className={styles.wrap} ref={wrapRef}>
       <div className={styles.strip} data-testid="progress-strip">
-        <span className={styles.stripDate}>{active ? formatStripDate(active.t) : ''}</span>
+        <span className={styles.stripWhen}>
+          <span className={styles.stripDate}>{active ? formatStripDate(active.t) : ''}</span>
+          {active?.label && (
+            <span className={styles.stripShape} data-testid="progress-strip-shape">{active.label}</span>
+          )}
+        </span>
         {active && (
           <span className={styles.stripReadout}>
             <span className={styles.stripValue}>{p.fmt(active.y)}</span>
-            <span
-              className={
-                ravg !== null && isImprovement(active.y, ravg, p.metric)
-                  ? styles.stripDeltaGood
-                  : styles.stripDelta
-              }
-              data-testid="progress-strip-delta"
-            >
-              {formatStripDelta(active.y, ravg, p.rollingWindowDays, p.metric)}
-            </span>
+            {activeIsContext ? (
+              // Holds the delta's width so the strip does not reflow and
+              // move the chart under the finger.
+              <span className={`${styles.stripDelta} ${styles.stripDeltaHold}`} aria-hidden="true">
+                {formatStripDelta(1, 0, p.rollingWindowDays, p.metric)}
+              </span>
+            ) : (
+              <span
+                className={
+                  ravg !== null && isImprovement(active.y, ravg, p.metric)
+                    ? styles.stripDeltaGood
+                    : styles.stripDelta
+                }
+                data-testid="progress-strip-delta"
+              >
+                {formatStripDelta(active.y, ravg, p.rollingWindowDays, p.metric)}
+              </span>
+            )}
           </span>
         )}
       </div>
@@ -223,6 +245,21 @@ export function ProgressChart(p: ProgressChartProps) {
         <rect ref={captureRef} data-testid="progress-capture" className={styles.capture}
           x={PLOT_LEFT} y={PLOT_TOP} width={plotW} height={PLOT_H} {...handlers} />
       </svg>
+
+      {p.contextDots.length > 0 && (
+        <div className={styles.legend} data-testid="progress-legend">
+          {p.linePoints.length > 0 && (
+            <span className={styles.legendItem}>
+              <span className={`${styles.legendSwatch} ${styles.legendLine}`} aria-hidden="true" />
+              {p.lineLabel}
+            </span>
+          )}
+          <span className={styles.legendItem}>
+            <span className={`${styles.legendSwatch} ${styles.legendContext}`} aria-hidden="true" />
+            {p.linePoints.length > 0 ? 'andere Sessions' : 'Sessions'}
+          </span>
+        </div>
+      )}
     </div>
   )
 }

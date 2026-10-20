@@ -16,6 +16,25 @@
   min-height: 28px;
 }
 
+.stripWhen {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  /* The chip's height, so the strip keeps its height with or without it. */
+  min-height: 20px;
+}
+
+.stripShape {
+  font-size: 12px;
+  line-height: 16px;
+  border: 1px solid var(--color-outline-variant);
+  border-radius: 999px;
+  padding: 1px 8px;
+  color: var(--color-on-surface-variant);
+  white-space: nowrap;
+}
+
 .stripDate {
   font-size: 13px;
   color: var(--color-on-surface-variant);
@@ -62,6 +81,8 @@
   font-size: 12px;
   color: var(--color-on-surface-variant);
 }
+
+.stripDeltaHold { visibility: hidden; }
 
 .stripDeltaGood {
   font-size: 12px;
@@ -163,3 +184,17 @@
 .lineDot { fill: var(--color-primary); stroke: var(--color-surface-container); stroke-width: 1.5; }
 .sessionChart { margin: 0; }
 .sessionChartTitle { font-size: 12px; color: var(--color-on-surface-variant); margin-bottom: 4px; }
+
+.legend {
+  display: flex;
+  gap: var(--space-2);
+  padding-top: var(--space-1);
+  font-family: var(--font-body);
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+  white-space: nowrap;
+}
+.legendItem { display: inline-flex; align-items: center; gap: 6px; }
+.legendSwatch { width: 8px; height: 8px; border-radius: 50%; }
+.legendLine { background: var(--color-primary); }
+.legendContext { background: var(--color-on-surface-variant); opacity: 0.4; }
